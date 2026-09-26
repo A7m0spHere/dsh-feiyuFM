@@ -1,0 +1,28 @@
+# Dependencies and build output
+node_modules/
+dist/
+build/
+coverage/
+target/
+.turbo/
+.vite/
+
+# Local configuration and credentials
+.env
+.env.*
+!.env.example
+*.cookie
+*.cookies
+*.secret
+
+# Local runtime data
+*.sqlite
+*.sqlite3
+*.db
+*.log
+
+# Editors and operating systems
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
