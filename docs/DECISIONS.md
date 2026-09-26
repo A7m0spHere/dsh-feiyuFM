@@ -69,3 +69,9 @@
 用户随后要求命名并创建公开仓库，用于跨设备开发。仓库地址为 [A7m0spHere/dsh-fishfm](https://github.com/A7m0spHere/dsh-fishfm)，默认分支 `main`；开发分支采用 `codex/` 前缀。项目名称沿用 DSH 社区常见的 `dsh-` 前缀，FishFM 将大肥鱼形象与音乐主题结合。
 
 本次命名参考了 [dsh-dafeiyu](https://github.com/QCYTSN/dsh-dafeiyu) 和 [dsh-music-player](https://github.com/kendu76/dsh-music-player) 的公开仓库名称；不代表前述参考项目的功能、许可与性能验证已经完成。跨设备操作说明维护在根目录 README。
+
+## 7. 开发路线细化
+
+2026-09-27，按用户要求细化后续路线：Phase 1 先实现最小控制核心，Phase 2 提前接入真实 DSH 和网易云形成首条播放闭环，再完成 QQ；完整偏好成长与桌面体验放在 Phase 3。该调整只改变工程顺序，双平台、独立人格、默认角色和零新增 LLM 请求的 v0.1 范围不变。
+
+路线增加任务依赖、对应验收项、失败处理、跨设备交接和干净环境安装验证。P0-04 先使用独立测试音频验证宿主，再复测平台资源，消除 Provider 与 Playback 的循环依赖。所有实现和实验仍为未开始；本次没有执行技术验证或引入依赖。
