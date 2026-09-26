@@ -23,7 +23,7 @@
 | D07 探索 | 默认开启、20%、用户可设 0%～100% | 用户要求可调；20% 来自最终 MVP 默认值 |
 | D08 默认角色 | v0.1 包含一个默认角色，格式兼容可后续扩展 | 最终 MVP 第 18 节；纠正旧本地稿将角色整体列为非必需的偏差 |
 | D09 UI 生命周期 | 隐藏、关闭或崩溃 UI 后音乐核心继续 | 最终 MVP；继续播放所需宿主方式待验证 |
-| D10 项目名称 | 肥鱼电台 FishFM；仓库 `dsh-fishfm`；DeepSeek Music Persona 保留为定位描述 | 2026-09-27 按用户要求命名并创建公开仓库；SeekFM 为历史用名，npm 发布与许可证另行确定 |
+| D10 项目名称 | 肥鱼电台 FishFM；仓库 `dsh-feiyuFM`；DeepSeek Music Persona 保留为定位描述 | 2026-09-27 按用户要求命名并创建公开仓库；SeekFM 为历史用名，npm 发布与许可证另行确定 |
 
 ## 3. 本次补充的工程约定
 
@@ -66,7 +66,7 @@
 
 ## 6. 公开仓库与跨设备协作
 
-用户随后要求命名并创建公开仓库，用于跨设备开发。仓库地址为 [A7m0spHere/dsh-fishfm](https://github.com/A7m0spHere/dsh-fishfm)，默认分支 `main`；开发分支采用 `codex/` 前缀。项目名称沿用 DSH 社区常见的 `dsh-` 前缀，FishFM 将大肥鱼形象与音乐主题结合。
+用户随后要求命名并创建公开仓库，用于跨设备开发。仓库地址为 [A7m0spHere/dsh-feiyuFM](https://github.com/A7m0spHere/dsh-feiyuFM)，默认分支 `main`；开发分支采用 `codex/` 前缀。项目名称沿用 DSH 社区常见的 `dsh-` 前缀，FishFM 将大肥鱼形象与音乐主题结合。
 
 本次命名参考了 [dsh-dafeiyu](https://github.com/QCYTSN/dsh-dafeiyu) 和 [dsh-music-player](https://github.com/kendu76/dsh-music-player) 的公开仓库名称；不代表前述参考项目的功能、许可与性能验证已经完成。跨设备操作说明维护在根目录 README。
 

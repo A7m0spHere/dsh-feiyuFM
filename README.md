@@ -1,10 +1,10 @@
-# 肥鱼电台 FishFM · dsh-fishfm
+# 肥鱼电台 FishFM · dsh-feiyuFM
 
 给正在 DSH 里工作的 DeepSeek 一副耳机。
 
 从用户近期常听的音乐建立成长环境，由本地策略形成 Agent 的音乐偏好、记忆和自主选择；用户始终保留播放控制权。v0.1 同时支持网易云音乐和 QQ 音乐，桌面悬浮窗可随时隐藏。
 
-**当前状态：文档与技术验证准备阶段，尚无可运行插件。** 项目名为「肥鱼电台 FishFM」，仓库名为 `dsh-fishfm`；`DeepSeek Music Persona` 是产品定位，`SeekFM` 是早期讨论用名。当前没有插件安装、启动或测试命令，尚未发布 npm 包。
+**当前状态：文档与技术验证准备阶段，尚无可运行插件。** 项目名为「肥鱼电台 FishFM」，仓库名为 `dsh-feiyuFM`；`DeepSeek Music Persona` 是产品定位，`SeekFM` 是早期讨论用名。当前没有插件安装、启动或测试命令，尚未发布 npm 包。
 
 这是独立维护的 DSH 社区项目，名称呼应 DeepSeek 大肥鱼形象；与大肥鱼插件的关系是实现参考，不要求安装该插件。
 
@@ -30,11 +30,11 @@
 
 ## 跨设备开发
 
-公开仓库：[A7m0spHere/dsh-fishfm](https://github.com/A7m0spHere/dsh-fishfm)。新设备克隆后，让开发 Agent 先读取根目录 `AGENTS.md` 和项目规划。
+公开仓库：[A7m0spHere/dsh-feiyuFM](https://github.com/A7m0spHere/dsh-feiyuFM)。新设备克隆后，让开发 Agent 先读取根目录 `AGENTS.md` 和项目规划。
 
 ```sh
-git clone https://github.com/A7m0spHere/dsh-fishfm.git
-cd dsh-fishfm
+git clone https://github.com/A7m0spHere/dsh-feiyuFM.git
+cd dsh-feiyuFM
 ```
 
 每次开始工作前，在工作区干净时同步；独立工作使用单独分支：
