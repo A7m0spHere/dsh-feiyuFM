@@ -78,6 +78,10 @@
 
 ## 8. Phase 1 离线实现选择
 
-2026-09-27，在本机发现 DSH desktop profile (`C:\Users\86137\.dsh\profiles`)；runtime 清单与 `dsh.CMD --version` 显示 `0.1.7-rc.2`，可读取的 `dsh-shell` 和 `dsh-hook-protocol` 包为同版本。部分 desktop profile 包链接不可解析，未在其内安装插件；在隔离 Web profile 观察到最小插件的 `apply` 和退出清理，详见 [P0-01](spikes/P0-01-dsh.md)。真实事件负载和命令入口仍未验证。
+2026-09-27，在本机发现 DSH desktop profile (`C:\Users\86137\.dsh\profiles`)；runtime 清单与 `dsh.CMD --version` 显示 `0.1.7-rc.2`，可读取的 `dsh-shell` 和 `dsh-hook-protocol` 包为同版本。部分 desktop profile 包链接不可解析，未在其内安装插件；在隔离 Web profile 实测 `session/event` 类型、工具自调用、慢调用期间宿主响应和独立 Core 子进程的加载/卸载，详见 [P0-01](spikes/P0-01-dsh.md)。真实用户命令和 desktop 接入仍未验证。
 
 控制核心暂用本机 Node 24.14.0 的 ESM、`node:test`、`node:sqlite` 和 npm 零外部依赖；真实运行 SQLite 迁移与重启测试后才添加代码包。此选择只适用于 Phase 1 离线核心，不锁定 DSH SDK、IPC 或真实播放后端。Node 24.14.0 对 `node:sqlite` 给出实验性警告，后续宿主确定时需重新评估版本或驱动。来源：[Node 24 SQLite 文档](https://nodejs.org/docs/latest-v24.x/api/sqlite.html)、[Node test 文档](https://nodejs.org/docs/latest-v24.x/api/test.html)、本地 `runtime.json` 和 `npm test` 输出。
+
+播放宿主基础实验另用本机 WPF `MediaPlayer` 播放自生成音频，验证暂停、静音、曲终和父进程退出后的存活，详见 [P0-04](spikes/P0-04-playback.md)。WPF 是 Windows 独立进程候选，不是已选定的生产音频后端；真实平台资源、IPC 与可见 UI 进程边界仍需验证。
+
+P0-04 随后用同用户 Windows 命名管道连接独立 WPF 播放进程，验证暂停、静音、断线重连、静音整曲曲终与停用；IPC 方向有局部实测，但协议版本、真实音频资源和桌面 UI 边界仍待正式适配。[P0-06](spikes/P0-06-local-data.md) 还验证了 DSH 凭据服务保存用户级 DPAPI 密文 grant；首轮 Windows 凭据方向是 DSH 凭据记录加 DPAPI，SQLite 只存引用，真实平台登录和 desktop profile 尚未验证。

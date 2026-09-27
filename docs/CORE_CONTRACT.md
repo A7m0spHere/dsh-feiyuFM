@@ -9,6 +9,7 @@
 - Provider `resolve(track, { signal, version })` 返回 `{ handle, expiresAt? }`。`handle` 只在调用 Playback 时传递，不保存到 SQLite 或状态快照。Provider 同时暴露显式账号状态和能力状态；缺失能力不能伪装为空结果。
 - Playback 实现 `load({ resource, playInstanceId, startPositionMs, version, signal })`、`play`、`pause`、`stop`、`setMuted`。`load` 返回实际就绪的 `{ positionMs }`；无法 seek 时返回 0，Core 重置本次进度。Playback 必须丢弃比已接受版本旧的命令。真实 Playback 接入前，需要用同一契约检查这些要求。
 - Playback 事件为 `started`、`progress`、`ended`、`error`，均带 `playInstanceId`，并应回传 `version` 以拒绝旧事件。`progress` 带 `positionMs` 和 `progressSource` (`audio` 或 `logical`)。逻辑进度只接受已知时长的曲目。
+- 真实后端只有确认媒体打开并开始推进后才能发 `started`；调用系统 `Play()` 成功不足以证明资源可播。WPF 探针中无效资源可能延迟触发 `MediaFailed`，恢复瞬间还可能短暂报告 0 ms，适配器需要等待稳定事实并设置有限超时。
 
 ## 命令与快照
 
@@ -20,6 +21,6 @@
 
 ## 存储与进程
 
-首版 SQLite 迁移有 `settings`、`core_state`、`constraints`、`credential_references`、`processed_commands`、`listen_history` 和 `track_stats`。完成事件的历史插入与统计更新在一个事务中，`playInstanceId` 唯一。`selectedBy`、`agentListening`、`progressSource` 和 `audible` 分别记录，避免把点歌、逻辑进度和可听输出混作一件事。重启后保留曲目与位置，但强制暂停；不会用墙钟补算进度。数据库只保存凭据引用，实际凭据后端未选定。
+首版 SQLite 迁移有 `settings`、`core_state`、`constraints`、`credential_references`、`processed_commands`、`listen_history` 和 `track_stats`。完成事件的历史插入与统计更新在一个事务中，`playInstanceId` 唯一。`selectedBy`、`agentListening`、`progressSource` 和 `audible` 分别记录，避免把点歌、逻辑进度和可听输出混作一件事。重启后保留曲目与位置，但强制暂停；不会用墙钟补算进度。数据库只保存凭据引用；Windows 的 DSH grant 加 DPAPI 方案已有合成测试，真实平台与 desktop profile 尚待验证。
 
-Core 当前可由独立 Node 进程执行；实际 DSH 进程启动、停用、IPC 和播放宿主仍待 Phase 0 验证。`node:sqlite` 在本机 Node 24.14.0 可用，但该版本仍给出实验性提示；升级或替换存储驱动前需要复测迁移与事务。
+Core 当前可由独立 Node 进程执行；[P0-01 样例](spikes/P0-01-dsh.md)已验证隔离 DSH Web profile 启动/清理子进程，[P0-04 样例](spikes/P0-04-playback.md)已验证 Windows 同用户管道控制独立播放器及重连。正式 DSH desktop 适配、播放实例/版本 IPC 和平台音频仍待验证。`node:sqlite` 在本机 Node 24.14.0 可用，但该版本仍给出实验性提示；升级或替换存储驱动前需要复测迁移与事务。

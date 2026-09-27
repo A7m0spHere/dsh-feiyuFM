@@ -93,14 +93,16 @@ test('restart restores the selected track paused without inventing progress', as
     await first.core.waitForIdle();
     const id = first.core.snapshot().current.playInstanceId;
     first.core.onPlaybackEvent({ type: 'progress', playInstanceId: id, positionMs: 3000 });
-    first.store.setCredentialReference({ provider: 'netease', credentialRef: 'os-keyring:slot-1', state: 'authorized', updatedAt: first.clock.now() });
+    first.store.setCredentialReference({ provider: 'netease', credentialRef: 'fishfm/netease', state: 'authorized', updatedAt: first.clock.now() });
     first.store.close();
     const second = harness(new MusicStore(path));
     assert.equal(second.core.snapshot().paused, true);
     assert.equal(second.core.snapshot().current.positionMs, 3000);
     assert.equal(second.playback.playing, false);
     assert.equal(second.store.getTrackStats(a), null);
-    assert.equal(second.store.getCredentialReference('netease').credential_ref, 'os-keyring:slot-1');
+    assert.equal(second.store.getCredentialReference('netease').credential_ref, 'fishfm/netease');
+    second.store.removeCredentialReference('netease');
+    assert.equal(second.store.getCredentialReference('netease'), null);
     second.store.close();
   } finally {
     rmSync(directory, { recursive: true, force: true });
