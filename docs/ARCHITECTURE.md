@@ -1,6 +1,6 @@
 # 技术架构草案
 
-更新：2026-09-27。状态：**待 Phase 0 验证，非已实现 API。** 产品行为见 [MVP](MVP.md)。
+更新：2026-09-27。状态：**Phase 1 内部 Core/Storage 契约已离线实现；DSH、Provider、Playback 和 Desktop 接口仍待 Phase 0 验证。** 产品行为见 [MVP](MVP.md)，已实现契约见 [CORE_CONTRACT](CORE_CONTRACT.md)。
 
 ## 1. 模块与宿主
 
@@ -19,7 +19,7 @@ Provider 负责拿到可播放资源，Playback 负责发出声音，Core 负责
 
 Core 可以是插件托管的模块或独立工作进程；Playback 的具体后端待实验确定。硬约束是**可见窗口及桌面 UI 进程退出，不应停止 Core 或 Playback**。不能把唯一音频元素放进可关闭的角色 WebView。若选择隐藏宿主，必须验证其与可见 UI 的进程关系，不能用“窗口隐藏成功”冒充“进程退出后继续播放”。
 
-Tauri 2、小窗和 SQLite 是拟定方向；语言、包管理器、DSH SDK、音频后端和 IPC 协议版本尚未锁定。不提前写未经验证的安装命令。
+Phase 1 的独立核心暂用 Node 24 ESM、内置 `node:sqlite` 和 npm 锁文件，已在 Windows 本机验证离线运行；它没有固定 DSH SDK、播放后端或 IPC。Tauri 2 和小窗仍为拟定方向，Core/Playback 的最终宿主仍要通过 Phase 0 实测。
 
 ## 2. 责任边界
 

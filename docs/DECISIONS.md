@@ -75,3 +75,9 @@
 2026-09-27，按用户要求细化后续路线：Phase 1 先实现最小控制核心，Phase 2 提前接入真实 DSH 和网易云形成首条播放闭环，再完成 QQ；完整偏好成长与桌面体验放在 Phase 3。该调整只改变工程顺序，双平台、独立人格、默认角色和零新增 LLM 请求的 v0.1 范围不变。
 
 路线增加任务依赖、对应验收项、失败处理、跨设备交接和干净环境安装验证。P0-04 先使用独立测试音频验证宿主，再复测平台资源，消除 Provider 与 Playback 的循环依赖。所有实现和实验仍为未开始；本次没有执行技术验证或引入依赖。
+
+## 8. Phase 1 离线实现选择
+
+2026-09-27，在本机发现 DSH desktop profile (`C:\Users\86137\.dsh\profiles`)；runtime 清单与 `dsh.CMD --version` 显示 `0.1.7-rc.2`，可读取的 `dsh-shell` 和 `dsh-hook-protocol` 包为同版本。部分 desktop profile 包链接不可解析，未在其内安装插件；在隔离 Web profile 观察到最小插件的 `apply` 和退出清理，详见 [P0-01](spikes/P0-01-dsh.md)。真实事件负载和命令入口仍未验证。
+
+控制核心暂用本机 Node 24.14.0 的 ESM、`node:test`、`node:sqlite` 和 npm 零外部依赖；真实运行 SQLite 迁移与重启测试后才添加代码包。此选择只适用于 Phase 1 离线核心，不锁定 DSH SDK、IPC 或真实播放后端。Node 24.14.0 对 `node:sqlite` 给出实验性警告，后续宿主确定时需重新评估版本或驱动。来源：[Node 24 SQLite 文档](https://nodejs.org/docs/latest-v24.x/api/sqlite.html)、[Node test 文档](https://nodejs.org/docs/latest-v24.x/api/test.html)、本地 `runtime.json` 和 `npm test` 输出。

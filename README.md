@@ -4,7 +4,19 @@
 
 从用户近期常听的音乐建立成长环境，由本地策略形成 Agent 的音乐偏好、记忆和自主选择；用户始终保留播放控制权。v0.1 同时支持网易云音乐和 QQ 音乐，桌面悬浮窗可随时隐藏。
 
-**当前状态：文档与技术验证准备阶段，尚无可运行插件。** 项目名为「肥鱼电台 FishFM」，仓库名为 `dsh-feiyuFM`；`DeepSeek Music Persona` 是产品定位，`SeekFM` 是早期讨论用名。当前没有插件安装、启动或测试命令，尚未发布 npm 包。
+**当前状态：Phase 1 离线控制核心已可运行，尚无接入真实 DSH 或音乐平台的插件。** 项目名为「肥鱼电台 FishFM」，仓库名为 `dsh-feiyuFM`；`DeepSeek Music Persona` 是产品定位，`SeekFM` 是早期讨论用名。尚未发布 npm 包。
+
+Node 24.14～24.x 下可运行离线检查，不需要音乐账号：
+
+```sh
+npm ci --ignore-scripts --no-audit --no-fund
+npm run check
+npm test
+npm run build
+npm run debug
+```
+
+调试入口读取 JSON 行。例如依次输入 `{"queue":[{"provider":"netease","providerTrackId":"1","title":"Demo"}]}`、`{"type":"next"}`、`{"type":"resume"}`、`wait`、`snapshot`，可观察状态和假播放服务。`npm run debug -- --db <本地路径>` 可试验重启恢复；不要把数据库提交入库。此入口不播放真实音乐。内部接口与边界见 [Phase 1 控制契约](docs/CORE_CONTRACT.md)。
 
 这是独立维护的 DSH 社区项目，名称呼应 DeepSeek 大肥鱼形象；与大肥鱼插件的关系是实现参考，不要求安装该插件。
 
@@ -16,6 +28,7 @@
 | [MVP 产品规格](docs/MVP.md) | 范围、用户行为、默认设置与验收标准 |
 | [技术架构](docs/ARCHITECTURE.md) | 模块职责、播放生命周期、数据与事件边界 |
 | [Phase 0 验证清单](docs/PHASE_0.md) | 开发前必须验证的接口和最小实验 |
+| [Phase 1 控制契约](docs/CORE_CONTRACT.md) | 已实现的内部接口、命令和存储语义 |
 | [决策与参考线索](docs/DECISIONS.md) | 对话来源、取舍、待验证项目与本次整理记录 |
 
 ## 项目约束
@@ -26,7 +39,7 @@
 - 两个平台的适配器由项目维护，参考社区实现，不强制依赖其他 DSH 音乐或桌宠插件。
 - 音乐核心与播放服务独立于可见窗口；隐藏、关闭或崩溃的悬浮窗不能带走它们。
 
-接口、技术栈和第三方能力尚待验证；文档中的设计不代表功能已经实现。下一步按 [Phase 0](docs/PHASE_0.md) 验证 DSH 接入、双平台真实播放与桌面进程边界。
+真实宿主接口、第三方能力和播放后端仍待验证；离线测试通过不代表真实平台验收通过。下一步按 [Phase 0](docs/PHASE_0.md) 验证 DSH 接入、双平台真实播放与桌面进程边界。
 
 ## 跨设备开发
 

@@ -4,7 +4,7 @@
 
 ## 事实与文档入口
 
-- 当前是文档与技术验证准备阶段，没有已实现的功能或测试命令。
+- 当前已有 Phase 1 离线控制核心、SQLite 首版迁移、替身及调试入口；真实 DSH、平台和音频接入尚未实现。`npm run check`、`npm test`、`npm run build` 为可执行的离线命令。
 - 产品行为和验收以 `docs/MVP.md` 为准；模块边界以 `docs/ARCHITECTURE.md` 为准。
 - 执行进度以 `docs/PROJECT_PLAN.md` 为准；技术验证任务与证据要求见 `docs/PHASE_0.md`。
 - 来源、取舍和未核实参考见 `docs/DECISIONS.md`。对话里的推荐、示意 API 和性能描述不等于已验证事实。

@@ -6,6 +6,7 @@ coverage/
 target/
 .turbo/
 .vite/
+.tmp/
 
 # Local configuration and credentials
 .env
