@@ -43,16 +43,21 @@ export function createNetEaseProvider(options = {}) {
     labels: { firstSource: 'Recent playback' },
     ...options,
     parse: {
-      // Scan responses: a key to poll with, plus whatever the caller may show.
-      // The key has been seen both at the top level and under `data.unikey`.
+      // Scan responses.
+      // CONFIRMED (2026-09-27): POST /api/login/qrcode/unikey?type=1 answers
+      // {"code":200,"unikey":"<uuid>"} — the key is at the top level.
       loginQr: (body) => {
         const data = body?.data ?? body;
         return {
-          key: data?.unikey ?? body?.key ?? data?.key ?? null,
-          qrImage: body?.qrImage ?? body?.qrimg ?? data?.qrimg ?? null,
-          qrUrl: body?.qrUrl ?? body?.url ?? data?.qrurl ?? body?.qrurl ?? null,
+          key: body?.unikey ?? data?.unikey ?? body?.key ?? data?.key ?? null,
+          qrImage: body?.qrimg ?? data?.qrimg ?? null,
+          qrUrl: body?.qrurl ?? data?.qrurl ?? body?.qrUrl ?? null,
         };
       },
+      // CONFIRMED: POST /api/login/qrcode/client/login answers 800 for an
+      // expired or unknown code (message: 二维码不存在或已过期). The remaining
+      // codes follow the community-documented progression and are still
+      // hypotheses: 801 waiting, 802 scanned, 803 confirmed with a cookie.
       loginPoll: (body) => {
         const code = body?.code ?? body?.status ?? null;
         if (code === 800 || code === 'expired') return { status: 'expired', code };
@@ -61,7 +66,8 @@ export function createNetEaseProvider(options = {}) {
         if (code !== 803 && code !== 'confirmed' && !body?.cookie) return { status: 'waiting', code };
         return { status: 'authorized', code, secret: body?.cookie ?? null, accountId: body?.accountId ?? body?.userId ?? null };
       },
-      accountId: (body) => body?.accountId ?? body?.userId ?? body?.profile?.userId ?? null,
+      // CONFIRMED shape when signed out: {"code":200,"account":null,"profile":null}.
+      accountId: (body) => body?.profile?.userId ?? body?.account?.id ?? body?.accountId ?? body?.userId ?? null,
       search: (body) => body?.songs ?? body?.result?.songs ?? [],
       playUrl: (body) => {
         const entry = Array.isArray(body?.data) ? body.data[0] : (body?.data ?? body);

@@ -11,7 +11,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { createHttpTransport } from '../src/providers/transport.mjs';
 import { createNetEaseProvider } from '../src/providers/netease.mjs';
-import { neteaseEndpoints, NETEASE_ENDPOINT_PROVENANCE } from '../src/providers/endpoints/netease.mjs';
+import { neteaseEndpoints, NETEASE_ENDPOINT_PROVENANCE, NETEASE_QR_LOGIN_URL, CONFIRMED_ROLES } from '../src/providers/endpoints/netease.mjs';
 import { createMemoryCredentials } from '../src/providers/credentials-dpapi.mjs';
 
 const root = resolve(import.meta.dirname, '..');
@@ -33,11 +33,11 @@ async function qrServer({ codes = [801, 802, 803], qrImage = true, failRoles = {
         return;
       }
       res.setHeader('content-type', 'application/json');
-      if (role === 'login/qr/key') {
-        res.end(JSON.stringify({ code: 200, data: { unikey: 'unikey-abcdef123456' } }));
+      if (role === 'login/qrcode/unikey') {
+        res.end(JSON.stringify({ code: 200, unikey: 'unikey-abcdef123456' }));
         return;
       }
-      if (role === 'login/qr/create') {
+      if (role === 'login/qrcode/create') {
         // A minimal but real PNG payload, so the writer path is exercised.
         const png = Buffer.from('89504e470d0a1a0a0000000d49484452', 'hex').toString('base64');
         res.end(JSON.stringify(qrImage
@@ -45,7 +45,7 @@ async function qrServer({ codes = [801, 802, 803], qrImage = true, failRoles = {
           : { code: 200, data: { qrurl: 'https://music.163.com/login?codekey=unikey-abcdef123456' } }));
         return;
       }
-      if (role === 'login/qr/check') {
+      if (role === 'login/qrcode/client/login') {
         const code = codes[Math.min(polls, codes.length - 1)];
         polls += 1;
         const payload = { code };
@@ -96,12 +96,10 @@ test('the whole QR handshake completes and stores the session', async () => {
   try {
     const started = await context.provider.beginLogin();
     assert.equal(started.key, 'unikey-abcdef123456');
-    assert.match(server.seen[0].role, /login\/qr\/key/);
+    assert.match(server.seen[0].role, /login\/qrcode\/unikey/);
 
-    // The QR image arrives as a data URL and is written as a real file.
-    const image = await context.transport.request({ role: 'qrImage', params: { key: started.key } });
-    const base64 = image.body.data.qrimg.replace(/^data:image\/\w+;base64,/, '');
-    assert.ok(Buffer.from(base64, 'base64').subarray(0, 4).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47])), 'a PNG header');
+    // The QR is rendered locally from this URL; the service provides no image.
+    assert.match(`${NETEASE_QR_LOGIN_URL}?codekey=${started.key}`, /^https:\/\/music\.163\.com\/login\?codekey=/);
 
     // Polling walks waiting → scanned → authorized.
     assert.equal((await context.provider.pollLogin()).status, 'waiting');
@@ -139,21 +137,26 @@ test('an expired QR is reported as expired and clears the pending sign-in', asyn
   }
 });
 
-test('a missing QR image falls back to the URL rather than failing the sign-in', async () => {
-  const server = await qrServer({ qrImage: false });
+test('a fresh key polls as waiting, which is the state the service really reports', async () => {
+  // Measured against the live service: a fresh key answers 801 等待扫码. The
+  // test server's first poll answer is 801, so this asserts the parser maps it
+  // to `waiting` rather than treating it as a failure.
+  const server = await qrServer({ codes: [801, 800] });
   const context = providerAgainst(server.origin);
   try {
     const started = await context.provider.beginLogin();
-    const image = await context.transport.request({ role: 'qrImage', params: { key: started.key } });
-    assert.equal(image.body.data.qrimg, undefined);
-    assert.match(image.body.data.qrurl, /music\.163\.com\/login\?codekey=/);
+    assert.equal(started.key, 'unikey-abcdef123456');
+    const first = await context.provider.pollLogin();
+    assert.equal(first.status, 'waiting');
+    // And the confirmed expiration code is reported as expired.
+    assert.equal((await context.provider.pollLogin()).status, 'expired');
   } finally {
     await server.close();
   }
 });
 
 test('an endpoint that answers with an unexpected status is surfaced, not swallowed', async () => {
-  const server = await qrServer({ failRoles: { 'login/qr/key': 500 } });
+  const server = await qrServer({ failRoles: { 'login/qrcode/unikey': 500 } });
   const context = providerAgainst(server.origin);
   try {
     await assert.rejects(() => context.provider.beginLogin(), (error) => {
@@ -167,7 +170,7 @@ test('an endpoint that answers with an unexpected status is surfaced, not swallo
 });
 
 test('a 404 on the key request is a profile problem, reported as such', async () => {
-  const server = await qrServer({ failRoles: { 'login/qr/key': 404 } });
+  const server = await qrServer({ failRoles: { 'login/qrcode/unikey': 404 } });
   const context = providerAgainst(server.origin);
   try {
     await assert.rejects(() => context.provider.beginLogin(), { code: 'media_unavailable' });
@@ -176,15 +179,37 @@ test('a 404 on the key request is a profile problem, reported as such', async ()
   }
 });
 
+test('the QR code is rendered locally from the sign-in URL, since the service produces none', async () => {
+  // Measured 2026-09-27: no image endpoint exists, so the scan URL must be
+  // rendered here. The renderer is a dev-time tool dependency (MIT).
+  const { default: QRCode } = await import('qrcode');
+  const directory = mkdtempSync(join(tmpdir(), 'fishfm-qr-test-'));
+  const file = join(directory, 'qr.png');
+  try {
+    const url = 'https://music.163.com/login?codekey=454fd6d9-2c2b-482b-b2ea-eb49dd1a464d';
+    await QRCode.toFile(file, url, { width: 240, margin: 2, errorCorrectionLevel: 'M' });
+    const bytes = readFileSync(file);
+    assert.ok(bytes.length > 500, `expected a real image, got ${bytes.length} bytes`);
+    assert.ok(bytes.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])), 'a PNG header');
+
+    // The terminal form is the fallback when no image viewer opens.
+    const ascii = await QRCode.toString(url, { type: 'terminal', small: true });
+    assert.ok(ascii.split('\n').length > 10, 'a terminal rendering is available');
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
 test('the endpoint profile declares itself unverified and covers the sign-in roles', () => {
   const endpoints = neteaseEndpoints();
-  for (const role of ['loginQr', 'qrImage', 'loginPoll', 'accountInfo', 'search', 'resolve', 'recentTracks', 'likedTracks', 'playlists', 'playlistTracks']) {
+  for (const role of ['loginQr', 'loginPoll', 'accountInfo', 'search', 'resolve', 'recentTracks', 'likedTracks', 'playlists', 'playlistTracks']) {
     assert.ok(endpoints[role], `${role} must have an endpoint`);
     assert.match(endpoints[role].url, /^https:\/\/music\.163\.com\//, `${role} should point at the public web API`);
   }
-  // Nothing may claim to be confirmed while it is not.
-  assert.deepEqual([...NETEASE_ENDPOINT_PROVENANCE.confirmed], []);
-  assert.ok(NETEASE_ENDPOINT_PROVENANCE.hypotheses.length >= 8);
+  // The measured roles are recorded as confirmed facts.
+  assert.deepEqual([...CONFIRMED_ROLES].sort(), ['accountInfo', 'loginPoll', 'loginQr', 'resolve', 'search']);
+  assert.ok(NETEASE_ENDPOINT_PROVENANCE.hypotheses.length >= 4, 'the unverified roles are declared as hypotheses');
+  assert.equal(NETEASE_ENDPOINT_PROVENANCE.measuredOn, '2026-09-27', 'the measurement date is recorded');
   assert.match(NETEASE_ENDPOINT_PROVENANCE.note, /unexpected body/i);
 });
 
@@ -195,9 +220,11 @@ test('search and resolve send the parameters the profile declares', async () => 
   context.rows.setCredentialReference({ provider: 'netease', credentialRef: 'fishfm/netease', state: 'authorized', accountId: '1' });
   try {
     await context.provider.search('德彪西', { limit: 5 }).catch(() => {});
+    // Confirmed shape: search is a GET whose parameters are in the query string.
     const searchCall = server.seen.find((row) => row.role === 'search/get/web');
     assert.ok(searchCall, 'the search endpoint was called');
-    assert.match(searchCall.body, /s=/);
+    assert.equal(searchCall.query.s, '德彪西');
+    assert.equal(searchCall.query.type, '1');
 
     await context.provider.resolve({ provider: 'netease', providerTrackId: '42' }, {}).catch(() => {});
     const urlCall = server.seen.find((row) => row.role === 'song/enhance/player/url');
@@ -271,9 +298,10 @@ test('--help-free smoke: the command starts, asks the platform, and reports a sh
       child.stderr.on('data', (chunk) => { out += chunk; });
       child.on('close', (code) => done({ code, out }));
     });
-    // Without the env override the command talks to the real host, so this run
-    // asserts only that the diagnostic path exists and never prints a secret.
-    assert.equal(/live-session|MUSIC_U=/.test(result.out), false, 'no session material may be printed');
+    assert.equal(result.code, 1, 'a response without a key is a failure, not a silent success');
+    assert.match(result.out, /did not return a sign-in key/, 'the failure names what went wrong');
+    assert.match(result.out, /unexpected/, 'the response shape is printed so the profile can be fixed');
+    assert.equal(/MUSIC_U=|session/.test(result.out), false, 'no session material may be printed');
   } finally {
     await new Promise((d) => server.close(d));
     rmSync(directory, { recursive: true, force: true });

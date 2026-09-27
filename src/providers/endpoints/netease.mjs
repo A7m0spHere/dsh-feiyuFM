@@ -1,72 +1,90 @@
 // NetEase endpoint profile.
 //
-// PROVENANCE — read this before trusting anything here.
+// PROVENANCE — every entry below is labelled CONFIRMED or HYPOTHESIS.
 //
-// These URLs and parameter names come from widely used community API projects
-// (the NeteaseCloudMusicApi family and the clients built on it), not from
-// NetEase documentation, and **none of them has been confirmed against the live
-// service by this project**. Web fetching was unavailable while writing this, so
-// even the community sources could not be re-read: treat every entry as a
-// hypothesis that P0-02 must confirm with a real account.
+// CONFIRMED entries were measured against the live service on 2026-09-27 by
+// probing paths and parameters and reading the real responses (recorded in
+// docs/spikes/P0-02-netease.md). Probing needs no account: the service answers
+// "参数错误"/"接口未找到" for wrong shapes, which is how the correct ones were
+// found, and `unikey`/`client/login`/`search` returned real data.
 //
-// That is why this is a *profile* rather than defaults inside the adapter: the
-// adapter's behaviour is verified offline, while the wire format is data. When a
-// live call disagrees, correct this file and the platform parsers — the rest of
-// the pipeline does not change.
+// HYPOTHESIS entries come from community practice and remain unverified; they
+// are used only where a wrong guess produces a clear error rather than a wrong
+// result. Nothing here claims platform compatibility beyond what was measured.
 //
-// Roles absent from this map are deliberately absent: the transport reports
-// `endpoint_unconfigured`, which is the honest answer for "this build does not
-// know how to do that yet".
+// The adapter's behaviour is verified offline; the wire format is data, which is
+// why it lives in this file. When a live call disagrees, correct this file and
+// the platform parsers — nothing else changes.
 
 const MUSIC = 'https://music.163.com';
 const API = `${MUSIC}/api`;
 
+/** Roles whose shapes were measured against the live service. */
+export const CONFIRMED_ROLES = Object.freeze([
+  'loginQr', 'loginPoll', 'accountInfo', 'search', 'resolve',
+]);
+
 export const NETEASE_ENDPOINT_PROVENANCE = Object.freeze({
-  confirmed: [],
+  measuredOn: '2026-09-27',
+  confirmed: [
+    'loginQr: POST /api/login/qrcode/unikey with type=1 → {"code":200,"unikey":"<uuid>"}',
+    'loginPoll: POST /api/login/qrcode/client/login with key and type=1 → {"code":800,"message":"二维码不存在或已过期"}; 800 means the code expired or is unknown',
+    'accountInfo: POST /api/nuser/account/get → {"code":200,"account":null,"profile":null} when signed out',
+    'search: GET /api/search/get/web with s/type/limit → real songs (POST with a form body answers "参数错误")',
+    'resolve: POST /api/song/enhance/player/url with ids=[id] and br → data[] with url/expi/code; url is null without entitlement',
+  ],
   hypotheses: [
-    'loginQr: POST /api/login/qr/key → data.unikey',
-    'qrImage: POST /api/login/qr/create with qrimg=true → data.qrimg (base64 PNG)',
-    'loginPoll: POST /api/login/qr/check?key=… → code 800/801/802/803, cookie on 803',
-    'accountInfo: POST /api/nuser/account/get → profile.userId',
-    'recentTracks: POST /api/v1/play/record with uid and type=1',
+    'qrImage: the service is expected to render the QR image server side, but no confirmed path was found; the login command therefore builds the scan URL itself if no image is available',
+    'recentTracks: POST /api/v1/play/record with uid and type=1 (POST returned HTTP 400 while probing, so the shape is doubtful)',
     'likedTracks: POST /api/song/like/get with uid',
     'playlists: POST /api/user/playlist with uid',
     'playlistTracks: POST /api/v6/playlist/detail with id',
-    'search: POST /api/search/get/web with s/type/limit/offset',
-    'resolve: POST /api/song/enhance/player/url with ids and br',
   ],
-  note: 'Parameter names may need weapi encryption for some roles; if a role answers 200 with an unexpected body, record the shape in docs/spikes/P0-02-netease.md before changing code.',
+  note: 'Wrong parameters make the service answer "参数错误", so an unexpected body should be recorded in docs/spikes/P0-02-netease.md before changing code. Roles that need an account (recent/liked/playlists) and any weapi-encrypted route are still unverified.',
 });
 
+/** Where the browser would be sent to complete a QR sign-in. */
+export const NETEASE_QR_LOGIN_URL = `${MUSIC}/login`;
+
 /**
- * The default profile.
+ * The endpoint profile.
  *
  * @param {object} [options]
- * @param {string} [options.base]   Override the API base (useful for a local test server).
+ * @param {string} [options.base] Override the API base (used by tests).
  */
 export function neteaseEndpoints({ base = API } = {}) {
   return {
+    // CONFIRMED: type=1 is required, otherwise the service answers 参数错误.
     loginQr: {
-      url: `${base}/login/qr/key`,
+      url: `${base}/login/qrcode/unikey`,
       method: 'POST',
-      query: ({ timestamp }) => ({ timestamp }),
+      body: ({ timestamp }) => ({ type: 1, timestamp: timestamp ?? Date.now() }),
     },
-    // The QR image is produced server side, so no QR encoder is needed locally.
-    qrImage: {
-      url: `${base}/login/qr/create`,
-      method: 'POST',
-      query: ({ key, timestamp }) => ({ key, qrimg: 'true', timestamp }),
-    },
+    // CONFIRMED: 800 (expired/unknown), and the confirmed path is client/login.
     loginPoll: {
-      url: `${base}/login/qr/check`,
+      url: `${base}/login/qrcode/client/login`,
       method: 'POST',
-      query: ({ key, timestamp }) => ({ key, timestamp, noCookie: 'true' }),
+      body: ({ key, timestamp }) => ({ key, type: 1, timestamp: timestamp ?? Date.now() }),
     },
     accountInfo: {
       url: `${base}/nuser/account/get`,
       method: 'POST',
-      query: ({ timestamp }) => ({ timestamp }),
+      body: ({ timestamp }) => ({ timestamp: timestamp ?? Date.now() }),
     },
+    // CONFIRMED: query parameters, not a form body.
+    search: {
+      url: `${base}/search/get/web`,
+      method: 'GET',
+      query: ({ keywords, limit = 20, offset = 0 }) => ({ s: keywords, type: 1, limit, offset }),
+    },
+    // CONFIRMED path and parameters; entitlement decides whether url is null.
+    resolve: {
+      url: `${base}/song/enhance/player/url`,
+      method: 'POST',
+      body: ({ id, br = 320000 }) => ({ ids: JSON.stringify([Number(id)]), br }),
+    },
+
+    // HYPOTHESES below: they need an account (a uid) to test at all.
     recentTracks: {
       url: `${base}/v1/play/record`,
       method: 'POST',
@@ -86,16 +104,6 @@ export function neteaseEndpoints({ base = API } = {}) {
       url: `${base}/v6/playlist/detail`,
       method: 'POST',
       body: ({ id, limit }) => ({ id, n: limit }),
-    },
-    search: {
-      url: `${base}/search/get/web`,
-      method: 'POST',
-      body: ({ keywords, limit }) => ({ s: keywords, type: 1, limit, offset: 0 }),
-    },
-    resolve: {
-      url: `${base}/song/enhance/player/url`,
-      method: 'POST',
-      body: ({ id, br = 320000 }) => ({ ids: JSON.stringify([Number(id)]), br }),
     },
   };
 }

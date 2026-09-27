@@ -11,7 +11,11 @@
     ".": "./index.js",
     "./package.json": "./package.json"
   },
-  "dsh": { "bundle": { "patch": "./cordis.patch.yml" } },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
   "meta": {
     "title": "肥鱼电台 FishFM",
     "description": "给正在 DSH 里工作的 DeepSeek 一副耳机：本地选歌、独立的播放服务，用户始终保留控制权。"
@@ -24,5 +28,8 @@
     "core": "node bin/fishfm-core.mjs",
     "login": "node scripts/login.mjs",
     "smoke:playback": "node scripts/playback-smoke.mjs"
+  },
+  "devDependencies": {
+    "qrcode": "^1.5.4"
   }
 }

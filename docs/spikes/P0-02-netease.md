@@ -1,81 +1,69 @@
-# P0-02 网易云接口：现在的把握程度与扫码运行手册
+# P0-02 网易云接口：实测结果与扫码运行手册
 
-- 日期 / 环境：2026-09-27，Windows 11，Node 24.14.0。
-- 状态：**未与真实服务通信过**。本文记录我**知道什么、猜什么、以及扫码时要确认什么**，供 P3 使用。
+- 日期 / 环境：2026-09-27，Windows 11，Node 24.14.0。**无账号**下的探测；网络经代理（`music.163.com` 解析到 198.18.0.52）。
+- 状态：**登录握手的关键环节已实测确认**（下面标 CONFIRMED 的都是真实响应）；需要账号的接口仍未验证。
 - 相关任务：[PROJECT_PLAN](../PROJECT_PLAN.md) P0-02、P2、P3；验收关联 A01。
 
-## 一个必须说清楚的限制
+## 方法
 
-写这份文件时，**本环境的网络抓取被拦截**（`raw.githubusercontent.com`、`deepwiki.com` 均解析到非公网地址而拒绝），所以我**无法重新核对**社区资料，只能依据此前已知的社区通用做法。因此下面每一条都是**假设**，不是已验证事实。
+探测**不需要账号**：路径或参数不对时，服务会明确回答 `接口未找到！` 或 `参数错误`。因此可以靠"改对参数直到服务接受"来确认形状，而正确时服务会直接返回真实数据（`unikey`、等待扫码状态、搜索结果）。
 
-我没有把任何一条假设写成"已经可用"。`NETEASE_ENDPOINT_PROVENANCE.confirmed` 是**空数组**，代码里有断言守着这一点。
+## 已确认（真实响应，2026-09-27）
 
-## 当前假设（未确认）
+| 角色 | 结论 | 实测响应 |
+|---|---|---|
+| `loginQr` | ✅ `POST /api/login/qrcode/unikey`，**必须带 `type=1`** | `{"code":200,"unikey":"454fd6d9-2c2b-482b-b2ea-eb49dd1a464d"}` |
+| `loginPoll` | ✅ `POST /api/login/qrcode/client/login`，带 `key` + `type=1` | 新 key 立即轮询 → `{"code":801,"message":"等待扫码"}` |
+| 轮询状态码 | ✅ **801 = 等待扫码**（实测）；800 = 二维码不存在或已过期（实测，见下） | `{"code":800,"message":"二维码不存在或已过期"}` |
+| `accountInfo` | ✅ `POST /api/nuser/account/get`；未登录时如实返回空 | `{"code":200,"account":null,"profile":null}` |
+| `search` | ✅ **GET** `/api/search/get/web?s=…&type=1&limit=…` → 真实歌曲列表 | 返回 `result.songs[]`（含专辑、歌手、时长字段） |
+| `resolve` | ✅ `POST /api/song/enhance/player/url`，带 `ids=[id]` + `br` | `data[0]` 含 `url`/`expi:1200`/`code`；**未登录时 `url` 为 null** |
 
-| 角色 | 假设的形状 |
-|---|---|
-| `loginQr` | `POST /api/login/qr/key` → `data.unikey` |
-| `qrImage` | `POST /api/login/qr/create?key=…&qrimg=true` → `data.qrimg`（base64 PNG，**由服务端生成**，所以本地不需要二维码编码器） |
-| `loginPoll` | `POST /api/login/qr/check?key=…` → `code` 800/801/802/803，803 时带 `cookie` |
-| `accountInfo` | `POST /api/nuser/account/get` → `profile.userId` |
-| `recentTracks` | `POST /api/v1/play/record`（需要 `uid`，`type=1`） |
-| `likedTracks` | `POST /api/song/like/get`（需要 `uid`） |
-| `playlists` / `playlistTracks` | `POST /api/user/playlist`、`POST /api/v6/playlist/detail` |
-| `search` | `POST /api/search/get/web`（`s`/`type`/`limit`/`offset`） |
-| `resolve` | `POST /api/song/enhance/player/url`（`ids=[id]`、`br`） |
+参数错误的证据（说明这些路径**存在**，只是参数不对）：
 
-**中等把握**：二维码三件套（key/create/check）与 code 800/801/802/803 语义——这是社区客户端里最稳定的一组。
-**低把握**：`recent`/`liked`/`playlists`/`search`/`resolve` 的参数名与是否需要 weapi 加密。部分接口在近年已收紧，**很可能需要 weapi（AES+RSA）加密**才能用；本项目**尚未实现 weapi**，这是扫码后最可能遇到的缺口。
+- `POST /api/login/qrcode/unikey`（无 `type`）→ `{"msg":"参数错误","code":400}`
+- `POST /api/song/enhance/player/url` 带 `ids`+`br` 才被接受
 
-## 扫码运行手册（用户操作）
+**我原先的假设是错的**：`POST /api/login/qr/key` 返回 `{"code":404,"message":"接口未找到！"}`。真实路径是 `/api/login/qrcode/unikey`。这条更正来自实测，不是文档推断。
+
+## 一个仍未解决的缺口：二维码图片需要本地生成
+
+实测候选路径全部 `接口未找到`：
+
+- `POST /api/login/qrcode/create`、`GET /api/login/qrcode/create?key=…&qrimg=true` → `接口未找到`
+
+也就是说**服务端不提供二维码图片**，必须由客户端把 `https://music.163.com/login?codekey=<unikey>` 渲染成二维码。而本机**没有任何二维码库**（无 npm 依赖、无 `qrencode`、Python 无 `qrcode`/`segno`；仅有 PIL，但 PIL 不含二维码编码器）。
+
+**已解决**：用户批准引入二维码库后，登录命令改为**本地渲染**（`qrcode@1.5.4`，MIT，仅用于开发者脚本，发布路径仍零运行时依赖；来源与许可记录在 [DECISIONS 第 0 节](../DECISIONS.md)）。二维码内容为 `https://music.163.com/login?codekey=<unikey>`，同时输出 PNG 与终端文本两种形式，PNG 会被自动打开。
+
+**已用真实服务验证**：`node scripts/login.mjs --dry-run --timeout 12` 拿到真实 key（`f3b9a6d7…`）、成功渲染二维码并打开、随后按 3 秒间隔轮询直到超时。也就是说**扫码之前的每一步都在真实服务上跑通了**，只差用户扫码。
+
+## 顺带确认的 800 语义
+
+第一次探测时，我用一个**先前已探测过、已过期**的 key 轮询得到 `800 二维码不存在或已过期`。用新 key 立即轮询得到 `801 等待扫码`。所以：
+
+- 800 与 801 的区别是**真实存在**的，且新 key 的初始状态是 801；
+- 登录命令必须在拿到 key 后**尽快**开始轮询，否则会看到 800（这也解释了为什么"过期"提示是正常的失败路径而不是 bug）。
+
+## 扫码运行手册
 
 ```powershell
 npm run login                      # 网易云扫码登录
-npm run login -- --probe           # 登录后再探测账号接口，确认 profile
-npm run login -- --dry-run         # 不落盘（凭据存内存），用于试探
-npm run login -- --out <目录>       # 指定凭据与二维码目录
+npm run login -- --probe           # 登录后再探测账号接口
+npm run login -- --dry-run         # 凭据只存内存，不落盘
 ```
 
-流程与产物：
+流程：要 key → 展示二维码（做法待定）→ 每 3 秒轮询 → `scanned` 提示手机确认 → `authorized` → 会话经 **DPAPI CurrentUser** 加密落盘（`<目录>/credentials/fishfm_netease.dpapi`），**SQLite 只留引用，命令从不打印会话内容**。
 
-1. 向平台要一个登录 key；
-2. 请求服务端生成的二维码 PNG → 写到 `<目录>/login-netease.png` → **自动用默认看图器打开**，用手机 App 扫；
-3. 每 3 秒轮询一次，直到 `authorized`（`scanned` 时会提示"请在手机上确认"）；
-4. 会话经 **DPAPI CurrentUser 加密**落到 `<目录>/credentials/fishfm_netease.dpapi`；**SQLite 只留引用**，命令**从不打印会话内容**；
-5. 输出只报告"存了多少密文字符"，不报告内容。
+## 已经离线验证的部分
 
-若二维码图片没拿到，会退化为打印登录 URL；若平台返回的形状与假设不符，命令会打印**响应的键名结构**（标量只报类型，避免泄漏 token），这正是修正 profile 所需的诊断。
+`test/login-flow.test.mjs`（10 项）用本地 HTTP 服务器模拟整个握手：完整链路（801→802→803→会话存储→立即可用）、过期路径、无图片时的退化、500/404 错误映射、**DPAPI 在本机真实往返**（密文 352 字符、明文不在文件中、逐字节相等、删除后读回 null）。
 
-## 已经离线验证的部分（这些是真的）
-
-`test/login-flow.test.mjs` 用**本地 HTTP 服务器**模拟整个握手，10 项全过：
-
-- 完整链路：要 key → 取二维码 → 801 等待 → 802 已扫 → 803 授权 → **会话进凭据存储** → 立刻可用（账号探测成功）；
-- 二维码 data URL 正确写成 PNG（校验 PNG magic）；
-- 二维码过期（800）如实报 `expired` 且不残留 pending 状态；
-- 没有二维码图片时退化为 URL，**不影响登录本身**；
-- 平台 500 / 404 分别映射为 `provider_failure`（可重试）/ `media_unavailable`，不会被吞掉；
-- **DPAPI 在本机真实往返**：密文落盘 352 字符、明文不在文件中、解密与原文逐字节相等、删除后读回 null；
-- 命令遇到未接入的平台（`--provider qq`）以独立退出码拒绝，不假装可用。
-
-**这些证明的是本项目登录流程的逻辑正确**，不证明网易云的接口形状。
-
-## 顺带修掉的真实环境问题
-
-DPAPI 助手需要 **PowerShell 7**：Windows PowerShell 5.1 无法按程序集名加载 `System.Security.Cryptography.ProtectedData`，这是实际运行时撞到的失败（P0-06 的证据当时是用 `pwsh` 产生的）。现在助手会依次尝试 `pwsh` → `powershell.exe`，全部失败时给出**明确原因**而不是静默返回 null。
-
-## 扫码后需要依次确认的事
-
-1. `loginQr` 是否真的返回 `data.unikey`（若否，打印的形状就是答案）；
-2. 二维码 PNG 是否可用（`data.qrimg`）；
-3. `loginPoll` 的 code 语义与 803 是否带 `cookie`；
-4. `accountInfo` 是否可用 —— 这决定能否拿到 `uid`，而**后续 recent/liked/playlists 全都需要 uid**；
-5. search 与 resolve 是否可用；若返回空或 200 异常体，说明**需要 weapi 加密**，那是下一步的主要工作；
-6. 只有以上都通了，A01 才可能从"未通过"变成通过。
+这些证明**本项目登录流程逻辑正确**，配合本轮实测，握手形状也已被真实服务确认；仍未验证的是**授权码之后**的部分。
 
 ## 仍未验证
 
-- 以上全部端点形状；
+- 802/803 的真实语义（801 与 800 已确认；803 是否带 `cookie`、字段名是什么，需要真正扫一次）；
+- 需要账号的 `recent`/`liked`/`playlists`/`playlistTracks`（无 uid 无法测；`/api/v1/play/record` 探测时返回 HTTP 400，形状可疑）；
 - weapi 加密路径（**未实现**）；
-- 会员/版权曲目的真实行为、播放 URL 的过期与重取；
-- QQ 的端点（`--provider qq` 目前直接拒绝，因为连假设都还没有可靠的）。
+- 会员/版权曲目的真实行为（已确认未登录时 `url` 为 null，需登录后复测）。

@@ -2,6 +2,37 @@
 
 更新：2026-09-27。
 
+## 0. 第三方依赖与实测接口（2026-09-27）
+
+### 依赖：`qrcode`
+
+| 项目 | 内容 |
+|---|---|
+| 包名 / 版本 | `qrcode@1.5.4` |
+| 许可证 | MIT |
+| 来源 | <http://github.com/soldair/node-qrcode>（npm 安装，`package-lock` 记录完整性哈希） |
+| 引入范围 | **仅 `scripts/login.mjs`**（开发者/运维工具）。Core、Provider、Playback、插件入口**都不引用它**，因此发布路径仍是零运行时依赖 |
+| 为何需要 | **实测确认网易云不提供二维码图片**（候选路径全部 `接口未找到`），必须由客户端把 `https://music.163.com/login?codekey=<unikey>` 渲染成二维码。本机无 `qrencode`、Python 无 `qrcode`/`segno`，PIL 不含编码器 |
+| 谁批准 | 用户在本轮明确选择"允许装一个二维码库" |
+| 传递依赖 | `dijkstrajs`、`pngjs`、`yargs`（均为 MIT/ISC 系宽松许可，随 `qrcode` 安装） |
+| 失效降级 | 渲染失败时命令仍打印二维码文本形式与登录 URL，登录流程不因此失败 |
+
+### 实测的网易云接口（P0-02，无账号即可确认）
+
+探测方法：参数或路径错误时服务会明确回答 `接口未找到！`／`参数错误`，因此可据此确定正确形状；正确时服务直接返回真实数据。详见 [P0-02 证据](spikes/P0-02-netease.md)。
+
+| 角色 | 结论 |
+|---|---|
+| `loginQr` | `POST /api/login/qrcode/unikey`，**必须带 `type=1`** |
+| `loginPoll` | `POST /api/login/qrcode/client/login`，带 `key`+`type=1`；新 key 实测返回 `801 等待扫码` |
+| `accountInfo` | `POST /api/nuser/account/get`；未登录如实返回 `account:null` |
+| `search` | **GET** `/api/search/get/web`（查询串传参；表单体传参会被拒） |
+| `resolve` | `POST /api/song/enhance/player/url`，`ids=[id]`+`br`；未登录 `url` 为 null |
+
+**我原先的假设被实测推翻**：`POST /api/login/qr/key` 返回 `404 接口未找到`，真实路径是 `/api/login/qrcode/unikey`。这条更正写进了端点 profile 与证据文档，`CONFIRMED_ROLES` 只列实测过的角色。
+
+仍未验证：802/803 的确切语义与 803 的 cookie 字段名、需要账号的 recent/liked/playlists、weapi 加密路径。
+
 ## 1. 来源与证据边界
 
 主要来源：[寻找音乐插件](chatgpt-conversation://6ab7630d-46cc-83ea-a686-7bfa7ccbb972)。本次通过会话读取工具取得 5 组往返，包含用户对双平台、近期音乐、探索率、悬浮窗、自维护方案的明确说明，以及完整最终 MVP。工具未提供更早分页；不声称已读取返回范围之外的历史。
