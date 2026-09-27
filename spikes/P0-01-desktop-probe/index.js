@@ -54,8 +54,9 @@ export function apply(ctx, config = {}) {
     services: {
       sessions: Boolean(ctx.sessions),
       tools: Boolean(ctx.tools),
-      commands: Boolean(ctx.commands),
-      credentials: Boolean(ctx.credentials),
+      // Non-injected services throw on property access; ctx.get() reports absence.
+      commands: Boolean(ctx.get?.('commands')),
+      credentials: Boolean(ctx.get?.('credentials')),
       effect: typeof ctx.effect === 'function',
       on: typeof ctx.on === 'function',
     },
@@ -84,12 +85,13 @@ export function apply(ctx, config = {}) {
         additionalProperties: false,
       },
       output: {
+        // DSH rejects union type arrays: every property needs one type string.
         schema: {
           type: 'object',
           properties: {
-            childPid: { type: ['integer', 'null'] },
+            childPid: { type: 'integer' },
             childAlive: { type: 'boolean' },
-            pipeEcho: { type: ['string', 'null'] },
+            pipeEcho: { type: 'string' },
           },
           required: ['childPid', 'childAlive', 'pipeEcho'],
           additionalProperties: false,
@@ -99,7 +101,11 @@ export function apply(ctx, config = {}) {
       async execute() {
         const alive = child ? child.exitCode === null : false;
         record('tool-execute', { childPid: child?.pid ?? null, alive });
-        return { childPid: child?.pid ?? null, childAlive: alive, pipeEcho: observations.pipeEcho };
+        return {
+          childPid: child?.pid ?? 0,
+          childAlive: alive,
+          pipeEcho: observations.pipeEcho ?? '',
+        };
       },
     }));
     record('tool-registered', { ok: true, name: 'fishfm_desktop_probe' });
@@ -107,17 +113,23 @@ export function apply(ctx, config = {}) {
     record('tool-registered', { ok: false, error: String(error?.message ?? error) });
   }
 
+  // Optional dependency: an absent command service must leave the plugin active
+  // (references/practices.md), so the command is registered inside ctx.inject.
   try {
-    if (typeof ctx.commands?.register === 'function') {
-      disposers.push(ctx.commands.register({
-        name: 'fishfm-probe',
-        description: 'FishFM F1 probe: report the music core child process state.',
-        handler: () => ({ kind: 'success', text: `child pid ${child?.pid ?? 'none'}` }),
-      }));
-      record('command-registered', { ok: true, name: 'fishfm-probe' });
-    } else {
-      record('command-registered', { ok: false, error: 'ctx.commands unavailable' });
-    }
+    ctx.inject(['commands'], (commandCtx) => {
+      commandCtx.effect(() => {
+        const dispose = commandCtx.commands.register({
+          name: 'fishfm-probe',
+          description: 'FishFM F1 probe: report the music core child process state.',
+          handler: () => ({ kind: 'success', text: `child pid ${child?.pid ?? 'none'}` }),
+        });
+        record('command-registered', { ok: true, name: 'fishfm-probe' });
+        return () => {
+          record('command-disposed', {});
+          dispose();
+        };
+      });
+    });
   } catch (error) {
     record('command-registered', { ok: false, error: String(error?.message ?? error) });
   }

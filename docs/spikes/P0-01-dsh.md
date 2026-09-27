@@ -39,3 +39,14 @@ $patch = Join-Path $env:DSH_HOME 'profiles/fishfm-spike/cordis.patch.yml'
 - 本轮尝试过但**未成功**的路径：手工向 `profiles/desktop/cordis.patch.yml` 追加 `- insert:` 行后，运行中的应用没有热加载该行（截至等待 6 秒无任何插件输出，Web 端口仍正常返回 401）；随后已按备份逐字节还原该文件（`sha256 236CABB2…4F8E3A`，还原后哈希与原文一致）。这与官方「不要手写 profile patch」的要求一致，不再重复该路径。
 - 仍未验证：样例 bundle 在真实 desktop profile 中被激活并观察到真实事件、`ctx.commands` 是否可用、以及停用后子进程退出。需要用户在本机 DSH 的 Plugin Manager 中安装 `spikes/P0-01-desktop-probe/`（或在设置中启用 `tool-plugin-manager` 行后由 Agent 调用 `install_bundle`）才能闭环；这两条都没有代替「已通过」。
 - 影响：F1 的宿主、运行时、子进程约定、事件入口与安装路径已有实测依据；desktop 实时激活与 P0-01 完成条件仍保持未通过。
+
+### 探针 bundle 的隔离实跑与两条硬规则
+
+为避免把未经运行验证的 bundle 交给用户安装，先在隔离 DSH_HOME 中实跑：`dsh f1probe --from-default-profile web --dump-config` 建 profile，`dsh plugin --profile f1probe add <绝对包目录>` 安装（该子命令需要 `pnpm` 在 PATH 上，应用自身是在 `resources/runtime/bin` 与 `pnpm-shim` 前置后运行 pnpm）。
+
+- 安装结果（实测）：`+ @local/fishfm-p0-desktop-probe link:D:/AI项目/dsh-音乐/spikes/P0-01-desktop-probe`，并写入 profile 的 `dsh.profile.bundles`。**说明工作区 bundle 的清单与 patch 形式正确，用户经 Plugin Manager 安装不会因格式被拒。**
+- 激活结果（实测）：`apply` → `tool-registered ok` → `command-registered ok` → `pipe-server-listening` → `core-spawn` → `core-ready`；宿主关闭时 `command-disposed` → `dispose-begin` → 子进程 `exit code 0`（graceful，未残留）。
+- **硬规则一：未注入的服务属性访问会抛错。** 探针首版用 `ctx.commands` 读取服务，激活直接失败：`Error: cannot get property "commands" without inject`。官方实践文档要求把可选服务放进 `inject` 或 `ctx.inject([...], ...)`，否则插件应保持不激活而不是抛错。修正为 `ctx.inject(['commands'], …)` 并只用 `ctx.get('x')` 做存在性判断后激活成功。
+- **硬规则二：工具 `output.schema` 不接受联合类型数组。** 首版用 `type: ['integer', 'null']`，被拒：`schema.properties.childPid.type must be a single type string (type arrays are not supported)`。每个属性只能给单个类型字符串。
+- 隔离测试的局限（必须如实记录）：`--from-default-profile web` 生成的 profile 不完整，宿主启动约 2.5 秒后因缺 `webRuntime`、`connection`、`webServer` 等依赖以退出码 1 结束。因此上面的 dispose 证据来自**宿主关闭**，不等价于「插件被停用而宿主继续运行」；工具自调用与命名管道往返也未在本窗口内完成。另外本机的 shell 继承了桌面宿主的 `DSH_*` 环境变量，隔离实例记录的 `DSH_PROFILE` 是继承值而非该 profile 名，不能当判据。
+- 结论：bundle 格式、激活链路、命令/工具注册与子进程清理在 profile 启动的宿主中已有实测；真实 Electron desktop profile 的激活与停用仍待用户经 Plugin Manager 安装后复测。
