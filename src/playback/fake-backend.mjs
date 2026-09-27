@@ -218,6 +218,10 @@ function tick() {
 function accept() {
   server = net.createServer((socket) => {
     socket.setEncoding('utf8');
+    // Only the active socket may own the writer. A late 'close' from a socket
+    // the client already abandoned must not clobber the connection that
+    // replaced it, or the next answer would be written into nowhere.
+    const isActive = () => writer === socket;
     writer = socket;
     reader = '';
     process.stdout.write('FISHFM_PLAYBACK_CLIENT_CONNECTED\n');
@@ -231,6 +235,7 @@ function accept() {
     });
     send({ type: 'state', ...state() });
     socket.on('data', (chunk) => {
+      if (!isActive()) return;
       reader += chunk;
       for (let index; (index = reader.indexOf('\n')) >= 0;) {
         const line = reader.slice(0, index).trim();
@@ -241,8 +246,9 @@ function accept() {
         handle(command, command.id);
       }
     });
-    socket.on('error', () => { writer = null; });
+    socket.on('error', () => { if (isActive()) writer = null; });
     socket.on('close', () => {
+      if (!isActive()) return;
       writer = null;
       process.stdout.write('FISHFM_PLAYBACK_CLIENT_DISCONNECTED\n');
     });

@@ -94,6 +94,9 @@ function Send-Message($value) {
     $script:writer.WriteLine(($value | ConvertTo-Json -Compress -Depth 8))
   } catch {
     # A broken client must not take the audio down; the next client reconnects.
+    # This is safe because connections are strictly serialized below: a new
+    # server (and writer) is only created after the previous client's EOF has
+    # been observed, so a late failure can never clear a newer client's writer.
     $script:writer = $null
   }
 }

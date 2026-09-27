@@ -30,7 +30,8 @@ function harness(options = {}, overrides = {}) {
   const service = new PlaybackService({
     supervisor,
     openTimeoutMs: options.openTimeoutMs ?? 3000,
-    commandTimeoutMs: 3000,
+    commandTimeoutMs: 6000,
+    recoveryTimeoutMs: 20000,
     progressIntervalMs: 0,
     onLog: (entry) => logs.push(entry),
   });

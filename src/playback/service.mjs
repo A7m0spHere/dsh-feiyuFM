@@ -24,6 +24,7 @@ export class PlaybackService {
     supervisor,
     openTimeoutMs = 12000,
     commandTimeoutMs = 6000,
+    recoveryTimeoutMs = 20000,
     progressIntervalMs = 400,
     maxRecoveries = 3,
     onLog = () => {},
@@ -32,6 +33,7 @@ export class PlaybackService {
     this.supervisor = supervisor;
     this.openTimeoutMs = openTimeoutMs;
     this.commandTimeoutMs = commandTimeoutMs;
+    this.recoveryTimeoutMs = recoveryTimeoutMs;
     this.progressIntervalMs = progressIntervalMs;
     this.maxRecoveries = maxRecoveries;
     this.onLog = onLog;
@@ -136,9 +138,14 @@ export class PlaybackService {
     await this._send('setMuted', { muted: this.muted, version: version ?? this.acceptedVersion });
   }
 
-  /** Snapshot of the host, used by reconnection and by verification scripts. */
-  async hostSnapshot() {
-    const answer = await this._send('snapshot', {}, { timeoutMs: this.commandTimeoutMs });
+  /**
+   * Snapshot of the host, used by reconnection and by verification scripts.
+   * This sits on the recovery critical path, and a busy machine can take far
+   * longer to answer than an ordinary control command, so it gets its own
+   * budget instead of the control timeout.
+   */
+  async hostSnapshot({ timeoutMs = this.recoveryTimeoutMs } = {}) {
+    const answer = await this._send('snapshot', {}, { timeoutMs });
     return answer.state ?? null;
   }
 
