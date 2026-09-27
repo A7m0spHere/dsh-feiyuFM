@@ -27,6 +27,7 @@
     "debug": "node bin/fishfm-debug.mjs",
     "core": "node bin/fishfm-core.mjs",
     "login": "node scripts/login.mjs",
+    "soak": "node scripts/soak.mjs",
     "smoke:playback": "node scripts/playback-smoke.mjs"
   },
   "devDependencies": {
