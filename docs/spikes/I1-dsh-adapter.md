@@ -58,3 +58,18 @@ profile 的 bundles: dsh-base, dsh-web-app, @local/fishfm-p0-desktop-probe, dsh-
 - **真实用户对话事件**：本轮的 `session/event` 由合成事件驱动；真实会话里的 `turn/end` 频率与并发会话行为待观察。
 - **多 Session 活动上下文**：当前只有一个 Core 与一条队列，Session 优先级尚未实现（属 P5/T2 之后的 U1/I1 收尾）。
 - **真实平台解析**：`--provider real` 目前必然 `provider_unavailable`，要等 P2/P4。
+## 关于 DSH 源码可读性的一处更正（2026-09-27 复核）
+
+本会话环境说明给出的检出路径 `D:\dsh\resources\app.asar\dsh\` **无法用文件系统 API 读取**：`app.asar` 是打包归档（117 MB），不是目录，`Test-Path` 返回 False 属预期。
+
+实际可读的只有：
+
+| 路径 | 内容 |
+|---|---|
+| `D:\dsh\resources\app.asar.unpacked\dsh` | **只有 `node_modules`**（未打包的原生依赖），没有应用源码 |
+| `D:\dsh\resources\runtime` | `bin`、`primary-runtime`、`pnpm`、`office-skills`、`versions.json` |
+| `D:\dsh\resources\app-update.yml` | 更新源与渠道（`channel: nightly`） |
+
+**因此**：本文档中 DSH 接口的事实（`session/event` 的事件信封 `{type, seq, time, data}`、`ctx.credentials` 的 `readRecord`/`modifyRecord`/`deleteRecord`、cordis `Config` 必须是 schema、非注入服务属性必须走 `ctx.inject` 等）**不可能来自 grep 该路径**，而是来自**对运行中宿主的实测**——这也是更强的证据，因为它验证的是实际行为而非声明。
+
+**对后续会话的影响**：不要假设 DSH 源码可直接检索；要么按本文档的方式在真实宿主中探测，要么先解包 `app.asar`（本会话未做，也未安装任何解包工具）。同理，**I1 剩余项（真实会话事件标识字段、desktop profile 激活）仍需在真实宿主中确认**，不可能靠读源码在不接触宿主的情况下完成。
