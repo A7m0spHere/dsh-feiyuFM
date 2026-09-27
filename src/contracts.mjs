@@ -2,11 +2,14 @@ export const PROVIDERS = Object.freeze(['netease', 'qq']);
 export const MODES = Object.freeze(['normal', 'focus', 'silent', 'off']);
 
 export class MusicError extends Error {
-  constructor(code, message, { retryable = false } = {}) {
-    super(message);
+  constructor(code, message, { retryable = false, details = null, cause = undefined } = {}) {
+    super(message, cause === undefined ? undefined : { cause });
     this.name = 'MusicError';
     this.code = code;
     this.retryable = retryable;
+    // Structured context for callers that must explain what happened (which
+    // sources were tried, which capabilities were missing, and so on).
+    if (details !== null) this.details = details;
   }
 }
 
