@@ -94,10 +94,12 @@ P0-04 随后用同用户 Windows 命名管道连接独立 WPF 播放进程，验
 |---|---|---|
 | 宿主运行时为 Electron 44 外壳加 `dsh-desktop-host`，Web 服务固定 `127.0.0.1:19387` | 运行中进程命令行、`dsh-desktop-host/lib/index.js` | 已实测 |
 | Core 的 `node:sqlite` 可直接用宿主自带运行时，无需另装 Node | `ELECTRON_RUN_AS_NODE=1` 运行 `runtime/bin/node.cmd`，建表读写通过 | 已实测 |
+| Phase 1 的 `check`/`test`/`build` 在宿主自带运行时上可执行 | payload Node 24.21.0 与 Electron-as-node 24.18.1 各跑一遍：8 模块检查、14 项测试全过，payload 上 `build` 成功 | 已实测 |
 | 插件启动独立 Node 进程应复用宿主自身的垫片（`process.execPath --expose-internals` + `ELECTRON_RUN_AS_NODE=1`） | `dsh-desktop-host` 启动包管理器时即如此 | 已实测 |
 | 权威事件表是 `SessionEventMap`；内部目标事件中只有 `turn_end` 有同名真实事件 | `dsh-agent-preset-registry/lib/typert.host.js` | 已实测 |
 | 命令入口为 `ctx.tools.register` 与 `ctx.commands.register`，两者都返回 disposer | `dsh-tools`、`dsh-commands` 的 `lib/types/*.d.ts` | 已实测 |
 | desktop profile 由 Electron 应用独占，CLI 不能导出或安装；插件只能经应用内 Plugin Manager 安装，新 bundle 可经 HMR 生效、替换包需重启 | CLI 两次拒绝并保持文件哈希不变；官方 `cordis-plugin-development` 技能 | 已实测 |
+| 插件停用会停止其拥有的音乐服务，宿主继续工作 | 隔离 profile 宿主中热卸载探针：disposer 运行、`command-disposed`、子进程退出码 0，宿主仍监听；重新启用后取得新子进程 | 已实测（隔离宿主） |
 | `tool-plugin-manager` 行默认 `disabled: true`，故 Agent 默认没有 `plugin_manager` 工具 | `dsh-base/cordis.patch.yml` | 已实测 |
 
 本轮尝试过手工向 `profiles/desktop/cordis.patch.yml` 插入插件行，运行中的应用未热加载；该文件已按备份逐字节还原。官方文档明确要求不要手写 profile 文件，因此不再把这条路径作为方案。真实 desktop profile 中的插件激活、真实事件观察与停用清理仍为未验证，需要用户经 Plugin Manager 安装探针 bundle 后复测。
