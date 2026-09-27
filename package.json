@@ -8,8 +8,9 @@
   },
   "scripts": {
     "check": "node scripts/check.mjs",
-    "test": "node --test",
+    "test": "node --test --test-timeout=30000",
     "build": "node scripts/build.mjs",
-    "debug": "node bin/fishfm-debug.mjs"
+    "debug": "node bin/fishfm-debug.mjs",
+    "smoke:playback": "node scripts/playback-smoke.mjs"
   }
 }

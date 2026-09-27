@@ -105,3 +105,18 @@ P0-04 随后用同用户 Windows 命名管道连接独立 WPF 播放进程，验
 本轮尝试过手工向 `profiles/desktop/cordis.patch.yml` 插入插件行，运行中的应用未热加载；该文件已按备份逐字节还原。官方文档明确要求不要手写 profile 文件，因此不再把这条路径作为方案。真实 desktop profile 中的插件激活、真实事件观察与停用清理仍为未验证，需要用户经 Plugin Manager 安装探针 bundle 后复测。
 
 本轮同时新增了可安装的探针 bundle（`spikes/P0-01-desktop-probe/`）与管道客户端样例，两者只用于验证，不是产品插件。
+
+## 10. P1 独立 Playback 的实现选择（2026-09-27）
+
+用户要求"先把项目做完再统一测试"，因此按路线继续推进 Phase 2。P1 的选择与依据：
+
+| 决策 | 结论 | 依据 |
+|---|---|---|
+| 音频后端 | 隐藏 STA PowerShell 进程 + WPF `MediaPlayer`，经同用户命名管道控制 | P0-04 已实测该后端可播放、静音续时间线、发曲终事件、断线重连；本轮补齐协议与契约 |
+| 进程归属 | 宿主由音乐服务（将来的插件）启动并拥有，父进程不是 UI | 「退出 UI 后继续播放」要求可见窗口不承载声音；smoke 实测 UI 进程来去不影响时间线 |
+| IPC | 命名管道 + 协议 v1（版本校验、命令/事件白名单、快照） | 复用 P0-04 方向；本轮补 `protocol` 校验、`id` 配对、`state` 快照 |
+| 断线恢复 | 恢复时向宿主要权威 `snapshot`，不用本地缓存 | 实测缓存旧快照会造成假的 `playback_host_lost` 并误杀正在播放的曲目 |
+| 平台音频 | 暂不接入，先用自生成 WAV 验证 | 平台资源属 P2/P4；WAV 足以回答 P1 的四个完成条件 |
+| 测试音频 | 纯 Node 写 PCM WAV，不引入 FFmpeg | 不新增外部依赖；`scripts/make-tone.mjs` |
+
+本轮实测暴露并修掉三个真实缺陷：并发命令互相拆连接导致 `host_unavailable: ENOENT`、重连误用过期状态、`ended` 缺少位置。详见 [P1 证据](spikes/P1-playback.md)。

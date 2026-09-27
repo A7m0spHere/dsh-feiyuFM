@@ -11,6 +11,16 @@
 - Playback 事件为 `started`、`progress`、`ended`、`error`，均带 `playInstanceId`，并应回传 `version` 以拒绝旧事件。`progress` 带 `positionMs` 和 `progressSource` (`audio` 或 `logical`)。逻辑进度只接受已知时长的曲目。
 - 真实后端只有确认媒体打开并开始推进后才能发 `started`；调用系统 `Play()` 成功不足以证明资源可播。WPF 探针中无效资源可能延迟触发 `MediaFailed`，恢复瞬间还可能短暂报告 0 ms，适配器需要等待稳定事实并设置有限超时。
 
+## 真实 Playback 接入（P1，2026-09-27）
+
+`src/playback/` 已按上面的契约接入真实音频：`PlaybackService` 是 Core 看到的 Playback，背后是独立进程的 WPF MediaPlayer 宿主，两者用同用户命名管道上的协议 v1 通信（[P1 证据](spikes/P1-playback.md)）。
+
+- 宿主持有声音与时间线；Core 仍决定播什么。宿主不选曲、不写库、不读凭据。
+- 命令与事件都带 `playInstanceId` 与 `version`，适配器丢弃比当前实例更旧的命令与事件；`load` 对过期版本抛 `stale_version`。
+- `progress` 只向前报：恢复瞬间的 0 ms 不会被上报（P0-04 已观察该现象）；`ended` 携带最终位置。
+- 断线恢复时**主动向宿主要 `snapshot`**，不用 supervisor 缓存的状态判定曲目是否还在——缓存可能是首次握手时的旧快照。
+- 宿主进程的父进程是音乐服务；所有者进程消失时宿主自行停止，`dispose` 也会停掉它（「插件停用后停止」）。
+
 ## 命令与快照
 
 命令都带非空 `commandId`；可带 `expectedRevision` 来拒绝旧 UI 状态。Core 持久去重 `commandId`，每条接受的用户命令递增 `decisionVersion`；会改变当前播放的命令还递增 `commandVersion`，取消旧解析。`snapshot()` 返回带递增 `revision` 的状态副本，包含开关、策略、队列、当前曲目、暂停和错误；不包含凭据或播放资源。
