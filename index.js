@@ -33,6 +33,13 @@ const DEFAULT_SETTINGS = Object.freeze({
   provider: 'real',
   /** SQLite file; ':memory:' keeps a run disposable. */
   database: undefined,
+  /**
+   * Platform endpoint maps, keyed by provider. Deliberately empty by default:
+   * this build ships no platform URL, so an unconfigured install reports
+   * "not installed" for each platform instead of guessing at an API.
+   * Deployment supplies them (see docs/spikes/P2-netease.md).
+   */
+  endpoints: undefined,
 });
 
 const here = dirname(fileURLToPath(import.meta.url));

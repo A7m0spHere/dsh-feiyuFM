@@ -17,6 +17,10 @@ import { createSelector } from './selection.mjs';
 import { createRng, readAgentSeed, initializeAgentPreferences, describeTaste } from './taste.mjs';
 import { importSeedTracks, describeEnvironment } from './environment.mjs';
 import { applyListenGrowth, describeGrowth } from './growth.mjs';
+import { createHttpTransport } from './providers/transport.mjs';
+import { createNetEaseProvider } from './providers/netease.mjs';
+import { createQQProvider } from './providers/qq.mjs';
+import { describePlatforms, collectDiscovery, resolveOnOwnPlatform, summarizeSeedRuns } from './providers/coordinator.mjs';
 
 /** Bump when the host/owner message shapes change in a way an older peer cannot read. */
 export const CORE_HOST_PROTOCOL = 1;
@@ -110,7 +114,7 @@ export class ProviderRegistry {
  * QQ adapters land (P2/P4); an empty pool is a real state, and the selector then
  * records that no exploration happened while keeping the user's rate setting.
  */
-export function buildSelector({ store, now = () => Date.now(), rng = null }) {
+export function buildSelector({ store, now = () => Date.now(), rng = null, listDiscovery = null }) {
   const seed = readAgentSeed(store);
   return createSelector({
     store,
@@ -133,9 +137,84 @@ export function buildSelector({ store, now = () => Date.now(), rng = null }) {
         ...(stored?.duration_ms ? { durationMs: stored.duration_ms } : {}),
       };
     }),
-    listDiscovery: () => [],
+    // Platform recommendations feed the discovery pool. They are read from a cache
+// because the selector runs synchronously and must never perform network I/O;
+// an empty pool is a real state and is recorded as such.
+    listDiscovery: listDiscovery ?? (() => []),
     now,
   });
+}
+
+/**
+ * Builds the real provider registry from adapter configurations.
+ *
+ * Each entry is `{ provider, transport, credentials, endpoints }`; an entry with
+ * no transport or endpoints is deliberately left uninstalled, so the host reports
+ * "not installed" instead of pretending to have the platform.
+ */
+export function buildProviderRegistry({ adapters = {}, credentials = null, store = null, now = () => Date.now(), onLog = () => {} } = {}) {
+  const providers = {};
+  for (const [name, config] of Object.entries(adapters)) {
+    // A caller may supply a ready transport (a custom client, or a test double)
+    // or an endpoint map to build the standard HTTP one from. Either way the
+    // adapter is only installed when it has something to talk through.
+    const transport = config?.transport
+      ?? (config?.endpoints
+        ? createHttpTransport({
+          endpoints: config.endpoints,
+          fetchImpl: config.fetchImpl,
+          timeoutMs: config.timeoutMs,
+          onLog,
+        })
+        : null);
+    if (!transport) {
+      onLog({ type: 'provider', provider: name, installed: false, reason: 'no transport or endpoints configured' });
+      continue;
+    }
+    const options = { transport, credentials, store, now, ...(config.options ?? {}) };
+    providers[name] = name === 'qq' ? createQQProvider(options) : createNetEaseProvider(options);
+    onLog({
+      type: 'provider', provider: name, installed: true,
+      // A caller-supplied transport need not implement roles(); reporting the
+      // count is diagnostics, never a requirement.
+      roles: typeof transport.roles === 'function' ? transport.roles().length : null,
+    });
+  }
+  return new ProviderRegistry({ providers });
+}
+
+/**
+ * The provider facade the core and the host share: resolution goes through the
+ * platform the track belongs to, and account state is checked first so a missing
+ * sign-in is reported as such rather than as a platform failure.
+ */
+export function createProviderFacade({ registry, store = null, now = () => Date.now(), onLog = () => {} }) {
+  // Discovery candidates are refreshed on demand and cached, because the
+  // selector is synchronous and must never block playback on the network.
+  let discovery = [];
+
+  return {
+    registry,
+    has: (provider) => registry.has(provider),
+    getAccount: (provider) => registry.getAccount(provider),
+    getCapabilities: (provider) => registry.getCapabilities(provider),
+    getSeedTracks: (provider, options) => registry.getSeedTracks(provider, options),
+    search: (provider, query, options) => registry.search(provider, query, options),
+    resolve: (track, options) => resolveOnOwnPlatform({ registry, track, options }),
+    platforms: () => describePlatforms(registry),
+
+    /** Synchronous, cache-only: the selector must not perform network I/O. */
+    discoveryTracks: () => discovery,
+
+    async refreshDiscovery({ limit = 40, signal = null } = {}) {
+      const result = await collectDiscovery({ registry, limit, signal });
+      discovery = result.tracks;
+      onLog({ type: 'discovery', count: result.tracks.length, attempts: result.attempts.length, reason: result.reason });
+      return result;
+    },
+
+    clearDiscovery() { discovery = []; },
+  };
 }
 
 export function createPlayback({ mode = 'real', onLog = () => {} }) {
@@ -166,6 +245,8 @@ export function createCoreHost({
   input = process.stdin,
   output = process.stdout,
   dbPath = ':memory:',
+  /** Optional existing store; when supplied the host does not create or close it. */
+  store: givenStore = null,
   playbackMode = 'real',
   /**
    * Where autonomous selection gets its candidates.
@@ -178,6 +259,8 @@ export function createCoreHost({
   selectionMode = 'environment',
   provider = null,
   providerRegistry = null,
+  /** Optional facade from createProviderFacade(); enables the platform messages. */
+  platformsFacade = null,
   clock,
   now = () => Date.now(),
   stateIntervalMs = 400,
@@ -186,11 +269,28 @@ export function createCoreHost({
   if (!['environment', 'queue'].includes(selectionMode)) {
     throw new MusicError('invalid_command', `Unknown selection mode ${String(selectionMode)}`);
   }
-  const store = new MusicStore(dbPath);
+  // An existing store may be supplied: the platform adapters must read credential
+// references from the same store the host writes them to, and a caller that
+// already owns a store should not end up with two.
+  const store = givenStore ?? new MusicStore(dbPath);
   // With no adapter installed the core must fail resolution honestly instead of
   // resolving through a stand-in, so a fake provider is opt-in only.
   const registry = providerRegistry ?? new ProviderRegistry({});
-  const activeProvider = provider ?? registry;
+  const requireFacade = () => {
+      if (!platformsFacade) {
+        throw new MusicError('provider_unavailable', 'No platform adapters are configured in this build');
+      }
+      return platformsFacade;
+    };
+    const requireProvider = (name) => {
+      const facade = requireFacade();
+      if (!name || !facade.has(name)) {
+        throw new MusicError('provider_unavailable', `No adapter is installed for ${String(name)}`);
+      }
+      return facade.registry.providers[name];
+    };
+
+    const activeProvider = provider ?? providerRegistry ?? (platformsFacade ? platformsFacade : registry);
   let core = null;
   let playback = null;
   let disposePlayback = async () => {};
@@ -287,6 +387,91 @@ export function createCoreHost({
           });
           return;
         }
+        case 'platforms': {
+          if (!platformsFacade) {
+            send({ type: 'result', id, ok: true, platforms: { platforms: {}, usable: [], reason: 'no platform adapters are configured in this build' } });
+            return;
+          }
+          send({ type: 'result', id, ok: true, ...platformsFacade.platforms() });
+          return;
+        }
+        case 'login': {
+          requireFacade();
+          const accountProvider = requireProvider(message.provider);
+          const step = message.step ?? 'begin';
+          if (step === 'begin') {
+            const started = await accountProvider.beginLogin({ signal: null });
+            send({ type: 'result', id, ok: true, status: 'pending', login: started });
+            return;
+          }
+          if (step === 'poll') {
+            const polled = await accountProvider.pollLogin({ signal: null });
+            // A confirmed sign-in unlocks resolution, so the pool is rebuilt.
+            if (polled.status === 'authorized') await platformsFacade.refreshDiscovery({ limit: 40 }).catch(() => {});
+            publishIfChanged();
+            send({ type: 'result', id, ok: true, status: polled.status, login: polled, account: accountProvider.getAccount() });
+            return;
+          }
+          if (step === 'restore') {
+            const restored = await accountProvider.restore({ signal: null });
+            publishIfChanged();
+            send({ type: 'result', id, ok: true, status: restored.status, login: restored, account: accountProvider.getAccount() });
+            return;
+          }
+          throw new MusicError('invalid_command', `Unknown login step ${String(step)}`);
+        }
+        case 'logout': {
+          requireFacade();
+          const accountProvider = requireProvider(message.provider);
+          const result = await accountProvider.logout();
+          platformsFacade.clearDiscovery();
+          publishIfChanged();
+          send({ type: 'result', id, ok: true, status: result.status, account: accountProvider.getAccount() });
+          return;
+        }
+        case 'import-platform': {
+          // Provider-driven import: the adapter decides which source it could
+          // actually use, and the environment records exactly that source.
+          requireFacade();
+          const accountProvider = requireProvider(message.provider);
+          try {
+            const seed = await accountProvider.getSeedTracks({
+              limit: message.limit ?? 300, source: message.source ?? null, signal: null,
+            });
+            const imported = importSeedTracks({
+              store, provider: message.provider, source: seed.source, tracks: seed.tracks,
+              requested: seed.requested, degraded: seed.degraded, reason: seed.reason, now: now(),
+            });
+            const taste = initializeAgentPreferences({ store, seed: message.seed ?? null, now: now() });
+            publishIfChanged();
+            send({ type: 'result', id, ok: true, provider: message.provider, source: seed.source, import: imported, attempts: seed.attempts, taste, snapshot: core.snapshot() });
+          } catch (error) {
+            // A failed import is reported with its reason and attempt trail; it
+            // is never turned into an empty success.
+            send({
+              type: 'error', id, provider: message.provider, ok: false,
+              error: { code: error.code ?? 'provider_failure', message: error.message, retryable: Boolean(error.retryable) },
+              attempts: error.details?.attempts ?? [],
+            });
+          }
+          return;
+        }
+        case 'discovery': {
+          requireFacade();
+          const result = await platformsFacade.refreshDiscovery({ limit: message.limit ?? 40, signal: null });
+          send({
+            type: 'result', id, ok: true,
+            discovery: { count: result.tracks.length, attempts: result.attempts, reason: result.reason },
+          });
+          return;
+        }
+        case 'search': {
+          requireFacade();
+          const accountProvider = requireProvider(message.provider);
+          const found = await accountProvider.search(message.query ?? '', { limit: message.limit ?? 20, signal: null });
+          send({ type: 'result', id, ok: true, provider: message.provider, query: found.query, tracks: found.tracks, capability: found.capability });
+          return;
+        }
         case 'account': {
           send({
             type: 'result',
@@ -325,7 +510,7 @@ export function createCoreHost({
     closed = true;
     clearInterval(timer);
     try { await disposePlayback(); } catch (error) { onLog({ type: 'playback-dispose-failed', message: error.message }); }
-    try { store.close(); } catch { /* already closed */ }
+    try { if (!givenStore) store.close(); } catch { /* already closed */ }
   }
 
   let timer = null;
@@ -339,7 +524,13 @@ export function createCoreHost({
         store,
         provider: activeProvider,
         playback,
-        selector: selectionMode === 'environment' ? buildSelector({ store, now }) : null,
+        selector: selectionMode === 'environment'
+          ? buildSelector({
+            store,
+            now,
+                            listDiscovery: platformsFacade ? () => platformsFacade.discoveryTracks() : null,
+          })
+          : null,
         // A finished listen is reported here; growth policy decides what, if
         // anything, it changes about the agent's preferences.
         onListened: (entry) => {
