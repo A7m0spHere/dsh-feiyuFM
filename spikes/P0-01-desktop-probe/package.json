@@ -1,0 +1,12 @@
+{
+  "name": "@local/fishfm-p0-desktop-probe",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": { ".": "./index.js" },
+  "meta": {
+    "title": "FishFM F1 probe",
+    "description": "Temporary F1 host probe for the FishFM music plugin. Records desensitized lifecycle facts to a local JSONL file and owns one out-of-process Node child."
+  },
+  "dsh": { "bundle": { "patch": "./cordis.patch.yml" } }
+}

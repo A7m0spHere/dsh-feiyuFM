@@ -85,3 +85,21 @@
 播放宿主基础实验另用本机 WPF `MediaPlayer` 播放自生成音频，验证暂停、静音、曲终和父进程退出后的存活，详见 [P0-04](spikes/P0-04-playback.md)。WPF 是 Windows 独立进程候选，不是已选定的生产音频后端；真实平台资源、IPC 与可见 UI 进程边界仍需验证。
 
 P0-04 随后用同用户 Windows 命名管道连接独立 WPF 播放进程，验证暂停、静音、断线重连、静音整曲曲终与停用；IPC 方向有局部实测，但协议版本、真实音频资源和桌面 UI 边界仍待正式适配。[P0-06](spikes/P0-06-local-data.md) 还验证了 DSH 凭据服务保存用户级 DPAPI 密文 grant；首轮 Windows 凭据方向是 DSH 凭据记录加 DPAPI，SQLite 只存引用，真实平台登录和 desktop profile 尚未验证。
+
+## 9. F1 桌面宿主与工具链核对（2026-09-27）
+
+按用户要求继续完成 Phase 1，本轮只补齐 F1 未闭环的「宿主与工具链结论」。核对方式是只读检查运行中进程、安装内代码与 DSH 自带 node 垫片的实测输出，证据与命令见 [P0-01 桌面核对](spikes/P0-01-dsh.md)。
+
+| 结论 | 依据 | 状态 |
+|---|---|---|
+| 宿主运行时为 Electron 44 外壳加 `dsh-desktop-host`，Web 服务固定 `127.0.0.1:19387` | 运行中进程命令行、`dsh-desktop-host/lib/index.js` | 已实测 |
+| Core 的 `node:sqlite` 可直接用宿主自带运行时，无需另装 Node | `ELECTRON_RUN_AS_NODE=1` 运行 `runtime/bin/node.cmd`，建表读写通过 | 已实测 |
+| 插件启动独立 Node 进程应复用宿主自身的垫片（`process.execPath --expose-internals` + `ELECTRON_RUN_AS_NODE=1`） | `dsh-desktop-host` 启动包管理器时即如此 | 已实测 |
+| 权威事件表是 `SessionEventMap`；内部目标事件中只有 `turn_end` 有同名真实事件 | `dsh-agent-preset-registry/lib/typert.host.js` | 已实测 |
+| 命令入口为 `ctx.tools.register` 与 `ctx.commands.register`，两者都返回 disposer | `dsh-tools`、`dsh-commands` 的 `lib/types/*.d.ts` | 已实测 |
+| desktop profile 由 Electron 应用独占，CLI 不能导出或安装；插件只能经应用内 Plugin Manager 安装，新 bundle 可经 HMR 生效、替换包需重启 | CLI 两次拒绝并保持文件哈希不变；官方 `cordis-plugin-development` 技能 | 已实测 |
+| `tool-plugin-manager` 行默认 `disabled: true`，故 Agent 默认没有 `plugin_manager` 工具 | `dsh-base/cordis.patch.yml` | 已实测 |
+
+本轮尝试过手工向 `profiles/desktop/cordis.patch.yml` 插入插件行，运行中的应用未热加载；该文件已按备份逐字节还原。官方文档明确要求不要手写 profile 文件，因此不再把这条路径作为方案。真实 desktop profile 中的插件激活、真实事件观察与停用清理仍为未验证，需要用户经 Plugin Manager 安装探针 bundle 后复测。
+
+本轮同时新增了可安装的探针 bundle（`spikes/P0-01-desktop-probe/`）与管道客户端样例，两者只用于验证，不是产品插件。

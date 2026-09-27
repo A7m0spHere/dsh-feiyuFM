@@ -21,6 +21,8 @@ Core 可以是插件托管的模块或独立工作进程；Playback 的具体后
 
 Phase 1 的独立核心暂用 Node 24 ESM、内置 `node:sqlite` 和 npm 锁文件，已在 Windows 本机验证离线运行；它没有固定 DSH SDK、播放后端或 IPC。Tauri 2 和小窗仍为拟定方向，Core/Playback 的最终宿主仍要通过 Phase 0 实测。
 
+桌面宿主的实测形态（2026-09-27，见 [P0-01](spikes/P0-01-dsh.md)）：Electron 外壳启动 `dsh-desktop-host`，Host 载入 `$DSH_HOME/profiles/desktop` 并监听 `127.0.0.1:19387`；Host 自己用 `process.execPath --expose-internals` + `ELECTRON_RUN_AS_NODE=1` 启动 Node 子进程，该运行时自带可用的 `node:sqlite`。desktop profile 由应用独占，CLI 不能导出或安装；插件只能以工作区 bundle 经应用内 Plugin Manager 安装。因此 Core/Playback 作为插件拥有的独立进程、由插件按同一垫片启动，是当前唯一有实测依据的宿主方式；可见窗口是否退出不影响它们仍需在真实 desktop profile 中验证。
+
 [P0-01 局部实验](spikes/P0-01-dsh.md)证明：隔离的 DSH Web profile 能用插件生命周期启动和清理独立 Node Core 子进程，并在慢工具执行期间保持宿主响应。[P0-04 基础实验](spikes/P0-04-playback.md)证明：本机 WPF MediaPlayer 在独立进程中能播放自生成短音频、静音续进度、发出曲终事件，并可由同用户命名管道断线重连。它们尚未验证 desktop profile、真实平台资源、正式 IPC 版本守卫或可见窗口退出，不锁定最终宿主方案。
 
 ## 2. 责任边界

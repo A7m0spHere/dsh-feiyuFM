@@ -1,0 +1,6 @@
+# Temporary F1 probe bundle. Remove this package to uninstall the probe.
+- insert:
+    - id: fishfm-p0-desktop
+      name: '@local/fishfm-p0-desktop-probe'
+      config:
+        repoRoot: 'D:/AI项目/dsh-音乐'
