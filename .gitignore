@@ -22,6 +22,22 @@ target/
 *.db
 *.log
 
+# Audio must never enter the repository (AGENTS.md). Test tones are generated on
+# demand by scripts/make-tone.mjs instead of being committed.
+*.wav
+*.mp3
+*.flac
+*.m4a
+*.aac
+*.ogg
+*.opus
+
+# Generated login artifacts (the QR code and the sign-in URL beside it)
+login-*.png
+login-*.txt
+*.dpapi
+*.dpapi.json
+
 # Editors and operating systems
 .DS_Store
 Thumbs.db

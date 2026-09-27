@@ -4,19 +4,36 @@
 
 从用户近期常听的音乐建立成长环境，由本地策略形成 Agent 的音乐偏好、记忆和自主选择；用户始终保留播放控制权。v0.1 同时支持网易云音乐和 QQ 音乐，桌面悬浮窗可随时隐藏。
 
-**当前状态：Phase 1 离线控制核心已可运行，尚无接入真实 DSH 或音乐平台的插件。** 项目名为「肥鱼电台 FishFM」，仓库名为 `dsh-feiyuFM`；`DeepSeek Music Persona` 是产品定位，`SeekFM` 是早期讨论用名。尚未发布 npm 包。
+**当前状态：离线部分已完成，真实平台尚未验证。** 已有 Phase 1 控制核心、独立播放服务（真实音频已通过）、DSH 插件 bundle（在真实宿主中验证过激活与停用）、网易云与 QQ 适配器（离线）、人格与成长、多 Session 判定、扩展 UI 的桥接与面板逻辑。**但从未与真实音乐平台通信过**：登录/导入/搜索/解析的接口形状是按真实服务实测确认的，端到端仍未跑通，桌面窗口壳未建。逐项状态见[完成度总表](docs/PROJECT_PLAN.md#完成度总表)；项目名为「肥鱼电台 FishFM」，仓库名为 `dsh-feiyuFM`；`DeepSeek Music Persona` 是产品定位，`SeekFM` 是早期讨论用名。尚未发布 npm 包。
 
-Node 24.14～24.x 下可运行离线检查，不需要音乐账号：
+Node 24.14～24.x 下可运行，**大部分检查不需要音乐账号**：
 
 ```sh
 npm ci --ignore-scripts --no-audit --no-fund
-npm run check
-npm test
-npm run build
-npm run debug
+npm run check        # 语法与模块检查
+npm test             # 195 项离线测试
+npm run build        # 构建 dist/ 并跑调试冒烟
+npm run debug        # JSON 行调试入口（假播放，不出声）
+```
+
+需要账号或会产生声音的入口（**都会明确告诉你它会做什么**）：
+
+```sh
+npm run login                          # 扫码登录并保存会话（DPAPI 加密落盘）
+npm run login -- --dry-run             # 同上，但不保存任何东西
+npm run soak -- --minutes 5 --fake     # 长跑演练：请求计数与资源采样，合成 provider
+npm run smoke:playback                 # 播放本地 WAV 验证真实音频，会出声
+```
+
+尚未接线的入口（`login` 之外的平台操作仍需要端点配置）：
+
+```sh
+npm run core -- --playback fake --provider fake --selection environment
 ```
 
 调试入口读取 JSON 行。例如依次输入 `{"queue":[{"provider":"netease","providerTrackId":"1","title":"Demo"}]}`、`{"type":"next"}`、`{"type":"resume"}`、`wait`、`snapshot`，可观察状态和假播放服务。`npm run debug -- --db <本地路径>` 可试验重启恢复；不要把数据库提交入库。此入口不播放真实音乐。内部接口与边界见 [Phase 1 控制契约](docs/CORE_CONTRACT.md)。
+
+安装、构建产物、支持范围与已知限制见 [交付说明](docs/DELIVERY.md)。
 
 这是独立维护的 DSH 社区项目，名称呼应 DeepSeek 大肥鱼形象；与大肥鱼插件的关系是实现参考，不要求安装该插件。
 
@@ -29,6 +46,7 @@ npm run debug
 | [技术架构](docs/ARCHITECTURE.md) | 模块职责、播放生命周期、数据与事件边界 |
 | [Phase 0 验证清单](docs/PHASE_0.md) | 开发前必须验证的接口和最小实验 |
 | [Phase 1 控制契约](docs/CORE_CONTRACT.md) | 已实现的内部接口、命令和存储语义 |
+| [交付说明](docs/DELIVERY.md) | 安装、命令、支持范围、已知限制与素材归属 |
 | [决策与参考线索](docs/DECISIONS.md) | 对话来源、取舍、待验证项目与本次整理记录 |
 
 ## 项目约束
