@@ -13,6 +13,7 @@
 //     loop is exactly what "选中就加分" would otherwise produce.
 import { trackId } from './contracts.mjs';
 import { AGENT_SEED_KEY } from './taste.mjs';
+import { SESSION_PARAMETERS as SESSION_DEFAULTS } from './sessions.mjs';
 
 /**
  * First-pass parameters, recorded here and in docs/DECISIONS.md section 13.
@@ -66,11 +67,13 @@ export function qualifiesAsListen({ entry, durationMs = null, parameters = GROWT
 }
 
 /** The weight a qualifying listen carries, by how it was heard and how it ended. */
-export function listenWeight(entry, parameters = GROWTH_PARAMETERS) {
+export function listenWeight(entry, parameters = GROWTH_PARAMETERS, { sessionWeight = 1 } = {}) {
   const audible = entry?.audible === true;
   const base = audible ? 1 : parameters.silentWeight;
   const ended = entry?.endReason === 'ended';
-  return ended ? base : base * parameters.skippedWeight;
+  // A transient session's activity only precipitates a little into long-term
+  // preferences (MVP section 4).
+  return (ended ? base : base * parameters.skippedWeight) * sessionWeight;
 }
 
 /**
@@ -85,16 +88,49 @@ export function applyListenGrowth({
   durationMs = null,
   now = Date.now(),
   parameters = GROWTH_PARAMETERS,
-}) {
+  /**
+   * Session context. `sessionId` records where the listen came from;
+   * `transient` marks a short-lived session, whose influence is reduced. The
+   * ceiling is enforced from history, so it survives a restart.
+   */
+  session = null,
+} = {}) {
   const verdict = qualifiesAsListen({ entry, durationMs, parameters });
   if (!verdict.qualifies) {
-    return { updated: false, reason: verdict.reason, ...verdict, delta: 0 };
+    // The qualification reason is the explanation here, so it stays.
+    return { ...verdict, updated: false, reason: verdict.reason, delta: 0 };
   }
 
   const key = trackId(entry.track);
+  const sessionId = session?.sessionId ?? null;
+  const sessionWeight = session?.transient ? SESSION_DEFAULTS.transientWeight : 1;
+
+  // A session may only precipitate so much into one track. Growth counts its own
+  // applications, so the ceiling does not depend on who recorded the listen and
+  // it survives a restart.
+  let sessionApplied = 0;
+  if (sessionId) {
+    sessionApplied = store.getSessionInfluence ? store.getSessionInfluence(sessionId, entry.track) : 0;
+    const cap = session.cap ?? SESSION_DEFAULTS.sessionListenCap;
+    if (sessionApplied >= cap) {
+      return {
+        // `verdict` is spread first so its fields are available, then the
+        // refusal's own reason and flag win: otherwise the qualification message
+        // would overwrite the real explanation for doing nothing.
+        ...verdict,
+        updated: false,
+        reason: `this session has already contributed ${cap} updates to this track`,
+        delta: 0,
+        sessionId,
+        sessionApplied,
+        sessionCapped: true,
+      };
+    }
+  }
+
   const existing = store.getPreference('track', key);
   const before = existing ? existing.affinity : parameters.neutral;
-  const weight = listenWeight(entry, parameters);
+  const weight = listenWeight(entry, parameters, { sessionWeight });
 
   // Diminishing returns: the closer an affinity already is to the ceiling, the
   // smaller the next step. Without this, repeated auto-selection would walk a
@@ -104,6 +140,9 @@ export function applyListenGrowth({
   const after = clamp(before + delta, parameters.min, parameters.max);
 
   store.transaction(() => {
+    // Record that this session spent one of its allowances, in the same
+    // transaction as the preference change so the two cannot disagree.
+    if (sessionId && store.bumpSessionInfluence) store.bumpSessionInfluence(sessionId, entry.track, now);
     store.setPreference({
       targetType: 'track',
       targetKey: key,
@@ -135,6 +174,7 @@ export function applyListenGrowth({
     updated: after !== before,
     reason: verdict.reason,
     key,
+    sessionId,
     before,
     after,
     delta: after - before,

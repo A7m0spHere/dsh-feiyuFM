@@ -238,7 +238,7 @@ test('a restart keeps the same personality instead of reshuffling it', () => {
   }
 });
 
-test('the seeded generator is deterministic and the schema migrated to version 2', () => {
+test('the seeded generator is deterministic and the schema is at the current version', () => {
   const rng = createRng(42);
   const second = createRng(42);
   const values = [rng(), rng(), rng()];
@@ -247,13 +247,13 @@ test('the seeded generator is deterministic and the schema migrated to version 2
 
   const store = new MusicStore();
   try {
-    assert.equal(store.db.prepare('PRAGMA user_version').get().user_version, 2);
+    assert.equal(store.db.prepare('PRAGMA user_version').get().user_version, 3);
     const tables = store.db.prepare("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name").all().map((row) => row.name);
     for (const table of ['tracks', 'seed_imports', 'user_environment', 'agent_preferences']) {
       assert.ok(tables.includes(table), `${table} must exist after migration 2`);
     }
     const migrations = store.db.prepare('SELECT version FROM schema_migrations ORDER BY version').all().map((row) => row.version);
-    assert.deepEqual(migrations, [1, 2]);
+    assert.deepEqual(migrations, [1, 2, 3]);
     // Migration 1 data must still be reachable.
     assert.equal(store.getSetting('missing', 'fallback'), 'fallback');
   } finally {

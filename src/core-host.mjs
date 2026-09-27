@@ -17,6 +17,7 @@ import { createSelector } from './selection.mjs';
 import { createRng, readAgentSeed, initializeAgentPreferences, describeTaste } from './taste.mjs';
 import { importSeedTracks, describeEnvironment } from './environment.mjs';
 import { applyListenGrowth, decayPreferences, describeGrowth } from './growth.mjs';
+import { createSessionRegistry, mayStartPlayback } from './sessions.mjs';
 import { createHttpTransport } from './providers/transport.mjs';
 import { createNetEaseProvider } from './providers/netease.mjs';
 import { createQQProvider } from './providers/qq.mjs';
@@ -301,6 +302,8 @@ export function createCoreHost({
   let disposePlayback = async () => {};
   /** Periodic maintenance handle (preference decay); cleared on close. */
   let maintenance = null;
+  // Which DSH session is active, and therefore who may start music.
+  const sessions = createSessionRegistry({ now });
   let closed = false;
   let lastRevision = -1;
   let pending = Promise.resolve();
@@ -358,13 +361,39 @@ export function createCoreHost({
         }
         case 'session-event': {
           const mapped = mapSessionEvent(String(message.name ?? ''));
-          onLog({ type: 'session-event', name: message.name, kind: mapped.kind });
+          // Every session event is noted so the registry knows who is active,
+          // even when the event itself may not start music.
+          const note = sessions.note(message.sessionId, { at: now(), kind: mapped.kind });
+          // The active session is what a listen gets attributed to, so growth can
+          // tell a transient session's activity from long-term use.
+          const active = sessions.activeSessionId(now());
+          if (active) core.currentSessionId = active;
+          const gate = mapped.allowsAutonomy
+            ? mayStartPlayback({
+              registry: sessions, sessionId: message.sessionId,
+              playing: Boolean(core.snapshot().current), at: now(),
+            })
+            : { allowed: false, reason: 'this event may not start music' };
+          onLog({
+            type: 'session-event', name: message.name, kind: mapped.kind,
+            session: typeof message.sessionId === 'string' ? `${message.sessionId.slice(0, 8)}…` : null,
+            autonomy: gate.allowed, reason: gate.reason,
+          });
           let selected = false;
-          if (mapped.allowsAutonomy) {
+          if (gate.allowed) {
             selected = core.selectAutonomously();
             if (selected) await core.waitForIdle();
           }
-          send({ type: 'result', id, ok: true, kind: mapped.kind, selected, snapshot: core.snapshot() });
+          send({
+            type: 'result', id, ok: true, kind: mapped.kind, selected,
+            autonomy: { allowed: gate.allowed, reason: gate.reason },
+            sessions: sessions.describe(now()),
+            snapshot: core.snapshot(),
+          });
+          return;
+        }
+        case 'sessions': {
+          send({ type: 'result', id, ok: true, ...sessions.describe(now()) });
           return;
         }
         case 'import': {
@@ -554,8 +583,17 @@ export function createCoreHost({
         // A finished listen is reported here; growth policy decides what, if
         // anything, it changes about the agent's preferences.
         onListened: (entry) => {
-          const report = applyListenGrowth({ store, entry, durationMs: entry.durationMs, now: now() });
-          onLog({ type: 'growth', updated: report.updated, reason: report.reason, delta: report.delta ?? 0 });
+          const sessionId = entry.sessionId ?? null;
+          const report = applyListenGrowth({
+            store, entry, durationMs: entry.durationMs, now: now(),
+            // A session that has not been around long precipitates only a little
+            // into long-term preferences, and its total influence is capped.
+            session: sessionId ? { sessionId, transient: sessions.isTransient(sessionId, now()) } : null,
+          });
+          onLog({
+            type: 'growth', updated: report.updated, reason: report.reason, delta: report.delta ?? 0,
+            session: sessionId ? `${sessionId.slice(0, 8)}…` : null, capped: Boolean(report.sessionCapped),
+          });
           if (report.updated) publishIfChanged();
           return report;
         },

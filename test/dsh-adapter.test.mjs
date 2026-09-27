@@ -142,6 +142,24 @@ test('the product path reports a missing platform adapter instead of inventing a
   }
 });
 
+test('a session identity is read from whichever shape the host provides', async () => {
+  const { sessionIdOf } = await import('../src/dsh-adapter.mjs');
+  // The real shape was not recorded, so several plausible ones are accepted and
+  // an unknown object yields null rather than an invented id.
+  assert.equal(sessionIdOf({ id: 'a' }), 'a');
+  assert.equal(sessionIdOf({ sessionId: 'b' }), 'b');
+  assert.equal(sessionIdOf({ key: 'c' }), 'c');
+  assert.equal(sessionIdOf({ id: () => 'd' }), 'd');
+  assert.equal(sessionIdOf({ meta: { sessionId: 'e' } }), 'e');
+  assert.equal(sessionIdOf({ info: { id: 'f' } }), 'f');
+  assert.equal(sessionIdOf({ id: '' }), null, 'an empty id is not an identity');
+  assert.equal(sessionIdOf({}), null);
+  assert.equal(sessionIdOf(null), null);
+  assert.equal(sessionIdOf('a-string'), null, 'a bare string is not a session object');
+  // A throwing getter must not take the event down with it.
+  assert.equal(sessionIdOf({ id: () => { throw new Error('nope'); }, sessionId: 'g' }), 'g');
+});
+
 test('registering the adapter exposes tools and commands, and unload removes everything', async () => {
   const bridge = new CoreBridge({ spawnCore: () => spawnFakeCore() });
   await bridge.start();

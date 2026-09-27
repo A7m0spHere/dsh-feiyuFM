@@ -35,7 +35,7 @@ CREATE TABLE track_stats (
 CREATE TABLE processed_commands (command_id TEXT PRIMARY KEY, processed_at INTEGER NOT NULL);
 `;
 
-test('an existing version 1 database upgrades to version 2 without losing data', () => {
+test('an existing version 1 database upgrades to the current version without losing data', () => {
   const directory = mkdtempSync(join(tmpdir(), 'fishfm-migrate-'));
   const path = join(directory, 'legacy.sqlite');
   try {
@@ -54,7 +54,7 @@ test('an existing version 1 database upgrades to version 2 without losing data',
 
     const store = new MusicStore(path);
     try {
-      assert.equal(store.db.prepare('PRAGMA user_version').get().user_version, 2);
+      assert.equal(store.db.prepare('PRAGMA user_version').get().user_version, 3, 'migrations 2 and 3 both applied');
       // Old data is intact.
       assert.deepEqual(store.getSetting('window'), { x: 10, y: 20 });
       assert.equal(store.getHistory('inst-1').effective_ms, 4200);
@@ -65,7 +65,7 @@ test('an existing version 1 database upgrades to version 2 without losing data',
       assert.equal(store.countPreferences(), 0);
       assert.deepEqual(
         store.db.prepare('SELECT version FROM schema_migrations ORDER BY version').all().map((row) => row.version),
-        [1, 2],
+        [1, 2, 3],
       );
     } finally {
       store.close();
@@ -74,13 +74,63 @@ test('an existing version 1 database upgrades to version 2 without losing data',
     // Reopening is idempotent: no second migration, no error.
     const again = new MusicStore(path);
     try {
-      assert.equal(again.db.prepare('PRAGMA user_version').get().user_version, 2);
+      assert.equal(again.db.prepare('PRAGMA user_version').get().user_version, 3);
       assert.deepEqual(
         again.db.prepare('SELECT version FROM schema_migrations ORDER BY version').all().map((row) => row.version),
-        [1, 2],
+        [1, 2, 3],
       );
     } finally {
       again.close();
+    }
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test('a version 2 database gains session attribution without losing history', () => {
+  // Migration 3 adds a column to listen_history, which is the risky kind: prove
+  // existing rows survive and simply have no session attached.
+  const directory = mkdtempSync(join(tmpdir(), 'fishfm-migrate-v3-'));
+  const path = join(directory, 'v2.sqlite');
+  try {
+    // Build a genuine v2 database: v1 schema plus migration 2's tables.
+    const legacy = new DatabaseSync(path);
+    legacy.exec(V1);
+    legacy.exec(`
+      CREATE TABLE tracks (track_key TEXT PRIMARY KEY, provider TEXT NOT NULL, provider_track_id TEXT NOT NULL,
+        title TEXT NOT NULL DEFAULT '', artist TEXT NOT NULL DEFAULT '', duration_ms INTEGER, updated_at INTEGER NOT NULL);
+      CREATE TABLE user_environment (track_key TEXT PRIMARY KEY, provider TEXT NOT NULL, source TEXT NOT NULL,
+        batch_id TEXT, play_count INTEGER, last_played_at INTEGER, added_at INTEGER NOT NULL);
+      CREATE TABLE agent_preferences (target_type TEXT NOT NULL, target_key TEXT NOT NULL, affinity REAL NOT NULL,
+        source TEXT NOT NULL, updated_at INTEGER NOT NULL, PRIMARY KEY (target_type, target_key));
+    `);
+    legacy.prepare('INSERT INTO schema_migrations VALUES (?, ?)').run(1, 'x');
+    legacy.prepare('INSERT INTO schema_migrations VALUES (?, ?)').run(2, 'x');
+    legacy.exec('PRAGMA user_version = 2');
+    legacy.prepare('INSERT INTO listen_history VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)')
+      .run('old-1', 'netease:9', 'agent', 'audio', 5000, 1, 1, 'ended', 1700000000000);
+    legacy.prepare('INSERT INTO agent_preferences VALUES (?, ?, ?, ?, ?)')
+      .run('track', 'netease:9', 0.77, 'listen', 1700000000000);
+    legacy.close();
+
+    const store = new MusicStore(path);
+    try {
+      assert.equal(store.db.prepare('PRAGMA user_version').get().user_version, 3);
+      // The pre-existing listen survived, with no session attached.
+      const row = store.getHistory('old-1');
+      assert.equal(row.effective_ms, 5000);
+      assert.equal(row.session_id, null, 'an old listen has no session, and that is honest');
+      assert.equal(store.getPreference('track', 'netease:9').affinity, 0.77, 'preferences are untouched');
+      // The new capability works on the upgraded database.
+      store.recordHistory({
+        playInstanceId: 'new-1', track: { provider: 'netease', providerTrackId: '9' },
+        selectedBy: 'agent', progressSource: 'audio', effectiveMs: 4000,
+        agentListening: true, audible: true, endReason: 'ended', endedAt: 1700000001000, sessionId: 'sess-a',
+      });
+      assert.equal(store.countSessionListens('sess-a', { provider: 'netease', providerTrackId: '9' }), 1);
+      assert.equal(store.countSessionListens('sess-b', { provider: 'netease', providerTrackId: '9' }), 0);
+    } finally {
+      store.close();
     }
   } finally {
     rmSync(directory, { recursive: true, force: true });

@@ -44,6 +44,12 @@ export class MusicCore {
     // Optional local selector. It is only consulted for autonomous playback;
     // explicit user commands never go through it.
     this.selector = selector;
+    /**
+     * The session currently being used, set by the host from session events.
+     * It is recorded with each listen so a transient session's influence can be
+     * bounded; it never changes playback behaviour on its own.
+     */
+    this.currentSessionId = null;
     // Optional growth hook, called once per recorded listen. Policy lives in
     // src/growth.mjs so the core stays free of taste rules.
     this.onListened = onListened;
@@ -146,6 +152,9 @@ export class MusicCore {
       audible: current.audible,
       endReason: reason,
       endedAt: this.clock.now(),
+      // Which session this listen belonged to, so a transient session's
+      // influence on long-term preferences can be bounded (A06).
+      sessionId: current.sessionId ?? null,
     });
     current.finished = true;
     // Growth is a policy decision, so the core only reports the finished
@@ -162,6 +171,7 @@ export class MusicCore {
           audible: current.audible,
           endReason: reason,
           durationMs: current.track.durationMs ?? null,
+          sessionId: current.sessionId ?? null,
         });
       } catch { /* a growth fault must not break playback */ }
     }
@@ -174,6 +184,9 @@ export class MusicCore {
     this.state.current = {
       track: normalizeTrack(track), playInstanceId: randomUUID(), selectedBy,
       positionMs: 0, progressSource: 'audio', agentListening: false, audible: false, finished: false,
+      // The session that caused this listen, if any. A user's own pick carries
+      // whatever session made it; autonomous playback carries the active one.
+      sessionId: this.currentSessionId ?? null,
     };
     this.state.paused = keepPaused;
     this.state.status = keepPaused ? 'paused' : 'resolving';

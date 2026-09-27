@@ -76,6 +76,21 @@ CREATE INDEX user_environment_provider ON user_environment (provider);
 CREATE INDEX seed_imports_provider ON seed_imports (provider, created_at);
 `;
 
+// T3/A06: which session a listen belonged to. A transient session's influence on
+// long-term preferences has to be bounded, and that requires knowing where a
+// listen came from. Nullable: a listen with no session context keeps full weight.
+const MIGRATION_3 = `
+ALTER TABLE listen_history ADD COLUMN session_id TEXT;
+CREATE INDEX listen_history_session ON listen_history (session_id, track_key);
+CREATE TABLE session_influence (
+  session_id TEXT NOT NULL,
+  track_key TEXT NOT NULL,
+  applied INTEGER NOT NULL DEFAULT 0,
+  updated_at INTEGER NOT NULL,
+  PRIMARY KEY (session_id, track_key)
+);
+`;
+
 export class MusicStore {
   constructor(path = ':memory:') {
     if (path !== ':memory:') mkdirSync(dirname(path), { recursive: true });
@@ -92,7 +107,7 @@ export class MusicStore {
 
   migrate() {
     const version = this.db.prepare('PRAGMA user_version').get().user_version;
-    if (version > 2) throw new Error(`Unsupported schema version ${version}`);
+    if (version > 3) throw new Error(`Unsupported schema version ${version}`);
     if (version === 0) {
       this.transaction(() => {
         this.db.exec(MIGRATION_1);
@@ -105,6 +120,13 @@ export class MusicStore {
         this.db.exec(MIGRATION_2);
         this.db.prepare('INSERT INTO schema_migrations VALUES (?, ?)').run(2, new Date().toISOString());
         this.db.exec('PRAGMA user_version = 2');
+      });
+    }
+    if (this.db.prepare('PRAGMA user_version').get().user_version === 2) {
+      this.transaction(() => {
+        this.db.exec(MIGRATION_3);
+        this.db.prepare('INSERT INTO schema_migrations VALUES (?, ?)').run(3, new Date().toISOString());
+        this.db.exec('PRAGMA user_version = 3');
       });
     }
   }
@@ -183,10 +205,12 @@ export class MusicStore {
   recordHistory(entry) {
     return this.transaction(() => {
       const result = this.db.prepare(`INSERT OR IGNORE INTO listen_history
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
+        (play_instance_id, track_key, selected_by, progress_source, effective_ms,
+         agent_listening, audible, end_reason, ended_at, session_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
         entry.playInstanceId, trackId(entry.track), entry.selectedBy,
         entry.progressSource, entry.effectiveMs, Number(entry.agentListening), Number(entry.audible),
-        entry.endReason, entry.endedAt);
+        entry.endReason, entry.endedAt, entry.sessionId ?? null);
       if (result.changes === 0) return false;
       this.db.prepare(`INSERT INTO track_stats (track_key, play_count, effective_ms) VALUES (?, ?, ?)
         ON CONFLICT(track_key) DO UPDATE SET play_count=play_count+excluded.play_count,
@@ -194,6 +218,36 @@ export class MusicStore {
         .run(trackId(entry.track), entry.endReason === 'ended' && entry.effectiveMs > 0 ? 1 : 0, entry.effectiveMs);
       return true;
     });
+  }
+
+  /** How many listens a session has already contributed to one track. */
+  countSessionListens(sessionId, track) {
+    if (!sessionId) return 0;
+    const row = this.db.prepare('SELECT COUNT(*) AS count FROM listen_history WHERE session_id = ? AND track_key = ?')
+      .get(sessionId, trackId(track));
+    return row?.count ?? 0;
+  }
+
+  /**
+   * How much a session has already changed one track's preference.
+   *
+   * Growth counts its own applications rather than inferring them from history,
+   * so the ceiling holds no matter who called it and survives a restart.
+   */
+  getSessionInfluence(sessionId, track) {
+    if (!sessionId) return 0;
+    const row = this.db.prepare('SELECT applied FROM session_influence WHERE session_id = ? AND track_key = ?')
+      .get(sessionId, trackId(track));
+    return row?.applied ?? 0;
+  }
+
+  bumpSessionInfluence(sessionId, track, now) {
+    if (!sessionId) return 0;
+    const row = this.db.prepare(`INSERT INTO session_influence (session_id, track_key, applied, updated_at)
+      VALUES (?, ?, 1, ?)
+      ON CONFLICT(session_id, track_key) DO UPDATE SET applied = applied + 1, updated_at = excluded.updated_at
+      RETURNING applied`).get(sessionId, trackId(track), now);
+    return row?.applied ?? 1;
   }
 
   getHistory(playInstanceId) {

@@ -179,11 +179,17 @@ export class CoreBridge {
     return { snapshot: answer.snapshot, accepted: answer.accepted };
   }
 
-  async sessionEvent(name) {
+  async sessionEvent(name, { sessionId = null } = {}) {
     const translated = translateSessionEvent({ type: name });
     if (!translated) return { ignored: true, name };
-    const answer = await this.request({ type: 'session-event', name });
-    return { ignored: false, kind: answer.kind, selected: answer.selected, snapshot: answer.snapshot };
+    // The session id is what lets the core tell which session is active, so
+    // several open sessions cannot fight over playback (A08) and a transient
+    // one cannot rewrite long-term preferences (A06).
+    const answer = await this.request({ type: 'session-event', name, sessionId });
+    return {
+      ignored: false, kind: answer.kind, selected: answer.selected,
+      autonomy: answer.autonomy, sessions: answer.sessions, snapshot: answer.snapshot,
+    };
   }
 
   async setQueue(tracks) {
@@ -213,6 +219,44 @@ export class CoreBridge {
  * Registers the adapter on a Harness profile context. Returns a disposer so a
  * test (or an unload) can take everything back down.
  */
+/**
+ * Reads a stable identity for a session.
+ *
+ * The real session object's shape was not recorded by the P0-01 probe, and the
+ * installed type declarations are not readable from this checkout, so rather
+ * than assume one field this checks the plausible ones in order. `undefined` is
+ * a real answer: the core then reports "the event carries no session id" instead
+ * of guessing which session was active.
+ */
+export function sessionIdOf(session) {
+  if (!session || typeof session !== 'object') return null;
+  const candidates = [session.id, session.sessionId, session.key, session.identity];
+  for (const candidate of candidates) {
+    if (typeof candidate === 'string' && candidate) return candidate;
+    // Some shapes expose identity through a getter-style method.
+    if (typeof candidate === 'function') {
+      try {
+        const value = candidate.call(session);
+        if (typeof value === 'string' && value) return value;
+      } catch { /* fall through to the next candidate */ }
+    }
+  }
+  // A nested `meta`/`info` object is also plausible; one level is enough.
+  for (const nested of [session.meta, session.info, session.state]) {
+    const value = sessionIdOfShallow(nested);
+    if (value) return value;
+  }
+  return null;
+}
+
+function sessionIdOfShallow(value) {
+  if (!value || typeof value !== 'object') return null;
+  for (const field of ['id', 'sessionId', 'key']) {
+    if (typeof value[field] === 'string' && value[field]) return value[field];
+  }
+  return null;
+}
+
 export function registerAdapter(ctx, { bridge, onLog = () => {} }) {
   const disposers = [];
   if (typeof ctx.effect === 'function') {
@@ -220,11 +264,21 @@ export function registerAdapter(ctx, { bridge, onLog = () => {} }) {
   }
 
   if (typeof ctx.on === 'function') {
-    disposers.push(ctx.on('session/event', (_session, event) => {
+    // A failure to identify the session must not lose the event entirely: the
+    // bridge is told what it can, and the core reports "no session id" rather
+    // than guessing which session was active.
+    disposers.push(ctx.on('session/event', (session, event) => {
       const translated = translateSessionEvent(event);
       if (!translated) return;
+      const sessionId = sessionIdOf(session);
+      if (!sessionId) {
+        // Recorded once per event so the real shape can be identified from a
+        // live run without guessing at it now.
+        onLog({ type: 'session-id-missing', keys: Object.keys(session ?? {}).slice(0, 12) });
+      }
       // Fire-and-forget: a music step must never block the host's event loop.
-      bridge.sessionEvent(translated.name).catch((error) => onLog({ type: 'session-event-failed', message: error.message }));
+      bridge.sessionEvent(translated.name, { sessionId })
+        .catch((error) => onLog({ type: 'session-event-failed', message: error.message }));
     }));
   }
 
