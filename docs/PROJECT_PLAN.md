@@ -41,6 +41,8 @@ P0-04 先用自有或可合法使用的短音频测试进程生命周期，再�
 | F3 持久化 | F2、P0-06 | 首版迁移、设置/约束/历史存储、凭据引用；重启恢复为暂停；历史去重与更新采用事务 | A06/A10 | 离线完成：[存储](../src/storage.mjs)、[P0-06 局部证据](spikes/P0-06-local-data.md)；凭据后端待验 |
 | F4 播放协调与命令 | F2/F3 | 单一队列、两个开关、模式、暂停保持、命令版本、取消与有限重试；晚到结果不能覆盖用户命令 | A03/A04/A08/A10 | 离线完成：[Core](../src/core.mjs)、[14 项测试](../test/core.test.mjs)；真实播放待验 |
 
+离线证据（2026-09-27）：实现提交 [`87761e2`](https://github.com/A7m0spHere/dsh-feiyuFM/commit/87761e22ccd0ed96bf6094c62b8aac289a53974c) 已推送 `codex/phase1-core`；本机 `npm ci --ignore-scripts --no-audit --no-fund`、`npm run check`、`npm test`（14 项通过）、`npm run build` 均通过；[Windows CI](https://github.com/A7m0spHere/dsh-feiyuFM/actions/runs/36297664836) 完成且成功。仍不能把这些离线结果当成真实 DSH、平台或音频验收。
+
 这一阶段只做最小顺序选歌或固定候选，不实现完整 Taste 算法。提供调试入口和状态输出即可，不投入正式桌宠布局。
 
 ### Phase 2：尽早让真实音乐跑起来
