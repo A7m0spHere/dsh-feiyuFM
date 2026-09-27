@@ -68,7 +68,20 @@ export function apply(ctx, config = {}) {
     const seen = eventTypes.get(type) ?? { count: 0, keys: Object.keys(event ?? {}).sort().slice(0, 10) };
     seen.count += 1;
     eventTypes.set(type, seen);
-    if (seen.count <= 2) record('session-event', { type, keys: seen.keys });
+    if (seen.count <= 2) {
+      // The observer receives an envelope (type/seq/time/data); the entry payload
+      // of SessionEventMap lives under `data`, not on the envelope itself.
+      const data = event?.data;
+      const reason = data?.reason;
+      record('session-event', {
+        type,
+        envelopeKeys: seen.keys,
+        dataKeys: data && typeof data === 'object' ? Object.keys(data).sort().slice(0, 8) : null,
+        seqType: typeof event?.seq,
+        turn: typeof data?.turn === 'number' ? data.turn : null,
+        reasonKind: reason && typeof reason === 'object' ? reason.kind ?? null : (typeof reason === 'string' ? reason : null),
+      });
+    }
   });
 
   const observations = { childReady: false, pipeEcho: null, childExit: null };
@@ -205,6 +218,21 @@ export function apply(ctx, config = {}) {
     }
 
     const timer = setTimeout(async () => {
+      // Emit real synthetic session events so the observer proves the actual
+      // envelope shape instead of only reading SessionEventMap from the types.
+      try {
+        if (typeof ctx.sessions?.create === 'function') {
+          const session = ctx.sessions.create();
+          record('session-created', { hasAppend: typeof session?.append === 'function' });
+          session.append('turn/start', { turn: 1 });
+          session.append('turn/end', { turn: 1, reason: { kind: 'completed' } });
+          record('session-appended', { types: ['turn/start', 'turn/end'] });
+        } else {
+          record('session-created', { ok: false, error: 'ctx.sessions.create unavailable' });
+        }
+      } catch (error) {
+        record('session-append-error', { message: String(error?.message ?? error).slice(0, 200) });
+      }
       try {
         const result = await ctx.tools.execute({
           callId: 'fishfm-p0-desktop-self-call',
@@ -217,7 +245,7 @@ export function apply(ctx, config = {}) {
         record('tool-self-call', { outcome: 'threw', message: String(error?.message ?? error).slice(0, 160) });
       }
       record('event-summary', {
-        types: [...eventTypes.entries()].map(([type, value]) => ({ type, count: value.count })),
+        types: [...eventTypes.entries()].map(([type, value]) => ({ type, count: value.count, keys: value.keys })),
       });
     }, Number(process.env.FISHFM_P0_SELF_CALL_DELAY_MS ?? 8000));
 

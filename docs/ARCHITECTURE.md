@@ -57,6 +57,8 @@ Phase 1 的独立核心暂用 Node 24 ESM、内置 `node:sqlite` 和 npm 锁文�
 
 内部目标事件包括 `session_start`、`turn_end`、`task_phase_change`、`idle`、`track_end`；这些不保证是 DSH 当前真实的事件名。Adapter 必须记录实际事件、负载和映射。无法可靠识别 coding/debugging/research 时使用 `unknown` 或明确的 idle，不调用 LLM 猜工作内容。
 
+实观到的真实形状（2026-09-27，[P0-01](spikes/P0-01-dsh.md)）：`ctx.on('session/event', (session, event))` 的信封固定为 `{type, seq: number, time, data}`，负载在 `event.data` 下；`turn/end` 的 `reason` 是 `{kind: 'completed'|'aborted'|'blocked'|'error'|'max-tokens'|'interrupted'|'forked'}` 结构化对象。创建 Session 会先发出 `permission/preset`、`sandbox/mode`、`approval/policy`，可作为 `session_start` 的真实信号；`turn_end` 对应真实 `turn/end`；`idle` 与 `task_phase_change` 没有对应事件，只能由本地计时与工具调用推导，或保持 `unknown`。
+
 DSH 回调只做轻量校验和入队，不等待平台请求、播放解析或数据库写入。队列有界，重复状态可合并；网络调用需超时、取消和有限重试。禁止无限重试影响工作或制造换歌循环。
 
 每个本地用户配置维护一个音乐 Core 和一条有效播放队列。多个 DSH Session 共享 Global Taste；Session State 按 sessionId 隔离。用户指定的会话优先；否则最近接收明确用户交互的会话作为活动上下文，其余会话只保存状态，不抢占当前曲目。宿主无法提供可靠活动会话信息时使用通用上下文。
