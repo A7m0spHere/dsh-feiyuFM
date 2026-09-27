@@ -68,12 +68,14 @@ function clamp(value, min, max) {
 }
 
 /**
- * Creates the agent's initial preferences from the user's environment.
+ * Creates the agent's initial preferences from the user's environment, and tops
+ * up rows for tracks that arrived in a later import.
  *
  * Stable by construction: entries are processed in sorted key order, so the
- * random stream does not depend on insertion order, and the seed is persisted.
- * If preferences already exist this is a no-op, which is what makes a restart
- * keep the same personality.
+ * random stream does not depend on insertion order, the seed is persisted, and
+ * an existing preference is never rewritten. A restart therefore changes
+ * nothing, while a new import still participates in the personality instead of
+ * being stuck at a flat neutral score.
  */
 export function initializeAgentPreferences({
   store,
@@ -82,12 +84,7 @@ export function initializeAgentPreferences({
   force = false,
   parameters = SEED_PARAMETERS,
 } = {}) {
-  const existing = store.countPreferences();
   const storedSeed = readAgentSeed(store);
-  if (!force && existing > 0) {
-    return { initialized: false, seed: storedSeed, created: 0, reason: 'preferences already exist' };
-  }
-
   const effectiveSeed = normalizeSeed(seed ?? storedSeed ?? randomUUID());
   const rng = createRng(effectiveSeed);
   const entries = store.listEnvironment({ limit: 100000 });
@@ -119,15 +116,25 @@ export function initializeAgentPreferences({
     preferences.push({ targetType: 'artist', targetKey: artist, affinity: mean, source: 'seed' });
   }
 
-  store.transaction(() => {
-    store.setSetting(AGENT_SEED_KEY, effectiveSeed);
-    for (const preference of preferences) store.setPreference({ ...preference, updatedAt: now });
-  });
+  // Only rows that do not exist yet are written: an affinity that is already
+  // there was either seeded earlier or earned by listening, and neither may be
+  // overwritten by a later import. This is what keeps a restart stable while
+  // still letting a new import participate in the personality.
+  const missing = force
+    ? preferences
+    : preferences.filter((preference) => !store.getPreference(preference.targetType, preference.targetKey));
+
+  if (missing.length || readAgentSeed(store) === null) {
+    store.transaction(() => {
+      store.setSetting(AGENT_SEED_KEY, effectiveSeed);
+      for (const preference of missing) store.setPreference({ ...preference, updatedAt: now });
+    });
+  }
 
   return {
-    initialized: true,
-    seed: effectiveSeed,
-    created: preferences.length,
+    initialized: missing.length > 0,
+    seed: readAgentSeed(store) ?? effectiveSeed,
+    created: missing.length,
     tracks: tracks.length,
     artists: artistTotals.size,
   };

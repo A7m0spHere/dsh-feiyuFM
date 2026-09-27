@@ -136,6 +136,62 @@ test('a rejected import is reported and changes nothing', async () => {
   }
 });
 
+test('a finished listen grows the agent preference through the host', async () => {
+  const out = collector();
+  const provider = new FakeProvider();
+  provider.set(track, 'fake:handle');
+  const host = createCoreHost({ output: out.stream, playbackMode: 'fake', provider, stateIntervalMs: 20 });
+  try {
+    await host.start();
+    await host.handle({
+      id: 'imp', type: 'import', provider: 'netease', source: 'recent', requested: 1, tracks: [track], seed: 4,
+    });
+    const before = host.store.getPreference('track', 'netease:h1').affinity;
+
+    // The agent must be the one that chose the track: a user's own pick never
+    // updates agent preferences, which is exactly what the MVP requires.
+    await host.handle({ id: 'user-pick', type: 'command', command: { type: 'requestTrack', track, commandId: 'cu' } });
+    const userInstance = host.snapshot().current.playInstanceId;
+    assert.equal(host.snapshot().current.selectedBy, 'user');
+    host.core.onPlaybackEvent({ type: 'progress', playInstanceId: userInstance, positionMs: track.durationMs, progressSource: 'audio' });
+    host.core.onPlaybackEvent({ type: 'ended', playInstanceId: userInstance });
+    await host.handle({ id: 'wait-user', type: 'wait' });
+    assert.equal(host.store.getPreference('track', 'netease:h1').affinity, before,
+      'a user pick must not grow the agent preference');
+
+    // Now let the agent choose and finish a track itself. A second track is
+// imported because the first one is inside its cooldown after just playing.
+    const second = { ...track, providerTrackId: 'h2', title: 'Second track' };
+    provider.set(second, 'fake:handle-2');
+    await host.handle({
+      id: 'imp2', type: 'import', provider: 'netease', source: 'recent', requested: 2,
+      tracks: [track, second], seed: 4,
+    });
+    await host.handle({ id: 'self', type: 'command', command: { type: 'chooseSelf', commandId: 'c1' } });
+    await host.handle({ id: 'wait-self', type: 'wait' });
+    const current = host.snapshot().current;
+    assert.equal(current?.selectedBy, 'agent', 'the agent must own this listen');
+    const agentKey = current.track.providerTrackId === 'h1' ? 'netease:h1' : 'netease:h2';
+    const beforeAgent = host.store.getPreference('track', agentKey).affinity;
+    host.core.onPlaybackEvent({ type: 'progress', playInstanceId: current.playInstanceId, positionMs: track.durationMs, progressSource: 'audio' });
+    host.core.onPlaybackEvent({ type: 'ended', playInstanceId: current.playInstanceId });
+    await host.handle({ id: 'wait', type: 'wait' });
+
+    const after = host.store.getPreference('track', agentKey).affinity;
+    assert.ok(after > beforeAgent, `an agent listen must grow the preference (${beforeAgent} -> ${after})`);
+    assert.equal(host.store.getPreference('track', 'netease:h1').affinity, before,
+      'the track the user picked was never listened to by the agent, so it must not grow');
+
+    // A pause must not grow anything.
+    await host.handle({ id: 'self2', type: 'command', command: { type: 'chooseSelf', commandId: 'c2' } });
+    await host.handle({ id: 'pause', type: 'command', command: { type: 'pause', commandId: 'c3' } });
+    await host.handle({ id: 'wait2', type: 'wait' });
+    assert.equal(host.store.getPreference('track', agentKey).affinity, after, 'a pause changes nothing');
+  } finally {
+    await host.close();
+  }
+});
+
 test('the host selects autonomously from the user environment and records the fallback', async () => {
   const out = collector();
   const provider = new FakeProvider();

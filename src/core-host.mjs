@@ -16,6 +16,7 @@ import { FakePlayback } from './fakes.mjs';
 import { createSelector } from './selection.mjs';
 import { createRng, readAgentSeed, initializeAgentPreferences, describeTaste } from './taste.mjs';
 import { importSeedTracks, describeEnvironment } from './environment.mjs';
+import { applyListenGrowth, describeGrowth } from './growth.mjs';
 
 /** Bump when the host/owner message shapes change in a way an older peer cannot read. */
 export const CORE_HOST_PROTOCOL = 1;
@@ -100,10 +101,22 @@ export function buildSelector({ store, now = () => Date.now(), rng = null }) {
     // A stored seed keeps selection reproducible across restarts; without one
     // the session still works, it just is not reproducible.
     rng: rng ?? createRng(Number.isSafeInteger(seed) ? seed : 1),
-    listFamiliar: () => store.listEnvironment({ limit: 5000 }).map((row) => ({
-      provider: row.provider,
-      providerTrackId: row.track_key.split(':').slice(1).join(':'),
-    })),
+    listFamiliar: () => store.listEnvironment({ limit: 5000 }).map((row) => {
+      // Restore the stored metadata, not just the key: the effective-progress
+      // threshold needs the real duration, and a title is needed to tell the
+      // user what is playing.
+      const stored = store.getTrack({
+        provider: row.provider,
+        providerTrackId: row.track_key.split(':').slice(1).join(':'),
+      });
+      return {
+        provider: row.provider,
+        providerTrackId: row.track_key.split(':').slice(1).join(':'),
+        ...(stored?.title ? { title: stored.title } : {}),
+        ...(stored?.artist ? { artist: stored.artist } : {}),
+        ...(stored?.duration_ms ? { durationMs: stored.duration_ms } : {}),
+      };
+    }),
     listDiscovery: () => [],
     now,
   });
@@ -250,7 +263,12 @@ export function createCoreHost({
           return;
         }
         case 'environment': {
-          send({ type: 'result', id, ok: true, environment: describeEnvironment(store), taste: describeTaste(store) });
+          send({
+            type: 'result', id, ok: true,
+            environment: describeEnvironment(store),
+            taste: describeTaste(store),
+            growth: describeGrowth(store),
+          });
           return;
         }
         case 'account': {
@@ -306,6 +324,14 @@ export function createCoreHost({
         provider: activeProvider,
         playback,
         selector: selectionMode === 'environment' ? buildSelector({ store, now }) : null,
+        // A finished listen is reported here; growth policy decides what, if
+        // anything, it changes about the agent's preferences.
+        onListened: (entry) => {
+          const report = applyListenGrowth({ store, entry, durationMs: entry.durationMs, now: now() });
+          onLog({ type: 'growth', updated: report.updated, reason: report.reason, delta: report.delta ?? 0 });
+          if (report.updated) publishIfChanged();
+          return report;
+        },
         ...(clock ? { clock } : {}),
       });
       playback.onEvent((event) => {

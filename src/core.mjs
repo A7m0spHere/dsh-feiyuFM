@@ -36,7 +36,7 @@ const DEFAULT_SETTINGS = Object.freeze({
 });
 
 export class MusicCore {
-  constructor({ store, provider, playback, selector = null, clock = { now: () => Date.now(), sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)) } }) {
+  constructor({ store, provider, playback, selector = null, onListened = null, clock = { now: () => Date.now(), sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)) } }) {
     if (!store || !provider || !playback) throw new Error('store, provider and playback are required');
     this.store = store;
     this.provider = provider;
@@ -44,6 +44,9 @@ export class MusicCore {
     // Optional local selector. It is only consulted for autonomous playback;
     // explicit user commands never go through it.
     this.selector = selector;
+    // Optional growth hook, called once per recorded listen. Policy lives in
+    // src/growth.mjs so the core stays free of taste rules.
+    this.onListened = onListened;
     this.clock = clock;
     const saved = store.getCoreState();
     this.state = saved ? {
@@ -133,7 +136,7 @@ export class MusicCore {
   _finishCurrent(reason) {
     const current = this.state.current;
     if (!current || current.finished) return;
-    this.store.recordHistory({
+    const recorded = this.store.recordHistory({
       playInstanceId: current.playInstanceId,
       track: current.track,
       selectedBy: current.selectedBy,
@@ -145,6 +148,23 @@ export class MusicCore {
       endedAt: this.clock.now(),
     });
     current.finished = true;
+    // Growth is a policy decision, so the core only reports the finished
+    // listen; whether it changes anything is decided outside (src/growth.mjs).
+    if (recorded && typeof this.onListened === 'function') {
+      try {
+        this.onListened({
+          playInstanceId: current.playInstanceId,
+          track: current.track,
+          selectedBy: current.selectedBy,
+          progressSource: current.progressSource,
+          effectiveMs: current.positionMs,
+          agentListening: current.agentListening,
+          audible: current.audible,
+          endReason: reason,
+          durationMs: current.track.durationMs ?? null,
+        });
+      } catch { /* a growth fault must not break playback */ }
+    }
   }
 
   _select(track, selectedBy, keepPaused) {
