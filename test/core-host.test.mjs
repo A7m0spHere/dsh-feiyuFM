@@ -81,9 +81,128 @@ test('only turn/end may trigger autonomous selection; unknown events are ignored
   assert.equal(mapSessionEvent('idle').allowsAutonomy, false);
 });
 
-test('a session event may select autonomously and never invents work context', async () => {
+test('an import fills the environment, initializes taste and becomes selectable', async () => {
+  const out = collector();
+  const host = createCoreHost({ output: out.stream, playbackMode: 'fake', stateIntervalMs: 1000 });
+  try {
+    await host.start();
+    await host.handle({
+      id: 'imp', type: 'import', provider: 'netease', source: 'liked', requested: 2,
+      tracks: [track, { ...track, providerTrackId: 'h2', title: 'Second' }],
+      seed: 11,
+    });
+    const answer = out.messages.at(-1);
+    assert.equal(answer.ok, true);
+    assert.equal(answer.import.source, 'liked');
+    assert.equal(answer.import.imported, 2);
+    assert.equal(answer.import.requested, 2);
+    assert.equal(answer.import.degraded, false, 'a full import is not degraded');
+    assert.equal(answer.taste.initialized, true);
+    assert.equal(answer.taste.seed, 11);
+
+    await host.handle({ id: 'env', type: 'environment' });
+    const env = out.messages.at(-1).environment;
+    assert.equal(env.total, 2);
+    assert.equal(env.bySource.liked.count, 2);
+    assert.equal(env.bySource.liked.label, '我喜欢');
+
+    // The newly imported tracks are selectable: the selector reads the
+    // environment on every decision rather than caching it at startup.
+    await host.handle({ id: 'self', type: 'command', command: { type: 'chooseSelf', commandId: 'c1' } });
+    const selected = host.snapshot().lastSelection;
+    assert.ok(selected?.trackKey, 'the imported environment must be selectable');
+    assert.ok(['h1', 'h2'].includes(selected.trackKey.split(':')[1]));
+  } finally {
+    await host.close();
+  }
+});
+
+test('a rejected import is reported and changes nothing', async () => {
   const out = collector();
   const host = createCoreHost({ output: out.stream, playbackMode: 'fake' });
+  try {
+    await host.start();
+    await host.handle({
+      id: 'bad', type: 'import', provider: 'netease', source: 'recent', requested: 1,
+      tracks: [{ provider: 'qq', providerTrackId: 'x', title: 'wrong platform' }],
+    });
+    const answer = out.messages.at(-1);
+    assert.equal(answer.type, 'error');
+    assert.match(answer.error.message, /received a qq track/);
+    await host.handle({ id: 'env', type: 'environment' });
+    assert.equal(out.messages.at(-1).environment.total, 0, 'a rejected import must leave no rows');
+  } finally {
+    await host.close();
+  }
+});
+
+test('the host selects autonomously from the user environment and records the fallback', async () => {
+  const out = collector();
+  const provider = new FakeProvider();
+  provider.set(track, 'fake:handle');
+  const host = createCoreHost({
+    output: out.stream, playbackMode: 'fake', provider, stateIntervalMs: 20,
+  });
+  try {
+    await host.start();
+    // Seed the environment the way a real import would, then let the agent pick.
+    const { importSeedTracks } = await import('../src/environment.mjs');
+    const { initializeAgentPreferences } = await import('../src/taste.mjs');
+    importSeedTracks({ store: host.store, provider: 'netease', source: 'recent', requested: 1, tracks: [track] });
+    initializeAgentPreferences({ store: host.store, seed: 3, now: 1 });
+
+    // Force exploration so the fallback is deterministic rather than a coin flip.
+    await host.handle({ id: 'rate', type: 'command', command: { type: 'setDiscoveryRate', value: 1, commandId: 'c0' } });
+    // A fresh core is paused; only an explicit user choice starts autonomy.
+    await host.handle({ id: 'self', type: 'command', command: { type: 'chooseSelf', commandId: 'c1' } });
+    const decision = host.snapshot().lastSelection;
+    assert.ok(decision, 'the autonomous decision must be recorded');
+    assert.equal(decision.trackKey, 'netease:h1');
+    assert.equal(decision.pool, 'familiar');
+    assert.equal(decision.discoveryRate, 1, 'the user rate is preserved, not rewritten');
+    assert.equal(decision.fellBack, true, 'exploration was attempted and had nothing to offer');
+    assert.match(decision.fallbackReason, /discovery pool had no usable track/);
+    assert.equal(host.snapshot().current.track.providerTrackId, 'h1');
+  } finally {
+    await host.close();
+  }
+});
+
+test('the selector is reproducible from the stored agent seed', async () => {
+  const { buildSelector } = await import('../src/core-host.mjs');
+  const { MusicStore } = await import('../src/storage.mjs');
+  const { importSeedTracks } = await import('../src/environment.mjs');
+  const { initializeAgentPreferences } = await import('../src/taste.mjs');
+
+  const make = () => {
+    const store = new MusicStore();
+    const tracks = ['1', '2', '3'].map((id) => ({ provider: 'netease', providerTrackId: id, title: `N${id}`, artist: 'A' }));
+    importSeedTracks({ store, provider: 'netease', source: 'recent', requested: 3, tracks });
+    initializeAgentPreferences({ store, seed: 777, now: 1 });
+    return { store, tracks };
+  };
+
+  const first = make();
+  const second = make();
+  try {
+    const at = Date.parse('2026-09-27T12:00:00+08:00');
+    const sequence = (store, tracks) => {
+      const selector = buildSelector({ store, now: () => at });
+      return Array.from({ length: 8 }, () => selector.decide({ discoveryRate: 0, at }).track.providerTrackId);
+    };
+    assert.deepEqual(sequence(first.store, first.tracks), sequence(second.store, second.tracks),
+      'two stores with the same seed must select identically');
+  } finally {
+    first.store.close();
+    second.store.close();
+  }
+});
+
+test('a session event may select autonomously and never invents work context', async () => {
+  const out = collector();
+  // The fixed-candidate queue is the Phase 1 entry point; it is a separate,
+  // explicit mode from selecting out of the user's environment.
+  const host = createCoreHost({ output: out.stream, playbackMode: 'fake', selectionMode: 'queue' });
   try {
     await host.start();
     await host.handle({ id: 'q', type: 'setQueue', tracks: [track] });

@@ -114,12 +114,25 @@ test('the product path reports a missing platform adapter instead of inventing a
   const bridge = new CoreBridge({ spawnCore: () => spawnRealCore() });
   await bridge.start();
   try {
-    await bridge.setQueue([track]);
-    // Selection is fine; resolving to something playable is what must fail.
+    // An empty environment means there is nothing to select: wait, do not spin.
+    const empty = await bridge.command({ type: 'chooseSelf' });
+    assert.equal(empty.snapshot.current, null);
+    assert.equal(empty.snapshot.status, 'idle');
+
+    // Fill the environment the way a real import will, then let the agent pick.
+    await bridge.request({
+      type: 'import',
+      provider: 'netease',
+      source: 'recent',
+      requested: 1,
+      tracks: [track],
+    });
     const selected = await bridge.command({ type: 'chooseSelf' });
+    // Selection works; resolving to something playable is what must fail while
+    // no platform adapter exists, and it must fail with the real reason.
     assert.equal(selected.snapshot.status, 'error');
     assert.equal(selected.snapshot.lastError.code, 'provider_unavailable');
-    assert.equal(selected.snapshot.current === null || selected.snapshot.current !== undefined, true);
+    assert.equal(selected.snapshot.lastSelection.trackKey, 'netease:a1');
 
     const account = await bridge.request({ type: 'account', provider: 'netease' });
     assert.equal(account.account.status, 'unavailable');

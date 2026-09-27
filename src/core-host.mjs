@@ -13,6 +13,9 @@ import { MusicError } from './contracts.mjs';
 import { MusicStore } from './storage.mjs';
 import { MusicCore } from './core.mjs';
 import { FakePlayback } from './fakes.mjs';
+import { createSelector } from './selection.mjs';
+import { createRng, readAgentSeed, initializeAgentPreferences, describeTaste } from './taste.mjs';
+import { importSeedTracks, describeEnvironment } from './environment.mjs';
 
 /** Bump when the host/owner message shapes change in a way an older peer cannot read. */
 export const CORE_HOST_PROTOCOL = 1;
@@ -82,6 +85,30 @@ export class ProviderRegistry {
   }
 }
 
+/**
+ * Builds the local selector the core consults for autonomous playback.
+ *
+ * The familiar pool is the user's own imported environment. The discovery pool
+ * comes from platform recommendations, which do not exist until the NetEase and
+ * QQ adapters land (P2/P4); an empty pool is a real state, and the selector then
+ * records that no exploration happened while keeping the user's rate setting.
+ */
+export function buildSelector({ store, now = () => Date.now(), rng = null }) {
+  const seed = readAgentSeed(store);
+  return createSelector({
+    store,
+    // A stored seed keeps selection reproducible across restarts; without one
+    // the session still works, it just is not reproducible.
+    rng: rng ?? createRng(Number.isSafeInteger(seed) ? seed : 1),
+    listFamiliar: () => store.listEnvironment({ limit: 5000 }).map((row) => ({
+      provider: row.provider,
+      providerTrackId: row.track_key.split(':').slice(1).join(':'),
+    })),
+    listDiscovery: () => [],
+    now,
+  });
+}
+
 export function createPlayback({ mode = 'real', onLog = () => {} }) {
   if (mode === 'fake') {
     const playback = new FakePlayback();
@@ -111,6 +138,15 @@ export function createCoreHost({
   output = process.stdout,
   dbPath = ':memory:',
   playbackMode = 'real',
+  /**
+   * Where autonomous selection gets its candidates.
+   *   'environment' (default): the local selector reads the user's imported
+   *     environment and platform discovery candidates.
+   *   'queue': the Phase 1 fixed-candidate debug queue passed via setQueue.
+   * The two are mutually exclusive on purpose, so it is never ambiguous which
+   * source produced a track.
+   */
+  selectionMode = 'environment',
   provider = null,
   providerRegistry = null,
   clock,
@@ -118,6 +154,9 @@ export function createCoreHost({
   stateIntervalMs = 400,
   onLog = () => {},
 } = {}) {
+  if (!['environment', 'queue'].includes(selectionMode)) {
+    throw new MusicError('invalid_command', `Unknown selection mode ${String(selectionMode)}`);
+  }
   const store = new MusicStore(dbPath);
   // With no adapter installed the core must fail resolution honestly instead of
   // resolving through a stand-in, so a fake provider is opt-in only.
@@ -192,6 +231,28 @@ export function createCoreHost({
           send({ type: 'result', id, ok: true, kind: mapped.kind, selected, snapshot: core.snapshot() });
           return;
         }
+        case 'import': {
+          // Records an import batch the way a platform adapter will: real
+          // source, real counts, dedup by platform id, then the agent's
+          // personality is initialized from what actually arrived.
+          const result = importSeedTracks({
+            store,
+            provider: message.provider,
+            source: message.source ?? 'recent',
+            tracks: message.tracks ?? [],
+            requested: message.requested ?? 0,
+            degraded: message.degraded === true,
+            reason: message.reason ?? null,
+            now: now(),
+          });
+          const taste = initializeAgentPreferences({ store, seed: message.seed ?? null, now: now() });
+          send({ type: 'result', id, ok: true, import: result, taste, snapshot: core.snapshot() });
+          return;
+        }
+        case 'environment': {
+          send({ type: 'result', id, ok: true, environment: describeEnvironment(store), taste: describeTaste(store) });
+          return;
+        }
         case 'account': {
           send({
             type: 'result',
@@ -240,7 +301,13 @@ export function createCoreHost({
       const created = await createPlayback({ mode: playbackMode, onLog });
       playback = created.playback;
       disposePlayback = created.dispose;
-      core = new MusicCore({ store, provider: activeProvider, playback, ...(clock ? { clock } : {}) });
+      core = new MusicCore({
+        store,
+        provider: activeProvider,
+        playback,
+        selector: selectionMode === 'environment' ? buildSelector({ store, now }) : null,
+        ...(clock ? { clock } : {}),
+      });
       playback.onEvent((event) => {
         const accepted = core.onPlaybackEvent(event);
         if (accepted) publishIfChanged();

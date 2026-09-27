@@ -36,11 +36,14 @@ const DEFAULT_SETTINGS = Object.freeze({
 });
 
 export class MusicCore {
-  constructor({ store, provider, playback, clock = { now: () => Date.now(), sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)) } }) {
+  constructor({ store, provider, playback, selector = null, clock = { now: () => Date.now(), sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)) } }) {
     if (!store || !provider || !playback) throw new Error('store, provider and playback are required');
     this.store = store;
     this.provider = provider;
     this.playback = playback;
+    // Optional local selector. It is only consulted for autonomous playback;
+    // explicit user commands never go through it.
+    this.selector = selector;
     this.clock = clock;
     const saved = store.getCoreState();
     this.state = saved ? {
@@ -321,7 +324,35 @@ export class MusicCore {
 
   selectAutonomously() {
     if (!this.state.settings.listening || this.state.paused || this._blockedUntil() || this.state.current) return false;
-    const next = this._takeNext();
+
+    // With a selector, the local decision layer picks from the user's
+    // environment and platform candidates; otherwise the fixed debug queue is
+    // used. Either way, no user command is involved and nothing is retried
+    // when there is nothing to play.
+    let next = null;
+    let decision = null;
+    if (this.selector) {
+      decision = this.selector.next({
+        discoveryRate: this.state.settings.discovery ? this.state.settings.discoveryRate : 0,
+        at: this.clock.now(),
+      });
+      next = decision?.track ?? null;
+      this.state.lastSelection = {
+        at: this.clock.now(),
+        trackKey: next ? trackId(next) : null,
+        pool: decision?.pool ?? null,
+        fellBack: Boolean(decision?.fellBack),
+        fallbackReason: decision?.fallbackReason ?? null,
+        reason: decision?.reason ?? null,
+        discoveryRate: decision?.discoveryRate ?? null,
+        score: decision?.score ?? null,
+        considered: decision?.considered ?? null,
+      };
+      this._commit();
+    } else {
+      next = this._takeNext();
+    }
+
     if (!next) return false;
     this._select(next, 'agent', false);
     return true;
