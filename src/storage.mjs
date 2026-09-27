@@ -155,6 +155,12 @@ export class MusicStore {
       .run(key, JSON.stringify(value));
   }
 
+  /** Removing a setting is a real operation: absent and "set to null" differ. */
+  removeSetting(key) {
+    const result = this.db.prepare('DELETE FROM settings WHERE key = ?').run(key);
+    return result.changes > 0;
+  }
+
   getCoreState() {
     const row = this.db.prepare('SELECT value_json FROM core_state WHERE id = 1').get();
     return row ? JSON.parse(row.value_json) : null;
