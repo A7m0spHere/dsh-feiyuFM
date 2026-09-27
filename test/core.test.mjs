@@ -25,7 +25,7 @@ test('late resolve cannot replace a newer user track or undo pause', async () =>
   const h = harness();
   h.provider.defer(a);
   h.send('requestTrack', { track: a });
-  await Promise.resolve();
+  await new Promise((resolve) => setImmediate(resolve));
   h.send('requestTrack', { track: b });
   assert.equal(h.provider.calls[0].signal.aborted, true);
   h.provider.release(a);
@@ -33,6 +33,7 @@ test('late resolve cannot replace a newer user track or undo pause', async () =>
   assert.equal(h.core.snapshot().current.track.provider, 'qq');
   assert.equal(h.playback.loaded.playInstanceId, h.core.snapshot().current.playInstanceId);
   h.send('pause');
+  await h.core.waitForIdle();
   assert.equal(h.playback.playing, false);
   const old = h.core.snapshot().current.playInstanceId;
   assert.equal(h.core.onPlaybackEvent({ type: 'ended', playInstanceId: old }), false);
@@ -44,7 +45,7 @@ test('pause cancels a slow resolve before playback begins', async () => {
   const h = harness();
   h.provider.defer(a);
   h.send('requestTrack', { track: a });
-  await Promise.resolve();
+  await new Promise((resolve) => setImmediate(resolve));
   h.send('pause');
   assert.equal(h.provider.calls[0].signal.aborted, true);
   h.provider.release(a);
@@ -66,6 +67,7 @@ test('next while paused changes track but does not start playback', async () => 
   assert.equal(h.playback.playing, true);
   h.send('pause');
   h.send('next');
+  await h.core.waitForIdle();
   assert.equal(h.core.snapshot().current.track.provider, 'qq');
   assert.equal(h.playback.playing, false);
   h.store.close();

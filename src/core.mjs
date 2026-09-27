@@ -86,6 +86,7 @@ export class MusicCore {
     const task = Promise.resolve().then(work).catch((error) => {
       if (version !== this.state.commandVersion) return;
       this.state.lastError = { code: error.code ?? 'internal', message: error.message };
+      this.state.paused = true;
       this.state.status = this.state.current ? 'error' : 'idle';
       this._commit();
     });
@@ -95,6 +96,27 @@ export class MusicCore {
 
   async waitForIdle() {
     while (this.tasks.size) await Promise.all([...this.tasks]);
+  }
+
+  _control(method, args, stopOnError = false) {
+    const version = args.version;
+    this._launch(async () => {
+      try {
+        await this.playback[method](args);
+      } catch (error) {
+        if (stopOnError && version === this.state.commandVersion) {
+          try { await this.playback.stop({ version }); } catch { /* Keep the original error. */ }
+        }
+        throw error;
+      }
+    }, version);
+  }
+
+  _restartCurrent() {
+    this._invalidate();
+    const version = this.state.commandVersion;
+    this.state.status = 'resolving';
+    this._launch(() => this._resolveAndPlay(version), version);
   }
 
   _blockedTrack(track) {
@@ -126,7 +148,6 @@ export class MusicCore {
     this._finishCurrent('skipped');
     this._invalidate();
     const version = this.state.commandVersion;
-    this.playback.stop({ version });
     this.state.current = {
       track: normalizeTrack(track), playInstanceId: randomUUID(), selectedBy,
       positionMs: 0, progressSource: 'audio', agentListening: false, audible: false, finished: false,
@@ -135,7 +156,8 @@ export class MusicCore {
     this.state.status = keepPaused ? 'paused' : 'resolving';
     this.state.lastError = null;
     this._commit();
-    if (!keepPaused) this._launch(() => this._resolveAndPlay(version), version);
+    if (keepPaused) this._control('stop', { version });
+    else this._launch(() => this._resolveAndPlay(version), version);
   }
 
   async _resolveAndPlay(version) {
@@ -143,6 +165,8 @@ export class MusicCore {
     if (!current) return;
     const controller = new AbortController();
     this.abortController = controller;
+    await this.playback.stop({ version });
+    if (!this._isCurrent(version, controller.signal)) return;
     let resource;
     for (let attempt = 0; attempt < 3; attempt += 1) {
       try {
@@ -196,14 +220,12 @@ export class MusicCore {
         this._invalidate();
         this.state.paused = true;
         this.state.status = this.state.current ? 'paused' : 'idle';
-        this.playback.pause({ version: this.state.commandVersion });
+        this._control('pause', { version: this.state.commandVersion }, true);
         break;
       case 'resume':
-        this.state.paused = false;
-        if (this.state.current) {
-          this._invalidate();
-          this.state.status = 'resolving';
-          this._launch(() => this._resolveAndPlay(this.state.commandVersion), this.state.commandVersion);
+        if (this.state.paused || this.state.status !== 'playing') {
+          this.state.paused = false;
+          if (this.state.current) this._restartCurrent();
         }
         break;
       case 'next': {
@@ -222,12 +244,17 @@ export class MusicCore {
           this._invalidate();
           this.state.paused = true;
           this.state.status = 'paused';
-          this.playback.pause({ version: this.state.commandVersion });
+          this._control('pause', { version: this.state.commandVersion }, true);
         }
         break;
       case 'setHumanPlayback':
         this.state.settings.humanPlayback = command.value;
-        this.playback.setMuted({ muted: !command.value, version: this.state.commandVersion });
+        if (this.state.current && !this.state.paused && this.state.status === 'resolving') {
+          this._restartCurrent();
+        } else {
+          if (this.state.current && !this.state.paused) this._invalidate();
+          this._control('setMuted', { muted: !command.value, version: this.state.commandVersion }, !command.value);
+        }
         break;
       case 'setDiscovery': this.state.settings.discovery = command.value; break;
       case 'setDiscoveryRate': this.state.settings.discoveryRate = command.value; break;
@@ -238,21 +265,21 @@ export class MusicCore {
           this.state.settings.humanPlayback = false;
           this.state.paused = true;
           this.state.status = this.state.current ? 'paused' : 'idle';
-          this.playback.pause({ version: this.state.commandVersion });
-          this.playback.setMuted({ muted: true, version: this.state.commandVersion });
+          this._control('pause', { version: this.state.commandVersion }, true);
+          this._control('setMuted', { muted: true, version: this.state.commandVersion }, true);
         } else {
+          const wasPlaying = this.state.current && !this.state.paused && this.state.status === 'playing';
           this.state.settings.listening = true;
           if (command.value === 'silent') {
             this.state.settings.humanPlayback = false;
-            this.playback.setMuted({ muted: true, version: this.state.commandVersion });
           } else {
             this.state.settings.strategy = command.value;
           }
           this.state.paused = false;
-          if (this.state.current) {
+          if (this.state.current && !wasPlaying) this._restartCurrent();
+          else if (wasPlaying && command.value === 'silent') {
             this._invalidate();
-            this.state.status = 'resolving';
-            this._launch(() => this._resolveAndPlay(this.state.commandVersion), this.state.commandVersion);
+            this._control('setMuted', { muted: true, version: this.state.commandVersion }, true);
           }
         }
         break;
@@ -265,19 +292,16 @@ export class MusicCore {
           createdAt: now, summary: 'User stopped autonomous listening for today' });
         this.state.paused = true;
         this.state.status = this.state.current ? 'paused' : 'idle';
-        this.playback.pause({ version: this.state.commandVersion });
+        this._control('pause', { version: this.state.commandVersion }, true);
         break;
       }
       case 'chooseSelf':
         this.store.removeConstraint('stop-today');
         this.state.blockUntil = null;
         this.state.settings.listening = true;
+        const shouldRestart = this.state.current && (this.state.paused || this.state.status !== 'playing');
         this.state.paused = false;
-        if (this.state.current) {
-          this._invalidate();
-          this.state.status = 'resolving';
-          this._launch(() => this._resolveAndPlay(this.state.commandVersion), this.state.commandVersion);
-        }
+        if (shouldRestart) this._restartCurrent();
         break;
       case 'banTrack':
         this.store.addConstraint({ id: `ban:${trackId(command.track)}`, kind: 'ban_track',
