@@ -17,6 +17,7 @@
 | [`src/playback/fake-backend.mjs`](../../src/playback/fake-backend.mjs) | 离线替身后端（慢/失败打开、瞬时 0、重复 ended、过期版本、崩溃） |
 | [`test/playback.test.mjs`](../../test/playback.test.mjs) | 13 项离线测试，真实 spawn + 真实命名管道 + 真协议 |
 | [`scripts/playback-smoke.mjs`](../../scripts/playback-smoke.mjs) | 真实音频冒烟：14 项检查，自生成 WAV，不需要任何账号 |
+| [`src/playback/ui-probe.mjs`](../../src/playback/ui-probe.mjs) | 诊断用：附着到已运行的宿主并打印它的 hello/state，用于人工排查（宿主一次只服务一个客户端） |
 
 ## 协议要点（v1）
 
