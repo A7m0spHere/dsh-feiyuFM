@@ -241,20 +241,39 @@ test('a position on a disconnected monitor comes back into view', () => {
   }
 });
 
-test('a display scale change clamps a size that no longer fits', () => {
+test('a display scale change converts the position instead of leaving it drifted', () => {
+  // Measured on this machine (P0-05): at 125% scaling WPF reports 120 where the
+  // OS reports 150. A position stored at one scale must be converted, or the
+  // window quietly moves by that ratio.
   const store = new MusicStore();
   try {
-    saveWindowState(store, { x: 10, y: 10, width: 1600, height: 900 }, { scaleFactor: 1 });
-    const restored = restoreWindowState({ store, displays: [PRIMARY], scaleFactor: 1.5 });
-    assert.equal(restored.source, 'resized');
-    assert.match(restored.reason, /scale changed/);
-    assert.ok(restored.rect.width <= PRIMARY.width && restored.rect.height <= PRIMARY.height);
+    saveWindowState(store, { x: 400, y: 200, width: 200, height: 240 }, { scaleFactor: 1 });
+    const rescaled = restoreWindowState({ store, displays: [PRIMARY], scaleFactor: 1.25 });
+    assert.equal(rescaled.source, 'rescaled');
+    assert.match(rescaled.reason, /scale changed from 1 to 1\.25/);
+    assert.equal(rescaled.rect.x, 500, '400 units at 100% is 500 at 125%');
+    assert.equal(rescaled.rect.y, 250);
+    assert.equal(rescaled.rect.width, 250);
+    assert.equal(rescaled.rect.scaleFactor, 1.25, 'the new scale is remembered with it');
 
-    // A size larger than the display is clamped even without a scale change.
+    // Sizes that no longer fit are still clamped after conversion.
+    saveWindowState(store, { x: 0, y: 0, width: 1600, height: 900 }, { scaleFactor: 1 });
+    const clamped = restoreWindowState({ store, displays: [PRIMARY], scaleFactor: 1.5 });
+    assert.ok(clamped.rect.width <= PRIMARY.width && clamped.rect.height <= PRIMARY.height);
+    assert.ok(['rescaled', 'resized'].includes(clamped.source));
+  } finally {
+    store.close();
+  }
+});
+
+test('a size larger than the display is clamped even without a scale change', () => {
+  const store = new MusicStore();
+  try {
     saveWindowState(store, { x: 0, y: 0, width: 4000, height: 3000 });
     const clamped = restoreWindowState({ store, displays: [PRIMARY] });
     assert.equal(clamped.source, 'resized');
     assert.equal(clamped.rect.width, PRIMARY.width);
+    assert.match(clamped.reason, /larger than the display/);
   } finally {
     store.close();
   }

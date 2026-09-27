@@ -119,10 +119,34 @@ export function restoreWindowState({ store, displays, fallback = null, scaleFact
     };
   }
 
-  // A DPI change can make a remembered size too large for the display it is on.
-  const sized = clampSize(remembered, usable);
+  // A remembered rect was recorded in the coordinate units of the display it was
+  // on. Measured on this machine (P0-05): at 125% scaling, WPF reports 120 for a
+  // physical 150, so a position stored at one scale drifts if it is reused at
+  // another. Converting is what keeps the window where the user put it.
   const dpiChanged = Number.isFinite(scaleFactor) && Number.isFinite(remembered.scaleFactor)
     && scaleFactor !== remembered.scaleFactor;
+  if (dpiChanged && remembered.scaleFactor > 0) {
+    const ratio = scaleFactor / remembered.scaleFactor;
+    const converted = {
+      x: Math.round(remembered.x * ratio),
+      y: Math.round(remembered.y * ratio),
+      width: Math.round(remembered.width * ratio),
+      height: Math.round(remembered.height * ratio),
+      scaleFactor,
+    };
+    const stillVisible = visibleArea(converted, usable) >= MIN_VISIBLE_PX * MIN_VISIBLE_PX;
+    if (stillVisible) {
+      return {
+        rect: placeInside(converted, usable),
+        source: 'rescaled',
+        reason: `the display scale changed from ${remembered.scaleFactor} to ${scaleFactor}, so the position was converted`,
+        remembered,
+      };
+    }
+  }
+
+  // A DPI change can also make a remembered size too large for the display.
+  const sized = clampSize(remembered, usable);
   if (sized.width !== remembered.width || sized.height !== remembered.height || dpiChanged) {
     return {
       rect: placeInside(sized, usable),
