@@ -44,7 +44,15 @@ export function createNetEaseProvider(options = {}) {
     ...options,
     parse: {
       // Scan responses: a key to poll with, plus whatever the caller may show.
-      loginQr: (body) => ({ key: body?.key ?? null, qrImage: body?.qrImage ?? body?.qrimg ?? null, qrUrl: body?.qrUrl ?? body?.url ?? null }),
+      // The key has been seen both at the top level and under `data.unikey`.
+      loginQr: (body) => {
+        const data = body?.data ?? body;
+        return {
+          key: data?.unikey ?? body?.key ?? data?.key ?? null,
+          qrImage: body?.qrImage ?? body?.qrimg ?? data?.qrimg ?? null,
+          qrUrl: body?.qrUrl ?? body?.url ?? data?.qrurl ?? body?.qrurl ?? null,
+        };
+      },
       loginPoll: (body) => {
         const code = body?.code ?? body?.status ?? null;
         if (code === 800 || code === 'expired') return { status: 'expired', code };

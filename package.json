@@ -22,6 +22,7 @@
     "build": "node scripts/build.mjs",
     "debug": "node bin/fishfm-debug.mjs",
     "core": "node bin/fishfm-core.mjs",
+    "login": "node scripts/login.mjs",
     "smoke:playback": "node scripts/playback-smoke.mjs"
   }
 }

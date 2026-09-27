@@ -16,7 +16,7 @@ import { FakePlayback } from './fakes.mjs';
 import { createSelector } from './selection.mjs';
 import { createRng, readAgentSeed, initializeAgentPreferences, describeTaste } from './taste.mjs';
 import { importSeedTracks, describeEnvironment } from './environment.mjs';
-import { applyListenGrowth, describeGrowth } from './growth.mjs';
+import { applyListenGrowth, decayPreferences, describeGrowth } from './growth.mjs';
 import { createHttpTransport } from './providers/transport.mjs';
 import { createNetEaseProvider } from './providers/netease.mjs';
 import { createQQProvider } from './providers/qq.mjs';
@@ -264,6 +264,11 @@ export function createCoreHost({
   clock,
   now = () => Date.now(),
   stateIntervalMs = 400,
+  /**
+   * How often preferences are decayed. Defaults to a slow cadence derived from
+   * the state interval; explicit so tests and long-running hosts can choose.
+   */
+  maintenanceIntervalMs = undefined,
   onLog = () => {},
 } = {}) {
   if (!['environment', 'queue'].includes(selectionMode)) {
@@ -294,6 +299,8 @@ export function createCoreHost({
   let core = null;
   let playback = null;
   let disposePlayback = async () => {};
+  /** Periodic maintenance handle (preference decay); cleared on close. */
+  let maintenance = null;
   let closed = false;
   let lastRevision = -1;
   let pending = Promise.resolve();
@@ -509,6 +516,7 @@ export function createCoreHost({
     if (closed) return;
     closed = true;
     clearInterval(timer);
+    if (maintenance) clearInterval(maintenance);
     try { await disposePlayback(); } catch (error) { onLog({ type: 'playback-dispose-failed', message: error.message }); }
     try { if (!givenStore) store.close(); } catch { /* already closed */ }
   }
@@ -520,6 +528,18 @@ export function createCoreHost({
       const created = await createPlayback({ mode: playbackMode, onLog });
       playback = created.playback;
       disposePlayback = created.dispose;
+      // Maintenance: preferences decay toward neutral as time passes. Growth is
+      // non-negative by rule, so without a scheduled decay pass a preference
+      // could only ever ratchet upward. This is a requirement, not housekeeping.
+      maintenance = setInterval(() => {
+        try {
+          const result = decayPreferences({ store, now: now() });
+          if (result.changed) onLog({ type: 'maintenance', decayed: result.changed });
+        } catch (error) {
+          onLog({ type: 'maintenance_error', message: error.message });
+        }
+      }, Math.max(maintenanceIntervalMs ?? stateIntervalMs * 30, 250));
+      maintenance.unref?.();
       core = new MusicCore({
         store,
         provider: activeProvider,

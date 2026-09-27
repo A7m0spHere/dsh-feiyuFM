@@ -10,6 +10,7 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { setTimeout as delay } from 'node:timers/promises';
 import { createCoreHost, mapSessionEvent, ProviderRegistry, CORE_HOST_PROTOCOL } from '../src/core-host.mjs';
+import { MusicStore } from '../src/storage.mjs';
 import { FakeProvider } from '../src/fakes.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -133,6 +134,62 @@ test('a rejected import is reported and changes nothing', async () => {
     assert.equal(out.messages.at(-1).environment.total, 0, 'a rejected import must leave no rows');
   } finally {
     await host.close();
+  }
+});
+
+test('the host decays preferences on a schedule, so growth cannot ratchet upward forever', async () => {
+  const out = collector();
+  const logs = [];
+  const host = createCoreHost({
+    output: out.stream, playbackMode: 'fake', maintenanceIntervalMs: 300, onLog: (entry) => logs.push(entry),
+  });
+  try {
+    await host.start();
+    // A preference that was earned long ago and then left alone.
+    host.store.setPreference({
+      targetType: 'track', targetKey: 'netease:old', affinity: 0.9, source: 'listen',
+      updatedAt: Date.now() - 60 * 24 * 60 * 60 * 1000,
+    });
+    const before = host.store.getPreference('track', 'netease:old').affinity;
+
+    // stateIntervalMs * 30 is the maintenance period, so 40ms * 30 = 1.2s.
+    await new Promise((resolve) => setTimeout(resolve, 1_000));
+
+    const after = host.store.getPreference('track', 'netease:old').affinity;
+    assert.ok(after < before, `a stale preference must decay (${before} -> ${after})`);
+    assert.ok(after > 0.5, '60 days of decay must not overshoot past neutral');
+    assert.ok(logs.some((entry) => entry.type === 'maintenance'), 'the pass is reported');
+  } finally {
+    await host.close();
+  }
+});
+
+test('closing the host stops the maintenance pass, and a closed store is not written to', async () => {
+  const out = collector();
+  const directory = mkdtempSync(join(tmpdir(), 'fishfm-maintenance-'));
+  const path = join(directory, 'maintenance.sqlite');
+  try {
+    const host = createCoreHost({ output: out.stream, playbackMode: 'fake', maintenanceIntervalMs: 200, dbPath: path });
+    await host.start();
+    host.store.setPreference({
+      targetType: 'track', targetKey: 'netease:old', affinity: 0.9, source: 'listen',
+      updatedAt: Date.now() - 30 * 24 * 60 * 60 * 1000,
+    });
+    await host.close();
+
+    // After close the interval is cleared, so nothing keeps writing. Reopen the
+    // same file and confirm the value stays put across a wait.
+    const reopened = new MusicStore(path);
+    try {
+      const first = reopened.getPreference('track', 'netease:old').affinity;
+      await new Promise((resolve) => setTimeout(resolve, 700));
+      assert.equal(reopened.getPreference('track', 'netease:old').affinity, first,
+        'a closed host must not keep decaying in the background');
+    } finally {
+      reopened.close();
+    }
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
   }
 });
 
