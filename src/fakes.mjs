@@ -18,13 +18,20 @@ export class FakeClock {
 }
 
 export class FakeProvider {
-  constructor() {
+  /**
+   * @param {string|null} providerName When set, this instance stands in for one
+   *   platform the way a real adapter does, so getAccount()/getCapabilities()
+   *   work without being told which platform they are: the registry calls them
+   *   with no argument. Leave null to drive several platforms explicitly.
+   */
+  constructor(providerName = null) {
+    this.providerName = providerName;
     this.resources = new Map(); this.pending = new Map(); this.failures = new Map(); this.calls = [];
     this.accounts = { netease: { status: 'login_required' }, qq: { status: 'login_required' } };
     this.capabilities = { netease: {}, qq: {} };
   }
-  getAccount(provider) { return structuredClone(this.accounts[provider]); }
-  getCapabilities(provider) { return structuredClone(this.capabilities[provider]); }
+  getAccount(provider = this.providerName) { return structuredClone(this.accounts[provider]); }
+  getCapabilities(provider = this.providerName) { return structuredClone(this.capabilities[provider]); }
   setAccount(provider, account) { this.accounts[provider] = structuredClone(account); }
   setCapability(provider, name, capability) { this.capabilities[provider][name] = structuredClone(capability); }
   set(track, handle = `fake:${trackId(track)}`) { this.resources.set(trackId(track), { handle }); }

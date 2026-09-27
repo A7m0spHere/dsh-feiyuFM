@@ -69,7 +69,7 @@ test('the NetEase adapter passes the shared provider contract', async () => {
     table: {
       accountInfo: { accountId: 42 },
       recentTracks: { data: { list: [{ id: 1, name: 'A', ar: [{ name: 'X' }], dt: 1000 }] } },
-      songUrl: { data: [{ url: 'https://example.invalid/audio.mp3', expi: 1200 }] },
+      resolve: { data: [{ url: 'https://example.invalid/audio.mp3', expi: 1200 }] },
     },
   });
   try {
@@ -239,7 +239,7 @@ test('when no seed source works, the import fails loudly with the attempts', asy
 test('resolve returns a handle with an expiry and never persists it', async () => {
   const context = setup({
     signedIn: true,
-    table: { songUrl: { data: [{ url: 'https://example.invalid/track.mp3', expi: 3600 }] } },
+    table: { resolve: { data: [{ url: 'https://example.invalid/track.mp3', expi: 3600 }] } },
   });
   try {
     const resource = await context.provider.resolve({ provider: 'netease', providerTrackId: '5' }, { version: 9 });
@@ -259,7 +259,7 @@ test('resolve returns a handle with an expiry and never persists it', async () =
 });
 
 test('a track with no playable URL is media_unavailable, not a network failure', async () => {
-  const context = setup({ signedIn: true, table: { songUrl: { data: [{ url: null, reason: 'VIP only' }] } } });
+  const context = setup({ signedIn: true, table: { resolve: { data: [{ url: null, reason: 'VIP only' }] } } });
   try {
     await assert.rejects(
       () => context.provider.resolve({ provider: 'netease', providerTrackId: '6' }, {}),

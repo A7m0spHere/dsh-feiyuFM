@@ -84,6 +84,22 @@ export class ProviderRegistry {
     }
     return adapter.getSeedTracks(options);
   }
+
+  /**
+   * Discovery candidates from one platform. Recommendation support is optional
+   * by design, so an adapter without it reports that rather than returning an
+   * empty list that would look like "no new music exists".
+   */
+  async getDiscoveryTracks(provider, options = {}) {
+    const adapter = this.providers[provider];
+    if (!adapter) {
+      throw new MusicError('provider_unavailable', `No adapter is installed for ${provider}`);
+    }
+    if (typeof adapter.getDiscoveryTracks !== 'function') {
+      throw new MusicError('capability_unavailable', `${provider} does not implement recommendations`);
+    }
+    return adapter.getDiscoveryTracks(options);
+  }
 }
 
 /**
