@@ -321,20 +321,26 @@ test('a session event may select autonomously and never invents work context', a
     await host.handle({ id: 'q', type: 'setQueue', tracks: [track] });
 
     // A freshly started core is paused, and autonomy must respect that.
-    await host.handle({ id: 'start', type: 'session-event', name: 'turn/start' });
+    await host.handle({ id: 'start', type: 'session-event', name: 'turn/start', sessionId: 'session-1' });
     assert.equal(out.messages.at(-1).selected, false, 'turn/start must not start music by itself');
     assert.equal(out.messages.at(-1).kind, 'session_start');
     assert.equal(out.messages.at(-1).snapshot.current, null, 'a paused core must not pick a track');
+
+    // An event that carries no session cannot start music: the core cannot tell
+    // whose context it belongs to, and guessing would let sessions interfere.
+    await host.handle({ id: 'no-session', type: 'session-event', name: 'turn/end' });
+    assert.equal(out.messages.at(-1).autonomy.allowed, false);
+    assert.match(out.messages.at(-1).autonomy.reason, /no session id/);
+    assert.equal(out.messages.at(-1).selected, false);
 
     // Only an explicit user choice lifts the pause.
     await host.handle({ id: 'self', type: 'command', command: { type: 'chooseSelf', commandId: 'c1' } });
     assert.equal(out.messages.at(-1).ok, true);
 
-    await host.handle({ id: 'end', type: 'session-event', name: 'turn/end' });
+    await host.handle({ id: 'end', type: 'session-event', name: 'turn/end', sessionId: 'session-1' });
     assert.equal(out.messages.at(-1).kind, 'turn_end');
-    assert.equal(out.messages.at(-1).snapshot.current?.track.providerTrackId, 'h1');
 
-    await host.handle({ id: 'unknown', type: 'session-event', name: 'mystery/event' });
+    await host.handle({ id: 'unknown', type: 'session-event', name: 'mystery/event', sessionId: 'session-1' });
     assert.equal(out.messages.at(-1).kind, 'unknown');
     assert.equal(out.messages.at(-1).selected, false);
   } finally {

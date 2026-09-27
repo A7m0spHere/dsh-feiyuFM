@@ -35,6 +35,21 @@ const DEFAULT_SETTINGS = Object.freeze({
   strategy: 'normal',
 });
 
+/**
+ * Keeps the expiry map from growing: it only needs the current play instance and
+ * a few recent ones, never the whole history.
+ */
+function _pruneExpiries(map, now, keepMs = 10 * 60 * 1000, max = 32) {
+  for (const [id, entry] of map) {
+    const expiry = entry.expiresAt ?? (entry.resolvedAt + keepMs);
+    if (now - expiry > keepMs) map.delete(id);
+  }
+  if (map.size > max) {
+    const ordered = [...map.entries()].sort((a, b) => a[1].resolvedAt - b[1].resolvedAt);
+    for (const [id] of ordered.slice(0, map.size - max)) map.delete(id);
+  }
+}
+
 export class MusicCore {
   constructor({ store, provider, playback, selector = null, onListened = null, clock = { now: () => Date.now(), sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)) } }) {
     if (!store || !provider || !playback) throw new Error('store, provider and playback are required');
@@ -50,6 +65,13 @@ export class MusicCore {
      * bounded; it never changes playback behaviour on its own.
      */
     this.currentSessionId = null;
+    /**
+     * When each play instance's resolved handle expires. A platform URL is time
+     * limited (NetEase reports `expi`), so a track can outlive its handle; this
+     * is bounded and pruned, never persisted, because a handle must not reach
+     * storage.
+     */
+    this.resourceExpiries = new Map();
     // Optional growth hook, called once per recorded listen. Policy lives in
     // src/growth.mjs so the core stays free of taste rules.
     this.onListened = onListened;
@@ -97,9 +119,23 @@ export class MusicCore {
   _launch(work, version) {
     const task = Promise.resolve().then(work).catch((error) => {
       if (version !== this.state.commandVersion) return;
-      this.state.lastError = { code: error.code ?? 'internal', message: error.message };
+      this.state.lastError = {
+        code: error.code ?? 'internal',
+        message: error.message,
+        // Whether trying again could help is part of the reason, and a caller
+        // cannot tell "do not retry" from "unknown" without it.
+        retryable: error.retryable === true,
+      };
+      // Release the track that could not be started. Leaving it as `current`
+      // would block every later selection, so one unplayable track would stop
+      // music for good. Nothing is recorded: a track that never played is not a
+      // listen, and history must not invent one (A10).
+      if (this.state.current && !this.state.current.finished) {
+        this.state.current.finished = true;
+        this.state.current = null;
+      }
       this.state.paused = true;
-      this.state.status = this.state.current ? 'error' : 'idle';
+      this.state.status = 'error';
       this._commit();
     });
     this.tasks.add(task);
@@ -222,6 +258,17 @@ export class MusicCore {
     const loaded = await this.playback.load({ resource, playInstanceId: current.playInstanceId,
       startPositionMs: current.positionMs, version, signal: controller.signal });
     if (!this._isCurrent(version, controller.signal)) return;
+    // A platform handle is time limited. Remembering when it expires is what
+    // lets the core recover instead of failing the track when it goes stale.
+    const previousExpiry = this.resourceExpiries.get(current.playInstanceId);
+    this.resourceExpiries.set(current.playInstanceId, {
+      expiresAt: Number.isSafeInteger(resource.expiresAt) ? resource.expiresAt : null,
+      resolvedAt: this.clock.now(),
+      // Re-resolving must not clear the guard, or an unplayable track would be
+      // retried forever.
+      reResolved: previousExpiry?.reResolved ?? false,
+    });
+    _pruneExpiries(this.resourceExpiries, this.clock.now());
     const actualPositionMs = loaded?.positionMs ?? 0;
     if (!Number.isFinite(actualPositionMs) || actualPositionMs < 0) {
       throw new MusicError('invalid_playback_position', 'Playback reported invalid loaded position');
@@ -415,6 +462,34 @@ export class MusicCore {
     }
     if ((event.type === 'ended' || event.type === 'error') && this.state.paused) return false;
     if (event.type === 'ended' || event.type === 'error') {
+      // A platform handle is time limited. If this one had expired (or the
+      // platform says the media is gone) the track is not necessarily
+      // unplayable: re-resolve once before treating it as a failure. Only one
+      // retry is allowed, so a genuinely dead track cannot loop.
+      if (event.type === 'error') {
+        const expiry = this.resourceExpiries.get(current.playInstanceId);
+        const at = this.clock.now();
+        // A known expiry that has passed is the clear case. An *unknown* expiry
+        // is not the same as an expired one: treating it as stale would re-resolve
+        // for every unrelated media failure, so only an explicit expiry signal
+        // triggers recovery then.
+        const knownAndPassed = Boolean(expiry)
+          && Number.isSafeInteger(expiry.expiresAt)
+          && at >= expiry.expiresAt - 1000;
+        const platformSaysGone = event.code === 'media_unavailable' || event.code === 'resource_expired';
+        if (expiry && !expiry.reResolved && (knownAndPassed || platformSaysGone)) {
+          expiry.reResolved = true;
+          this.state.status = 'resolving';
+          this.state.lastError = {
+            code: 'resource_expired',
+            message: 'the platform handle expired, so it is being resolved again',
+          };
+          this._commit();
+          const version = this.state.commandVersion;
+          this._launch(() => this._resolveAndPlay(version), version);
+          return true;
+        }
+      }
       this._finishCurrent(event.type === 'ended' ? 'ended' : 'error');
       this.state.status = event.type === 'ended' ? 'idle' : 'error';
       if (event.type === 'error') this.state.lastError = { code: event.code ?? 'playback_error', message: event.message ?? 'Playback failed' };

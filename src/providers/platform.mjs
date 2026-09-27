@@ -95,7 +95,17 @@ export function createPlatformProvider({
       }
       return response?.body ?? response;
     } catch (error) {
-      throw mapTransportError(error, { provider: providerName });
+      const mapped = mapTransportError(error, { provider: providerName });
+      // A platform answer of "not authorised" means the stored sign-in is no
+      // longer usable. Saying so once is better than continuing to report
+      // `authorized` until some later explicit restore() notices.
+      if (mapped.code === 'login_required' && store?.setCredentialReference && authorized()) {
+        lastError = 'the platform rejected the stored sign-in';
+        store.setCredentialReference({
+          provider: providerName, accountId: null, credentialRef: accountRef, state: 'expired', updatedAt: now(),
+        });
+      }
+      throw mapped;
     }
   }
 
