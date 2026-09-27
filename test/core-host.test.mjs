@@ -1,0 +1,217 @@
+// The core host that the DSH plugin owns: protocol, event gating, provider
+// honesty, and the shutdown behaviour that makes "stopping the plugin stops the
+// music" true for the real product path.
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { spawn } from 'node:child_process';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { dirname, join, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { setTimeout as delay } from 'node:timers/promises';
+import { createCoreHost, mapSessionEvent, ProviderRegistry, CORE_HOST_PROTOCOL } from '../src/core-host.mjs';
+import { FakeProvider } from '../src/fakes.mjs';
+
+const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const track = { provider: 'netease', providerTrackId: 'h1', title: 'Host track', durationMs: 600 };
+
+/** Collects protocol lines written by a host. */
+function collector() {
+  const messages = [];
+  return {
+    stream: { write: (chunk) => { for (const line of chunk.split('\n')) if (line.trim()) messages.push(JSON.parse(line)); } },
+    messages,
+  };
+}
+
+test('greets with a snapshot and answers commands in order', async () => {
+  const out = collector();
+  const host = createCoreHost({ output: out.stream, playbackMode: 'fake', dbPath: ':memory:' });
+  try {
+    await host.start();
+    assert.equal(out.messages[0].type, 'ready');
+    assert.equal(out.messages[0].v, CORE_HOST_PROTOCOL);
+    assert.equal(out.messages[0].snapshot.revision >= 0, true);
+
+    await host.handle({ id: 'q', type: 'setQueue', tracks: [track] });
+    assert.equal(out.messages.at(-1).type, 'result');
+    assert.equal(out.messages.at(-1).id, 'q');
+
+    await host.handle({ id: 'n', type: 'command', command: { type: 'next', commandId: 'c1' } });
+    const afterNext = out.messages.at(-1);
+    assert.equal(afterNext.ok, true);
+    assert.equal(afterNext.snapshot.current.track.providerTrackId, 'h1');
+    assert.equal(afterNext.snapshot.paused, true, 'next while paused must stay paused');
+
+    await host.handle({ id: 's', type: 'snapshot' });
+    assert.equal(out.messages.at(-1).snapshot.current.track.title, 'Host track');
+  } finally {
+    await host.close();
+  }
+});
+
+test('reports command failures as named errors without dropping the session', async () => {
+  const out = collector();
+  const host = createCoreHost({ output: out.stream, playbackMode: 'fake' });
+  try {
+    await host.start();
+    await host.handle({ id: 'bad', type: 'command', command: { type: 'next', commandId: 'c1' } });
+    const error = out.messages.at(-1);
+    assert.equal(error.type, 'error');
+    assert.equal(error.error.code, 'no_candidates');
+
+    await host.handle({ id: 'unknown', type: 'not-a-thing' });
+    assert.equal(out.messages.at(-1).error.code, 'invalid_command');
+
+    await host.handle({ id: 'ok', type: 'snapshot' });
+    assert.equal(out.messages.at(-1).ok, true, 'the host must keep serving after an error');
+  } finally {
+    await host.close();
+  }
+});
+
+test('only turn/end may trigger autonomous selection; unknown events are ignored', () => {
+  assert.equal(mapSessionEvent('turn/end').allowsAutonomy, true);
+  assert.equal(mapSessionEvent('turn/end').kind, 'turn_end');
+  assert.equal(mapSessionEvent('turn/start').kind, 'session_start');
+  assert.equal(mapSessionEvent('tool/call').kind, 'activity');
+  // No guessing at work phase, and no idle event exists in DSH.
+  assert.equal(mapSessionEvent('idle').kind, 'unknown');
+  assert.equal(mapSessionEvent('task_phase_change').kind, 'unknown');
+  assert.equal(mapSessionEvent('idle').allowsAutonomy, false);
+});
+
+test('a session event may select autonomously and never invents work context', async () => {
+  const out = collector();
+  const host = createCoreHost({ output: out.stream, playbackMode: 'fake' });
+  try {
+    await host.start();
+    await host.handle({ id: 'q', type: 'setQueue', tracks: [track] });
+
+    // A freshly started core is paused, and autonomy must respect that.
+    await host.handle({ id: 'start', type: 'session-event', name: 'turn/start' });
+    assert.equal(out.messages.at(-1).selected, false, 'turn/start must not start music by itself');
+    assert.equal(out.messages.at(-1).kind, 'session_start');
+    assert.equal(out.messages.at(-1).snapshot.current, null, 'a paused core must not pick a track');
+
+    // Only an explicit user choice lifts the pause.
+    await host.handle({ id: 'self', type: 'command', command: { type: 'chooseSelf', commandId: 'c1' } });
+    assert.equal(out.messages.at(-1).ok, true);
+
+    await host.handle({ id: 'end', type: 'session-event', name: 'turn/end' });
+    assert.equal(out.messages.at(-1).kind, 'turn_end');
+    assert.equal(out.messages.at(-1).snapshot.current?.track.providerTrackId, 'h1');
+
+    await host.handle({ id: 'unknown', type: 'session-event', name: 'mystery/event' });
+    assert.equal(out.messages.at(-1).kind, 'unknown');
+    assert.equal(out.messages.at(-1).selected, false);
+  } finally {
+    await host.close();
+  }
+});
+
+test('an unimplemented platform is reported as unavailable instead of an empty result', async () => {
+  const out = collector();
+  const host = createCoreHost({ output: out.stream, playbackMode: 'fake', providerRegistry: new ProviderRegistry({}) });
+  try {
+    await host.start();
+    await host.handle({ id: 'a', type: 'account', provider: 'netease' });
+    const answer = out.messages.at(-1);
+    assert.equal(answer.account.status, 'unavailable');
+    assert.equal(answer.capabilities.seed.status, 'unavailable');
+    assert.ok(answer.capabilities.seed.reason, 'the reason must be explicit');
+  } finally {
+    await host.close();
+  }
+});
+
+test('publishes state changes without being polled, and a restart comes back paused', async () => {
+  const directory = mkdtempSync(join(tmpdir(), 'fishfm-host-restart-'));
+  const dbPath = join(directory, 'host.sqlite');
+  const out = collector();
+  const provider = new FakeProvider();
+  provider.set(track, 'fake:handle');
+  const host = createCoreHost({
+    output: out.stream, playbackMode: 'fake', provider, dbPath, stateIntervalMs: 20,
+  });
+  try {
+    await host.start();
+    await host.handle({ id: 'play', type: 'command', command: { type: 'requestTrack', track, commandId: 'c1' } });
+    await delay(120);
+    const pushed = out.messages.filter((m) => m.type === 'state');
+    assert.ok(pushed.length >= 1, 'state must be pushed to the owner, not only returned');
+    assert.equal(host.playback.playing, true);
+
+    await host.handle({ id: 'bye', type: 'shutdown' });
+    assert.equal(host.playback.playing, false, 'shutdown must stop playback');
+  } finally {
+    await host.close();
+  }
+
+  // Reopening the same database must restore the track paused, not resume it.
+  const second = createCoreHost({ output: collector().stream, playbackMode: 'fake', provider, dbPath });
+  try {
+    await second.start();
+    const snapshot = second.snapshot();
+    assert.equal(snapshot.paused, true, 'a restart must come back paused');
+    assert.equal(snapshot.current?.track.providerTrackId, 'h1', 'the track itself is retained');
+    assert.equal(second.playback.playing, false, 'a restart must not resume audio by itself');
+  } finally {
+    await second.close();
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test('spawned as a process it serves the plugin path and exits cleanly on shutdown', async () => {
+  const directory = mkdtempSync(join(tmpdir(), 'fishfm-core-'));
+  const dbPath = join(directory, 'core.sqlite');
+  const child = spawn(process.execPath, [join(root, 'bin', 'fishfm-core.mjs'), '--db', dbPath, '--playback', 'fake'], {
+    stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true,
+  });
+  const messages = [];
+  let buffer = '';
+  child.stdout.setEncoding('utf8');
+  child.stdout.on('data', (chunk) => {
+    buffer += chunk;
+    for (let index; (index = buffer.indexOf('\n')) >= 0;) {
+      const line = buffer.slice(0, index).trim();
+      buffer = buffer.slice(index + 1);
+      if (line) messages.push(JSON.parse(line));
+    }
+  });
+  child.stderr.resume();
+  const waitFor = async (predicate, what) => {
+    const deadline = Date.now() + 15000;
+    while (Date.now() < deadline) {
+      if (predicate()) return true;
+      await delay(20);
+    }
+    throw new Error(`Timed out waiting for ${what}`);
+  };
+  const sendLine = (message) => child.stdin.write(`${JSON.stringify(message)}\n`);
+
+  try {
+    await waitFor(() => messages.some((m) => m.type === 'ready'), 'ready');
+    sendLine({ id: 'q', type: 'setQueue', tracks: [track] });
+    await waitFor(() => messages.some((m) => m.id === 'q'), 'queue result');
+    sendLine({ id: 'n', type: 'command', command: { type: 'next', commandId: 'c1' } });
+    await waitFor(() => messages.some((m) => m.id === 'n'), 'next result');
+    const next = messages.find((m) => m.id === 'n');
+    assert.equal(next.snapshot.current.track.providerTrackId, 'h1');
+
+    sendLine({ id: 'bye', type: 'shutdown' });
+    await waitFor(() => messages.some((m) => m.id === 'bye'), 'shutdown result');
+    // The child may already be gone by now; check before attaching a listener.
+    const code = child.exitCode !== null
+      ? child.exitCode
+      : await new Promise((r) => child.once('exit', r));
+    assert.equal(code, 0, 'the core must exit cleanly when its owner stops it');
+
+    // The database the plugin pointed at must have been written.
+    const { existsSync } = await import('node:fs');
+    assert.equal(existsSync(dbPath), true, 'the core must persist to the configured database');
+  } finally {
+    if (child.exitCode === null) child.kill();
+    rmSync(directory, { recursive: true, force: true });
+  }
+});

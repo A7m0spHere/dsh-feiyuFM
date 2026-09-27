@@ -3,14 +3,25 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "description": "FishFM music persona for the DeepSeek Harness: local queue, taste and playback, with NetEase and QQ as the target platforms.",
   "engines": {
     "node": ">=24.14.0 <25"
+  },
+  "exports": {
+    ".": "./index.js",
+    "./package.json": "./package.json"
+  },
+  "dsh": { "bundle": { "patch": "./cordis.patch.yml" } },
+  "meta": {
+    "title": "肥鱼电台 FishFM",
+    "description": "给正在 DSH 里工作的 DeepSeek 一副耳机：本地选歌、独立的播放服务，用户始终保留控制权。"
   },
   "scripts": {
     "check": "node scripts/check.mjs",
     "test": "node --test --test-timeout=30000",
     "build": "node scripts/build.mjs",
     "debug": "node bin/fishfm-debug.mjs",
+    "core": "node bin/fishfm-core.mjs",
     "smoke:playback": "node scripts/playback-smoke.mjs"
   }
 }

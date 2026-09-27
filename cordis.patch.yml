@@ -1,0 +1,7 @@
+# FishFM bundle layer: inserts the plugin row into a Harness profile.
+# Installed as a workspace bundle through the in-app Plugin Manager, which adds
+# this package to the profile's bundles. Do not hand-edit a profile to install.
+- insert:
+    - id: fishfm
+      name: 'dsh-feiyufm-core'
+      config: {}
