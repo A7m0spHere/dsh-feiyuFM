@@ -1,0 +1,334 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>FishFM · 鲸鱼余额挂件 UI 参考</title>
+  <style>
+    :root {
+      --shell: #f6f7fa;
+      --sidebar: #fbfcfe;
+      --surface: #fff;
+      --surface-blue: #f1f5ff;
+      --ink: #18233b;
+      --muted: #7d8799;
+      --line: #e8ecf4;
+      --blue: #4268db;
+      --blue-deep: #203170;
+      --blue-text: #536ba9;
+      --blue-soft: #e7edff;
+      --hint: #9fb0d9;
+      --green: #32a878;
+      --shadow: 0 14px 34px rgba(27, 43, 88, .13), 0 3px 9px rgba(27, 43, 88, .06);
+      --shadow-soft: 0 6px 18px rgba(27, 43, 88, .08);
+      --radius-card: 20px;
+      --ui: "Segoe UI Variable", "Microsoft YaHei UI", "Noto Sans CJK SC", sans-serif;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-width: 320px; min-height: 100vh; font-family: var(--ui); color: var(--ink); background: #f1f3f8; }
+    button, input { font: inherit; }
+    button { color: inherit; }
+    .preview-bar {
+      height: 58px; padding: 0 20px; display: flex; align-items: center; justify-content: space-between; gap: 16px;
+      background: #fff; border-bottom: 1px solid var(--line); position: relative; z-index: 10;
+    }
+    .preview-brand { display: flex; align-items: center; gap: 10px; min-width: 0; }
+    .brand-mark { width: 28px; height: 28px; border-radius: 9px; display: grid; place-items: center; background: var(--blue); color: white; font-weight: 800; font-size: 12px; }
+    .brand-title { font-size: 12px; font-weight: 750; letter-spacing: .025em; white-space: nowrap; }
+    .brand-subtitle { margin-left: 6px; color: var(--muted); font-size: 10px; font-weight: 450; }
+    .preview-switcher { display: flex; align-items: center; gap: 5px; padding: 4px; border: 1px solid var(--line); border-radius: 12px; background: var(--shell); }
+    .preview-switcher button { min-height: 31px; padding: 0 12px; border: 0; border-radius: 9px; color: var(--muted); background: transparent; cursor: pointer; font-size: 10px; }
+    .preview-switcher button[aria-pressed="true"] { color: var(--blue-deep); background: white; box-shadow: 0 1px 4px rgba(33,49,96,.1); font-weight: 650; }
+    .preview-flag { color: var(--muted); font-size: 9px; white-space: nowrap; }
+
+    .dsh-shell { min-height: calc(100vh - 58px); display: grid; grid-template-columns: 226px minmax(0, 1fr); background: var(--shell); }
+    .dsh-sidebar { background: var(--sidebar); border-right: 1px solid var(--line); display: flex; flex-direction: column; padding: 20px 14px 15px; }
+    .dsh-brand { display: flex; align-items: center; gap: 8px; padding: 0 9px; color: #273653; font-size: 13px; font-weight: 700; }
+    .dsh-brand-mark { width: 20px; height: 20px; display: grid; place-items: center; border-radius: 50%; color: white; background: var(--blue); font-size: 10px; font-weight: 800; }
+    .new-session { margin: 22px 2px 18px; height: 38px; border: 1px solid #e4e8f1; border-radius: 11px; background: white; text-align: left; padding: 0 12px; color: #53617a; font-size: 11px; }
+    .side-label { margin: 7px 9px 8px; color: #9aa3b2; font-size: 9px; letter-spacing: .1em; text-transform: uppercase; }
+    .side-item { padding: 9px 10px; border-radius: 9px; color: #657087; font-size: 10px; }
+    .side-item.active { color: #334c99; background: #edf2ff; font-weight: 650; }
+    .side-item.subtle { color: #929bab; }
+    .sidebar-spacer { flex: 1; }
+    .settings-link { margin: 10px 4px 0; padding: 10px; border-radius: 9px; color: #68758e; font-size: 10px; }
+    .chat-surface { position: relative; display: flex; flex-direction: column; min-width: 0; min-height: 650px; overflow: hidden; background: var(--shell); }
+    .chat-header { height: 48px; padding: 0 25px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid rgba(226,230,239,.8); color: #62708a; font-size: 10px; }
+    .chat-header .session-name { font-weight: 650; color: #47546e; }
+    .blank-state { flex: 1; display: grid; place-items: center; padding: 20px; color: #a5adbb; text-align: center; }
+    .blank-state-inner { margin-top: -60px; }
+    .blank-glyph { width: 48px; height: 48px; display: grid; place-items: center; margin: 0 auto 12px; border: 1px solid #e0e5ef; border-radius: 16px; color: #8191b1; background: #fff; font-size: 18px; }
+    .blank-state strong { display: block; color: #73809a; font-size: 13px; font-weight: 600; }
+    .blank-state p { margin: 7px 0 0; font-size: 10px; }
+    .composer-wrap { width: min(760px, calc(100% - 54px)); margin: 0 auto 23px; }
+    .composer { min-height: 91px; padding: 13px 15px 10px; border: 1px solid #e2e6ef; border-radius: 18px; background: #fff; box-shadow: 0 5px 16px rgba(28,45,89,.055); }
+    .composer-placeholder { color: #a3acba; font-size: 11px; }
+    .composer-tools { display: flex; align-items: center; justify-content: space-between; margin-top: 25px; color: #8590a4; font-size: 9px; }
+    .composer-pill { padding: 5px 8px; border-radius: 7px; background: #f4f6fa; }
+
+    /* Adapted from DeepSeek Balance Whale Widget's anchored mark + outlined speech bubble. */
+    .widget-root { position: fixed; right: 28px; bottom: 24px; z-index: 8; width: 470px; height: 380px; pointer-events: none; }
+    .whale-anchor { --whale-scale: 1; pointer-events: auto; position: absolute; right: 3px; bottom: 0; width: 128px; height: 174px; padding: 0; border: 0; background: transparent; cursor: pointer; }
+    .whale-mark { position: absolute; right: 0; bottom: 22px; width: 128px; height: 145px; object-fit: contain; object-position: center bottom; filter: drop-shadow(0 4px 8px rgba(49,73,147,.15)); transform: scale(var(--whale-scale)); transform-origin: 50% 86%; transition: opacity .18s ease, transform .18s ease; }
+    .whale-mark.pose-changing { opacity: .8; }
+    .whale-label { position: absolute; right: 0; bottom: 0; width: 124px; min-height: 25px; padding: 5px 8px; text-align: center; color: #3f5a9d; background: #e7edff; border-radius: 999px; border: 1px solid #d7e0ff; font-size: 9px; font-weight: 650; white-space: nowrap; }
+    .widget-dots { pointer-events: auto; position: absolute; right: 12px; bottom: 166px; width: 29px; height: 29px; border: 1px solid #e3e9f7; border-radius: 50%; background: white; color: #52649d; box-shadow: var(--shadow-soft); cursor: pointer; font-weight: 800; letter-spacing: 1px; }
+    .bubble-panel { pointer-events: auto; position: absolute; right: 112px; bottom: 108px; width: min(385px, calc(100vw - 170px)); min-height: 226px; padding: 26px 35px 22px; display: flex; flex-direction: column; justify-content: center; border: 2px solid var(--blue-deep); border-radius: 48% / 43%; background: #fff; color: var(--blue-text); box-shadow: 0 12px 35px rgba(32,49,112,.16); animation: bubble-in .2s ease-out both; }
+    .bubble-panel::before { content: ""; position: absolute; right: -18px; bottom: 19px; width: 24px; height: 24px; background: var(--blue-deep); clip-path: polygon(0 0,100% 60%,0 100%); }
+    .bubble-panel::after { content: ""; position: absolute; right: -12px; bottom: 22px; width: 17px; height: 18px; background: #fff; clip-path: polygon(0 0,100% 60%,0 100%); }
+    @keyframes bubble-in { from { opacity: 0; transform: translateY(5px) scale(.985); } to { opacity: 1; transform: translateY(0) scale(1); } }
+    .bubble-kicker { display: flex; align-items: center; justify-content: center; gap: 12px; color: var(--hint); font-size: 9px; font-weight: 650; letter-spacing: .1em; text-transform: uppercase; }
+    .bubble-kicker .live { display: inline-flex; align-items: center; gap: 5px; color: #4e72bd; letter-spacing: .02em; text-transform: none; }
+    .bubble-kicker .live::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--green); }
+    .track-title { margin: 10px 0 2px; color: #263e83; font-size: 22px; line-height: 1.15; font-weight: 750; letter-spacing: -.02em; text-align: center; }
+    .track-subtitle { display: flex; align-items: center; justify-content: center; gap: 6px; color: #8797bc; font-size: 10px; }
+    .track-subtitle .dot { width: 3px; height: 3px; border-radius: 50%; background: #aab8d6; }
+    .bubble-progress { display: grid; grid-template-columns: 30px minmax(0,1fr) 30px; align-items: center; gap: 7px; margin: 14px 0 12px; color: #9aa9cb; font-size: 8px; font-variant-numeric: tabular-nums; }
+    .bar { height: 4px; border-radius: 5px; background: #e5eafa; overflow: hidden; }
+    .bar > span { display: block; width: 43%; height: 100%; border-radius: inherit; background: var(--blue); }
+    .bubble-actions { display: grid; grid-template-columns: 1fr 1fr 36px; gap: 7px; }
+    .bubble-actions button { min-height: 31px; border: 1px solid #dce4fb; border-radius: 9px; color: #5069aa; background: #f6f8ff; cursor: pointer; font-size: 9px; font-weight: 600; transition: background .12s ease, transform .12s ease; }
+    .bubble-actions button:hover { background: #edf2ff; transform: translateY(-1px); }
+    .bubble-actions .play { color: white; border-color: var(--blue); background: var(--blue); }
+    .bubble-actions .play:hover { background: #365cc7; }
+    .bubble-foot { margin-top: 10px; display: flex; justify-content: center; gap: 15px; color: #a1aecb; font-size: 8px; }
+    .bubble-foot button { padding: 0; border: 0; color: #4d6bc1; background: transparent; cursor: pointer; font-size: 8px; font-weight: 600; }
+
+    .widget-menu { pointer-events: auto; position: absolute; right: 8px; bottom: 174px; width: 250px; padding: 13px; border: 1px solid #dfe6f6; border-radius: 17px; background: #fff; box-shadow: 0 16px 38px rgba(28,44,98,.18); animation: bubble-in .17s ease-out both; }
+    .menu-head { display: flex; align-items: center; justify-content: space-between; margin: 1px 2px 10px; color: #52669f; font-size: 10px; font-weight: 700; }
+    .menu-head button { border: 0; background: transparent; color: #8795b3; cursor: pointer; font-size: 17px; }
+    .menu-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 42px; padding: 0 4px; border-top: 1px solid #edf0f6; }
+    .menu-row strong { display: block; color: #344b83; font-size: 9px; font-weight: 650; }
+    .menu-row small { display: block; margin-top: 2px; color: #9aa5ba; font-size: 8px; }
+    .switch { width: 34px; height: 19px; flex: 0 0 auto; position: relative; padding: 0; border: 0; border-radius: 999px; background: #d8deeb; cursor: pointer; }
+    .switch::after { content: ""; position: absolute; left: 3px; top: 3px; width: 13px; height: 13px; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,.15); transition: transform .15s ease; }
+    .switch[aria-checked="true"] { background: var(--blue); }
+    .switch[aria-checked="true"]::after { transform: translateX(15px); }
+    .menu-rate { padding: 10px 4px 4px; border-top: 1px solid #edf0f6; }
+    .menu-rate-label { display: flex; justify-content: space-between; color: #4f659f; font-size: 9px; font-weight: 650; }
+    .menu-rate input { width: 100%; margin: 9px 0 0; accent-color: var(--blue); }
+    .widget-root.is-hidden { display: none; }
+    .summon-button { display: none; position: fixed; z-index: 9; right: 24px; bottom: 22px; height: 38px; padding: 0 14px; border: 1px solid #d9e2ff; border-radius: 999px; color: #3f5eae; background: #fff; box-shadow: var(--shadow); cursor: pointer; font-size: 10px; font-weight: 650; }
+    .summon-button.visible { display: inline-flex; align-items: center; gap: 8px; }
+
+    .settings-view { display: none; position: absolute; inset: 54px 34px 28px 34px; z-index: 5; overflow: auto; padding: 23px; border: 1px solid #e1e6f1; border-radius: 20px; background: rgba(248,250,254,.97); box-shadow: 0 13px 36px rgba(28,43,88,.13); }
+    .settings-view.visible { display: block; animation: bubble-in .2s ease-out both; }
+    .settings-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 15px; margin-bottom: 18px; }
+    .settings-header small { color: #8e9bb8; font-size: 9px; letter-spacing: .1em; text-transform: uppercase; }
+    .settings-header h2 { margin: 5px 0 4px; color: #243e82; font-size: 20px; line-height: 1.2; }
+    .settings-header p { margin: 0; color: #8793a9; font-size: 9px; }
+    .settings-header button { width: 30px; height: 30px; border: 1px solid #e1e6f1; border-radius: 9px; color: #7888a9; background: #fff; cursor: pointer; }
+    .settings-tabs { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 15px; }
+    .settings-tabs button { min-height: 30px; padding: 0 11px; border: 0; border-radius: 9px; color: #7e8ba6; background: #eef1f7; cursor: pointer; font-size: 9px; }
+    .settings-tabs button.active { color: #fff; background: var(--blue); font-weight: 650; }
+    .settings-card { margin-top: 10px; padding: 13px 14px; border: 1px solid #e5e9f2; border-radius: 15px; background: #fff; box-shadow: 0 3px 12px rgba(41,59,111,.04); }
+    .settings-card-title { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 9px; color: #53658f; font-size: 9px; font-weight: 700; letter-spacing: .04em; }
+    .settings-card-title .caret { color: #9aa6bc; font-size: 11px; }
+    .provider { min-height: 47px; display: flex; align-items: center; gap: 10px; }
+    .provider + .provider { border-top: 1px solid #eff1f6; }
+    .provider-icon { width: 28px; height: 28px; display: grid; place-items: center; border-radius: 9px; color: var(--blue); background: #edf2ff; font-size: 9px; font-weight: 750; }
+    .provider-text { flex: 1; }
+    .provider-text strong { display: block; color: #364978; font-size: 10px; font-weight: 650; }
+    .provider-text small { display: block; margin-top: 3px; color: #98a3b7; font-size: 8px; }
+    .secondary-button { min-height: 28px; padding: 0 10px; border: 1px solid #dfe6fa; border-radius: 8px; color: #4c67b1; background: #f8faff; cursor: pointer; font-size: 8px; }
+    .range-setting { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 40px; color: #4d5f89; font-size: 9px; }
+    .range-setting input { width: 48%; accent-color: var(--blue); }
+    .view-footnote { margin: 13px 2px 0; color: #9ca7ba; font-size: 8px; line-height: 1.5; }
+    .toast { position: fixed; left: 50%; bottom: 20px; z-index: 12; transform: translate(-50%, 10px); opacity: 0; pointer-events: none; padding: 8px 12px; border-radius: 999px; color: #fff; background: #233877; box-shadow: var(--shadow); font-size: 9px; transition: .18s ease; }
+    .toast.visible { opacity: 1; transform: translate(-50%, 0); }
+
+    @media (max-width: 780px) {
+      .dsh-shell { grid-template-columns: 60px minmax(0,1fr); }
+      .dsh-sidebar { padding: 16px 9px; align-items: center; }
+      .dsh-brand { padding: 0; }
+      .dsh-brand-name, .new-session, .side-label, .side-item, .settings-link { display: none; }
+      .sidebar-spacer::after { content: ""; display: block; width: 5px; height: 5px; margin-top: 50px; border-radius: 50%; background: #bdc7dc; }
+      .settings-view { inset: 48px 12px 18px 12px; padding: 15px; }
+      .widget-root { right: 18px; bottom: 18px; transform: scale(.9); transform-origin: bottom right; }
+      .preview-flag { display: none; }
+    }
+    @media (max-width: 520px) {
+      .preview-bar { height: auto; min-height: 54px; padding: 8px 10px; align-items: flex-start; flex-direction: column; }
+      .preview-switcher { width: 100%; }
+      .preview-switcher button { flex: 1; padding: 0 4px; font-size: 8px; }
+      .dsh-shell { min-height: calc(100vh - 100px); grid-template-columns: 45px minmax(0,1fr); }
+      .chat-surface { min-height: 620px; }
+      .widget-root { right: 9px; bottom: 14px; transform: scale(.77); }
+      .bubble-panel { right: 99px; bottom: 101px; width: min(335px, calc(100vw - 142px)); min-height: 205px; padding: 19px 20px 17px; border-radius: 38px; }
+    }
+    @media (prefers-reduced-motion: reduce) { *,*::before,*::after { animation-duration: .01ms !important; transition-duration: .01ms !important; } }
+  </style>
+</head>
+<body>
+  <header class="preview-bar">
+    <div class="preview-brand"><span class="brand-mark">F</span><span class="brand-title">FISHFM <span style="color:var(--muted);font-weight:450">/ DSH WEB UI</span></span></div>
+    <nav class="preview-switcher" aria-label="预览挂件界面状态">
+      <button type="button" data-mode="widget" aria-pressed="true">浮窗气泡</button>
+      <button type="button" data-mode="menu" aria-pressed="false">快捷菜单</button>
+      <button type="button" data-mode="settings" aria-pressed="false">插件设置</button>
+    </nav>
+    <span class="preview-flag">鲸鱼余额挂件 UI 参考 · 演示数据</span>
+  </header>
+
+  <main class="dsh-shell">
+    <aside class="dsh-sidebar" aria-label="DSH 侧栏示意">
+      <div class="dsh-brand"><span class="dsh-brand-mark">D</span><span class="dsh-brand-name">DeepSeek</span></div>
+      <button class="new-session">＋　新会话</button>
+      <div class="side-label">工作区</div><div class="side-item active">▣　项目会话</div>
+      <div class="side-item subtle">最近的会话</div>
+      <div class="side-item">音乐控制 UI 讨论</div>
+      <div class="sidebar-spacer"></div>
+      <div class="settings-link">⚙　设置</div>
+    </aside>
+
+    <section class="chat-surface" aria-label="DSH 页面环境示意">
+      <div class="chat-header"><span class="session-name">FishFM · 音乐播放控制</span><span>DSH 页面背景示意</span></div>
+      <div class="blank-state"><div class="blank-state-inner"><div class="blank-glyph">♫</div><strong>音乐控件常驻在角落</strong><p>点鲸鱼图标或状态泡泡，展开音乐控制。</p></div></div>
+      <div class="composer-wrap"><div class="composer"><div class="composer-placeholder">继续与 DeepSeek 对话……</div><div class="composer-tools"><span>＋　工作区写入 ▾</span><span class="composer-pill">DeepSeek · 标准模式 ▾</span></div></div></div>
+
+      <div class="widget-root" id="widgetRoot" aria-label="FishFM 音乐浮窗">
+        <section class="bubble-panel" id="bubblePanel" aria-label="音乐状态泡泡">
+          <div class="bubble-kicker"><span>FISHFM · MUSIC</span><span class="live">DeepSeek 正在听</span></div>
+          <div class="track-title">花の塔</div>
+          <div class="track-subtitle"><span>さユり</span><span class="dot"></span><span>网易云音乐 · 预览曲目</span></div>
+          <div class="bubble-progress"><span>1:18</span><div class="bar"><span></span></div><span>3:35</span></div>
+          <div class="bubble-actions"><button class="play-button play" type="button">暂停</button><button class="next-button" type="button">下一首</button><button class="open-menu" type="button" aria-label="设置">•••</button></div>
+          <div class="bubble-foot"><span>示例状态 · 不连接真实平台</span><button class="open-settings" type="button">音乐设置　›</button></div>
+        </section>
+        <button class="widget-dots" id="widgetDots" type="button" aria-label="打开音乐菜单">•••</button>
+        <button class="whale-anchor" id="whaleAnchor" type="button" aria-label="切换音乐状态泡泡">
+          <img class="whale-mark" id="whaleArt" data-pose="listening" src="assets/whale-listening.png" alt="FishFM 鲸鱼娘 · 听歌姿态">
+          <span class="whale-label" id="whaleLabel">正在听 · 花の塔</span>
+        </button>
+      </div>
+      <button class="summon-button" id="summonButton" type="button">♫　显示 FishFM</button>
+
+      <aside class="widget-menu" id="widgetMenu" hidden aria-label="音乐快捷设置">
+        <div class="menu-head"><span>FishFM · 快捷控制</span><button id="closeMenu" type="button" aria-label="关闭菜单">×</button></div>
+        <div class="menu-row"><span><strong>DeepSeek 自主听歌</strong><small>允许本地选歌和续播</small></span><button class="switch" role="switch" aria-checked="true" data-name="自主听歌"></button></div>
+        <div class="menu-row"><span><strong>电脑输出声音</strong><small>用户侧播放音量</small></span><button class="switch" role="switch" aria-checked="true" data-name="电脑输出声音"></button></div>
+        <div class="menu-row"><span><strong>新歌探索</strong><small>发现池为空时回退熟悉曲目</small></span><button class="switch" role="switch" aria-checked="true" data-name="新歌探索"></button></div>
+        <div class="menu-rate"><div class="menu-rate-label"><span>探索率</span><span><b id="rateValue">20</b>%</span></div><input id="rateSlider" type="range" min="0" max="100" step="5" value="20" aria-label="探索率"></div>
+        <div class="menu-row"><span><strong>悬浮窗</strong><small>隐藏后音乐核心继续运行</small></span><button id="hideWidget" class="secondary-button" type="button">隐藏</button></div>
+      </aside>
+
+      <section class="settings-view" id="settingsView" aria-label="FishFM 插件设置">
+        <div class="settings-header"><div><small>DSH 插件设置 · FishFM</small><h2>音乐设置</h2><p>参考余额鲸鱼挂件的分组卡片与开关样式，内容换成音乐控制。</p></div><button id="closeSettings" type="button" aria-label="关闭设置">×</button></div>
+        <div class="settings-tabs"><button class="active" type="button" data-settings-tab="platforms">音乐平台</button><button type="button" data-settings-tab="preferences">听歌偏好</button><button type="button" data-settings-tab="floating">悬浮窗</button></div>
+        <section class="settings-card" data-settings-panel="platforms"><div class="settings-card-title"><span>音乐账号</span><span class="caret">⌄</span></div>
+          <div class="provider"><span class="provider-icon">云</span><span class="provider-text"><strong>网易云音乐</strong><small class="provider-status">未连接 · 演示</small></span><button class="secondary-button connect-button">连接</button></div>
+          <div class="provider"><span class="provider-icon">QQ</span><span class="provider-text"><strong>QQ 音乐</strong><small class="provider-status">未连接 · 演示</small></span><button class="secondary-button connect-button">连接</button></div>
+        </section>
+        <section class="settings-card" data-settings-panel="platforms"><div class="settings-card-title"><span>近期音乐</span><span class="caret">⌄</span></div>
+          <div class="provider"><span class="provider-text"><strong>导入近期常听</strong><small>显示实际数量与来源；接口不可用时如实标注备用来源。</small></span><button class="secondary-button import-button">选择来源</button></div>
+        </section>
+        <section class="settings-card" data-settings-panel="preferences" hidden><div class="settings-card-title"><span>自主听歌</span><span class="caret">⌄</span></div>
+          <div class="provider"><span class="provider-text"><strong>DeepSeek Listening</strong><small>本地规则选择曲目，不额外调用 LLM。</small></span><button class="switch" role="switch" aria-checked="true" data-name="自主听歌"></button></div>
+          <div class="provider"><span class="provider-text"><strong>Human Playback</strong><small>控制电脑是否输出声音。</small></span><button class="switch" role="switch" aria-checked="true" data-name="电脑输出声音"></button></div>
+          <div class="provider"><span class="provider-text"><strong>Discovery</strong><small>开启后本地策略可选择发现池候选。</small></span><button class="switch" role="switch" aria-checked="true" data-name="新歌探索"></button></div>
+          <div class="range-setting"><span>新歌探索率</span><input class="settings-rate" type="range" min="0" max="100" step="5" value="20"><b class="settings-rate-value">20%</b></div>
+        </section>
+        <section class="settings-card" data-settings-panel="floating" hidden><div class="settings-card-title"><span>悬浮窗显示</span><span class="caret">⌄</span></div>
+          <div class="provider"><span class="provider-text"><strong>DSH 启动时显示</strong><small>隐藏界面不会暂停音乐核心。</small></span><button class="switch" role="switch" aria-checked="true" data-name="启动显示悬浮窗"></button></div>
+          <div class="range-setting"><span>浮窗大小</span><input class="widget-scale" type="range" min="80" max="130" step="5" value="100"><b class="widget-scale-value">100%</b></div>
+          <div class="provider"><span class="provider-text"><strong>保持置顶</strong><small>浮窗显示时保持在其他窗口上方。</small></span><button class="switch" role="switch" aria-checked="true" data-name="保持置顶"></button></div>
+        </section>
+        <p class="view-footnote">本页仅展示布局与交互方向。鲸鱼素材未复用；余额挂件仓库明确将图片素材排除在 MIT 代码许可外。</p>
+      </section>
+    </section>
+  </main>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <script>
+    const bubble = document.getElementById('bubblePanel');
+    const menu = document.getElementById('widgetMenu');
+    const settings = document.getElementById('settingsView');
+    const root = document.getElementById('widgetRoot');
+    const summon = document.getElementById('summonButton');
+    const whaleArt = document.getElementById('whaleArt');
+    const whaleLabel = document.getElementById('whaleLabel');
+    const listeningBadge = document.querySelector('.bubble-kicker .live');
+    const whalePoses = { idle: 'assets/whale-idle.png', listening: 'assets/whale-listening.png', dj: 'assets/whale-dj.png' };
+    let toastTimer;
+    let djTimer;
+    let poseTimer;
+    function toast(message) {
+      const el = document.getElementById('toast'); el.textContent = message; el.classList.add('visible');
+      clearTimeout(toastTimer); toastTimer = setTimeout(() => el.classList.remove('visible'), 1700);
+    }
+    function setMode(mode) {
+      document.querySelectorAll('.preview-switcher button').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.mode === mode)));
+      menu.hidden = mode !== 'menu'; settings.classList.toggle('visible', mode === 'settings');
+      bubble.hidden = mode === 'menu' || mode === 'settings';
+      document.getElementById('widgetDots').hidden = mode === 'menu';
+      if (mode === 'widget') bubble.hidden = false;
+      root.classList.remove('is-hidden'); summon.classList.remove('visible');
+    }
+    function setWhalePose(pose) {
+      if (!whalePoses[pose]) return;
+      clearTimeout(poseTimer);
+      if (pose !== 'dj') clearTimeout(djTimer);
+      whaleArt.classList.add('pose-changing');
+      poseTimer = window.setTimeout(() => {
+        whaleArt.src = whalePoses[pose];
+        whaleArt.dataset.pose = pose;
+        whaleArt.alt = `FishFM 鲸鱼娘 · ${pose === 'idle' ? '待机' : pose === 'dj' ? 'DJ 切歌' : '听歌'}姿态`;
+        whaleArt.classList.remove('pose-changing');
+      }, 110);
+    }
+    document.querySelectorAll('.preview-switcher button').forEach(button => button.addEventListener('click', () => setMode(button.dataset.mode)));
+    document.getElementById('widgetDots').addEventListener('click', () => setMode(menu.hidden ? 'menu' : 'widget'));
+    document.querySelectorAll('.open-menu').forEach(button => button.addEventListener('click', () => setMode('menu')));
+    document.getElementById('closeMenu').addEventListener('click', () => setMode('widget'));
+    document.querySelectorAll('.open-settings').forEach(button => button.addEventListener('click', () => setMode('settings')));
+    document.getElementById('closeSettings').addEventListener('click', () => setMode('widget'));
+    document.getElementById('whaleAnchor').addEventListener('click', () => { bubble.hidden = !bubble.hidden; });
+    document.getElementById('hideWidget').addEventListener('click', () => { root.classList.add('is-hidden'); menu.hidden = true; summon.classList.add('visible'); toast('FishFM 已隐藏 · 核心服务继续运行（示意）'); });
+    summon.addEventListener('click', () => { root.classList.remove('is-hidden'); summon.classList.remove('visible'); bubble.hidden = false; });
+    function setSwitch(name, value) {
+      document.querySelectorAll(`.switch[data-name="${name}"]`).forEach(button => button.setAttribute('aria-checked', String(value)));
+    }
+    document.querySelectorAll('.switch').forEach(button => button.addEventListener('click', () => {
+      const next = button.getAttribute('aria-checked') !== 'true'; setSwitch(button.dataset.name, next);
+      if (button.dataset.name === '自主听歌') {
+        whaleLabel.textContent = next ? '正在听 · 花の塔' : '自主听歌已暂停';
+        listeningBadge.textContent = next ? 'DeepSeek 正在听' : '自主听歌已暂停';
+        setWhalePose(next ? 'listening' : 'idle');
+      }
+      toast(`${button.dataset.name}：${next ? '开启' : '关闭'}（示意）`);
+    }));
+    document.querySelectorAll('.play-button').forEach(button => button.addEventListener('click', () => {
+      const pause = button.textContent === '暂停'; button.textContent = pause ? '播放' : '暂停';
+      whaleLabel.textContent = pause ? '已暂停 · 花の塔' : '正在听 · 花の塔';
+      listeningBadge.textContent = pause ? '已暂停' : 'DeepSeek 正在听';
+      setWhalePose(pause ? 'idle' : 'listening');
+      toast(pause ? '预览已暂停' : '预览播放中');
+    }));
+    document.querySelectorAll('.next-button').forEach(button => button.addEventListener('click', () => {
+      clearTimeout(djTimer); whaleLabel.textContent = 'DJ 选歌中 · 演示'; listeningBadge.textContent = '正在切歌'; setWhalePose('dj'); toast('下一首 · 原型演示');
+      djTimer = window.setTimeout(() => { whaleLabel.textContent = '正在听 · 花の塔'; listeningBadge.textContent = 'DeepSeek 正在听'; setWhalePose('listening'); }, 1450);
+    }));
+    function syncRate(value) {
+      document.getElementById('rateValue').textContent = value;
+      document.querySelectorAll('.settings-rate-value').forEach(el => el.textContent = `${value}%`);
+      document.querySelectorAll('.settings-rate').forEach(el => el.value = value);
+      document.getElementById('rateSlider').value = value;
+    }
+    document.getElementById('rateSlider').addEventListener('input', e => syncRate(e.target.value));
+    document.querySelectorAll('.settings-rate').forEach(el => el.addEventListener('input', e => syncRate(e.target.value)));
+    document.querySelectorAll('.settings-tabs button').forEach(button => button.addEventListener('click', () => {
+      document.querySelectorAll('.settings-tabs button').forEach(tab => tab.classList.toggle('active', tab === button));
+      document.querySelectorAll('[data-settings-panel]').forEach(panel => { panel.hidden = panel.dataset.settingsPanel !== button.dataset.settingsTab; });
+    }));
+    document.querySelector('.widget-scale').addEventListener('input', e => {
+      document.querySelector('.widget-scale-value').textContent = `${e.target.value}%`;
+      document.querySelector('.whale-anchor').style.setProperty('--whale-scale', Number(e.target.value) / 100);
+    });
+    document.querySelectorAll('.connect-button').forEach(button => button.addEventListener('click', () => {
+      const status = button.parentElement.querySelector('.provider-status'); const connected = status.textContent.includes('演示连接');
+      status.textContent = connected ? '未连接 · 演示' : '演示连接'; button.textContent = connected ? '连接' : '断开'; toast(connected ? '已切换为未连接示意' : '演示连接状态；未执行真实登录');
+    }));
+    document.querySelector('.import-button').addEventListener('click', () => toast('导入入口示意 · 未读取账号数据'));
+  </script>
+</body>
+</html>

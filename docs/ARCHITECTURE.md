@@ -12,14 +12,14 @@ DSH
              ├─ SQLite：本地结构化数据
              ├─ NetEase / QQ Provider：账号、种子、候选、搜索、播放解析
              ├─ Playback Service：音频、播放进度、静音、结束/错误事件
-             └─ UI Bridge ↔ Tauri Desktop Companion：角色与控制面板
+             └─ UI Bridge ↔ 音乐控制 UI：DSH 设置入口 + 可隐藏的悬浮面板（宿主待验证）
 ```
 
 Provider 负责拿到可播放资源，Playback 负责发出声音，Core 负责决定播什么。`next()` 归 Core 队列控制；平台不各维护一条相互竞争的播放队列。这是对原对话“Provider 同时负责 play/pause/next”的细化。
 
-Core 可以是插件托管的模块或独立工作进程；Playback 的具体后端待实验确定。硬约束是**可见窗口及桌面 UI 进程退出，不应停止 Core 或 Playback**。不能把唯一音频元素放进可关闭的角色 WebView。若选择隐藏宿主，必须验证其与可见 UI 的进程关系，不能用“窗口隐藏成功”冒充“进程退出后继续播放”。
+Core 可以是插件托管的模块或独立工作进程；Playback 的具体后端待实验确定。硬约束是**可见窗口及桌面 UI 进程退出，不应停止 Core 或 Playback**。不能把唯一音频元素放进可关闭的 UI WebView。若选择隐藏宿主，必须验证其与可见 UI 的进程关系，不能用“窗口隐藏成功”冒充“进程退出后继续播放”。
 
-Phase 1 的独立核心暂用 Node 24 ESM、内置 `node:sqlite` 和 npm 锁文件，已在 Windows 本机验证离线运行；它没有固定 DSH SDK、播放后端或 IPC。Tauri 2 和小窗仍为拟定方向，Core/Playback 的最终宿主仍要通过 Phase 0 实测。
+Phase 1 的独立核心暂用 Node 24 ESM、内置 `node:sqlite` 和 npm 锁文件，已在 Windows 本机验证离线运行。音乐 UI 的产品形态已明确为可隐藏的控制悬浮窗；DeepSeek 余额鲸鱼挂件只作界面参考。Tauri 2 不是已选定的实现要求，DSH 插件 UI 与独立原生窗口的边界仍需在 Phase 0 核对后决定。
 
 桌面宿主的实测形态（2026-09-27，见 [P0-01](spikes/P0-01-dsh.md)）：Electron 外壳启动 `dsh-desktop-host`，Host 载入 `$DSH_HOME/profiles/desktop` 并监听 `127.0.0.1:19387`；Host 自己用 `process.execPath --expose-internals` + `ELECTRON_RUN_AS_NODE=1` 启动 Node 子进程，该运行时自带可用的 `node:sqlite`。desktop profile 由应用独占，CLI 不能导出或安装；插件只能以工作区 bundle 经应用内 Plugin Manager 安装。因此 Core/Playback 作为插件拥有的独立进程、由插件按同一垫片启动，是当前唯一有实测依据的宿主方式；可见窗口是否退出不影响它们仍需在真实 desktop profile 中验证。
 
@@ -34,7 +34,7 @@ Phase 1 的独立核心暂用 Node 24 ESM、内置 `node:sqlite` 和 npm 锁文�
 | Provider | 登录、凭据引用、导入、推荐、搜索、解析 | 返回规范化元数据与带有效期的资源句柄 |
 | Playback | 音频播放、暂停、恢复、音量、进度 | 发出 started/progress/ended/error；不选下一首 |
 | Storage | 事务、迁移、历史去重、设置与偏好 | 不保存长期有效的音频 URL；不把凭据暴露给 UI |
-| Desktop | 角色、曲目信息、设置与控制 | 消费快照、发送命令，不自行累积偏好 |
+| Desktop UI | 曲目信息、平台状态、设置与控制、显示/隐藏 | 消费快照、发送命令，不自行累积偏好 |
 
 ## 3. 内部契约轮廓
 
@@ -107,8 +107,7 @@ packages/
   providers/      # netease, qqmusic
   playback/       # 音频后端及进度适配
   dsh-plugin/     # 实际宿主接口适配、命令、生命周期
-  desktop/        # Tauri、角色、面板、状态桥接
-characters/       # 默认角色与许可；社区格式适配以后再做
+  desktop/        # 音乐控制面板、DSH 设置入口、状态桥接；窗口宿主待验证
 docs/
 ```
 

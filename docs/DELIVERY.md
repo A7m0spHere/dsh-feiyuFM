@@ -10,9 +10,9 @@
 |---|---|
 | 操作系统 | **仅 Windows**（首轮验证环境）。播放服务依赖 WPF/`MediaPlayer` 与命名管道；其他系统**未承诺兼容**，也未测试 |
 | Node | **24.14～24.x**（`package.json` 的 `engines` 约束）。使用内置 `node:sqlite`，会打印 experimental 警告 |
-| DSH | 在 **0.1.7-rc.2** 的真实宿主上验证过插件激活、独立 Core 进程与停用清理；**desktop profile 的安装需经应用内插件界面**（CLI 拒绝管理该 profile） |
+| DSH | 工具/命令和停用清理在 **0.1.7-rc.2** 真实宿主验证；`0.2.0-rc.1` PHL 管理的 Web profile 已安装 bundle 并启动 Core，工具实际调用及卸载未验；**desktop profile 的安装需经应用内插件界面** |
 | 音乐平台 | 网易云与 QQ 的适配器已实现，**但从未与任一真实平台通信过**；端点形状按真实服务实测确认，端到端未跑通 |
-| 桌面窗口 | **未交付**：透明窗、托盘、角色素材均未建。窗口**行为**在操作系统层面已实测支持（[P0-05](spikes/P0-05-desktop.md)） |
+| 桌面 UI | **未交付**：音乐控制悬浮窗和托盘尚未建；原型已使用项目此前生成的鲸鱼娘状态图演示待机/听歌/切歌姿态，尚未接入产品。窗口**行为**在操作系统层面已实测支持（[P0-05](spikes/P0-05-desktop.md)） |
 
 ## 2. 安装与构建
 
@@ -74,7 +74,7 @@ npm ci --ignore-scripts --no-audit --no-fund
 
 ### 未实现
 
-1. **Tauri 窗口壳与默认角色**：需要能访问 crates.io 的构建（本环境不可达），且角色素材需**明确许可来源**——本轮没有选入任何素材，也没有生成占位图。
+1. **音乐控制悬浮窗壳**：尚未实现。Tauri 2 构建未完成，且 Tauri 2 不是已锁定方案；需先按 [MVP](MVP.md) 的音乐面板方向验证 DSH 插件 UI 与独立窗口边界。
 2. **多 Session 的活动 Session 优先级对播放的影响**：判定已实现，但真实的"哪个会话更活跃"未与播放策略联动验证。
 3. **`weapi` 加密路径**（网易云部分接口可能需要）。
 4. **QQ 的端点映射**：连假设都还没有可靠依据，`npm run login --provider qq` 会明确拒绝。
@@ -91,9 +91,9 @@ npm ci --ignore-scripts --no-audit --no-fund
 | 项目代码 | 本仓库自行实现。**除下列一项外无第三方运行时依赖** |
 | `qrcode@1.5.4` | **MIT**，来源 <http://github.com/soldair/node-qrcode>，经 npm 安装并由 `package-lock.json` 记录完整性哈希。**仅 `scripts/login.mjs` 使用**（开发者/运维工具）；Core、Provider、Playback 与插件入口均不引用，**发布路径为零运行时依赖**。见 [DECISIONS 第 0 节](DECISIONS.md) |
 | 其传递依赖 | `dijkstrajs`、`pngjs`、`yargs`（宽松许可，随 `qrcode` 安装） |
-| 角色/美术素材 | **无**。未选入任何素材 |
+| UI 状态图 | 原型使用三张此前生成的项目图片（见 [`prototypes/ASSETS.md`](../prototypes/ASSETS.md)）；未复制社区鲸鱼挂件美术素材 |
 | 音频素材 | 仓库内**无音频文件**；测试用 WAV 由 `scripts/make-tone.mjs` 现场生成 |
-| 参考项目 | 社区实现仅作为接口线索参考，未复制代码；来源与待核实项见 [DECISIONS 第 4 节](DECISIONS.md) |
+| 参考项目 | 社区实现仅作设计或接口参考，未复制代码或素材；鲸鱼余额挂件的 UI 参考范围见 [DECISIONS 第 16 节](DECISIONS.md) |
 
 ## 7. 文档与实际的一致性
 

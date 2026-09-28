@@ -57,3 +57,11 @@ $patch = Join-Path $env:DSH_HOME 'profiles/fishfm-spike/cordis.patch.yml'
 - 中途一次失败的原因已查明，属于**本轮测试装置的失误而非 profile 限制**：该轮一开始就 `listen EADDRINUSE: address already in use 127.0.0.1:19399`（上一轮遗留的宿主还占着端口），`webserver` 是必需插件，启动因此失败并连锁出 `webRuntime`、`connection`、`webServer` 等待服务的告警。先前的记录曾把原因写成「web 模板 profile 不完整」，**该说法是错的**：`web` 模板的 bundle 就是 `dsh-base` + `dsh-web-app`，与 desktop profile 只差一个可选 bundle。释放端口后同一 profile 完整跑通。
 - 隔离测试的两点局限（如实记录）：一是本机 shell 继承了桌面宿主的 `DSH_*` 变量，隔离实例记录的 `DSH_PROFILE` 是继承值而非该 profile 名，不能当判据；二是该宿主是 CLI 启动的 web 组合（Node 24.14.0），不是 Electron 桌面宿主，`ctx.tools.execute` 的入参形式与 `credentials` 服务是否可用仍未在这些条件下核对（记录显示 `credentials=false`，因该 profile 未注入凭据服务）。
 - 结论：bundle 格式、激活链路、工具/命令注册、命名管道往返、工具真实执行、独立子进程存活与**停用清理**都已在 profile 启动的宿主中实测通过；真实 Electron desktop profile 的激活与真实事件观察仍待用户经 Plugin Manager 安装后复测。
+
+## 当前本机版本兼容性复核（2026-09-28）
+
+- **当前版本**：本机桌面安装的 `resources/runtime/primary-runtime/runtime.json` 声明 `desktopVersion: 0.2.0-rc.1`、Node `24.21.0`；`resources/runtime/versions.json` 也包含 Node `24.18.1`。项目 `package.json` 的 Node 范围 `>=24.14.0 <25` 覆盖这两个版本。官方 GitHub 最新发行版为 `v0.2.0-rc.1`，属预发布版；发布说明列出插件管理界面改进，但没有列出插件加载 API 变更。
+- **接口复核**：当前官方文档仍定义 `package.json` 的 `dsh.bundle.patch`、`apply(ctx, config)`、`inject`、`ctx.effect`、`ctx.on('session/event')` 和 `ToolDefinition.output.schema`；仓库入口、bundle patch 和适配层均使用这些接口。工具文档要求 `execute(args, exec)` 尊重 `exec.signal`。已调整为：取消中的只读状态请求会撤销等待；播放命令在写入 Core 前检查取消，写出后继续读完确认回包，避免已经接受的播放动作被报告成未知结果。
+- **最新版安装与启动实测**：按用户指定，在 PHL 管理的 DSH `0.2.0-rc.1` 实例 `web` profile 中运行同版本 CLI：`dsh plugin --profile web add <本仓库目录>`，pnpm 返回 `+ dsh-feiyufm-core link:<本仓库目录>`。安装后 profile bundle 列表含 `dsh-feiyufm-core`，`--dump-config` 出现 `id: fishfm`；当前 Web 端口仍响应（未认证 `HEAD /` 返回 HTTP 401），启动日志无插件激活错误；独立 `fishfm-core.mjs` 进程由该 DSH Host 启动，数据库落在该实例自己的 `DSH_HOME` 下。
+- **仍未验证**：在 `0.2.0-rc.1` 中实际调用 FishFM 工具/斜杠命令、卸载插件和 desktop profile 行为。本次安装使用默认 `provider: real`，但该实例没有 FishFM 音乐平台适配器配置，所以并未登录或播放真实音乐。
+- **结论**：`0.2.0-rc.1` 的 bundle 已在真实运行的 PHL Web 实例加载并启动 Core，结合旧版本工具/命令/卸载实测，确认最新版基础加载路径兼容；不据此声称最新版的工具调用、卸载或 desktop profile 全部验收通过。
