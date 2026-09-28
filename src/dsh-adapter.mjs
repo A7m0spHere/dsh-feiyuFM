@@ -1,6 +1,9 @@
 // DSH adapter: the bridge between the real Harness and the music core process.
 //
-// Verified against the installed Harness (0.1.7-rc.2) in P0-01:
+// Full tool/command/teardown integration was verified against Harness
+// 0.1.7-rc.2. Bundle activation and Core startup were then verified in the
+// PHL-managed 0.2.0-rc.1 Web profile on 2026-09-28; actual tool calls and
+// teardown on that version remain unverified.
 //   - plugins export `apply(ctx, config)`, may declare `inject`, and register
 //     everything inside `ctx.effect` / `ctx.on` so unload removes it;
 //   - `ctx.on('session/event', (session, event))` delivers an envelope
@@ -21,6 +24,13 @@ export const TOOL_NAMES = Object.freeze({
 
 /** Slash commands the adapter owns. */
 export const COMMAND_NAMES = Object.freeze(['fishfm', 'fishfm-pause', 'fishfm-next']);
+
+function toolAbortError(signal) {
+  const error = new Error('FishFM tool call was cancelled', { cause: signal?.reason });
+  error.name = 'AbortError';
+  error.code = 'cancelled';
+  return error;
+}
 
 /**
  * Maps one real session event to what the core should be told. Only events in
@@ -153,29 +163,49 @@ export class CoreBridge {
     this.pending.clear();
   }
 
-  request(message, { timeoutMs = this.requestTimeoutMs } = {}) {
+  request(message, { timeoutMs = this.requestTimeoutMs, signal = null, abortable = false } = {}) {
+    if (signal?.aborted) return Promise.reject(toolAbortError(signal));
     if (!this.child || this.child.exitCode !== null) {
       return Promise.reject(new Error('The music core is not running'));
     }
     const id = `req-${++this.seq}`;
     return new Promise((resolve, reject) => {
-      const timer = setTimeout(() => {
+      let timer;
+      const cleanup = () => {
+        clearTimeout(timer);
+        signal?.removeEventListener('abort', onAbort);
+      };
+      const finish = (fn) => (value) => { cleanup(); fn(value); };
+      const onAbort = () => {
+        if (!abortable || !this.pending.delete(id)) return;
+        rejectRequest(toolAbortError(signal));
+      };
+      const rejectRequest = finish(reject);
+      const resolveRequest = finish(resolve);
+      timer = setTimeout(() => {
         this.pending.delete(id);
-        reject(new Error(`The music core did not answer ${String(message.type)} in time`));
+        rejectRequest(new Error(`The music core did not answer ${String(message.type)} in time`));
       }, timeoutMs);
-      this.pending.set(id, { resolve, reject, timer });
+      this.pending.set(id, { resolve: resolveRequest, reject: rejectRequest, timer });
+      if (abortable) {
+        signal?.addEventListener('abort', onAbort, { once: true });
+        if (signal?.aborted) onAbort();
+      }
+      if (!this.pending.has(id)) return;
       try {
         this.child.stdin.write(`${JSON.stringify({ ...message, id })}\n`);
       } catch (error) {
-        clearTimeout(timer);
         this.pending.delete(id);
-        reject(error);
+        rejectRequest(error);
       }
     });
   }
 
-  async command(command, { timeoutMs } = {}) {
-    const answer = await this.request({ type: 'command', command }, { timeoutMs });
+  async command(command, { timeoutMs, signal } = {}) {
+    // Once written, a command is owned by Core. Drain its acknowledgement even
+    // if DSH cancels the caller so an accepted side effect is never reported as
+    // an unknown outcome that could be retried.
+    const answer = await this.request({ type: 'command', command }, { timeoutMs, signal });
     return { snapshot: answer.snapshot, accepted: answer.accepted };
   }
 
@@ -316,8 +346,10 @@ export function registerAdapter(ctx, { bridge, onLog = () => {} }) {
         },
         render: (_args, value) => [{ type: 'text', text: JSON.stringify(value) }],
       },
-      async execute() {
-        const answer = await bridge.request({ type: 'snapshot' });
+      async execute(_args, exec) {
+        const answer = await bridge.request(
+          { type: 'snapshot' }, { signal: exec?.signal, abortable: true },
+        );
         const snapshot = answer.snapshot ?? {};
         const current = snapshot.current;
         return {
@@ -352,7 +384,7 @@ export function registerAdapter(ctx, { bridge, onLog = () => {} }) {
         },
         render: (_args, value) => [{ type: 'text', text: JSON.stringify(value) }],
       },
-      async execute(args) {
+      async execute(args, exec) {
         const map = {
           pause: 'pause', resume: 'resume', next: 'next',
           stop_for_today: 'stopForToday', choose_self: 'chooseSelf',
@@ -360,7 +392,7 @@ export function registerAdapter(ctx, { bridge, onLog = () => {} }) {
         const type = map[args?.action];
         if (!type) return { accepted: false, paused: false, status: 'unknown', error: 'unknown action' };
         try {
-          const answer = await bridge.command({ type });
+          const answer = await bridge.command({ type }, { signal: exec?.signal });
           return {
             accepted: true,
             paused: answer.snapshot?.paused === true,
@@ -398,12 +430,12 @@ export function registerAdapter(ctx, { bridge, onLog = () => {} }) {
         },
         render: (_args, value) => [{ type: 'text', text: JSON.stringify(value) }],
       },
-      async execute(args) {
+      async execute(args, exec) {
         try {
           const answer = await bridge.command({
             type: 'requestTrack',
             track: { provider: args?.provider, providerTrackId: args?.providerTrackId },
-          });
+          }, { signal: exec?.signal });
           return { accepted: true, status: String(answer.snapshot?.status ?? 'unknown'), error: '' };
         } catch (error) {
           // Never pretend a different track played: report the real reason.

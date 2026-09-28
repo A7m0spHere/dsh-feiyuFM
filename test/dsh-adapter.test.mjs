@@ -236,6 +236,35 @@ test('session events reach the core without blocking the host, and paused state 
   }
 });
 
+test('DSH tool cancellation stops read-only calls and blocks commands before dispatch', async () => {
+  const bridge = new CoreBridge({ spawnCore: () => spawnFakeCore() });
+  await bridge.start();
+  const { ctx, registered } = fakeHarnessContext();
+  const unregister = registerAdapter(ctx, { bridge });
+  try {
+    const controller = new AbortController();
+    controller.abort(new Error('caller cancelled'));
+
+    await assert.rejects(
+      () => registered.tools.get(TOOL_NAMES.status).execute({}, { signal: controller.signal }),
+      (error) => error.name === 'AbortError' && error.code === 'cancelled',
+    );
+
+    const control = await registered.tools.get(TOOL_NAMES.control).execute(
+      { action: 'pause' }, { signal: controller.signal },
+    );
+    assert.equal(control.accepted, false);
+    assert.equal(control.error, 'cancelled');
+    assert.equal(bridge.pending.size, 0);
+
+    const snapshot = await bridge.request({ type: 'snapshot' });
+    assert.equal(snapshot.snapshot.paused, true, 'an aborted command must not reach Core');
+  } finally {
+    unregister();
+    await bridge.stop();
+  }
+});
+
 test('stopping the bridge stops the core process, which is what unload does', async () => {
   const bridge = new CoreBridge({ spawnCore: () => spawnFakeCore() });
   await bridge.start();
