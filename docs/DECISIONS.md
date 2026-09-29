@@ -254,3 +254,7 @@ MVP 要求"多 Session 不抢占播放"（A08）与"临时 Session 权重只少�
 
 只作 UI 参考，不复制代码或角色素材。`PROVENANCE.md` 明确声明余额挂件仓库的 `assets/**` 不属于 MIT 许可范围；FishFM 原型不使用其图片或音效。用户随后要求使用此前生成的鲸鱼娘图并加入动态展示，三张 Codex 生成图已复制到 `prototypes/assets/`，仅演示待机/听歌/DJ 姿态切换，来源映射见 [原型素材说明](../prototypes/ASSETS.md)。这不是桌宠：不增加喂食、抚摸、随机台词或主动宠物状态机。Tauri 2 仍未锁定；Core/Playback 独立于可见 UI 的约束不变。本决定取代 D04 与 D08 中的宠物产品/默认角色范围，并要求同步 [MVP](MVP.md)、[ARCHITECTURE](ARCHITECTURE.md)、[PROJECT_PLAN](PROJECT_PLAN.md)、[DELIVERY](DELIVERY.md) 和 U2 证据说明。
 
+
+## 17. 先提供 DSH 主界面设置入口（2026-09-29）
+
+用户要求可以从 DSH 主界面打开交互 UI 进行设置。本轮使用已安装 0.2.0-rc.1 的正式客户端模块与插槽，将侧栏主面板和设置页连接到同一个 Core；使用宿主 Connection 的认证 RPC，不额外开端口或修改宿主源码。面板视觉采用蓝灰色唱片与分组控件，没有复制第三方 UI 或素材。所参考官方包、版本、许可及验证范围见 [U3 证据](spikes/U3-dsh-settings.md)。独立悬浮窗保留后续任务；不扩展为桌宠。该决定增加主界面入口，不改变 Provider/Playback/Core 边界，也不表示平台音乐已经可用。

@@ -4,6 +4,8 @@
 
 ## 事实与文档入口
 
+- DSH 主界面设置 UI 已新增：左侧栏及设置窗口“肥鱼电台”，浏览器入口为 `src/ui/dsh-client.js`，通过 `src/ui/dsh-settings.mjs` 使用 DSH 认证 RPC 连接同一 Core。`0.2.0-rc.1` PHL 实例 `2-gpf9` 已验证页面/客户端 bundle 下发、设置读写及认证边界；浏览器工具拦截本机地址，视觉点击验收未完成。证据见 `docs/spikes/U3-dsh-settings.md`；独立悬浮窗与面板扫码登录仍未做。
+
 - 当前已有 Phase 1 离线控制核心、SQLite 首版迁移、DSH 插件 bundle 与调试入口；插件加载/卸载在 DSH `0.1.7-rc.2` 隔离 Web profile 验证过，并已安装到 PHL 管理的 DSH `0.2.0-rc.1` Web 实例，确认 bundle 加载并启动独立 Core。真实工具调用、desktop profile、音乐平台及平台音频接入仍未验证。`npm run check`、`npm test`、`npm run build` 为可执行的离线命令。
 - 产品行为和验收以 `docs/MVP.md` 为准；模块边界以 `docs/ARCHITECTURE.md` 为准。
 - 执行进度以 `docs/PROJECT_PLAN.md` 为准；技术验证任务与证据要求见 `docs/PHASE_0.md`。

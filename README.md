@@ -4,14 +4,16 @@
 
 从用户近期常听的音乐建立成长环境，由本地策略形成 Agent 的音乐偏好、记忆和自主选择；用户始终保留播放控制权。v0.1 同时支持网易云音乐和 QQ 音乐，并提供可隐藏的音乐控制悬浮窗。UI 参考 [DeepSeek Balance Whale Widget](https://github.com/MeteorNOX/DeepSeek-Balance-Whale-Widget) 的右下角挂件、状态泡泡和菜单分层；鲸鱼娘图像仅作为音乐状态的动态视觉，不加入桌宠行为。
 
-**当前状态：离线部分已完成，真实平台尚未验证。** 已有 Phase 1 控制核心、独立播放服务（真实音频已通过）、DSH 插件 bundle（在真实宿主中验证过激活与停用）、网易云与 QQ 适配器（离线）、人格与成长、多 Session 判定、扩展 UI 的桥接与面板逻辑。最近在 DSH `0.2.0-rc.1` 的 PHL 管理 Web 实例安装并加载了本地 bundle，独立 Core 已由该宿主启动；`0.1.7-rc.2` 的工具调用和停用清理实测记录仍有效。**从未与真实音乐平台通信过**：登录/导入/搜索/解析的接口形状是按真实服务实测确认的，端到端仍未跑通，桌面窗口壳未建。逐项状态见[完成度总表](docs/PROJECT_PLAN.md#完成度总表)；项目名为「肥鱼电台 FishFM」，仓库名为 `dsh-feiyuFM`；`DeepSeek Music Persona` 是产品定位，`SeekFM` 是早期讨论用名。尚未发布 npm 包。
+**当前状态：开发预览，真实平台播放闭环尚未完成。** 已有控制核心、独立播放服务（本地音频已通过）、DSH 插件 bundle、双平台适配器离线实现、人格与成长、多 Session 判定。DSH `0.2.0-rc.1` 新增原生侧栏与设置页入口，已在 PHL 管理的 Web 实例验证 UI bundle 下发与设置读写；浏览器视觉点击验收尚未完成。网易云已记录端点探测与二维码获取，账号登录后的端到端播放及 QQ 真实接入仍未通过。独立桌面悬浮窗未建，尚未发布 npm 包。逐项状态见[开发路线](docs/PROJECT_PLAN.md)。
+
+**打开设置：** 在 PHL 启动已安装插件的“2”实例，重新加载 DSH 页面，点击左侧栏 **肥鱼电台**；也可以在 DSH **设置 → 肥鱼电台** 打开。开关和模式即时保存，探索率调整后点击“保存探索率”。平台卡片如实显示接入状态；本轮未提供面板扫码登录。验证范围见 [U3 证据](docs/spikes/U3-dsh-settings.md)。
 
 Node 24.14～24.x 下可运行，**大部分检查不需要音乐账号**：
 
 ```sh
 npm ci --ignore-scripts --no-audit --no-fund
 npm run check        # 语法与模块检查
-npm test             # 195 项离线测试
+npm test             # 核心、适配器与 UI 测试
 npm run build        # 构建 dist/ 并跑调试冒烟
 npm run debug        # JSON 行调试入口（假播放，不出声）
 ```

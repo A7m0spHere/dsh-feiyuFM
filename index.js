@@ -15,6 +15,7 @@ import { spawn } from 'node:child_process';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { CoreBridge, registerAdapter } from './src/dsh-adapter.mjs';
+import { registerSettingsApi } from './src/ui/dsh-settings.mjs';
 
 export const name = 'fishfm';
 
@@ -88,6 +89,10 @@ export function apply(ctx, config = {}) {
   });
 
   const dispose = registerAdapter(ctx, { bridge });
+  // Optional in headless profiles; the browser uses the host's authenticated RPC.
+  if (typeof ctx.inject === 'function') {
+    ctx.inject(['connection'], (uiCtx) => registerSettingsApi(uiCtx, bridge));
+  }
   // Start eagerly so a failure is visible at load time, but never block apply:
   // the Harness must stay responsive even when audio is slow to come up.
   bridge.start().catch((error) => {

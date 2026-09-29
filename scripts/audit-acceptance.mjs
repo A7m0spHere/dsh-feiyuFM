@@ -87,15 +87,17 @@ const EVIDENCE = [
     unverified: '真实导入数据与真实会话未验',
   },
   {
-    id: 'A07', claim: '默认角色与控制面板可用，位置可恢复，隐藏/关闭/崩溃 UI 后音乐继续',
+    id: 'A07', claim: 'DSH 内嵌音乐设置与独立控制面板可用，位置可恢复，隐藏/关闭/崩溃 UI 后音乐继续',
     status: 'not-passed',
-    files: ['test/ui-bridge.test.mjs', 'test/ui-ipc.test.mjs', 'test/ui-panel.test.mjs', 'docs/spikes/P0-05-desktop.md', 'spikes/P0-05-window-probe.ps1'],
+    files: ['test/ui-bridge.test.mjs', 'test/ui-ipc.test.mjs', 'test/ui-panel.test.mjs', 'test/dsh-client.test.mjs', 'test/dsh-settings.test.mjs', 'docs/spikes/U3-dsh-settings.md', 'docs/spikes/P0-05-desktop.md', 'spikes/P0-05-window-probe.ps1'],
     tests: [
       { file: 'test/ui-bridge.test.mjs', name: 'the window remembers where it was' },
       { file: 'test/ui-bridge.test.mjs', name: 'a position on a disconnected monitor comes back into view' },
       { file: 'test/ui-panel.test.mjs', name: 'the panel offers the controls that are delivered, and not the one that is not' },
+      { file: 'test/dsh-client.test.mjs', name: 'client contributes native sidebar, main and settings seats; controls send Core commands' },
+      { file: 'test/dsh-settings.test.mjs', name: 'settings RPC persists changes through Core restart and preserves pause' },
     ],
-    unverified: '没有窗口壳与角色素材；窗口行为只在操作系统层面验证过，未在所选框架中验证',
+    unverified: '主界面 UI 视觉点击验收受浏览器本机拦截影响未完成；独立窗口壳与托盘未实现',
   },
   {
     id: 'A08', claim: '多 Session 不抢占播放；插件退出停止音乐，DSH 正常工作',
