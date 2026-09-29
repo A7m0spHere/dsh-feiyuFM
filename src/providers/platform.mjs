@@ -52,13 +52,18 @@ export function createPlatformProvider({
 
   let pendingLogin = null;
   let lastError = null;
+  let cachedSecret;
   const noted = { seedSource: null, seedReason: null, recommendation: null, lastResolveAt: null };
 
   const readSecret = () => {
+    if (cachedSecret !== undefined) return cachedSecret;
     if (!credentials?.read) return null;
     try {
-      return credentials.read(accountRef) ?? null;
+      cachedSecret = credentials.read(accountRef) ?? null;
+      if (cachedSecret) transport.useSecret?.(cachedSecret);
+      return cachedSecret;
     } catch (error) {
+      cachedSecret = null;
       lastError = `credential read failed: ${error.message}`;
       return null;
     }
@@ -67,6 +72,8 @@ export function createPlatformProvider({
   const persistCredential = (secret, { accountId = null } = {}) => {
     if (!credentials?.write) throw new MusicError('credential_store_unavailable', 'No credential store is configured');
     credentials.write(accountRef, secret);
+    cachedSecret = secret;
+    transport.useSecret?.(secret);
     // Only the reference is recorded; the secret itself never reaches SQLite.
     store?.setCredentialReference({
       provider: providerName, accountId, credentialRef: accountRef, state: 'authorized', updatedAt: now(),
@@ -211,6 +218,9 @@ export function createPlatformProvider({
         return { status: state.status, code: state.code ?? null };
       }
       if (!state.secret) {
+        state.secret = transport.jar?.toSecret?.() ?? null;
+      }
+      if (!state.secret) {
         throw new MusicError('provider_failure', `${displayName} confirmed the sign-in but sent no session material`);
       }
       persistCredential(state.secret, { accountId: state.accountId ?? null });
@@ -244,6 +254,8 @@ export function createPlatformProvider({
 
     async logout() {
       forgetCredential();
+      cachedSecret = null;
+      transport.useSecret?.('');
       pendingLogin = null;
       noted.seedSource = null;
       noted.seedReason = null;

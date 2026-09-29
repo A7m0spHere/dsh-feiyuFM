@@ -11,8 +11,12 @@
 // playable handle. `fake` exists for tests and offline debugging only.
 // `--selection queue` uses the Phase 1 fixed-candidate debug queue instead of
 // the user's imported environment.
-import { runCoreHost } from '../src/core-host.mjs';
+import { buildProviderRegistry, createProviderFacade, runCoreHost } from '../src/core-host.mjs';
 import { FakeProvider } from '../src/fakes.mjs';
+import { MusicStore } from '../src/storage.mjs';
+import { createDpapiCredentials } from '../src/providers/credentials-dpapi.mjs';
+import { neteaseEndpoints } from '../src/providers/endpoints/netease.mjs';
+import { dirname, join, resolve } from 'node:path';
 
 const argValue = (name, fallback) => {
   const index = process.argv.indexOf(name);
@@ -27,16 +31,33 @@ if (!['real', 'fake'].includes(playbackMode)) throw new Error('--playback must b
 if (!['real', 'fake'].includes(providerMode)) throw new Error('--provider must be real or fake');
 if (!['environment', 'queue'].includes(selectionMode)) throw new Error('--selection must be environment or queue');
 
-process.on('SIGTERM', () => { process.exit(0); });
-process.on('SIGINT', () => { process.exit(0); });
+const onLog = (entry) => {
+  // Diagnostics only; never log credentials or resolved media URLs.
+  process.stderr.write(`fishfm-core: ${JSON.stringify(entry)}\n`);
+};
 
-await runCoreHost({
-  dbPath,
-  playbackMode,
-  selectionMode,
-  ...(providerMode === 'fake' ? { provider: new FakeProvider() } : {}),
-  onLog: (entry) => {
-    // Diagnostics only; never log credentials or resolved media URLs.
-    process.stderr.write(`fishfm-core: ${JSON.stringify(entry)}\n`);
-  },
-});
+let store = null;
+try {
+  const canPersistCredentials = providerMode === 'real' && process.platform === 'win32' && dbPath !== ':memory:';
+  let providerRegistry;
+  let platformsFacade;
+  if (canPersistCredentials) {
+    store = new MusicStore(dbPath);
+    const credentials = createDpapiCredentials({ directory: join(dirname(resolve(dbPath)), 'credentials') });
+    providerRegistry = buildProviderRegistry({
+      adapters: { netease: { endpoints: neteaseEndpoints() } },
+      credentials, store, onLog,
+    });
+    platformsFacade = createProviderFacade({ registry: providerRegistry, store, onLog });
+  }
+  await runCoreHost({
+    dbPath,
+    playbackMode,
+    selectionMode,
+    ...(providerMode === 'fake' ? { provider: new FakeProvider() } : {}),
+    ...(store ? { store, providerRegistry, platformsFacade } : {}),
+    onLog,
+  });
+} finally {
+  store?.close();
+}

@@ -1,6 +1,6 @@
 # 决策、来源与参考线索
 
-更新：2026-09-28。
+更新：2026-09-29。
 
 ## 0. 第三方依赖与实测接口（2026-09-27）
 
@@ -11,11 +11,11 @@
 | 包名 / 版本 | `qrcode@1.5.4` |
 | 许可证 | MIT |
 | 来源 | <http://github.com/soldair/node-qrcode>（npm 安装，`package-lock` 记录完整性哈希） |
-| 引入范围 | **仅 `scripts/login.mjs`**（开发者/运维工具）。Core、Provider、Playback、插件入口**都不引用它**，因此发布路径仍是零运行时依赖 |
+| 引入范围 | `scripts/login.mjs` 与 DSH 面板登录 RPC。二维码在 Core 本地编码为 PNG Data URL，不把一次性登录 key 单独发给 UI，也不访问第三方二维码服务 |
 | 为何需要 | **实测确认网易云不提供二维码图片**（候选路径全部 `接口未找到`），必须由客户端把 `https://music.163.com/login?codekey=<unikey>` 渲染成二维码。本机无 `qrencode`、Python 无 `qrcode`/`segno`，PIL 不含编码器 |
-| 谁批准 | 用户在本轮明确选择"允许装一个二维码库" |
+| 谁批准 | 用户此前已明确同意把 `qrcode` 加入项目；面板接入复用这项授权 |
 | 传递依赖 | `dijkstrajs`、`pngjs`、`yargs`（均为 MIT/ISC 系宽松许可，随 `qrcode` 安装） |
-| 失效降级 | 渲染失败时命令仍打印二维码文本形式与登录 URL，登录流程不因此失败 |
+| 失效降级 | 面板不能渲染二维码时显示明确错误并允许重试；命令行仍可打印二维码文本形式 |
 
 ### 实测的网易云接口（P0-02，无账号即可确认）
 
@@ -258,3 +258,7 @@ MVP 要求"多 Session 不抢占播放"（A08）与"临时 Session 权重只少�
 ## 17. 先提供 DSH 主界面设置入口（2026-09-29）
 
 用户要求可以从 DSH 主界面打开交互 UI 进行设置。本轮使用已安装 0.2.0-rc.1 的正式客户端模块与插槽，将侧栏主面板和设置页连接到同一个 Core；使用宿主 Connection 的认证 RPC，不额外开端口或修改宿主源码。面板视觉采用蓝灰色唱片与分组控件，没有复制第三方 UI 或素材。所参考官方包、版本、许可及验证范围见 [U3 证据](spikes/U3-dsh-settings.md)。独立悬浮窗保留后续任务；不扩展为桌宠。该决定增加主界面入口，不改变 Provider/Playback/Core 边界，也不表示平台音乐已经可用。
+
+## 18. 网易云扫码接入已有面板（2026-09-29）
+
+用户要求尝试给面板加入快捷登录。在 DSH 设置页中增加网易云扫码、状态轮询、导入和退出入口。复用已有 QR key/loginPoll endpoint 与 `qrcode@1.5.4`，后者升为运行依赖，因为 Core 服务端负责生成 PNG Data URL；没有新增或升级包。NetEase endpoint map 对 QR key、801 等待和 800 过期有探测证据，但 802/803 与 Set-Cookie 的授权流程仍未在真实账号中确认。凭据保存于 Windows CurrentUser DPAPI；SQLite 只存引用；Core 重启后从 DPAPI 读回并重新填充 transport Cookie Jar。QQ 登录接口尚无核实证据，面板不显示扫码按钮。现场扫码、cookie 回存与播放由真实账号确认；范围见 [U4](spikes/U4-quick-login.md)。

@@ -34,7 +34,7 @@
 
 也就是说**服务端不提供二维码图片**，必须由客户端把 `https://music.163.com/login?codekey=<unikey>` 渲染成二维码。而本机**没有任何二维码库**（无 npm 依赖、无 `qrencode`、Python 无 `qrcode`/`segno`；仅有 PIL，但 PIL 不含二维码编码器）。
 
-**已解决**：用户批准引入二维码库后，登录命令改为**本地渲染**（`qrcode@1.5.4`，MIT，仅用于开发者脚本，发布路径仍零运行时依赖；来源与许可记录在 [DECISIONS 第 0 节](../DECISIONS.md)）。二维码内容为 `https://music.163.com/login?codekey=<unikey>`，同时输出 PNG 与终端文本两种形式，PNG 会被自动打开。
+**已解决**：用户批准引入二维码库后，登录命令改为**本地渲染**（`qrcode@1.5.4`，MIT；来源与许可记录在 [DECISIONS 第 0 节](../DECISIONS.md)）。后续 DSH 面板登录也复用同一依赖，在 Core 服务端生成 PNG Data URL。二维码内容为 `https://music.163.com/login?codekey=<unikey>`，没有把登录 key 作为独立字段发给页面。
 
 **已用真实服务验证**：`node scripts/login.mjs --dry-run --timeout 12` 拿到真实 key（`f3b9a6d7…`）、成功渲染二维码并打开、随后按 3 秒间隔轮询直到超时。也就是说**扫码之前的每一步都在真实服务上跑通了**，只差用户扫码。
 

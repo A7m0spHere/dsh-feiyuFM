@@ -4,7 +4,8 @@
 - 日期：2026-09-27
 - 状态：**开发预览，不是 v0.1 发布**。离线部分完成；**真实平台链路未验证**，因此 MVP 的 10 条验收中 **0 条完全通过**（逐条见[完成度总表](PROJECT_PLAN.md#完成度总表)）。
 
-2026-09-29 UI 增量：DSH `0.2.0-rc.1` 内嵌设置页已加入插件源包的 `./client` 导出，通过原生侧栏“肥鱼电台”或“设置 → 肥鱼电台”访问。PHL “2”实例以 link 方式安装本目录，重启实例并刷新页面即可加载。设置通过宿主认证 RPC 保存到现有 Core 数据库。页面与 API 已实测，视觉点击验收受浏览器本机访问拦截影响未完成，见 [U3](spikes/U3-dsh-settings.md)。`dist/` 仍是 Core 调试构建目录，DSH 安装目标仍为仓库根目录。独立悬浮窗与托盘不在本次实现内。
+
+2026-09-29 UI 增量：DSH `0.2.0-rc.1` 内嵌设置页已加入插件源包的 `./client` 导出，通过原生侧栏“肥鱼电台”或“设置 → 肥鱼电台”访问。网易云提供面板扫码、登录轮询、本机 DPAPI 凭据保存、导入和退出账号；完整实账号登录及播放链路仍须现场验。QQ 无经过核实的 endpoint map，故面板不会展示误导性的登录按钮。面板通过宿主认证 RPC 访问独立 Core。原 UI 页面/API 证据见 [U3](spikes/U3-dsh-settings.md)，快捷登录边界见 [U4](spikes/U4-quick-login.md)。`dist/` 仍是 Core 调试构建目录，DSH 安装目标仍为仓库根目录；独立悬浮窗与托盘仍未实现。
 
 ## 1. 支持范围
 
@@ -13,7 +14,7 @@
 | 操作系统 | **仅 Windows**（首轮验证环境）。播放服务依赖 WPF/`MediaPlayer` 与命名管道；其他系统**未承诺兼容**，也未测试 |
 | Node | **24.14～24.x**（`package.json` 的 `engines` 约束）。使用内置 `node:sqlite`，会打印 experimental 警告 |
 | DSH | 工具/命令和停用清理在 **0.1.7-rc.2** 真实宿主验证；`0.2.0-rc.1` PHL 管理的 Web profile 已安装 bundle 并启动 Core，工具实际调用及卸载未验；**desktop profile 的安装需经应用内插件界面** |
-| 音乐平台 | 网易云与 QQ 的适配器已实现，**但从未与任一真实平台通信过**；端点形状按真实服务实测确认，端到端未跑通 |
+| 音乐平台 | 网易云的二维码 key、等待和过期 endpoint 有真实服务探测证据；账号扫码确认、cookie 回存、导入与真实播放尚未验收。QQ 适配器离线存在，但 endpoint profile 不可用 |
 | 桌面 UI | **未交付**：音乐控制悬浮窗和托盘尚未建；原型已使用项目此前生成的鲸鱼娘状态图演示待机/听歌/切歌姿态，尚未接入产品。窗口**行为**在操作系统层面已实测支持（[P0-05](spikes/P0-05-desktop.md)） |
 
 ## 2. 安装与构建
@@ -90,8 +91,8 @@ npm ci --ignore-scripts --no-audit --no-fund
 
 | 项目 | 说明 |
 |---|---|
-| 项目代码 | 本仓库自行实现。**除下列一项外无第三方运行时依赖** |
-| `qrcode@1.5.4` | **MIT**，来源 <http://github.com/soldair/node-qrcode>，经 npm 安装并由 `package-lock.json` 记录完整性哈希。**仅 `scripts/login.mjs` 使用**（开发者/运维工具）；Core、Provider、Playback 与插件入口均不引用，**发布路径为零运行时依赖**。见 [DECISIONS 第 0 节](DECISIONS.md) |
+| 项目代码 | 本仓库自行实现；面板扫码图像由 Core 服务端本地产生，不调用第三方二维码生成服务 |
+| `qrcode@1.5.4` | **MIT**，来源 <http://github.com/soldair/node-qrcode>，经 npm 安装并由 `package-lock.json` 记录完整性哈希。用于 `scripts/login.mjs` 和面板内存中的二维码 PNG；依赖版本、许可与用途见 [DECISIONS 第 0 节](DECISIONS.md) |
 | 其传递依赖 | `dijkstrajs`、`pngjs`、`yargs`（宽松许可，随 `qrcode` 安装） |
 | UI 状态图 | 原型使用三张此前生成的项目图片（见 [`prototypes/ASSETS.md`](../prototypes/ASSETS.md)）；未复制社区鲸鱼挂件美术素材 |
 | 音频素材 | 仓库内**无音频文件**；测试用 WAV 由 `scripts/make-tone.mjs` 现场生成 |

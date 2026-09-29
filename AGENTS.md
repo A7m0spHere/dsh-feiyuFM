@@ -4,7 +4,8 @@
 
 ## 事实与文档入口
 
-- DSH 主界面设置 UI 已新增：左侧栏及设置窗口“肥鱼电台”，浏览器入口为 `src/ui/dsh-client.js`，通过 `src/ui/dsh-settings.mjs` 使用 DSH 认证 RPC 连接同一 Core。`0.2.0-rc.1` PHL 实例 `2-gpf9` 已验证页面/客户端 bundle 下发、设置读写及认证边界；浏览器工具拦截本机地址，视觉点击验收未完成。证据见 `docs/spikes/U3-dsh-settings.md`；独立悬浮窗与面板扫码登录仍未做。
+- DSH 主界面设置 UI 已新增：左侧栏及设置窗口“肥鱼电台”，浏览器入口为 `src/ui/dsh-client.js`，通过 `src/ui/dsh-settings.mjs` 使用 DSH 认证 RPC 连接同一 Core。`0.2.0-rc.1` PHL 实例 `2-gpf9` 已验证页面/客户端 bundle 下发、设置读写及认证边界；浏览器工具拦截本机地址，视觉点击验收未完成。网易云面板扫码入口已接入；真实账号确认与播放未验，QQ 登录 endpoint 未核实。证据见 `docs/spikes/U3-dsh-settings.md`、`docs/spikes/U4-quick-login.md`；独立悬浮窗未做。
+- 网易云扫码登录已尝试接入面板：NetEase adapter、Windows CurrentUser DPAPI、每平台浏览器会话及独立 Core 配置已连接，扫码后可导入音乐；只有网易云提供登录按钮。官方/真实账号的完整扫码、登录状态码映射和播放仍需用户现场确认；QQ 端点未核实，不能显示虚假的快捷登录。增量证据与边界见 `docs/spikes/U4-quick-login.md`。
 
 - 当前已有 Phase 1 离线控制核心、SQLite 首版迁移、DSH 插件 bundle 与调试入口；插件加载/卸载在 DSH `0.1.7-rc.2` 隔离 Web profile 验证过，并已安装到 PHL 管理的 DSH `0.2.0-rc.1` Web 实例，确认 bundle 加载并启动独立 Core。真实工具调用、desktop profile、音乐平台及平台音频接入仍未验证。`npm run check`、`npm test`、`npm run build` 为可执行的离线命令。
 - 产品行为和验收以 `docs/MVP.md` 为准；模块边界以 `docs/ARCHITECTURE.md` 为准。

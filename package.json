@@ -15,8 +15,15 @@
   "dsh": {
     "client": {
       "platform": "web",
-      "inject": ["@deepseek-ai/dsh-client-connection", "@deepseek-ai/dsh-client-ui-layout", "@deepseek-ai/dsh-client-ui-sidebar", "@deepseek-ai/dsh-client-ui-settings-general"],
-      "external": ["react"]
+      "inject": [
+        "@deepseek-ai/dsh-client-connection",
+        "@deepseek-ai/dsh-client-ui-layout",
+        "@deepseek-ai/dsh-client-ui-sidebar",
+        "@deepseek-ai/dsh-client-ui-settings-general"
+      ],
+      "external": [
+        "react"
+      ]
     },
     "bundle": {
       "patch": "./cordis.patch.yml"
@@ -38,7 +45,7 @@
     "audit:acceptance": "node scripts/audit-acceptance.mjs",
     "smoke:playback": "node scripts/playback-smoke.mjs"
   },
-  "devDependencies": {
+  "dependencies": {
     "qrcode": "^1.5.4"
   }
 }

@@ -1,6 +1,6 @@
 # 技术架构草案
 
-2026-09-29 增量：DSH Web 主界面通过 `dsh.client` / `./client` 加载 `src/ui/dsh-client.js`，注册 `sidebar.panellist`、`main`、`settings.section`。`src/ui/dsh-settings.mjs` 在 `ctx.connection.rpc.intercept('/api', …)` 注册 `fishfm/state` 和 `fishfm/command`，沿用宿主认证和来源检查；服务端限制命令类型并复用 Core 的输入校验。UI 只在挂载期间轮询，无独立数据库、播放状态机、监听端口或模型调用。设置与原有工具控制共用 `CoreBridge`，关闭 UI 不释放 Core。该原生 Web 路径已核对 0.2.0-rc.1 安装内接口，独立桌面悬浮窗依旧待验证，详见 [U3](spikes/U3-dsh-settings.md)。
+2026-09-29 增量：DSH Web 主界面通过 `dsh.client` / `./client` 加载 `src/ui/dsh-client.js`，注册 `sidebar.panellist`、`main`、`settings.section`。`src/ui/dsh-settings.mjs` 在 `ctx.connection.rpc.intercept('/api', …)` 注册面板接口，沿用宿主认证和来源检查；播放设置命令复用 Core 校验，平台行为限网易云。Windows real provider 从 Core 进程内的 CurrentUser DPAPI 凭据库恢复 NetEase 会话并通过 transport 填充 cookie jar，扫码状态和导入仍由唯一 Core 掌管。UI 没有独立状态库、播放服务、监听端口或模型调用。登录端点与限制见 [U4](spikes/U4-quick-login.md)；独立桌面悬浮窗仍待验证。
 
 更新：2026-09-27。状态：**Phase 1 内部 Core/Storage 契约已离线实现；DSH、Provider、Playback 和 Desktop 接口仍待 Phase 0 验证。** 产品行为见 [MVP](MVP.md)，已实现契约见 [CORE_CONTRACT](CORE_CONTRACT.md)。
 
