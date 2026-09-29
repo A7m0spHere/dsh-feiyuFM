@@ -24,3 +24,7 @@ QQ 的类型适配器还保留在代码中，但没有可靠接口 map。根据�
 ## 未验证
 
 本轮按用户“尝试接入”要求落下了交互与服务流程，但没有替用户扫码，也没有触发平台请求、运行测试或声称真实登录成功。网络状态码和需要账号的 endpoint 仍须在用户扫描后核对；然后才可判断登录闭环是否达成。浏览器工具仍无法打开本机 `127.0.0.1:3080`，因此这次没有录入面板视觉实测。
+
+## 实例启动错误修复（2026-09-29）
+
+用户报告 PHL“2”实例显示 `Failed to load plugins / web boot: 1 entry did not activate / dsh-feiyufm-core: import failed`。这是扫码面板 JSX-free render tree 的右列插槽括号少闭合，导致整个客户端 bundle 在编译时解析失败，并非 DSH 插件 API 或二维码依赖加载失败。已将平台卡片、扫码区和导入回执拆成独立 React element 后修正。对 `src/ui/dsh-client.js`、`src/ui/dsh-settings.mjs`、`bin/fishfm-core.mjs` 执行 `node --check` 均通过（语法层面；未运行测试，也未执行真实账号登录）。请刷新或重新打开“2”实例以重新加载 bundle。

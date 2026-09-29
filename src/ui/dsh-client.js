@@ -114,6 +114,49 @@ window.__ModuleLoader__.load({
             onClick: () => controller.command(command, !settings[field]) }, h('span')));
       }
       const button = (label, type, blocked = false) => h('button', { type: 'button', className: 'fm-button', disabled: disabled || blocked, onClick: () => controller.command(type) }, label);
+      const platformRows = [['netease', '网易云音乐'], ['qq', 'QQ 音乐']].map(([id, title]) => {
+        const platform = state.platforms?.[id];
+        const label = !snapshot ? '读取中' : !platform?.installed ? '接口尚未接入' : ({
+          authorized: '已登录', expired: '登录已过期', signed_out: '未登录',
+          login_required: platform.account?.pending ? '等待扫码' : '未登录',
+        }[platform.account?.status] || '未连接');
+        const available = id === 'netease' && platform?.installed;
+        const action = platform?.account?.status === 'authorized'
+          ? h(React.Fragment, null,
+            h('button', { type: 'button', className: 'fm-button fm-primary', disabled: state.busy || !state.connected,
+              onClick: () => controller.platformAction('import', id) }, '导入我的音乐'),
+            h('button', { type: 'button', className: 'fm-button', disabled: state.busy || !state.connected,
+              onClick: () => controller.platformAction('logout', id) }, '退出账号'))
+          : !state.login && h('button', { type: 'button', className: 'fm-button fm-primary', disabled: state.busy || !state.connected,
+            onClick: () => controller.platformAction('begin', id) }, '扫码登录');
+        return h('div', { className: 'fm-platform', key: id },
+          h('span', null, title),
+          h('div', { className: 'fm-controls', style: { marginTop: 0 } },
+            h('span', { className: 'fm-badge' }, label), available && action));
+      });
+      const loginPanel = state.login?.provider === 'netease'
+        ? h('div', { className: 'fm-qr-box' },
+          h('div', { className: 'fm-label' }, state.login.status === 'authorized' ? '网易云音乐已连接'
+            : state.login.status === 'scanned' ? '已扫码，请在手机上确认'
+              : state.login.status === 'expired' ? '二维码已过期' : '使用网易云音乐 App 扫描'),
+          state.login.qrImage && !['authorized', 'expired', 'error'].includes(state.login.status)
+            && h('img', { src: state.login.qrImage, width: 176, height: 176, alt: '网易云音乐登录二维码',
+              style: { display: 'block', margin: '14px auto', imageRendering: 'pixelated' } }),
+          h('p', { role: 'status', 'aria-live': 'polite' }, state.login.status === 'authorized'
+            ? '账号凭据已加密保存在本机，可开始导入。'
+            : state.login.status === 'expired' ? '请重新获取二维码后再试。' : '扫码进度会自动刷新，确认后即可导入音乐。'),
+          ['expired', 'error'].includes(state.login.status)
+            && h('button', { type: 'button', className: 'fm-button fm-primary', disabled: state.busy || !state.connected,
+              onClick: () => controller.platformAction('begin', 'netease') }, '重新获取二维码'))
+        : null;
+      const importNotice = state.imported
+        ? h('p', { className: 'fm-import', role: 'status', 'aria-live': 'polite' },
+          `最近导入：${state.imported.source || '平台音乐'} · 新增 ${state.imported.imported ?? 0} 首，累计 ${state.imported.total ?? 0} 首${state.imported.degraded && state.imported.reason ? ` · ${state.imported.reason}` : ''}`)
+        : null;
+      const platformSection = h('section', null,
+        h('h2', null, '音乐平台', h('small', null, 'CONNECTIONS')),
+        h('div', { className: 'fm-box' }, platformRows, loginPanel, importNotice,
+          h('p', null, '网易云扫码登录后可导入音乐。QQ 当前尚无已核实的接口，暂不可登录。设置和凭据都保存在本机。')));
       return h('div', { className: 'fishfm' }, h('div', { className: 'fm-wrap' },
         h('header', { className: 'fm-top' }, h('div', null, h('div', { className: 'fm-eyebrow' }, 'FISHFM / 肥鱼电台'), h('h1', null, '给工作配一点音乐'), h('p', null, '听歌的节奏，由你决定。')),
           h('button', { type: 'button', className: 'fm-button', onClick: close || back }, close ? '关闭设置' : '返回对话')),
@@ -137,25 +180,7 @@ window.__ModuleLoader__.load({
           h('div', { className: 'fm-save', role: 'status', 'aria-live': 'polite' }, state.notice || '开关与模式即时保存；探索率调整后点击保存。')),
           h('div', null, h('section', null, h('h2', null, '快捷模式', h('small', null, 'MODES')), h('div', { className: 'fm-modes' }, modes.map(([id, title, desc]) => h('button', { type: 'button', key: id, className: 'fm-mode', 'aria-pressed': mode === id, disabled, onClick: () => controller.command('setMode', id) }, h('strong', null, title), h('span', null, desc)))),
               mode === 'manual' && h('p', null, '当前为仅手动点播：声音开启，自主听歌关闭。')),
-            h('section', null, h('h2', null, '音乐平台', h('small', null, 'CONNECTIONS')), h('div', { className: 'fm-box' }, [['netease', '网易云音乐'], ['qq', 'QQ 音乐']].map(([id, title]) => {
-              const platform = state.platforms?.[id];
-              const label = !snapshot ? '读取中' : !platform?.installed ? '接口尚未接入' : ({ authorized: '已登录', expired: '登录已过期', signed_out: '未登录', login_required: platform.account?.pending ? '等待扫码' : '未登录' }[platform.account?.status] || '未连接');
-              const available = id === 'netease' && platform?.installed;
-              return h('div', { className: 'fm-platform', key: id }, h('span', null, title),
-                h('div', { className: 'fm-controls', style: { marginTop: 0 } },
-                  h('span', { className: 'fm-badge' }, label),
-                  available && (platform?.account?.status === 'authorized'
-                    ? h(React.Fragment, null, h('button', { type: 'button', className: 'fm-button fm-primary', disabled: state.busy || !state.connected, onClick: () => controller.platformAction('import', id) }, '导入我的音乐'),
-                      h('button', { type: 'button', className: 'fm-button', disabled: state.busy || !state.connected, onClick: () => controller.platformAction('logout', id) }, '退出账号'))
-                    : !state.login && h('button', { type: 'button', className: 'fm-button fm-primary', disabled: state.busy || !state.connected, onClick: () => controller.platformAction('begin', id) }, '扫码登录'))));
-            }),
-            state.login?.provider === 'netease' && h('div', { className: 'fm-qr-box' },
-              h('div', { className: 'fm-label' }, state.login.status === 'authorized' ? '网易云音乐已连接' : state.login.status === 'scanned' ? '已扫码，请在手机上确认' : state.login.status === 'expired' ? '二维码已过期' : '使用网易云音乐 App 扫描'),
-              state.login.qrImage && !['authorized', 'expired', 'error'].includes(state.login.status) && h('img', { src: state.login.qrImage, width: 176, height: 176, alt: '网易云音乐登录二维码', style: { display: 'block', margin: '14px auto', imageRendering: 'pixelated' } }),
-              h('p', { role: 'status', 'aria-live': 'polite' }, state.login.status === 'authorized' ? '账号凭据已加密保存在本机，可开始导入。' : state.login.status === 'expired' ? '请重新获取二维码后再试。' : '扫码进度会自动刷新，确认后即可导入音乐。'),
-              ['expired', 'error'].includes(state.login.status) && h('button', { type: 'button', className: 'fm-button fm-primary', disabled: state.busy || !state.connected, onClick: () => controller.platformAction('begin', 'netease') }, '重新获取二维码')),
-            state.imported && h('p', { className: 'fm-import', role: 'status', 'aria-live': 'polite' }, `最近导入：${state.imported.source || '平台音乐'} · 新增 ${state.imported.imported ?? 0} 首，累计 ${state.imported.total ?? 0} 首${state.imported.degraded && state.imported.reason ? ` · ${state.imported.reason}` : ''}`),
-            h('p', null, '网易云扫码登录后可导入音乐。QQ 当前尚无已核实的接口，暂不可登录。设置和凭据都保存在本机。')))),
+            platformSection)),
         h('footer', { className: 'fm-foot' }, h('span', null, '设置保存在本机 · 关闭面板不结束音乐服务'), h('span', null, '本地规则选歌 · 不新增模型请求'))));
     }
 
