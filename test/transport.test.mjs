@@ -11,6 +11,18 @@ import { createHttpTransport, createCookieJar, assertEndpointMap } from '../src/
 import { createCoreHost, buildProviderRegistry, createProviderFacade } from '../src/core-host.mjs';
 import { FakeProvider } from '../src/fakes.mjs';
 
+function communityApiFor(transport) {
+  const call = (role, params) => transport.request({ role, params });
+  return {
+    login_status: () => call('accountInfo', {}),
+    user_record: ({ uid, type }) => call('recentTracks', { uid, type }),
+    likelist: ({ uid }) => call('likedTracks', { uid }),
+    user_playlist: ({ uid, limit, offset }) => call('playlists', { uid, limit, offset }),
+    playlist_detail: ({ id }) => call('playlistTracks', { id }),
+    song_detail: ({ ids }) => call('songDetails', { ids }),
+  };
+}
+
 /** A local server standing in for a platform; records what it received. */
 async function withServer(handler, run) {
   const seen = [];
@@ -190,6 +202,7 @@ test('a provider-driven import records the source the adapter really used', asyn
       calls.push({ role, params });
       if (role === 'recentTracks') throw Object.assign(new Error('recent moved'), { status: 404 });
       if (role === 'likedTracks') return { status: 200, body: { ids: [{ id: 900, name: 'Liked', ar: [{ name: 'A' }], dt: 1000 }] } };
+      if (role === 'songDetails') return { status: 200, body: { code: 200, songs: [{ id: 900, name: 'Liked', ar: [{ name: 'A' }], dt: 1000 }] } };
       if (role === 'accountInfo') return { status: 200, body: { accountId: 5 } };
       throw Object.assign(new Error('no fixture'), { status: 500 });
     },
@@ -198,7 +211,7 @@ test('a provider-driven import records the source the adapter really used', asyn
   store.setCredentialReference({ provider: 'netease', accountId: '5', credentialRef: 'fishfm/netease', state: 'authorized', updatedAt: 1 });
 
   const registry = buildProviderRegistry({
-    adapters: { netease: { transport, endpoints: { anything: { url: 'https://example.invalid' } } } },
+    adapters: { netease: { transport, endpoints: { anything: { url: 'https://example.invalid' } }, options: { communityApi: communityApiFor(transport) } } },
     credentials, store,
   });
   const facade = createProviderFacade({ registry });
@@ -239,7 +252,7 @@ test('a failing provider import is an error with its attempt trail, never an emp
   const credentials = { read: () => 'MUSIC_U=x', write: () => {}, delete: () => {} };
   store.setCredentialReference({ provider: 'netease', accountId: '5', credentialRef: 'fishfm/netease', state: 'authorized', updatedAt: 1 });
   const registry = buildProviderRegistry({
-    adapters: { netease: { transport, endpoints: { anything: { url: 'https://example.invalid' } } } }, credentials, store,
+    adapters: { netease: { transport, endpoints: { anything: { url: 'https://example.invalid' } }, options: { communityApi: communityApiFor(transport) } } }, credentials, store,
   });
   const messages = [];
   const host = createCoreHost({

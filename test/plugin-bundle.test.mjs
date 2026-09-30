@@ -3,6 +3,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { apply, coreCommand, defaultDatabase } from '../index.js';
@@ -44,20 +45,23 @@ test('launches the core the way the desktop host launches Node work', () => {
 
 test('the database lives under the Harness home, never in the repository', () => {
   assert.equal(defaultDatabase({ DSH_HOME: 'C:\\Users\\x\\.dsh' }), join('C:\\Users\\x\\.dsh', 'fishfm', 'music.sqlite'));
-  assert.equal(defaultDatabase({}), ':memory:');
+  assert.equal(defaultDatabase({}), join(homedir(), '.dsh', 'fishfm', 'music.sqlite'));
+  assert.equal(defaultDatabase({ DSH_HOME: '  ' }), defaultDatabase({}));
+  assert.equal(defaultDatabase({ DSH_HOME: '~/.dsh-test' }), join(homedir(), '.dsh-test', 'fishfm', 'music.sqlite'));
   assert.equal(resolve(root).includes('dsh-音乐'), true);
   assert.equal(defaultDatabase({ DSH_HOME: 'C:\\Users\\x\\.dsh' }).startsWith(root), false);
 });
 
 test('apply registers the adapter and reports a core that cannot start', async () => {
   const registered = { tools: new Map(), commands: new Map(), logs: [] };
+  const failure = Promise.withResolvers();
   const disposers = [];
   const ctx = {
     effect(fn) { const dispose = fn(); disposers.push(dispose); return () => dispose?.(); },
     on(name, handler) { registered.events = name; registered.handler = handler; return () => {}; },
     tools: { register: (definition) => { registered.tools.set(definition.name, definition); return () => registered.tools.delete(definition.name); } },
     commands: { register: (definition) => { registered.commands.set(definition.name, definition); return () => registered.commands.delete(definition.name); } },
-    logger: () => ({ warn: (text) => registered.logs.push(text), debug: () => {} }),
+    logger: () => ({ warn: (text) => { registered.logs.push(text); failure.resolve(); }, debug: () => {} }),
   };
 
   // Point at a core entry that exits immediately: apply must still succeed and
@@ -69,7 +73,8 @@ test('apply registers the adapter and reports a core that cannot start', async (
   assert.equal(registered.commands.size, 3);
   assert.equal(registered.events, 'session/event');
 
-  await new Promise((r) => setTimeout(r, 600));
+  const timer = setTimeout(() => failure.reject(new Error('Core startup failure was not reported within 5 seconds')), 5000);
+  try { await failure.promise; } finally { clearTimeout(timer); }
   assert.ok(registered.logs.some((line) => /failed to start|exited/.test(line)), 'a dead core must be reported');
 
   dispose();

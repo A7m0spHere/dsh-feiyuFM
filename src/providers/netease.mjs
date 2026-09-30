@@ -10,8 +10,248 @@
 // live service. docs/spikes/P2-netease.md records exactly what remains
 // unconfirmed (P0-02 / P3). Nothing here asserts a verified platform API.
 import { createPlatformProvider } from './platform.mjs';
+import { MusicError } from '../contracts.mjs';
+import { AsyncLocalStorage } from 'node:async_hooks';
+import { randomUUID } from 'node:crypto';
+import { createRequire } from 'node:module';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { createCookieJar } from './transport.mjs';
+import { NETEASE_QR_LOGIN_URL } from './endpoints/netease.mjs';
+import { setTimeout as delay } from 'node:timers/promises';
+
+const require = createRequire(import.meta.url);
+const communityCallContext = new AsyncLocalStorage();
+let defaultCommunityApi = null;
+let communityConsoleGuardInstalled = false;
+
+// The pinned QR checker references an out-of-scope `result` in its catch.
+// Retain the request's actual rejection instead of losing it to ReferenceError.
+export async function callCommunityQrCheck(module, request, query) {
+  let requestFailure;
+  try {
+    return await module(query, async (...args) => {
+      try { return await request(...args); }
+      catch (error) { requestFailure = error; throw error; }
+    });
+  } catch (error) { throw requestFailure ?? error; }
+}
+
+function installCommunityConsoleGuard() {
+  if (communityConsoleGuardInstalled) return;
+  communityConsoleGuardInstalled = true;
+  for (const method of ['log', 'info', 'warn', 'error', 'debug']) {
+    const original = console[method].bind(console);
+    console[method] = (...args) => {
+      if (communityCallContext.getStore() === true) return;
+      return original(...args);
+    };
+  }
+}
+
+function loadCommunityApi() {
+  if (defaultCommunityApi) return defaultCommunityApi;
+  // One optional helper module calls dotenv.config() while the package scans
+  // its module directory. Keep it away from the host's .env and Core's
+  // JSON-lines output; restore every inherited variable after loading.
+  const previous = {
+    quiet: process.env.DOTENV_CONFIG_QUIET,
+    path: process.env.DOTENV_CONFIG_PATH,
+    dotenvKey: process.env.DOTENV_CONFIG_DOTENV_KEY,
+    key: process.env.DOTENV_KEY,
+  };
+  process.env.DOTENV_CONFIG_QUIET = 'true';
+  process.env.DOTENV_CONFIG_PATH = join(tmpdir(), `fishfm-no-dotenv-${randomUUID()}`);
+  process.env.DOTENV_CONFIG_DOTENV_KEY = '';
+  process.env.DOTENV_KEY = '';
+  try {
+    installCommunityConsoleGuard();
+    defaultCommunityApi = communityCallContext.run(true, () => {
+      const api = require('@neteasecloudmusicapienhanced/api');
+      const check = require('@neteasecloudmusicapienhanced/api/module/login_qr_check.js');
+      const request = require('@neteasecloudmusicapienhanced/api/util/request.js');
+      return { ...api, login_qr_check: query => callCommunityQrCheck(check, request, query) };
+    });
+  } finally {
+    for (const [key, value] of Object.entries({
+      DOTENV_CONFIG_QUIET: previous.quiet,
+      DOTENV_CONFIG_PATH: previous.path,
+      DOTENV_CONFIG_DOTENV_KEY: previous.dotenvKey,
+      DOTENV_KEY: previous.key,
+    })) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  }
+  return defaultCommunityApi;
+}
 
 export const NETEASE = 'netease';
+
+const COMMUNITY_CALLS = Object.freeze({
+  loginQr: { method: 'login_qr_key', stage: 'login_qr_key', qr: true },
+  loginPoll: { method: 'login_qr_check', stage: 'login_qr_check', qr: true },
+  accountInfo: { method: 'login_status', stage: 'login_status' },
+  recentTracks: { method: 'user_record', stage: 'user_record' },
+  likedTracks: { method: 'likelist', stage: 'likelist' },
+  playlists: { method: 'user_playlist', stage: 'user_playlist' },
+  playlistTracks: { method: 'playlist_detail', stage: 'playlist_detail' },
+  songDetails: { method: 'song_detail', stage: 'song_detail' },
+});
+
+const STAGE_LABELS = Object.freeze({
+  login_qr_key: '生成二维码', login_qr_check: '检测扫码状态',
+  login_status: '登录状态', user_record: '近期记录', likelist: '喜欢列表',
+  user_playlist: '用户歌单', playlist_detail: '歌单详情', song_detail: '歌曲详情',
+});
+
+function communityFailure(stage, { response = null, error = null } = {}) {
+  const body = response?.body ?? error?.body ?? null;
+  const httpStatus = Number.isInteger(response?.status) ? response.status
+    : Number.isInteger(error?.status) ? error.status
+      : Number.isInteger(error?.response?.status) ? error.response.status : null;
+  const platformCode = Number.isInteger(body?.code) ? body.code
+    : Number.isInteger(body?.data?.code) ? body.data.code : null;
+  const code = platformCode ?? httpStatus;
+  if (httpStatus === 401 || httpStatus === 403 || platformCode === 301) {
+    return new MusicError('login_required', `网易云${STAGE_LABELS[stage]}失败：登录状态已失效。`, {
+      details: { stage, httpStatus, platformCode },
+    });
+  }
+  const appCode = httpStatus === 429 ? 'rate_limited' : 'provider_failure';
+  const detail = [httpStatus ? `HTTP ${httpStatus}` : null, platformCode ? `接口码 ${platformCode}` : null].filter(Boolean).join('，') || '网络或接口错误';
+  // Classify known failures without returning a raw upstream response or URL.
+  const headerOverflow = /header[^\n]*(?:overflow|too (?:big|large)|size)/i.test(String(body?.msg ?? error?.message ?? ''));
+  const verification = /安全风险|环境异常|需要验证/.test(String(body?.msg ?? ''));
+  const reason = headerOverflow ? '响应头超过客户端大小限制；' : verification ? '平台要求额外验证或拒绝当前登录环境；' : '';
+  return new MusicError(appCode, `网易云${STAGE_LABELS[stage]}请求失败（${reason}${detail}）。`, {
+    retryable: httpStatus === 429 || httpStatus === null || httpStatus >= 500 || platformCode === 502,
+    details: { stage, httpStatus, platformCode },
+  });
+}
+
+function createCommunityTransport(transport, { api, credentials, accountRef, communityLogin }) {
+  let currentSession = null;
+  const cookieJar = createCookieJar();
+  return {
+    jar: transport.jar,
+    useSecret(secret) {
+      currentSession = typeof secret === 'string' && secret ? secret : null;
+      if (currentSession) cookieJar.absorb(currentSession);
+      else cookieJar.clear();
+      transport.useSecret?.(secret);
+      return currentSession ? cookieJar.size() : 0;
+    },
+    roles: () => transport.roles?.() ?? [],
+    async request(request) {
+      const config = COMMUNITY_CALLS[request.role];
+      if (!config) return transport.request(request);
+      if (config.qr && !communityLogin) return transport.request(request);
+      if (request.signal?.aborted) throw request.signal.reason ?? new DOMException('Aborted', 'AbortError');
+      // A new QR handshake has no account cookie, matching the upstream
+      // no-cookie example. Never attach a previous account to a new scan.
+      if (!config.qr && !request.session && !currentSession) currentSession = credentials?.read?.(accountRef) ?? null;
+      const session = request.session ?? currentSession;
+      if (!config.qr && !session) throw new MusicError('login_required', '请先登录网易云音乐。', { details: { stage: config.stage } });
+      const method = api?.[config.method];
+      if (typeof method !== 'function') {
+        throw new MusicError('provider_failure', `网易云接口包缺少 ${config.method} 方法。`, {
+          details: { stage: config.stage },
+        });
+      }
+      let response;
+      for (let attempt = 0; attempt < 2; attempt++) {
+        try {
+          response = await communityCallContext.run(true, () => method({ ...request.params, cookie: config.qr ? {} : session, timeout: config.qr ? 10_000 : 15_000 }));
+          if (request.role === 'loginPoll' && (response?.status >= 500 || response?.body?.code === 502)) throw response;
+          break;
+        } catch (error) {
+          const failure = communityFailure(config.stage, { error });
+          if (request.role !== 'loginPoll' || attempt !== 0
+            || !((failure.details?.httpStatus >= 500) || failure.details?.platformCode === 502)) throw failure;
+          await delay(750, undefined, { signal: request.signal ?? undefined });
+          if (request.signal?.aborted) throw request.signal.reason ?? new DOMException('Aborted', 'AbortError');
+        }
+      }
+      if (request.signal?.aborted) throw request.signal.reason ?? new DOMException('Aborted', 'AbortError');
+      const body = response?.body ?? response;
+      const status = Number.isInteger(response?.status) ? response.status : 200;
+      if (config.qr) {
+        if (status >= 400) throw communityFailure(config.stage, { response: { status, body } });
+        if (request.role === 'loginQr') {
+          const key = body?.data?.unikey ?? body?.unikey;
+          if (body?.code !== 200 || typeof key !== 'string' || !key) throw communityFailure(config.stage, { response: { status, body } });
+          return { status, body: { ...body, qrUrl: `${NETEASE_QR_LOGIN_URL}?codekey=${encodeURIComponent(key)}` }, cookies: null };
+        }
+        // Only this response's cookies may become the new session. An old jar
+        // or the QR key's anonymous NMTID is not evidence of authorization.
+        const confirmedCookies = createCookieJar();
+        confirmedCookies.absorb(body?.cookie);
+        confirmedCookies.absorb(response?.cookie);
+        return { status, body: { ...body, cookie: confirmedCookies.toSecret() }, cookies: null };
+      }
+      const accountPayload = body?.data ?? body;
+      if (config.stage === 'login_status' && accountPayload?.code === 200
+        && accountPayload.profile == null && accountPayload.account == null) {
+        if (request.session) throw new MusicError('login_validation_failed', '手机已确认，但网易云账号校验未通过。可以重试校验，或重新获取二维码。', {
+          retryable: true, details: { stage: config.stage, platformCode: 200 },
+        });
+        throw new MusicError('login_required', '网易云登录已失效，login_status 未返回账号资料。请重新扫码登录。', {
+          details: { stage: config.stage, platformCode: 200 },
+        });
+      }
+      const platformCode = Number.isInteger(body?.code) ? body.code
+        : Number.isInteger(body?.data?.code) ? body.data.code : null;
+      if (status >= 400 || (platformCode !== null && platformCode !== 200)) {
+        throw communityFailure(config.stage, { response: { status, body } });
+      }
+
+      // The library returns Set-Cookie values separately. Merge them in memory
+      // and persist only the changed session through the existing DPAPI store.
+      let updated = session;
+      if (Array.isArray(response?.cookie) && response.cookie.length) {
+        cookieJar.clear();
+        cookieJar.absorb(session);
+        cookieJar.absorb(response.cookie);
+        updated = cookieJar.toSecret();
+        if (!request.session && updated && updated !== currentSession) {
+          credentials?.write?.(accountRef, updated);
+          currentSession = updated;
+          transport.useSecret?.(updated);
+        }
+      }
+      return { status, body, cookies: request.session ? updated : null };
+    },
+  };
+}
+
+function responseData(body) {
+  return body?.data?.profile || body?.data?.playlist || body?.data?.weekData || body?.data?.ids
+    ? body.data : body?.data ?? body;
+}
+
+function idsFrom(value) {
+  if (!Array.isArray(value)) return [];
+  return value.map((entry) => typeof entry === 'object' && entry !== null ? entry.id : entry)
+    .filter((id) => id !== undefined && id !== null && String(id));
+}
+
+function playlistIdForUser(body, uid) {
+  const data = responseData(body);
+  const playlists = data?.playlist ?? data?.list ?? [];
+  if (!Array.isArray(playlists)) return null;
+  const owned = playlists.find((playlist) => {
+    const owner = playlist?.userId ?? playlist?.creator?.userId;
+    return String(owner ?? '') === String(uid) && playlist?.specialType !== 5;
+  });
+  return owned?.id ?? null;
+}
+
+function communityTracks(body, limit) {
+  const data = responseData(body);
+  const songs = data?.songs ?? data?.list ?? data?.tracks ?? data;
+  return Array.isArray(songs) ? songs.slice(0, limit) : [];
+}
 
 /**
  * Endpoint roles the transport must serve. These are role names, not URLs; the
@@ -19,7 +259,7 @@ export const NETEASE = 'netease';
  */
 export const NETEASE_ROLES = Object.freeze([
   'loginQr', 'loginPoll', 'accountInfo',
-  'recentTracks', 'likedTracks', 'playlists', 'playlistTracks',
+  'recentTracks', 'likedTracks', 'playlists', 'playlistTracks', 'songDetails',
   'search', 'resolve',
 ]);
 
@@ -37,11 +277,21 @@ const listOf = (body) => body?.data?.list ?? body?.list ?? body?.songs ?? body?.
  * @param {object} [options.store] MusicStore; holds the credential reference only
  */
 export function createNetEaseProvider(options = {}) {
-  return createPlatformProvider({
+  const accountRef = options.accountRef ?? 'fishfm/netease';
+  const store = options.store;
+  const transport = createCommunityTransport(options.transport, {
+    api: options.communityApi ?? loadCommunityApi(),
+    credentials: options.credentials,
+    accountRef,
+    communityLogin: options.communityLogin !== false,
+  });
+  const uid = () => store?.getCredentialReference?.(NETEASE)?.account_id ?? null;
+  const provider = createPlatformProvider({
     provider: NETEASE,
     displayName: 'NetEase',
     labels: { firstSource: 'Recent playback' },
     ...options,
+    transport,
     parse: {
       // Scan responses.
       // CONFIRMED (2026-09-27): POST /api/login/qrcode/unikey?type=1 answers
@@ -54,20 +304,42 @@ export function createNetEaseProvider(options = {}) {
           qrUrl: body?.qrurl ?? data?.qrurl ?? body?.qrUrl ?? null,
         };
       },
-      // CONFIRMED: POST /api/login/qrcode/client/login answers 800 for an
-      // expired or unknown code (message: 二维码不存在或已过期). The remaining
-      // codes follow the community-documented progression and are still
-      // hypotheses: 801 waiting, 802 scanned, 803 confirmed with a cookie.
+      // Upstream: 800 expired, 801 waiting, 802 scanned, 803 confirmed.
+      // Cookies exist even in guest/error replies; only 803 can authorize.
       loginPoll: (body) => {
         const code = body?.code ?? body?.status ?? null;
         if (code === 800 || code === 'expired') return { status: 'expired', code };
         if (code === 801 || code === 'waiting') return { status: 'waiting', code };
         if (code === 802 || code === 'scanned') return { status: 'scanned', code };
-        if (code !== 803 && code !== 'confirmed' && !body?.cookie) return { status: 'waiting', code };
-        return { status: 'authorized', code, secret: body?.cookie ?? null, accountId: body?.accountId ?? body?.userId ?? null };
+        if (code !== 803 && code !== 'confirmed') {
+          throw new MusicError('provider_failure', '网易云未确认扫码授权，请稍后重试或重新获取二维码。', {
+            retryable: true, details: { stage: 'login_qr_check', platformCode: Number.isInteger(code) ? code : null },
+          });
+        }
+        const jar = createCookieJar();
+        jar.absorb(body?.cookie);
+        const secret = jar.toSecret();
+        if (!/(?:^|;\s*)MUSIC_U=[^;\s]+/.test(secret)) {
+          throw new MusicError('login_cookie_missing', '手机已确认，但网易云没有返回账号登录凭据。请重新获取二维码。', {
+            details: { stage: 'login_qr_check', platformCode: 803 },
+          });
+        }
+        return { status: 'authorized', code, secret, accountId: body?.accountId ?? body?.userId ?? null };
+      },
+      async validateLogin(state, loginOptions) {
+        const response = await transport.request({ role: 'accountInfo', session: state.secret,
+          params: { timestamp: (options.now ?? Date.now)() }, signal: loginOptions.signal ?? null });
+        const body = response.body;
+        const accountId = body?.data?.profile?.userId ?? body?.profile?.userId ?? body?.data?.account?.id ?? body?.account?.id ?? body?.accountId ?? body?.userId;
+        if (accountId === undefined || accountId === null || !String(accountId)) {
+          throw new MusicError('account_id_unavailable', '手机已确认，但账号校验没有返回用户 ID。可以重试校验，无需立即重新扫码。', {
+            retryable: true, details: { stage: 'login_status' },
+          });
+        }
+        return { secret: response.cookies || state.secret, accountId: String(accountId) };
       },
       // CONFIRMED shape when signed out: {"code":200,"account":null,"profile":null}.
-      accountId: (body) => body?.profile?.userId ?? body?.account?.id ?? body?.accountId ?? body?.userId ?? null,
+      accountId: (body) => body?.data?.profile?.userId ?? body?.profile?.userId ?? body?.data?.account?.id ?? body?.account?.id ?? body?.accountId ?? body?.userId ?? null,
       search: (body) => body?.songs ?? body?.result?.songs ?? [],
       playUrl: (body) => {
         const entry = Array.isArray(body?.data) ? body.data[0] : (body?.data ?? body);
@@ -83,26 +355,75 @@ export function createNetEaseProvider(options = {}) {
     seedSources: {
       recent: {
         role: 'recentTracks',
-        params: ({ limit }) => ({ limit }),
-        parse: (body) => listOf(body),
+        params: ({ limit }) => ({ uid: uid(), type: 1, limit }),
+        parse: (body, { limit }) => {
+          const data = responseData(body);
+          const rows = data?.weekData ?? data?.recent ?? listOf(body);
+          return Array.isArray(rows) ? rows.slice(0, limit).map((entry) => entry?.song ?? entry?.track ?? entry) : [];
+        },
       },
       liked: {
-        role: 'likedTracks',
-        params: ({ limit }) => ({ limit }),
-        parse: (body) => body?.ids ?? body?.data?.ids ?? body?.songs ?? body?.data ?? [],
+        steps: [
+          {
+            role: 'likedTracks',
+            params: ({ limit }) => ({ uid: uid(), limit }),
+            collect: false,
+            parse: (body, { limit }) => {
+              const data = responseData(body);
+              const ids = idsFrom(data?.ids ?? body?.ids ?? []);
+              return { ids: ids.slice(0, limit) };
+            },
+          },
+          {
+            role: 'songDetails',
+            params: ({ ids }) => ids?.length ? { ids: ids.join(',') } : null,
+            parse: (body, { limit }) => communityTracks(body, limit),
+          },
+        ],
       },
       playlist: {
         steps: [
-          // Pick one playlist, then read its tracks: two calls, one source.
-          { role: 'playlists', params: () => ({ limit: 1 }), parse: (body) => ({ playlistId: (body?.playlist ?? body?.data?.playlist ?? [])[0]?.id ?? null }), collect: false },
-          { role: 'playlistTracks', params: ({ limit, playlistId }) => (playlistId ? { id: playlistId, limit } : null), parse: (body) => body?.songs ?? body?.playlist?.tracks ?? body?.data ?? [] },
+          {
+            role: 'playlists', params: () => ({ uid: uid(), limit: 100, offset: 0 }), collect: false,
+            parse: (body) => ({ playlistId: playlistIdForUser(body, uid()) }),
+          },
+          {
+            role: 'playlistTracks', params: ({ playlistId }) => (playlistId ? { id: playlistId } : null), collect: false,
+            parse: (body) => {
+              const data = responseData(body);
+              const playlist = data?.playlist ?? data;
+              return { ids: idsFrom(playlist?.trackIds ?? playlist?.track_ids ?? []) };
+            },
+          },
+          {
+            role: 'songDetails',
+            params: ({ ids, limit }) => ids?.length ? { ids: ids.slice(0, limit).join(',') } : null,
+            parse: (body, { limit }) => communityTracks(body, limit),
+          },
         ],
       },
     },
   });
+  const getSeedTracks = provider.getSeedTracks.bind(provider);
+  provider.getSeedTracks = async (seedOptions = {}) => {
+    if (provider.getAccount().status === 'authorized' && !uid()) {
+      const identity = await provider.restore({ signal: seedOptions.signal ?? null });
+      if (identity.status !== 'authorized') throw new MusicError('login_required', '网易云登录已失效，请重新扫码。');
+      if (!uid()) {
+        throw new MusicError('account_id_unavailable', '网易云已授权，但 login_status 未返回 profile.userId。已停止导入请求；请检查账号登录状态后重试。', {
+          details: { stage: 'login_status' },
+        });
+      }
+    }
+    if (!Number.isFinite(Number(seedOptions.limit ?? 300)) || Number(seedOptions.limit ?? 300) <= 0) {
+      throw new MusicError('invalid_command', '导入数量必须是正数。');
+    }
+    return getSeedTracks(seedOptions);
+  };
+  return provider;
 }
 
 /** Which endpoints still need a real account to confirm. */
 export function unverifiedEndpoints() {
-  return [...NETEASE_ROLES];
+  return ['accountInfo', 'recentTracks', 'likedTracks', 'playlists', 'playlistTracks', 'songDetails'];
 }

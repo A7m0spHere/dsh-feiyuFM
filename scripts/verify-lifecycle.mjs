@@ -184,7 +184,7 @@ let logoutAccount = null;
   const base = `http://127.0.0.1:${server.address().port}/api`;
   try {
     const transport = createHttpTransport({ endpoints: neteaseEndpoints({ base }) });
-    const provider = createNetEaseProvider({ transport, credentials, store, accountRef: 'fishfm/netease' });
+    const provider = createNetEaseProvider({ transport, communityLogin: false, credentials, store, accountRef: 'fishfm/netease' });
     const started = await provider.beginLogin();
     check('a new sign-in can be started after signing out', Boolean(started.key), `key=${String(started.key).slice(0, 12)}…`);
   } finally {

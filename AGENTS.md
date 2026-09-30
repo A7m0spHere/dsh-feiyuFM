@@ -4,10 +4,14 @@
 
 ## 事实与文档入口
 
-- DSH 主界面设置 UI 已新增：左侧栏及设置窗口“肥鱼电台”，浏览器入口为 `src/ui/dsh-client.js`，通过 `src/ui/dsh-settings.mjs` 使用 DSH 认证 RPC 连接同一 Core。`0.2.0-rc.1` PHL 实例 `2-gpf9` 已验证页面/客户端 bundle 下发、设置读写及认证边界；浏览器工具拦截本机地址，视觉点击验收未完成。网易云面板扫码入口已接入；真实账号确认与播放未验，QQ 登录 endpoint 未核实。证据见 `docs/spikes/U3-dsh-settings.md`、`docs/spikes/U4-quick-login.md`；独立悬浮窗未做。
-- 网易云扫码登录已尝试接入面板：NetEase adapter、Windows CurrentUser DPAPI、每平台浏览器会话及独立 Core 配置已连接，扫码后可导入音乐；只有网易云提供登录按钮。官方/真实账号的完整扫码、登录状态码映射和播放仍需用户现场确认；QQ 端点未核实，不能显示虚假的快捷登录。增量证据与边界见 `docs/spikes/U4-quick-login.md`。
+- 2026-10-01：网易云扫码修复已真实验证授权。生产 key/check 使用固定社区包的 type 3；只接受 803 + `MUSIC_U`，先校验账号 ID 再保存 DPAPI/引用。补社区包 QR catch 的错误保留、同 key 的有界 502 重试、登录失败分型和旧请求取消。用户确认后同一二维码重试成功，当前本机账号 authorized；曲目导入/平台播放仍未验。见 `docs/spikes/U6-qr-login-repair.md`。此前“未登录”和游客态记录为历史。
 
-- 当前已有 Phase 1 离线控制核心、SQLite 首版迁移、DSH 插件 bundle 与调试入口；插件加载/卸载在 DSH `0.1.7-rc.2` 隔离 Web profile 验证过，并已安装到 PHL 管理的 DSH `0.2.0-rc.1` Web 实例，确认 bundle 加载并启动独立 Core。真实工具调用、desktop profile、音乐平台及平台音频接入仍未验证。`npm run check`、`npm test`、`npm run build` 为可执行的离线命令。
+- 2026-09-30：已通过 Plugin Manager 安装并适配本机官方 DSH 桌面版 `0.2.0-rc.2`。主面板/设置窗口、精确认证 RPC、持久化、停用恢复和悬浮条基础交互已现场验证；当前优先在官方桌面版继续验证。数据库为 `~/.dsh/fishfm/music.sqlite`，独立于 PHL，尚未登录/导入/播放平台歌曲。见 `docs/spikes/U5-official-desktop.md`；以下 PHL 内容为此前记录。
+
+- DSH 主界面有“肥鱼电台”侧栏页与设置页，统一经 DSH 认证 RPC 操作同一个 Core。客户端还注册了 `shell.overlay` 音乐状态条，支持播放快捷控制、模式菜单、隐藏/显示和本地边缘吸附；离线交互测试通过。PHL“2”实例此前验证过 bundle 下发、设置读写和认证边界；本轮验收时 `127.0.0.1:3080` 未运行，故新 UI 视觉/鼠标验收未完成。见 `docs/spikes/U3-dsh-settings.md`。
+- 网易云账号/音乐读取使用固定 `@neteasecloudmusicapienhanced/api@4.40.1`；UID 恢复、近期→喜欢→歌单回退、错误阶段与 DPAPI Cookie 隔离均有离线测试。对 PHL“2”现有 DPAPI 会话执行真实 `login_status` 返回游客态（`account:null`、`profile:null`），已将 SQLite 凭据引用改为 `expired`；尚未导入曲目，需用户在新启动的 DSH 页面手动重新扫码。QQ 登录 endpoint 未核实，不显示登录按钮。详见 `docs/spikes/U4-quick-login.md`。
+
+- 当前已有 Phase 1 离线控制核心、SQLite 首版迁移、DSH 插件 bundle 与调试入口；插件加载/卸载在 DSH `0.1.7-rc.2` 隔离 Web profile 验证过，并已安装到 PHL 管理的 DSH `0.2.0-rc.1` Web 实例。已真实请求一次社区 `login_status`，证实旧会话失效；歌曲来源响应、真实导入和平台音频仍未验证。`npm run check`、`npm test`、`npm run build` 为可执行的离线命令。
 - 产品行为和验收以 `docs/MVP.md` 为准；模块边界以 `docs/ARCHITECTURE.md` 为准。
 - 执行进度以 `docs/PROJECT_PLAN.md` 为准；技术验证任务与证据要求见 `docs/PHASE_0.md`。
 - 来源、取舍和未核实参考见 `docs/DECISIONS.md`。对话里的推荐、示意 API 和性能描述不等于已验证事实。

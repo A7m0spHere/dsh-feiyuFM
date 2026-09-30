@@ -1,6 +1,10 @@
 # 决策、来源与参考线索
 
-更新：2026-09-29。
+更新：2026-09-30。
+
+2026-10-01：先对照社区主线、无 Cookie 示例及网页登录 PR，再修复扫码。采用已固定包的 type 3 PC 流程、严格 803/MUSIC_U/UID 验证与一次同 key 重试，不引入未合并的网页登录方案。真实复用同一二维码完成授权；原始失败码为 502，但未证实响应头过大，不盲目修改头部上限。完整来源与理由见 [U6](spikes/U6-qr-login-repair.md)。
+
+本轮决定：按用户要求，真实闭环优先使用本机官方 DSH `0.2.0-rc.2`，不再要求先启动 PHL。应用内 Plugin Manager 安装 desktop bundle，数据库/凭据独立于 PHL。rc.2 的唯一 `/api` interceptor 属于 Gateway，FishFM 用正式 Fetch registry 的精确路由共存并保留旧接口回退；root selector、overlay 边界和容器布局按安装包及现场故障修复，不修改宿主源码。证据与未验范围见 [U5](spikes/U5-official-desktop.md)。
 
 ## 0. 第三方依赖与实测接口（2026-09-27）
 
@@ -262,3 +266,13 @@ MVP 要求"多 Session 不抢占播放"（A08）与"临时 Session 权重只少�
 ## 18. 网易云扫码接入已有面板（2026-09-29）
 
 用户要求尝试给面板加入快捷登录。在 DSH 设置页中增加网易云扫码、状态轮询、导入和退出入口。复用已有 QR key/loginPoll endpoint 与 `qrcode@1.5.4`，后者升为运行依赖，因为 Core 服务端负责生成 PNG Data URL；没有新增或升级包。NetEase endpoint map 对 QR key、801 等待和 800 过期有探测证据，但 802/803 与 Set-Cookie 的授权流程仍未在真实账号中确认。凭据保存于 Windows CurrentUser DPAPI；SQLite 只存引用；Core 重启后从 DPAPI 读回并重新填充 transport Cookie Jar。QQ 登录接口尚无核实证据，面板不显示扫码按钮。现场扫码、cookie 回存与播放由真实账号确认；范围见 [U4](spikes/U4-quick-login.md)。
+
+## 19. 网易云导入与 DSH 内悬浮音乐条（2026-09-29）
+
+**网易云请求使用固定版本社区 Node API。** 扫码确认后先以 `login_status` 读 `body.data.profile.userId`，老凭据缺少账号 ID 时在导入前补读。请求顺序为 `user_record(type=1)` → `likelist` 加 `song_detail` → 用户创建的 `user_playlist` / `playlist_detail` 加 `song_detail`；所有 UID 都来自已保存的账号 ID。`@neteasecloudmusicapienhanced/api@4.40.1` 按包清单为 MIT，WeAPI 加密在包内处理，调用仍留在 Core 进程，没有启动 Express 服务。依赖树明显增大：本轮安装 258 个新增包，`npm ls --all --parseable` 返回 288 个包路径；依赖包含 Axios、Express 5、jsdom、music-metadata、代理和加密模块。锁定版本和上游许可见 [第三方声明](../THIRD_PARTY_NOTICES.md)。
+
+登录材料只在 Core 内存中交给社区 API；响应里有更新 Cookie 时合并并写入既有 DPAPI CurrentUser 存储。SQLite 仍只写凭据引用和账号 ID。社区模块输出被限制在 API 调用的异步上下文，避免其调试输出把 Cookie/令牌写到 Core JSON-lines 输出；错误响应只携带白名单中的阶段、HTTP/API 错误码和来源尝试，不回传原始响应或凭据。UID 取不到时停止种子请求并给出 `login_status` 错误。
+
+**悬浮音乐条只在 DSH `shell.overlay` 中显示。** 它连接原来的 Core，卡片、底部快捷抽屉、三点菜单和手势关闭均在现有 DSH 页面内；进入 FishFM 主面板时收起，侧栏面板可重新显示/隐藏。位置保存在本地并吸附左右边缘；菜单里的模式和播放控制都调用同一 Core RPC。主设置页使用本项目已有的 Codex 生成鲸鱼娘图。视觉参考 DeepSeek 余额鲸鱼挂件，但没有复制它的代码或素材；该仓库声明 `assets/**` 不在 MIT 范围。手势把手逻辑从 [`dsh-api-dashboard` v1.4.5 commit `3792f154`](https://github.com/133563825as-ai/dsh-api-dashboard/blob/3792f1547bce222260eeeca015c6e13b7d5f466e/client/client.js#L92-L135) 适配，保留 MIT 声明；其余 CSS 由 FishFM 实现。详见 [第三方声明](../THIRD_PARTY_NOTICES.md)。
+
+离线验收覆盖旧 UID 恢复、UID 传递、最近/喜欢/歌单回退、曲目元数据转换、真实来源计数、错误阶段和凭据隔离。PHL“2”真实 `login_status` 返回游客态（`account:null`、`profile:null`），因此已将本地凭据引用纠正为 `expired`；未请求歌曲来源或写入导入批次。该实例当时未启动 Web 服务（3080 端口拒绝连接），视觉/鼠标键盘验收仍待用户启动实例并重新扫码后完成。

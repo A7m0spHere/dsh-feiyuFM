@@ -41,6 +41,21 @@ function fakeTransport(table = {}, { fail = {} } = {}) {
   };
 }
 
+function fakeCommunityApi(transport) {
+  const call = async (role, params = {}) => {
+    const response = await transport.request({ role, params, signal: null });
+    return { status: response.status ?? 200, body: response.body };
+  };
+  return {
+    login_status: () => call('accountInfo'),
+    user_record: ({ uid, type }) => call('recentTracks', { uid, type }),
+    likelist: ({ uid }) => call('likedTracks', { uid }),
+    user_playlist: ({ uid, limit, offset }) => call('playlists', { uid, limit, offset }),
+    playlist_detail: ({ id }) => call('playlistTracks', { id }),
+    song_detail: ({ ids }) => call('songDetails', { ids }),
+  };
+}
+
 const songs = (ids) => ({ songs: ids.map((id) => ({ id, name: `Song ${id}`, ar: [{ name: 'Artist X' }], dt: 240_000 })) });
 
 function setup({ table = {}, fail = {}, credentials = fakeCredentials(), signedIn = false } = {}) {
@@ -52,7 +67,7 @@ function setup({ table = {}, fail = {}, credentials = fakeCredentials(), signedI
     });
   }
   const transport = fakeTransport(table, { fail });
-  const provider = createNetEaseProvider({ transport, credentials, store, now: () => 1_700_000_000_000 });
+  const provider = createNetEaseProvider({ transport, communityApi: fakeCommunityApi(transport), communityLogin: false, credentials, store, now: () => 1_700_000_000_000 });
   return {
     store,
     transport,
@@ -127,6 +142,7 @@ test('signing in stores session material only in the credential store, never in 
     table: {
       loginQr: { key: 'qr-key-1', qrUrl: 'https://example.invalid/qr' },
       loginPoll: { code: 803, cookie: 'MUSIC_U=very-secret-session', accountId: 7 },
+      accountInfo: { profile: { userId: 7 } },
     },
   });
   try {
@@ -185,7 +201,8 @@ test('a usable fallback source is reported as degraded, never as recent playback
     signedIn: true,
     fail: { recentTracks: Object.assign(new Error('gone'), { status: 404 }) },
     table: {
-      likedTracks: { ids: [{ id: 11, name: 'Liked 11', ar: [{ name: 'Y' }], dt: 1000 }] },
+      likedTracks: { ids: ['11'] },
+      songDetails: songs([11]),
     },
   });
   try {

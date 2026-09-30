@@ -9,6 +9,41 @@ const ALLOWED = new Set(['pause', 'resume', 'next', 'setListening', 'setHumanPla
 const QUICK_LOGIN_PROVIDER = 'netease';
 const STATE_ENDPOINT = 'fishfm/state';
 const PLATFORM_ENDPOINTS = new Set(['fishfm/login-start', 'fishfm/login-poll', 'fishfm/import', 'fishfm/logout']);
+const SAFE_STAGES = new Set(['login_qr_key', 'login_qr_check', 'login_status', 'user_record', 'likelist', 'user_playlist', 'playlist_detail', 'song_detail',
+  'accountInfo', 'recentTracks', 'likedTracks', 'playlists', 'playlistTracks', 'songDetails']);
+
+function safeText(value, limit = 280) {
+  return String(value ?? '')
+    .replace(/\b(?:MUSIC_U|MUSIC_A|__csrf|NMTID|MUSIC_R_T|MUSIC_A_T)=([^;\s]+)/gi, '[已隐藏凭据]')
+    .replace(/\b(?:cookie|token|signature|sign)\s*[:=]\s*[^\s,;]+/gi, '[已隐藏凭据]')
+    .slice(0, limit);
+}
+
+function safeImportDetails(details) {
+  if (!details || typeof details !== 'object') return {};
+  const result = {};
+  if (SAFE_STAGES.has(details.stage)) result.stage = details.stage;
+  if (Number.isInteger(details.httpStatus)) result.httpStatus = details.httpStatus;
+  if (Number.isInteger(details.platformCode)) result.platformCode = details.platformCode;
+  if (Array.isArray(details.attempts)) {
+    result.attempts = details.attempts.slice(0, 3).map((row) => ({
+      source: ['recent', 'liked', 'playlist'].includes(row?.source) ? row.source : 'unknown',
+      count: Number.isInteger(row?.count) && row.count >= 0 ? row.count : 0,
+      ok: row?.ok === true,
+      code: /^[\w-]{1,40}$/.test(String(row?.code ?? '')) ? row.code : null,
+      ...(SAFE_STAGES.has(row?.stage) ? { stage: row.stage } : {}),
+      ...(Number.isInteger(row?.httpStatus) ? { httpStatus: row.httpStatus } : {}),
+      ...(Number.isInteger(row?.platformCode) ? { platformCode: row.platformCode } : {}),
+      stages: Array.isArray(row?.stages) ? row.stages.slice(0, 5).map((stage) => ({
+        stage: SAFE_STAGES.has(stage?.stage) ? stage.stage : 'unknown',
+        status: ['ok', 'skipped'].includes(stage?.status) ? stage.status : 'error',
+        count: Number.isInteger(stage?.count) && stage.count >= 0 ? stage.count : null,
+      })) : [],
+      reason: safeText(row?.reason),
+    }));
+  }
+  return result;
+}
 
 async function readSettingsState(bridge, signal) {
   const [state, platforms] = await Promise.all([
@@ -47,8 +82,10 @@ export function createSettingsHandler(bridge) {
           return { ok: true, value: { login: { provider: QUICK_LOGIN_PROVIDER, status: 'waiting', qrImage: image }, ...(await readSettingsState(bridge, signal)) } };
         }
         if (endpoint === 'fishfm/login-poll') {
-          const polled = await bridge.request({ type: 'login', step: 'poll', provider: QUICK_LOGIN_PROVIDER }, { signal, abortable: true });
-          return { ok: true, value: { login: { provider: QUICK_LOGIN_PROVIDER, status: polled.status }, ...(await readSettingsState(bridge, signal)) } };
+          const polled = await bridge.request({ type: 'login', step: 'poll', provider: QUICK_LOGIN_PROVIDER }, { signal, abortable: true, timeoutMs: 40_000 });
+          return { ok: true, value: { login: { provider: QUICK_LOGIN_PROVIDER, status: polled.status, qrExpired: polled.status === 'expired',
+            accountId: polled.login?.accountId ?? null, identityError: polled.login?.identityError ?? null },
+          ...(await readSettingsState(bridge, signal)) } };
         }
         if (endpoint === 'fishfm/logout') {
           await bridge.request({ type: 'logout', provider: QUICK_LOGIN_PROVIDER }, { signal, abortable: true });
@@ -57,7 +94,7 @@ export function createSettingsHandler(bridge) {
         const imported = await bridge.request({ type: 'import-platform', provider: QUICK_LOGIN_PROVIDER, limit: 300 },
           { signal, abortable: true, timeoutMs: 75_000 });
         return { ok: true, value: { login: { provider: QUICK_LOGIN_PROVIDER, status: 'authorized' }, imported: imported.import,
-          snapshot: imported.snapshot, ...(await readSettingsState(bridge, signal)) } };
+          attempts: imported.attempts ?? [], snapshot: imported.snapshot, ...(await readSettingsState(bridge, signal)) } };
       }
       let command;
       if (endpoint === 'fishfm/command') {
@@ -78,13 +115,39 @@ export function createSettingsHandler(bridge) {
       return { ok: true, value: await readSettingsState(bridge, signal) };
     } catch (error) {
       return { ok: false, error: { code: error.code ?? 'core_unavailable',
-        message: '音乐服务未能完成操作，请刷新后重试。', details: {} } };
+        message: safeText(error.message || '音乐服务未能完成操作，请刷新后重试。', 420),
+        retryable: Boolean(error.retryable), details: safeImportDetails(error.details) } };
     }
   };
 }
 
 export function registerSettingsApi(ctx, bridge) {
-  ctx.effect(() => ctx.connection.rpc.intercept('/api',
-    (endpoint) => endpoint === STATE_ENDPOINT || endpoint === 'fishfm/command' || PLATFORM_ENDPOINTS.has(endpoint),
-    createSettingsHandler(bridge)));
+  const handler = createSettingsHandler(bridge);
+  // rc.2 reserves the shared /api interceptor for the host Gateway. Exact
+  // Fetch routes coexist with it and use the same authenticated carrier in
+  // both the Electron renderer and a Web profile.
+  if (typeof ctx.connection.fetch?.register === 'function') {
+    ctx.effect(() => {
+      const disposers = [STATE_ENDPOINT, 'fishfm/command', ...PLATFORM_ENDPOINTS].map(endpoint =>
+        ctx.connection.fetch.register({
+          path: `/api/${endpoint}`, methods: ['POST'], requestBody: 'buffered',
+          async fetch(request) {
+            if (request.headers.get('content-type')?.split(';')[0].trim().toLowerCase() !== 'application/json') {
+              return new Response('Expected application/json', { status: 415 });
+            }
+            let message;
+            try { message = await request.json(); }
+            catch { return new Response('Invalid JSON', { status: 400 }); }
+            const valid = message?.type === 'client-request' && typeof message.rpcId === 'string' && message.method === endpoint;
+            const result = valid ? await handler(endpoint, message.payload, request.signal)
+              : { ok: false, error: { code: 'gateway/bad-request', message: 'Invalid FishFM RPC envelope' } };
+            return Response.json({ type: 'server-response', rpcId: typeof message?.rpcId === 'string' ? message.rpcId : 'invalid-request', result });
+          },
+        }));
+      return () => disposers.forEach(dispose => dispose());
+    }, 'fishfm: authenticated settings routes');
+  } else {
+    ctx.effect(() => ctx.connection.rpc.intercept('/api',
+      endpoint => endpoint === STATE_ENDPOINT || endpoint === 'fishfm/command' || PLATFORM_ENDPOINTS.has(endpoint), handler));
+  }
 }

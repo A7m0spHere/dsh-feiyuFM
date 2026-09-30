@@ -51,6 +51,7 @@ export function createPlatformProvider({
   const seedOrder = Object.keys(seedSources);
 
   let pendingLogin = null;
+  let loginVersion = 0;
   let lastError = null;
   let cachedSecret;
   const noted = { seedSource: null, seedReason: null, recommendation: null, lastResolveAt: null };
@@ -106,7 +107,8 @@ export function createPlatformProvider({
       // A platform answer of "not authorised" means the stored sign-in is no
       // longer usable. Saying so once is better than continuing to report
       // `authorized` until some later explicit restore() notices.
-      if (mapped.code === 'login_required' && store?.setCredentialReference && authorized()) {
+      if (mapped.code === 'login_required' && role !== (parse.loginQrRole ?? 'loginQr')
+        && role !== (parse.loginPollRole ?? 'loginPoll') && store?.setCredentialReference && authorized()) {
         lastError = 'the platform rejected the stored sign-in';
         store.setCredentialReference({
           provider: providerName, accountId: null, credentialRef: accountRef, state: 'expired', updatedAt: now(),
@@ -123,15 +125,29 @@ export function createPlatformProvider({
     const steps = descriptor.steps ?? [{ role: descriptor.role, params: descriptor.params, parse: descriptor.parse }];
     let context = {};
     let entries = [];
+    const stages = [];
     for (const step of steps) {
+      const stage = step.stage ?? step.role;
       const params = typeof step.params === 'function' ? step.params({ limit, ...context }) : (step.params ?? {});
-      if (params === null) return [];
-      const body = await call(step.role, params, { signal });
-      const parsed = step.parse(body, { limit, ...context });
+      if (params === null) {
+        stages.push({ stage, status: 'skipped', count: 0 });
+        return { tracks: [], stages };
+      }
+      let body;
+      let parsed;
+      try {
+        body = await call(step.role, params, { signal });
+        parsed = step.parse(body, { limit, ...context });
+      } catch (error) {
+        error.details = { ...(error.details ?? {}), stage: error.details?.stage ?? stage };
+        error.seedStages = stages;
+        throw error;
+      }
+      stages.push({ stage, status: 'ok', count: Array.isArray(parsed) ? parsed.length : null });
       if (step.collect === false) context = { ...context, ...parsed };
       else entries = parsed;
     }
-    return normalizeList(entries);
+    return { tracks: normalizeList(entries), stages };
   }
 
   function normalizeList(entries) {
@@ -200,16 +216,21 @@ export function createPlatformProvider({
     // ---- account lifecycle ----
 
     async beginLogin(options = {}) {
+      const version = ++loginVersion;
+      pendingLogin = null;
       const body = await call(parse.loginQrRole ?? 'loginQr', { timestamp: now() }, options);
+      if (version !== loginVersion) throw new MusicError('cancelled', 'This sign-in attempt has been replaced');
       const started = parse.loginQr(body);
       pendingLogin = { key: started.key ?? null, startedAt: now() };
       return { qrImage: started.qrImage ?? null, qrUrl: started.qrUrl ?? null, key: pendingLogin.key };
     },
 
     async pollLogin(options = {}) {
-      if (!pendingLogin) throw new MusicError('invalid_command', 'No sign-in is in progress');
-      const body = await call(parse.loginPollRole ?? 'loginPoll', { key: pendingLogin.key, timestamp: now() }, options);
-      const state = parse.loginPoll(body);
+      const attempt = pendingLogin;
+      if (!attempt) throw new MusicError('invalid_command', 'No sign-in is in progress');
+      const state = attempt.confirmed ?? parse.loginPoll(await call(parse.loginPollRole ?? 'loginPoll',
+        { key: attempt.key, timestamp: now() }, options));
+      if (pendingLogin !== attempt) throw new MusicError('cancelled', 'This sign-in attempt has been replaced');
       if (state.status === 'expired') {
         pendingLogin = null;
         return { status: 'expired', code: state.code ?? null };
@@ -223,10 +244,17 @@ export function createPlatformProvider({
       if (!state.secret) {
         throw new MusicError('provider_failure', `${displayName} confirmed the sign-in but sent no session material`);
       }
-      persistCredential(state.secret, { accountId: state.accountId ?? null });
+      // Keep confirmed session material private while verifying it. Failed
+      // verification neither overwrites a working credential nor consumes the
+      // QR result; a retry verifies the candidate without polling again.
+      attempt.confirmed = state;
+      const verified = typeof parse.validateLogin === 'function' ? await parse.validateLogin(state, options) : state;
+      if (pendingLogin !== attempt) throw new MusicError('cancelled', 'This sign-in attempt has been replaced');
+      if (options.signal?.aborted) throw options.signal.reason ?? new DOMException('Aborted', 'AbortError');
+      persistCredential(verified.secret ?? state.secret, { accountId: verified.accountId ?? state.accountId ?? null });
       pendingLogin = null;
       lastError = null;
-      return { status: 'authorized', accountId: state.accountId ?? null };
+      return { status: 'authorized', accountId: verified.accountId ?? state.accountId ?? null };
     },
 
     async restore(options = {}) {
@@ -253,6 +281,7 @@ export function createPlatformProvider({
     },
 
     async logout() {
+      ++loginVersion;
       forgetCredential();
       cachedSecret = null;
       transport.useSecret?.('');
@@ -276,12 +305,16 @@ export function createPlatformProvider({
       const attempts = [];
       for (const candidate of order) {
         try {
-          const tracks = await fetchSource(candidate, { limit, signal });
+          const fetched = await fetchSource(candidate, { limit, signal });
+          const tracks = fetched.tracks;
           if (!tracks.length) {
-            attempts.push({ source: candidate, count: 0, ok: false, reason: 'the platform returned nothing' });
+            attempts.push({ source: candidate, count: 0, ok: false, code: 'empty_result',
+              stage: fetched.stages.at(-1)?.stage ?? null, stages: fetched.stages,
+              reason: '网易云此来源没有返回可用曲目。' });
             continue;
           }
-          attempts.push({ source: candidate, count: tracks.length, ok: true, reason: null });
+          attempts.push({ source: candidate, count: tracks.length, ok: true, code: null,
+            stage: null, stages: fetched.stages, reason: null });
           noted.seedSource = candidate;
           noted.seedReason = candidate === seedOrder[0]
             ? null
@@ -296,13 +329,16 @@ export function createPlatformProvider({
             reason: noted.seedReason,
           };
         } catch (error) {
-          attempts.push({ source: candidate, count: 0, ok: false, reason: `${error.code ?? 'error'}: ${error.message}` });
+          attempts.push({ source: candidate, count: 0, ok: false, code: error.code ?? 'error',
+            stage: error.details?.stage ?? null, httpStatus: error.details?.httpStatus ?? null,
+            platformCode: error.details?.platformCode ?? null, stages: error.seedStages ?? [],
+            reason: error.message });
           if (error.code === 'login_required') throw error;
         }
       }
 
       noted.seedSource = null;
-      noted.seedReason = attempts.map((row) => `${row.source}: ${row.reason}`).join('; ');
+      noted.seedReason = attempts.map((row) => `${row.source}: ${row.code ?? 'error'}: ${row.reason}`).join('; ');
       throw new MusicError('provider_failure', `No ${displayName} seed source was usable (${noted.seedReason})`,
         { retryable: true, details: { attempts } });
     },

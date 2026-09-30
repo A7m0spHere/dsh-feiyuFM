@@ -12,7 +12,9 @@
 //     or the payload node when the plugin runs outside Electron;
 //   - `session/event` delivers `{ type, seq, time, data }`.
 import { spawn } from 'node:child_process';
-import { dirname, join } from 'node:path';
+import { readFileSync } from 'node:fs';
+import { homedir } from 'node:os';
+import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { CoreBridge, registerAdapter } from './src/dsh-adapter.mjs';
 import { registerSettingsApi } from './src/ui/dsh-settings.mjs';
@@ -44,6 +46,37 @@ const DEFAULT_SETTINGS = Object.freeze({
 });
 
 const here = dirname(fileURLToPath(import.meta.url));
+const CLIENT_ASSETS = Object.freeze({
+  '/fishfm/assets/whale-idle.png': join(here, 'src', 'ui', 'assets', 'whale-idle.png'),
+  '/fishfm/assets/whale-listening.png': join(here, 'src', 'ui', 'assets', 'whale-listening.png'),
+  '/fishfm/assets/whale-dj.png': join(here, 'src', 'ui', 'assets', 'whale-dj.png'),
+});
+
+export function registerClientAssets(ctx) {
+  ctx.effect(() => {
+    const routes = Object.entries(CLIENT_ASSETS).map(([path, file]) => {
+      const body = readFileSync(file);
+      return ctx.webServer.register({
+        kind: 'exact', path,
+        handler(req, res) {
+          if (req.method !== 'GET' && req.method !== 'HEAD') {
+            res.writeHead(405, { allow: 'GET, HEAD' });
+            res.end();
+            return;
+          }
+          res.writeHead(200, {
+            'content-type': 'image/png',
+            'content-length': body.length,
+            'cache-control': 'public, max-age=3600',
+            'x-content-type-options': 'nosniff',
+          });
+          res.end(req.method === 'HEAD' ? undefined : body);
+        },
+      });
+    });
+    return () => routes.forEach((dispose) => dispose());
+  }, 'fishfm: client artwork routes');
+}
 
 /** Mirrors @deepseek-ai/dsh-desktop-host: an Electron binary used as Node. */
 export function coreCommand({ coreEntry, playback = 'real', provider = 'real', database, env = process.env }) {
@@ -63,8 +96,12 @@ export function coreCommand({ coreEntry, playback = 'real', provider = 'real', d
 
 /** Default database location: beside the Harness home, never inside the repo. */
 export function defaultDatabase(env = process.env) {
-  const home = env.DSH_HOME;
-  return home ? join(home, 'fishfm', 'music.sqlite') : ':memory:';
+  // The official desktop host resolves an unset DSH_HOME to ~/.dsh without
+  // exporting it to plugins. Match that convention instead of losing data.
+  let home = env.DSH_HOME?.trim() ? env.DSH_HOME : join(homedir(), '.dsh');
+  if (home === '~') home = homedir();
+  else if (/^~[\\/]/.test(home)) home = join(homedir(), home.slice(2));
+  return join(resolve(home), 'fishfm', 'music.sqlite');
 }
 
 export function apply(ctx, config = {}) {
@@ -92,6 +129,7 @@ export function apply(ctx, config = {}) {
   // Optional in headless profiles; the browser uses the host's authenticated RPC.
   if (typeof ctx.inject === 'function') {
     ctx.inject(['connection'], (uiCtx) => registerSettingsApi(uiCtx, bridge));
+    ctx.inject(['webServer'], registerClientAssets);
   }
   // Start eagerly so a failure is visible at load time, but never block apply:
   // the Harness must stay responsive even when audio is slow to come up.

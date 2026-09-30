@@ -9,3 +9,5 @@ These three transparent PNGs are images previously generated for this FishFM pro
 | `assets/whale-dj.png` | `exec-fbd1d4cf-a644-4c8d-8e02-95cbd1dcda4d.png` | Track-selection / DJ pose |
 
 The page animates between these poses based on its demo playback state and uses a small CSS-only idle motion. It does not call the balance widget, DSH, or a music provider.
+
+The same three project-generated PNGs are copied to `src/ui/assets/` for the DSH main-panel artwork and `shell.overlay` music status bar. The runtime serves only these fixed PNG paths; no prototype state or mock API is used by the production client.

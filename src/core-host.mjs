@@ -486,7 +486,8 @@ export function createCoreHost({
             // is never turned into an empty success.
             send({
               type: 'error', id, provider: message.provider, ok: false,
-              error: { code: error.code ?? 'provider_failure', message: error.message, retryable: Boolean(error.retryable) },
+              error: { code: error.code ?? 'provider_failure', message: error.message,
+                retryable: Boolean(error.retryable), details: error.details ?? null },
               attempts: error.details?.attempts ?? [],
             });
           }
@@ -535,7 +536,8 @@ export function createCoreHost({
       send({
         type: 'error',
         id,
-        error: { code: error.code ?? 'internal', message: error.message },
+        error: { code: error.code ?? 'internal', message: error.message,
+          retryable: Boolean(error.retryable), details: error.details ?? null },
         snapshot: core?.snapshot() ?? null,
       });
     }

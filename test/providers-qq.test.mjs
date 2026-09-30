@@ -94,12 +94,17 @@ test('one conformance run covers both platforms, which is why they cannot drift'
   neteaseStore.setCredentialReference({
     provider: 'netease', accountId: '42', credentialRef: 'fishfm/netease', state: 'authorized', updatedAt: 1,
   });
+  const neteaseTransport = fakeTransport({
+    accountInfo: { accountId: 42 },
+    recentTracks: { data: { list: [{ id: 1, name: 'N', ar: [{ name: 'A' }], dt: 1000 }] } },
+    resolve: { data: [{ url: 'https://example.invalid/ne.mp3', expi: 600 }] },
+  });
   const netease = createNetEaseProvider({
-    transport: fakeTransport({
-      accountInfo: { accountId: 42 },
-      recentTracks: { data: { list: [{ id: 1, name: 'N', ar: [{ name: 'A' }], dt: 1000 }] } },
-      resolve: { data: [{ url: 'https://example.invalid/ne.mp3', expi: 600 }] },
-    }),
+    transport: neteaseTransport,
+    communityApi: {
+      login_status: () => neteaseTransport.request({ role: 'accountInfo', params: {} }),
+      user_record: ({ uid, type }) => neteaseTransport.request({ role: 'recentTracks', params: { uid, type } }),
+    },
     credentials: neteaseCredentials,
     store: neteaseStore,
     now: () => 1_700_000_000_000,

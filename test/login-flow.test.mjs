@@ -82,11 +82,16 @@ function providerAgainst(origin, { credentials = createMemoryCredentials(), stor
     setCredentialReference: (row) => rows.set(row.provider, { ...row, credential_ref: row.credentialRef, account_id: row.accountId }),
     removeCredentialReference: (name) => rows.delete(name),
   };
+  const communityApi = {
+    async login_status() {
+      return { status: 200, body: { data: { code: 200, profile: { userId: 123456, nickname: 'listener' } } }, cookie: [] };
+    },
+  };
   return {
     transport,
     credentials,
     rows: credentialRows,
-    provider: createNetEaseProvider({ transport, credentials, store: credentialRows, accountRef: 'fishfm/netease' }),
+    provider: createNetEaseProvider({ transport, communityApi, communityLogin: false, credentials, store: credentialRows, accountRef: 'fishfm/netease' }),
   };
 }
 
@@ -106,7 +111,7 @@ test('the whole QR handshake completes and stores the session', async () => {
     assert.equal((await context.provider.pollLogin()).status, 'scanned');
     const confirmed = await context.provider.pollLogin();
     assert.equal(confirmed.status, 'authorized');
-    assert.equal(confirmed.accountId, 123456);
+    assert.equal(confirmed.accountId, '123456');
 
     // The session went to the credential store, and only the reference is in the store.
     assert.match(context.credentials.read('fishfm/netease'), /MUSIC_U=live-session-value/);
@@ -202,15 +207,16 @@ test('the QR code is rendered locally from the sign-in URL, since the service pr
 
 test('the endpoint profile declares itself unverified and covers the sign-in roles', () => {
   const endpoints = neteaseEndpoints();
-  for (const role of ['loginQr', 'loginPoll', 'accountInfo', 'search', 'resolve', 'recentTracks', 'likedTracks', 'playlists', 'playlistTracks']) {
+  for (const role of ['loginQr', 'loginPoll', 'search', 'resolve']) {
     assert.ok(endpoints[role], `${role} must have an endpoint`);
     assert.match(endpoints[role].url, /^https:\/\/music\.163\.com\//, `${role} should point at the public web API`);
   }
   // The measured roles are recorded as confirmed facts.
-  assert.deepEqual([...CONFIRMED_ROLES].sort(), ['accountInfo', 'loginPoll', 'loginQr', 'resolve', 'search']);
-  assert.ok(NETEASE_ENDPOINT_PROVENANCE.hypotheses.length >= 4, 'the unverified roles are declared as hypotheses');
+  assert.deepEqual([...CONFIRMED_ROLES].sort(), ['loginPoll', 'loginQr', 'resolve', 'search']);
+  assert.deepEqual(NETEASE_ENDPOINT_PROVENANCE.communityPackage.modules,
+    ['login_qr_key', 'login_qr_check', 'login_status', 'user_record', 'likelist', 'user_playlist', 'playlist_detail', 'song_detail']);
   assert.equal(NETEASE_ENDPOINT_PROVENANCE.measuredOn, '2026-09-27', 'the measurement date is recorded');
-  assert.match(NETEASE_ENDPOINT_PROVENANCE.note, /unexpected body/i);
+  assert.match(NETEASE_ENDPOINT_PROVENANCE.note, /real-account/i);
 });
 
 test('search and resolve send the parameters the profile declares', async () => {

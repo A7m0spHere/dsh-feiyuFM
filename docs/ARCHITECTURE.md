@@ -1,6 +1,8 @@
 # 技术架构草案
 
-2026-09-29 增量：DSH Web 主界面通过 `dsh.client` / `./client` 加载 `src/ui/dsh-client.js`，注册 `sidebar.panellist`、`main`、`settings.section`。`src/ui/dsh-settings.mjs` 在 `ctx.connection.rpc.intercept('/api', …)` 注册面板接口，沿用宿主认证和来源检查；播放设置命令复用 Core 校验，平台行为限网易云。Windows real provider 从 Core 进程内的 CurrentUser DPAPI 凭据库恢复 NetEase 会话并通过 transport 填充 cookie jar，扫码状态和导入仍由唯一 Core 掌管。UI 没有独立状态库、播放服务、监听端口或模型调用。登录端点与限制见 [U4](spikes/U4-quick-login.md)；独立桌面悬浮窗仍待验证。
+2026-09-30 官方 desktop rc.2：设置 RPC 优先用 `connection.fetch.register` 的精确 `/api/fishfm/*` 路由与 Gateway 共存，保留宿主认证；默认数据目录遵循 `DSH_HOME` / `~/.dsh`。悬浮条通过 root selector 读取活动面板、以 `[data-shell-overlay]` 为位置边界，设置页按容器宽度布局。实测见 [U5](spikes/U5-official-desktop.md)。
+
+2026-09-29 增量：DSH Web 主界面通过 `dsh.client` / `./client` 加载 `src/ui/dsh-client.js`，注册 `sidebar.panellist`、`main`、`settings.section` 和 `shell.overlay`。设置面板与悬浮条使用 `src/ui/dsh-settings.mjs` 中基于宿主认证的 `/api` RPC，共享同一个 Core controller。NetEase provider 在 Core 内直接调用固定版本 `@neteasecloudmusicapienhanced/api@4.40.1` 读取账号和导入来源；DPAPI、SQLite 凭据引用边界不变。UI 没有独立状态库、播放服务、监听端口或模型调用。真实实例当前发现已存会话返回游客态，导入被阻止；详见 [U4](spikes/U4-quick-login.md)。
 
 更新：2026-09-27。状态：**Phase 1 内部 Core/Storage 契约已离线实现；DSH、Provider、Playback 和 Desktop 接口仍待 Phase 0 验证。** 产品行为见 [MVP](MVP.md)，已实现契约见 [CORE_CONTRACT](CORE_CONTRACT.md)。
 
@@ -21,7 +23,7 @@ Provider 负责拿到可播放资源，Playback 负责发出声音，Core 负责
 
 Core 可以是插件托管的模块或独立工作进程；Playback 的具体后端待实验确定。硬约束是**可见窗口及桌面 UI 进程退出，不应停止 Core 或 Playback**。不能把唯一音频元素放进可关闭的 UI WebView。若选择隐藏宿主，必须验证其与可见 UI 的进程关系，不能用“窗口隐藏成功”冒充“进程退出后继续播放”。
 
-Phase 1 的独立核心暂用 Node 24 ESM、内置 `node:sqlite` 和 npm 锁文件，已在 Windows 本机验证离线运行。音乐 UI 的产品形态已明确为可隐藏的控制悬浮窗；DeepSeek 余额鲸鱼挂件只作界面参考。Tauri 2 不是已选定的实现要求，DSH 插件 UI 与独立原生窗口的边界仍需在 Phase 0 核对后决定。
+Phase 1 的独立核心暂用 Node 24 ESM、内置 `node:sqlite` 和 npm 锁文件，已在 Windows 本机验证离线运行。音乐 UI 的产品形态是 DSH 页面内可隐藏的控制悬浮条；不创建独立桌面窗或桌宠。DeepSeek 余额鲸鱼挂件只作界面参考；Tauri 2 不在当前实现范围。
 
 桌面宿主的实测形态（2026-09-27，见 [P0-01](spikes/P0-01-dsh.md)）：Electron 外壳启动 `dsh-desktop-host`，Host 载入 `$DSH_HOME/profiles/desktop` 并监听 `127.0.0.1:19387`；Host 自己用 `process.execPath --expose-internals` + `ELECTRON_RUN_AS_NODE=1` 启动 Node 子进程，该运行时自带可用的 `node:sqlite`。desktop profile 由应用独占，CLI 不能导出或安装；插件只能以工作区 bundle 经应用内 Plugin Manager 安装。因此 Core/Playback 作为插件拥有的独立进程、由插件按同一垫片启动，是当前唯一有实测依据的宿主方式；可见窗口是否退出不影响它们仍需在真实 desktop profile 中验证。
 

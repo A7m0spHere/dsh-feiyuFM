@@ -73,6 +73,7 @@ const recordingTransport = {
 
 const provider = createNetEaseProvider({
   transport: recordingTransport, credentials, store, accountRef: reference,
+  communityLogin: !process.env.FISHFM_NETEASE_BASE,
 });
 
 /** Records the shape of a response without recording its contents. */
@@ -127,7 +128,7 @@ let imagePath = null;
 let rendered = false;
 try {
   const { default: QRCode } = await import('qrcode');
-  const loginUrl = `${NETEASE_QR_LOGIN_URL}?codekey=${encodeURIComponent(qr.key)}`;
+  const loginUrl = qr.qrUrl || `${NETEASE_QR_LOGIN_URL}?codekey=${encodeURIComponent(qr.key)}`;
   mkdirSync(stateDirectory, { recursive: true });
   imagePath = join(stateDirectory, `login-${providerName}.png`);
   await QRCode.toFile(imagePath, loginUrl, { width: 360, margin: 2, errorCorrectionLevel: 'M' });

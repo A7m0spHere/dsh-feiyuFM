@@ -147,6 +147,8 @@ export class CoreBridge {
     if (message.type === 'error') {
       const error = new Error(message.error?.message ?? 'The music core rejected the request');
       error.code = message.error?.code ?? 'core_error';
+      error.retryable = Boolean(message.error?.retryable);
+      if (message.error?.details && typeof message.error.details === 'object') error.details = message.error.details;
       if (message.snapshot) this.lastSnapshot = message.snapshot;
       entry.reject(error);
       return;

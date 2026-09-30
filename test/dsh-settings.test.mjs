@@ -58,3 +58,67 @@ test('settings API only intercepts its authenticated endpoints and is removed on
   } } }, {});
   assert.equal(active, true); dispose(); assert.equal(active, false);
 });
+
+test('desktop exact routes coexist with the Gateway and validate RPC envelopes before changing Core', async () => {
+  const routes = new Map();
+  let dispose, calls = 0;
+  const bridge = {
+    async start() {},
+    async command(command) { calls++; return { snapshot: { paused: command.type === 'pause' } }; },
+  };
+  registerSettingsApi({
+    effect(fn) { dispose = fn(); },
+    connection: {
+      rpc: { intercept() { assert.fail('the shared Gateway interceptor must remain untouched'); } },
+      fetch: { register(route) {
+        assert.deepEqual(route.methods, ['POST']);
+        assert.equal(route.requestBody, 'buffered');
+        routes.set(route.path, route);
+        return () => routes.delete(route.path);
+      } },
+    },
+  }, bridge);
+  assert.equal(routes.size, 6);
+  assert.equal(routes.has('/api/session/create'), false);
+  const path = '/api/fishfm/command';
+  const request = body => new Request(`http://localhost${path}`, {
+    method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body),
+  });
+  const valid = { type: 'client-request', rpcId: 'desktop-1', method: 'fishfm/command', payload: { type: 'pause' } };
+  const response = await routes.get(path).fetch(request(valid));
+  assert.deepEqual(await response.json(), { type: 'server-response', rpcId: 'desktop-1', result: { ok: true, value: { snapshot: { paused: true } } } });
+  assert.equal(calls, 1);
+  for (const body of [{ ...valid, method: 'session/create' }, { ...valid, type: 'server-response' }, { ...valid, rpcId: 1 }, null]) {
+    const invalid = await routes.get(path).fetch(request(body));
+    assert.equal((await invalid.json()).result.error.code, 'gateway/bad-request');
+  }
+  assert.equal(calls, 1, 'invalid envelopes cannot issue commands');
+  assert.equal((await routes.get(path).fetch(new Request(`http://localhost${path}`, { method: 'POST', body: '{}' }))).status, 415);
+  assert.equal((await routes.get(path).fetch(new Request(`http://localhost${path}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{' }))).status, 400);
+  dispose();
+  assert.equal(routes.size, 0);
+});
+
+test('import errors retain source and stage details while removing session material', async () => {
+  const bridge = {
+    async start() {},
+    async request(message) {
+      if (message.type === 'import-platform') {
+        const error = new Error('网易云近期记录请求失败（HTTP 503），MUSIC_U=never-return-this');
+        error.code = 'provider_failure';
+        error.retryable = true;
+        error.details = { attempts: [{ source: 'recent', count: 0, ok: false, code: 'provider_failure',
+          stage: 'user_record', httpStatus: 503, reason: 'request rejected MUSIC_U=never-return-this', stages: [] }] };
+        throw error;
+      }
+      assert.fail(`unexpected core request ${message.type}`);
+    },
+  };
+  const result = await createSettingsHandler(bridge)('fishfm/import', { provider: 'netease' });
+  assert.equal(result.ok, false);
+  assert.equal(result.error.details.attempts[0].stage, 'user_record');
+  assert.equal(result.error.details.attempts[0].httpStatus, 503);
+  const serialized = JSON.stringify(result);
+  assert.equal(serialized.includes('never-return-this'), false);
+  assert.equal(serialized.includes('MUSIC_U='), false);
+});
