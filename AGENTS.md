@@ -24,6 +24,7 @@
 - 当前已有 Phase 1 离线控制核心、SQLite 首版迁移、DSH 插件 bundle 与调试入口；插件加载/卸载在 DSH `0.1.7-rc.2` 隔离 Web profile 验证过，并已安装到 PHL 管理的 DSH `0.2.0-rc.1` Web 实例。已真实请求一次社区 `login_status`，证实旧会话失效；歌曲来源响应、真实导入和平台音频仍未验证。`npm run check`、`npm test`、`npm run build` 为可执行的离线命令。
 - 产品行为和验收以 `docs/MVP.md` 为准；模块边界以 `docs/ARCHITECTURE.md` 为准。
 - 执行进度以 `docs/PROJECT_PLAN.md` 为准；技术验证任务与证据要求见 `docs/PHASE_0.md`。
+- 2026-10-02 自主听歌、发现新歌与输入音乐塑造推荐的后续实施设计见 `docs/AUTONOMOUS_MUSIC_ROADMAP.md`；任务状态统一在 `docs/PROJECT_PLAN.md` 的 N0–N8。该规划不是实现完成证据；先补真实采集/自主续播，再接真实发现与偏好推荐，QQ 保持暂缓。
 - 来源、取舍和未核实参考见 `docs/DECISIONS.md`。对话里的推荐、示意 API 和性能描述不等于已验证事实。
 - 修改产品行为时同步相关验收条目；改变已有决策时记录理由与证据，不维护多份完整规格。
 

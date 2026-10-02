@@ -54,6 +54,7 @@ npm run core -- --playback fake --provider fake --selection environment
 | 文档 | 用途 |
 |---|---|
 | [开发路线](docs/PROJECT_PLAN.md) | 阶段任务、前置依赖、交付条件、验收映射与跨设备交接 |
+| [自主听歌与推荐规划](docs/AUTONOMOUS_MUSIC_ROADMAP.md) | 真实采集、自主续播、发现池、输入画像、种子推荐、成长说明与长期体验的实施设计 |
 | [MVP 产品规格](docs/MVP.md) | 范围、用户行为、默认设置与验收标准 |
 | [技术架构](docs/ARCHITECTURE.md) | 模块职责、播放生命周期、数据与事件边界 |
 | [Phase 0 验证清单](docs/PHASE_0.md) | 开发前必须验证的接口和最小实验 |
@@ -69,7 +70,7 @@ npm run core -- --playback fake --provider fake --selection environment
 - 两个平台的适配器由项目维护，参考社区实现；余额挂件只作 UI 参考，不是运行依赖，不复用其鲸鱼素材。
 - 音乐核心与播放服务独立于可见页面；隐藏悬浮条、切换 DSH 面板或关闭页面不能带走它们。
 
-后续验证网易云备用来源、推荐与故障处理，以及 DSH 多会话和两小时运行；QQ 暂缓。离线通过与本轮 UI 完成不等于全部产品验收通过。
+后续按[自主听歌与推荐规划](docs/AUTONOMOUS_MUSIC_ROADMAP.md)推进：先补真实采集和自主续播/成长记账，再接新歌候选与有来源的偏好推荐，最后做解释和两小时运行；QQ 暂缓。当前真实推荐入口尚未实现，探索会回退曲库；歌曲/艺人初始权重也不等于已形成流派画像。离线通过与本轮 UI 完成不等于全部产品验收通过。
 
 ## 跨设备开发
 
