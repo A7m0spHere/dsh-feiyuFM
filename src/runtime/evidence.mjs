@@ -3,7 +3,7 @@ import { mkdirSync, writeFileSync, renameSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 const TEXT = new Set(['type', 'kind', 'role', 'event', 'phase', 'code', 'pool', 'provider', 'playInstanceId', 'decisionId', 'trackKey', 'selectedBy', 'progressSource', 'name', 'status', 'source']);
-const NUMBERS = new Set(['positionMs', 'effectiveMs', 'agentEffectiveMs', 'audibleMs', 'count', 'delta', 'before', 'after', 'version', 'discoveryRate', 'familiar', 'discovery', 'offered']);
+const NUMBERS = new Set(['positionMs', 'effectiveMs', 'effectiveDeltaMs', 'agentEffectiveMs', 'audibleMs', 'count', 'delta', 'before', 'after', 'version', 'discoveryRate', 'familiar', 'discovery', 'offered']);
 const FLAGS = new Set(['accepted', 'updated', 'fellBack', 'paused', 'audible', 'agentListening']);
 export function safeEvidenceEvent(entry) {
   const result = {};
@@ -19,6 +19,7 @@ export function createRuntimeEvidence({ directory = null, component = 'core', mo
   const startedAt = now();
   const events = [], samples = [];
   const counts = {};
+  const lastProgress = new Map();
   let seq = 0, dropped = 0, closed = false;
   const report = () => ({ schema: 1, runId, component, mode, pid: process.pid, parentPid: process.ppid, node: process.versions.node, metadata, startedAt, updatedAt: now(), closed, sequence: seq, droppedEvents: dropped, counts: { ...counts }, events: structuredClone(events), samples: [...samples],
     coverage: { platformRequests: component === 'core' ? 'instrumented' : 'unknown', playbackEvents: component === 'core' ? mode : 'unknown', promptRegistration: component === 'adapter' ? 'instrumented' : 'unknown', musicModelRequests: null, dshModelRequests: null, perTurnContextInjection: 'unknown' },
@@ -37,6 +38,12 @@ export function createRuntimeEvidence({ directory = null, component = 'core', mo
     if (!entry.type) return;
     const key = `${entry.type}:${entry.role ?? entry.event ?? entry.kind ?? ''}`;
     counts[key] = (counts[key] ?? 0) + 1;
+    if (entry.event === 'progress') {
+      const progressKey = `${entry.type}:${entry.playInstanceId}`;
+      if (now() - (lastProgress.get(progressKey) ?? -Infinity) < 5000) return;
+      lastProgress.set(progressKey, now());
+      if (lastProgress.size > 32) lastProgress.delete(lastProgress.keys().next().value);
+    }
     events.push({ seq: ++seq, at: now(), ...entry });
     if (events.length > limit) { events.shift(); dropped++; }
   };

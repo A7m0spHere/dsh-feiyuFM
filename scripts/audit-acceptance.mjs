@@ -69,13 +69,13 @@ const EVIDENCE = [
   {
     id: 'A05', claim: '熟悉池、探索率 0/20/100%、候选为空和重复惩罚有效',
     status: 'offline-passed',
-    files: ['test/selection.test.mjs', 'docs/spikes/T2-selection.md'],
+    files: ['test/selection.test.mjs', 'docs/spikes/T2-selection.md', 'test/discovery-cache.test.mjs', 'test/discovery-provider.test.mjs', 'docs/spikes/N2-netease-discovery.md', 'docs/spikes/N3-discovery-cache.md'],
     tests: [
       { file: 'test/selection.test.mjs', name: 'discovery rate 0 always stays familiar; 100 always tries discovery' }
       , { file: 'test/selection.test.mjs', name: 'an empty discovery pool falls back to familiar and records that no exploration happened' }
       , { file: 'test/selection.test.mjs', name: 'repeat penalty grows with the number of recent plays' },
     ],
-    unverified: '发现池在接入真实平台前恒为空，因此 100% 只能验证回退行为',
+    unverified: '真实网易云发现池与自主推荐播放已接通；完整长期比例与双平台仍待后续验收',
   },
   {
     id: 'A06', claim: '用户环境与 Agent 偏好分离，重启后保留；Session 不覆盖长期偏好',
@@ -114,7 +114,7 @@ const EVIDENCE = [
   {
     id: 'A09', claim: '连续两小时自动听歌，用户未主动聊音乐，新增 LLM 请求数为 0',
     status: 'not-passed',
-    files: ['src/runtime/recorder.mjs', 'scripts/soak.mjs', 'test/recorder.test.mjs', 'docs/spikes/R2-soak.md'],
+    files: ['src/runtime/recorder.mjs', 'scripts/soak.mjs', 'test/recorder.test.mjs', 'docs/spikes/R2-soak.md', 'src/runtime/evidence.mjs', 'scripts/observe-runtime.mjs', 'docs/spikes/N0-runtime-evidence.md'],
     tests: [
       { file: 'test/recorder.test.mjs', name: 'the recorder counts requests by kind and proves a zero model count' },
       { file: 'test/dsh-adapter.test.mjs', name: 'translates only the allowlisted session events' },
@@ -124,7 +124,7 @@ const EVIDENCE = [
   {
     id: 'A10', claim: '静音、暂停、播放失败、进程重启不会伪增听歌次数或偏好',
     status: 'offline-passed',
-    files: ['test/faults.test.mjs', 'test/growth.test.mjs', 'test/core.test.mjs', 'docs/spikes/R1-faults.md'],
+    files: ['test/faults.test.mjs', 'test/growth.test.mjs', 'test/core.test.mjs', 'docs/spikes/R1-faults.md', 'test/autonomous-accounting.test.mjs', 'docs/spikes/N1-autonomous-accounting.md'],
     tests: [
       { file: 'test/faults.test.mjs', name: 'a login that expired mid-session stops music honestly instead of pretending' },
       { file: 'test/growth.test.mjs', name: 'a pause, a failure, a short listen and a user pick change nothing' },
@@ -134,7 +134,7 @@ const EVIDENCE = [
 ];
 
 /** Also verify the task-level evidence referenced by the plan's own docs. */
-const DOC_LINKS_FROM = ['README.md', 'docs/PROJECT_PLAN.md', 'docs/DELIVERY.md', 'docs/MVP.md', 'docs/ARCHITECTURE.md', 'docs/DECISIONS.md', 'docs/PHASE_0.md', 'docs/CORE_CONTRACT.md'];
+const DOC_LINKS_FROM = ['README.md', 'docs/PROJECT_PLAN.md', 'docs/DELIVERY.md', 'docs/MVP.md', 'docs/ARCHITECTURE.md', 'docs/DECISIONS.md', 'docs/PHASE_0.md', 'docs/CORE_CONTRACT.md', 'docs/AUTONOMOUS_MUSIC_ROADMAP.md', 'docs/spikes/N0-runtime-evidence.md', 'docs/spikes/N1-autonomous-accounting.md', 'docs/spikes/N2-netease-discovery.md', 'docs/spikes/N3-discovery-cache.md'];
 
 const testNames = new Map();
 for (const file of readdirSync(join(root, 'test'))) {

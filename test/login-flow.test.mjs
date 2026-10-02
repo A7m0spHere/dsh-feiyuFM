@@ -214,7 +214,7 @@ test('the endpoint profile declares itself unverified and covers the sign-in rol
   // The measured roles are recorded as confirmed facts.
   assert.deepEqual([...CONFIRMED_ROLES].sort(), ['loginPoll', 'loginQr', 'resolve', 'search']);
   assert.deepEqual(NETEASE_ENDPOINT_PROVENANCE.communityPackage.modules,
-    ['login_qr_key', 'login_qr_check', 'login_status', 'user_record', 'likelist', 'user_playlist', 'playlist_detail', 'song_detail']);
+    ['login_qr_key', 'login_qr_check', 'login_status', 'user_record', 'likelist', 'user_playlist', 'playlist_detail', 'song_detail', 'recommend_songs', 'personal_fm']);
   assert.equal(NETEASE_ENDPOINT_PROVENANCE.measuredOn, '2026-09-27', 'the measurement date is recorded');
   assert.match(NETEASE_ENDPOINT_PROVENANCE.note, /real-account/i);
 });

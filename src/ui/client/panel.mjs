@@ -1,4 +1,4 @@
-import { playbackPresentation } from './presentation.mjs';
+import { playbackPresentation, discoveryPresentation } from './presentation.mjs';
 import React from 'react';
 import { h, minutes, progressPercent, modes, sourceNames, stageNames } from './shared.mjs';
 import { Svg, StatusMark } from './components.mjs';
@@ -93,6 +93,10 @@ export function Panel({ controller, back, close }) {
           toggle('DeepSeek 自主听歌', '允许自动选歌、续播，并从实际收听中成长。', 'listening', 'setListening'),
           toggle('电脑输出声音', '关闭后仍记录播放进度，但不会让电脑发声。', 'humanPlayback', 'setHumanPlayback'),
           toggle('探索新音乐', '有可用候选时尝试发现陌生歌曲。', 'discovery', 'setDiscovery'),
+          h('p', { className: 'fm-note', role: 'status', 'aria-live': 'polite' }, discoveryPresentation(snapshot)),
+          snapshot?.lastSelection?.fellBack && h('p', { className: 'fm-note' }, '最近一次自主选择：发现池无可用候选，已回退熟悉歌曲。'),
+          state.features?.discoveryRefresh && h('button', { type: 'button', className: 'fm-button', disabled: disabled || !settings.discovery || settings.discoveryRate === 0 || state.platforms?.netease?.account?.status !== 'authorized',
+            onClick: () => controller.platformAction('discovery', 'netease') }, '刷新推荐候选'),
           h('div', { className: 'fm-rate' }, h('div', { className: 'fm-rate-head' }, h('label', { htmlFor: rateId }, '新歌探索率'), h('output', { htmlFor: rateId }, `${rate}%`)),
             h('input', { id: rateId, 'aria-label': '新歌探索率', type: 'range', min: 0, max: 100, step: 1, value: rate, disabled: disabled || !settings.discovery,
               onChange: e => setRate(Number(e.target.value)) }),

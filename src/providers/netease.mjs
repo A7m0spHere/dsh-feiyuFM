@@ -445,6 +445,10 @@ export function createNetEaseProvider(options = {}) {
           return tracks;
         }
       } catch (error) {
+        if (error.code === 'login_required') {
+          const saved = store?.getCredentialReference(NETEASE);
+          if (saved) store.setCredentialReference({ provider: NETEASE, accountId: saved.account_id, credentialRef: accountRef, state: 'expired', updatedAt: (options.now ?? Date.now)() });
+        }
         if (signal?.aborted || ['cancelled','login_required','expired'].includes(error.code)) throw error;
         failures.push(`${role}:${error.code ?? 'provider_failure'}`);
       }

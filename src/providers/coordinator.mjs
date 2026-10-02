@@ -54,17 +54,17 @@ export async function collectDiscovery({ registry, limit = 40, signal = null } =
 
   for (const name of PROVIDER_NAMES) {
     if (!registry.has(name)) {
-      attempts.push({ provider: name, count: 0, ok: false, reason: 'the adapter is not installed' });
+      attempts.push({ provider: name, count: 0, ok: false, code: 'provider_unavailable', reason: 'the adapter is not installed' });
       continue;
     }
     const account = registry.getAccount(name);
     if (account?.status !== 'authorized') {
-      attempts.push({ provider: name, count: 0, ok: false, reason: `not signed in (${account?.status ?? 'unknown'})` });
+      attempts.push({ provider: name, count: 0, ok: false, code: 'login_required', reason: `not signed in (${account?.status ?? 'unknown'})` });
       continue;
     }
     const capability = registry.getCapabilities(name)?.recommendation;
     if (capability && capability.status !== 'available' && capability.status !== 'degraded') {
-      attempts.push({ provider: name, count: 0, ok: false, reason: capability.reason ?? capability.status });
+      attempts.push({ provider: name, count: 0, ok: false, code: 'capability_unavailable', reason: capability.reason ?? capability.status });
       continue;
     }
     try {
@@ -84,7 +84,7 @@ export async function collectDiscovery({ registry, limit = 40, signal = null } =
       tracks.push(...fresh);
       attempts.push({ provider: name, count: fresh.length, ok: true, reason: null });
     } catch (error) {
-      attempts.push({ provider: name, count: 0, ok: false, reason: `${error.code ?? 'error'}: ${error.message}` });
+      attempts.push({ provider: name, count: 0, ok: false, code: error.code ?? 'provider_failure', reason: `${error.code ?? 'error'}: ${error.message}` });
     }
   }
 

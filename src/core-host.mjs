@@ -22,6 +22,7 @@ import { createHttpTransport } from './providers/transport.mjs';
 import { createNetEaseProvider } from './providers/netease.mjs';
 import { createQQProvider } from './providers/qq.mjs';
 import { describePlatforms, collectDiscovery, resolveOnOwnPlatform, summarizeSeedRuns } from './providers/coordinator.mjs';
+import { createDiscoveryCache } from './discovery.mjs';
 
 /** Bump when the host/owner message shapes change in a way an older peer cannot read. */
 export const CORE_HOST_PROTOCOL = 1;
@@ -123,7 +124,7 @@ export function buildSelector({ store, now = () => Date.now(), rng = null, listD
     // the session still works, it just is not reproducible.
     rng: rng ?? createRng(store.getCoreState()?.selectionRngState ?? (Number.isSafeInteger(seed) ? seed : 1)),
     isPlayable: track => store.isTrackAvailable(track, now()),
-    listFamiliar: () => store.listEnvironment({ limit: 5000 }).map((row) => {
+    listFamiliar: () => [...new Map([...store.listEnvironment({ limit: 100000 }), ...store.listAgentKnownTracks()].map(row => [row.track_key, row])).values()].map((row) => {
       // Restore the stored metadata, not just the key: the effective-progress
       // threshold needs the real duration, and a title is needed to tell the
       // user what is playing.
@@ -193,7 +194,7 @@ export function buildProviderRegistry({ adapters = {}, credentials = null, store
 export function createProviderFacade({ registry, store = null, now = () => Date.now(), onLog = () => {} }) {
   // Discovery candidates are refreshed on demand and cached, because the
   // selector is synchronous and must never block playback on the network.
-  let discovery = [];
+  const discovery = createDiscoveryCache({ registry, store, now, onLog });
 
   return {
     registry,
@@ -206,16 +207,16 @@ export function createProviderFacade({ registry, store = null, now = () => Date.
     platforms: () => describePlatforms(registry),
 
     /** Synchronous, cache-only: the selector must not perform network I/O. */
-    discoveryTracks: () => discovery,
+    discoveryTracks: () => discovery.tracks(),
+    discoveryStatus: () => discovery.status(),
+    setDiscoveryEnabled: value => discovery.setEnabled(value),
+    tickDiscovery: () => discovery.tick(),
+    onDiscoveryChange: fn => discovery.onChange(fn),
+    closeDiscovery: () => discovery.close(),
 
-    async refreshDiscovery({ limit = 40, signal = null } = {}) {
-      const result = await collectDiscovery({ registry, limit, signal });
-      discovery = result.tracks;
-      onLog({ type: 'discovery', count: result.tracks.length, attempts: result.attempts.length, reason: result.reason });
-      return result;
-    },
+    refreshDiscovery: options => discovery.refresh(options),
 
-    clearDiscovery() { discovery = []; },
+    clearDiscovery() { discovery.clear(); },
   };
 }
 
@@ -297,7 +298,7 @@ export function createCoreHost({
       return facade.registry.providers[name];
     };
 
-    const activeProvider = provider ?? providerRegistry ?? (platformsFacade ? platformsFacade : registry);
+    const activeProvider = provider ?? platformsFacade ?? providerRegistry ?? registry;
   let core = null;
   let playback = null;
   let disposePlayback = async () => {};
@@ -346,6 +347,8 @@ export function createCoreHost({
         case 'command': {
           onLog({ type: 'command', kind: message.command?.type });
           const snapshot = core.dispatch({ ...message.command, commandId: message.command?.commandId ?? randomUUID() });
+          platformsFacade?.setDiscoveryEnabled(snapshot.settings.discovery && snapshot.settings.discoveryRate > 0);
+          platformsFacade?.tickDiscovery();
           await core.waitForIdle();
           send({ type: 'result', id, ok: true, snapshot: core.snapshot(), accepted: snapshot.revision });
           return;
@@ -457,13 +460,14 @@ export function createCoreHost({
           if (step === 'poll') {
             const polled = await accountProvider.pollLogin({ signal: null });
             // A confirmed sign-in unlocks resolution, so the pool is rebuilt.
-            if (polled.status === 'authorized') await platformsFacade.refreshDiscovery({ limit: 40 }).catch(() => {});
+            if (polled.status === 'authorized') platformsFacade.tickDiscovery();
             publishIfChanged();
             send({ type: 'result', id, ok: true, status: polled.status, login: polled, account: accountProvider.getAccount() });
             return;
           }
           if (step === 'restore') {
             const restored = await accountProvider.restore({ signal: null });
+            if (restored.status === 'authorized') platformsFacade.tickDiscovery();
             publishIfChanged();
             send({ type: 'result', id, ok: true, status: restored.status, login: restored, account: accountProvider.getAccount() });
             return;
@@ -493,6 +497,7 @@ export function createCoreHost({
               requested: seed.requested, degraded: seed.degraded, reason: seed.reason, now: now(),
             });
             const taste = initializeAgentPreferences({ store, seed: message.seed ?? null, now: now() });
+            platformsFacade.tickDiscovery();
             publishIfChanged();
             send({ type: 'result', id, ok: true, provider: message.provider, source: seed.source, import: imported, attempts: seed.attempts, taste, snapshot: core.snapshot() });
           } catch (error) {
@@ -509,10 +514,11 @@ export function createCoreHost({
         }
         case 'discovery': {
           requireFacade();
-          const result = await platformsFacade.refreshDiscovery({ limit: message.limit ?? 40, signal: null });
+          void platformsFacade.refreshDiscovery({ manual: true });
+          const status = platformsFacade.discoveryStatus();
           send({
             type: 'result', id, ok: true,
-            discovery: { count: result.tracks.length, attempts: result.attempts, reason: result.reason },
+            discovery: status,
           });
           return;
         }
@@ -562,6 +568,7 @@ export function createCoreHost({
     closed = true;
     clearInterval(timer);
     if (maintenance) clearInterval(maintenance);
+    platformsFacade?.closeDiscovery();
     try { await disposePlayback(); } catch (error) { onLog({ type: 'playback-dispose-failed', message: error.message }); }
     try { if (!givenStore) store.close(); } catch { /* already closed */ }
   }
@@ -627,9 +634,12 @@ export function createCoreHost({
         if (accepted) publishIfChanged();
         return accepted;
       });
-      timer = setInterval(publishIfChanged, stateIntervalMs);
-      timer.unref?.();
+      platformsFacade?.setDiscoveryEnabled(core.snapshot().settings.discovery && core.snapshot().settings.discoveryRate > 0);
       send({ type: 'ready', protocol: CORE_HOST_PROTOCOL, snapshot: core.snapshot() });
+      platformsFacade?.onDiscoveryChange(() => { core._commit(); publishIfChanged(); });
+      platformsFacade?.tickDiscovery();
+      timer = setInterval(() => { platformsFacade?.tickDiscovery(); publishIfChanged(); }, stateIntervalMs);
+      timer.unref?.();
       return core;
     },
     handle: (message) => enqueue(() => handle(message)),

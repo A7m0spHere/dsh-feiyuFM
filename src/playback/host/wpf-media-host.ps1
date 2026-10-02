@@ -42,6 +42,7 @@ $script:player.Volume = $script:volume
 $script:status = 'idle'
 $script:instance = $null
 $script:version = $null
+$script:acceptedVersion = -1
 $script:muted = $false
 $script:resource = $null
 $script:durationMs = $null
@@ -215,6 +216,14 @@ $script:player.add_MediaEnded({
 function Invoke-Command($command) {
   $id = [string]$command.id
   $type = [string]$command.type
+  if ($null -ne $command.version) {
+    if ([long]$command.version -lt $script:acceptedVersion) {
+      Send-ResultError $id 'stale_version' 'Ignored an older playback command'
+      return
+    }
+    $script:acceptedVersion = [long]$command.version
+    if ($null -ne $script:instance) { $script:version = $command.version }
+  }
   switch ($type) {
     'load' {
       $resource = [string]$command.resource

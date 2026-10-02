@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { filterLibrary, playbackPresentation, popupPlacement } from '../src/ui/client/presentation.mjs';
+import { filterLibrary, playbackPresentation, popupPlacement, discoveryPresentation } from '../src/ui/client/presentation.mjs';
 
 test('playback preparation, mute, pause and disconnection have distinct visual states', () => {
   const snapshot = { status: 'playing', paused: false, settings: { humanPlayback: true } };
@@ -9,6 +9,14 @@ test('playback preparation, mute, pause and disconnection have distinct visual s
   assert.equal(playbackPresentation({ ...snapshot, paused: true }, true).active, false);
   assert.equal(playbackPresentation({ ...snapshot, status: 'resolving' }, true).art, 'whale-dj');
   assert.equal(playbackPresentation(snapshot, false).active, false);
+});
+
+test('discovery display distinguishes target settings from available candidates and honest fallback', () => {
+  const snapshot = { settings: { discovery: true, discoveryRate: 1 }, discovery: { state: 'empty', count: 0 } };
+  assert.match(discoveryPresentation(snapshot), /回退熟悉歌曲/);
+  assert.match(discoveryPresentation({ ...snapshot, discovery: { state: 'ready', count: 34, sources: ['netease_daily'] } }), /34.*网易云每日推荐/);
+  assert.match(discoveryPresentation({ ...snapshot, discovery: { state: 'refreshing', refreshing: true, count: 3 } }), /后台刷新/);
+  assert.match(discoveryPresentation({ ...snapshot, settings: { discovery: true, discoveryRate: 0 } }), /探索已关闭/);
 });
 
 test('library search handles title, artist and platform id without changing input order', () => {

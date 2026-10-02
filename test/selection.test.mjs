@@ -102,6 +102,18 @@ test('an empty discovery pool falls back to familiar and records that no explora
   }
 });
 
+test('a 20 percent target produces a replayable distribution rather than requiring an exact short-run ratio', () => {
+  const store = storeWithTracks(['1']);
+  try {
+    const make = () => createSelector({ store, rng: seeded(9876), listFamiliar: () => [n('1')], listDiscovery: () => [n('9')] });
+    const first=make(), replay=make();
+    const sequence=Array.from({length:1000},()=>first.decide({discoveryRate:0.2,at:5000}).pool);
+    assert.deepEqual(sequence,Array.from({length:1000},()=>replay.decide({discoveryRate:0.2,at:5000}).pool));
+    const discovered=sequence.filter(pool=>pool==='discovery').length;
+    assert.ok(discovered>=160 && discovered<=240,`20% target gave ${discovered}/1000`);
+  } finally { store.close(); }
+});
+
 test('nothing to play returns a decision with no track so the caller waits', () => {
   const store = new MusicStore();
   try {

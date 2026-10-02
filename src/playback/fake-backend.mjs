@@ -32,6 +32,7 @@ const crashDelayMs = options.crashDelayMs ?? 30;
 let status = 'idle';
 let instance = null;
 let version = null;
+let acceptedVersion = -1;
 let resource = null;
 let muted = false;
 let positionMs = 0;
@@ -91,6 +92,11 @@ function crash() {
 }
 
 function handle(command, id) {
+  if (Number.isFinite(command.version)) {
+    if (command.version < acceptedVersion) return void sendError(id, 'stale_version', 'Ignored an older playback command');
+    acceptedVersion = command.version;
+    if (instance) version = command.version;
+  }
   switch (command.type) {
     case 'load': {
       stopTimeline();

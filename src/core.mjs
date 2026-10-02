@@ -100,7 +100,7 @@ export class MusicCore {
     this.store.setCoreState(this.state);
   }
 
-  snapshot() { return structuredClone(this.state); }
+  snapshot() { return structuredClone({ ...this.state, ...(this.provider.discoveryStatus ? { discovery: this.provider.discoveryStatus() } : {}) }); }
 
   setQueue(tracks) {
     this.state.queue = tracks.map(normalizeTrack);
@@ -206,6 +206,7 @@ export class MusicCore {
       progressAccounting: 'segments-v1',
       durationMs: current.track.durationMs ?? null,
       sessionTransient: current.sessionTransient ?? false,
+      origin: current.origin ?? null,
       agentListening: current.agentListening,
       audible: current.audible,
       endReason: reason,
@@ -252,6 +253,7 @@ export class MusicCore {
       // whatever session made it; autonomous playback carries the active one.
       sessionId: this.currentSessionId ?? null,
       sessionTransient: this.currentSessionTransient ?? false,
+      origin: selectedBy === 'agent' ? track.discovery ?? null : null,
     };
     this.store.upsertTrack(this.state.current.track, this.clock.now());
     const rngState = this.selector?.randomState?.();
@@ -464,6 +466,7 @@ export class MusicCore {
         reason: decision?.reason ?? null,
         discoveryRate: decision?.discoveryRate ?? null,
         score: decision?.score ?? null,
+        source: next?.discovery?.source ?? null,
         considered: decision?.considered ?? null,
       };
       this._commit();

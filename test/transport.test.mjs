@@ -294,6 +294,7 @@ test('the facade resolves only on the track\'s own platform and gates on sign-in
     assert.deepEqual(facade.discoveryTracks(), []);
     // It also requires a usable account, so collecting while signed out yields
     // nothing and says why rather than looking like "no new music".
+    facade.setDiscoveryEnabled(true);
     const refused = await facade.refreshDiscovery({ limit: 5 });
     assert.deepEqual(refused.tracks, []);
     assert.match(refused.reason, /not signed in/);

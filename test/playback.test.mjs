@@ -286,6 +286,27 @@ test('Core drives real playback over the pipe: pause holds, resume continues, mu
   }
 });
 
+test('changing mute during a running track preserves accepted progress and the natural ending', async () => {
+  const store = new MusicStore();
+  const h = harness({ durationMs: 1200 });
+  const core = new MusicCore({ store, provider: new FakeProvider(), playback: h.service });
+  h.service.onEvent(event => core.onPlaybackEvent(event));
+  try {
+    core.dispatch({ type:'requestTrack',track,commandId:'start-mute-test' });
+    await waitFor(() => core.snapshot().status === 'playing');
+    const instance=core.snapshot().current.playInstanceId;
+    core.dispatch({ type:'setHumanPlayback',value:false,commandId:'mute-running' });
+    await core.waitForIdle();
+    const before=core.snapshot().current.effectiveMs;
+    await waitFor(() => core.snapshot().current?.effectiveMs > before);
+    core.dispatch({ type:'setHumanPlayback',value:true,commandId:'unmute-running' });
+    await core.waitForIdle();
+    await waitFor(() => core.snapshot().current === null);
+    assert.equal(store.getHistory(instance).end_reason,'ended');
+    assert.ok(store.getHistory(instance).effective_ms > 0);
+  } finally { await shutdown(h.service); store.close(); }
+});
+
 test('Core records a muted listen as agent activity without claiming audible playback', async () => {
   const store = new MusicStore();
   const h = harness({ durationMs: 700 });

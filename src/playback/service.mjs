@@ -165,6 +165,7 @@ export class PlaybackService {
     if (!Number.isFinite(version)) return true;
     if (version < this.acceptedVersion) return false;
     this.acceptedVersion = version;
+    if (this.active) this.active.version = version;
     return true;
   }
 

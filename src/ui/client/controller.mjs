@@ -92,7 +92,7 @@ export function createController(connection) {
     },
     async platformAction(action, provider) {
       if (disposed || state.busy || !state.connected) return;
-      const endpoint = ({ begin: 'fishfm/login-start', poll: 'fishfm/login-poll', import: 'fishfm/import', logout: 'fishfm/logout' })[action];
+      const endpoint = ({ begin: 'fishfm/login-start', poll: 'fishfm/login-poll', import: 'fishfm/import', logout: 'fishfm/logout', discovery: 'fishfm/discovery-refresh' })[action];
       if (!endpoint) return;
       ++epoch; read?.abort(); read = null;
       const progress = action === 'poll' ? '正在确认手机扫码…'
@@ -111,7 +111,8 @@ export function createController(connection) {
           imported: action === 'logout' ? null : Object.hasOwn(value, 'imported') ? value.imported : state.imported,
           importAttempts: action === 'import' ? value.attempts ?? [] : state.importAttempts,
           connected: true, error: '',
-          notice: action === 'logout' ? '已退出网易云账号，本机凭据已删除。'
+          notice: action === 'discovery' ? (value.discovery?.refreshing ? '正在后台刷新推荐候选…' : '候选状态已更新；刷新间隔限制仍有效。')
+            : action === 'logout' ? '已退出网易云账号，本机凭据已删除。'
             : action === 'import'
               ? `已读取${sourceNames[value.imported?.source] || '平台音乐'}：本次新增 ${value.imported?.imported ?? 0} 首，当前共 ${value.imported?.total ?? 0} 首${value.imported?.source !== 'recent' ? '，使用备用来源' : ''}${value.imported?.total < value.imported?.requested ? '，返回数量不足目标，仍可播放' : ''}`
               : value.login?.identityError || (value.login?.status === 'authorized' ? '登录成功，可以导入音乐。'

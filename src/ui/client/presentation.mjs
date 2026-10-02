@@ -12,6 +12,20 @@ export function filterLibrary(tracks, query) {
   return (tracks ?? []).filter(track => !needle || `${track.title || ''} ${track.artist || ''} ${track.providerTrackId || ''}`.toLocaleLowerCase().includes(needle));
 }
 
+export function discoveryPresentation(snapshot) {
+  const data = snapshot?.discovery;
+  if (!snapshot?.settings?.discovery || snapshot.settings.discoveryRate === 0) return '探索已关闭；自主选择使用熟悉歌曲。';
+  if (!data) return '推荐候选状态尚未读取。';
+  const names = { netease_daily: '网易云每日推荐', netease_personal_fm: '网易云私人 FM', platform_recommendation: '平台推荐' };
+  const sources = (data.sources ?? []).map(source => names[source] || '平台推荐').join('、');
+  if (data.refreshing) return `正在后台刷新；现有陌生候选 ${data.count ?? 0} 首。`;
+  if (data.count > 0) return `陌生候选 ${data.count} 首${sources ? ` · ${sources}` : ''}${data.reason ? '；刷新暂未成功，保留有效缓存。' : ''}`;
+  if (data.state === 'idle') return '等待后台获取推荐候选。';
+  if (data.reason === 'login-required') return '推荐需要有效登录；暂从熟悉歌曲选择。';
+  if (data.state === 'empty') return '暂时没有可用陌生候选；自主选择会回退熟悉歌曲。';
+  return '推荐暂不可用；自主选择会回退熟悉歌曲。';
+}
+
 export function popupPlacement(frame, bar, requestedHeight = 340) {
   const above = Math.max(0, bar.top - frame.top - 12);
   const below = Math.max(0, frame.bottom - bar.bottom - 12);

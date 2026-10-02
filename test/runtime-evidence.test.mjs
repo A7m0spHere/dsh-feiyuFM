@@ -4,6 +4,16 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createRuntimeEvidence, readRuntimeEvidence } from '../src/runtime/evidence.mjs';
+test('high frequency progress retains exact counts without evicting the useful playback milestones', () => {
+  const evidence = createRuntimeEvidence({ now: () => 1000, limit: 10 });
+  try {
+    evidence.event({ type: 'selected', playInstanceId: 'p1' });
+    for (let i=0; i<10000; i++) evidence.event({ type: 'playback', event: 'progress', playInstanceId: 'p1', positionMs: i });
+    assert.equal(evidence.report().counts['playback:progress'],10000);
+    assert.equal(evidence.report().events.length,2);
+    assert.equal(evidence.report().events[0].type,'selected');
+  } finally { evidence.close(); }
+});
 test('production evidence retains actual counts, bounds traces and cannot claim unobserved DSH coverage', () => {
   const directory = mkdtempSync(join(tmpdir(), 'fishfm-evidence-'));
   let now = 1000;

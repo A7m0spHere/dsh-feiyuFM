@@ -284,6 +284,20 @@ window.__ModuleLoader__.load({
       return (tracks ?? []).filter(track => !needle || `${track.title || ''} ${track.artist || ''} ${track.providerTrackId || ''}`.toLocaleLowerCase().includes(needle));
     }
 
+    function discoveryPresentation(snapshot) {
+      const data = snapshot?.discovery;
+      if (!snapshot?.settings?.discovery || snapshot.settings.discoveryRate === 0) return '探索已关闭；自主选择使用熟悉歌曲。';
+      if (!data) return '推荐候选状态尚未读取。';
+      const names = { netease_daily: '网易云每日推荐', netease_personal_fm: '网易云私人 FM', platform_recommendation: '平台推荐' };
+      const sources = (data.sources ?? []).map(source => names[source] || '平台推荐').join('、');
+      if (data.refreshing) return `正在后台刷新；现有陌生候选 ${data.count ?? 0} 首。`;
+      if (data.count > 0) return `陌生候选 ${data.count} 首${sources ? ` · ${sources}` : ''}${data.reason ? '；刷新暂未成功，保留有效缓存。' : ''}`;
+      if (data.state === 'idle') return '等待后台获取推荐候选。';
+      if (data.reason === 'login-required') return '推荐需要有效登录；暂从熟悉歌曲选择。';
+      if (data.state === 'empty') return '暂时没有可用陌生候选；自主选择会回退熟悉歌曲。';
+      return '推荐暂不可用；自主选择会回退熟悉歌曲。';
+    }
+
     function popupPlacement(frame, bar, requestedHeight = 340) {
       const above = Math.max(0, bar.top - frame.top - 12);
       const below = Math.max(0, frame.bottom - bar.bottom - 12);
@@ -385,7 +399,7 @@ window.__ModuleLoader__.load({
         },
         async platformAction(action, provider) {
           if (disposed || state.busy || !state.connected) return;
-          const endpoint = ({ begin: 'fishfm/login-start', poll: 'fishfm/login-poll', import: 'fishfm/import', logout: 'fishfm/logout' })[action];
+          const endpoint = ({ begin: 'fishfm/login-start', poll: 'fishfm/login-poll', import: 'fishfm/import', logout: 'fishfm/logout', discovery: 'fishfm/discovery-refresh' })[action];
           if (!endpoint) return;
           ++epoch; read?.abort(); read = null;
           const progress = action === 'poll' ? '正在确认手机扫码…'
@@ -404,7 +418,8 @@ window.__ModuleLoader__.load({
               imported: action === 'logout' ? null : Object.hasOwn(value, 'imported') ? value.imported : state.imported,
               importAttempts: action === 'import' ? value.attempts ?? [] : state.importAttempts,
               connected: true, error: '',
-              notice: action === 'logout' ? '已退出网易云账号，本机凭据已删除。'
+              notice: action === 'discovery' ? (value.discovery?.refreshing ? '正在后台刷新推荐候选…' : '候选状态已更新；刷新间隔限制仍有效。')
+                : action === 'logout' ? '已退出网易云账号，本机凭据已删除。'
                 : action === 'import'
                   ? `已读取${sourceNames[value.imported?.source] || '平台音乐'}：本次新增 ${value.imported?.imported ?? 0} 首，当前共 ${value.imported?.total ?? 0} 首${value.imported?.source !== 'recent' ? '，使用备用来源' : ''}${value.imported?.total < value.imported?.requested ? '，返回数量不足目标，仍可播放' : ''}`
                   : value.login?.identityError || (value.login?.status === 'authorized' ? '登录成功，可以导入音乐。'
@@ -634,6 +649,10 @@ window.__ModuleLoader__.load({
               toggle('DeepSeek 自主听歌', '允许自动选歌、续播，并从实际收听中成长。', 'listening', 'setListening'),
               toggle('电脑输出声音', '关闭后仍记录播放进度，但不会让电脑发声。', 'humanPlayback', 'setHumanPlayback'),
               toggle('探索新音乐', '有可用候选时尝试发现陌生歌曲。', 'discovery', 'setDiscovery'),
+              h('p', { className: 'fm-note', role: 'status', 'aria-live': 'polite' }, discoveryPresentation(snapshot)),
+              snapshot?.lastSelection?.fellBack && h('p', { className: 'fm-note' }, '最近一次自主选择：发现池无可用候选，已回退熟悉歌曲。'),
+              state.features?.discoveryRefresh && h('button', { type: 'button', className: 'fm-button', disabled: disabled || !settings.discovery || settings.discoveryRate === 0 || state.platforms?.netease?.account?.status !== 'authorized',
+                onClick: () => controller.platformAction('discovery', 'netease') }, '刷新推荐候选'),
               h('div', { className: 'fm-rate' }, h('div', { className: 'fm-rate-head' }, h('label', { htmlFor: rateId }, '新歌探索率'), h('output', { htmlFor: rateId }, `${rate}%`)),
                 h('input', { id: rateId, 'aria-label': '新歌探索率', type: 'range', min: 0, max: 100, step: 1, value: rate, disabled: disabled || !settings.discovery,
                   onChange: e => setRate(Number(e.target.value)) }),

@@ -308,6 +308,19 @@ export class MusicStore {
     return !this.db.prepare('SELECT 1 FROM track_availability WHERE track_key=? AND expires_at>?').get(trackId(track), now);
   }
 
+  hasEffectiveListen(track) {
+    return Boolean(this.db.prepare(`SELECT 1 FROM listen_history h LEFT JOIN tracks t USING(track_key)
+      WHERE h.track_key=? AND h.end_reason IN ('ended','skipped')
+      AND h.effective_ms >= MIN(30000, COALESCE(t.duration_ms / 2.0, 30000)) LIMIT 1`).get(trackId(track)));
+  }
+
+  listAgentKnownTracks() {
+    return this.db.prepare(`SELECT DISTINCT t.* FROM tracks t JOIN listen_history h USING(track_key)
+      WHERE h.selected_by='agent' AND h.agent_listening=1 AND h.end_reason IN ('ended','skipped')
+      AND COALESCE(h.agent_effective_ms, h.effective_ms) >= MIN(30000, COALESCE(t.duration_ms / 2.0, 30000))
+      ORDER BY t.track_key`).all();
+  }
+
   getTrackStats(track) {
     return this.db.prepare('SELECT * FROM track_stats WHERE track_key = ?').get(trackId(track)) ?? null;
   }

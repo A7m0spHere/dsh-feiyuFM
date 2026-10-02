@@ -35,3 +35,12 @@ test('recommendation errors fall back to personal FM, cancellation and invalid s
     finally { invalid.store.close(); }
   } finally { f.store.close(); }
 });
+
+test('a recommendation authentication rejection expires the stored reference instead of continuing to advertise availability', async () => {
+  const f = fixture({ recommend_songs: async () => { throw { status: 200, body: { code: 301 } }; } });
+  try {
+    await assert.rejects(f.provider.getDiscoveryTracks(), { code: 'login_required' });
+    assert.equal(f.provider.getAccount().status, 'expired');
+    assert.equal(f.provider.getCapabilities().recommendation.status, 'login_required');
+  } finally { f.store.close(); }
+});

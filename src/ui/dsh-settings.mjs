@@ -8,7 +8,7 @@ const ALLOWED = new Set(['pause', 'resume', 'next', 'setListening', 'setHumanPla
   'setDiscovery', 'setDiscoveryRate', 'setMode', 'stopForToday', 'requestTrack']);
 const QUICK_LOGIN_PROVIDER = 'netease';
 const STATE_ENDPOINT = 'fishfm/state';
-const PLATFORM_ENDPOINTS = new Set(['fishfm/login-start', 'fishfm/login-poll', 'fishfm/import', 'fishfm/logout']);
+const PLATFORM_ENDPOINTS = new Set(['fishfm/login-start', 'fishfm/login-poll', 'fishfm/import', 'fishfm/logout', 'fishfm/discovery-refresh']);
 const SAFE_STAGES = new Set(['login_qr_key', 'login_qr_check', 'login_status', 'user_record', 'likelist', 'user_playlist', 'playlist_detail', 'song_detail',
   'accountInfo', 'recentTracks', 'likedTracks', 'playlists', 'playlistTracks', 'songDetails']);
 
@@ -52,7 +52,7 @@ async function readSettingsState(bridge, signal) {
     bridge.request({ type: 'library' }, { signal, abortable: true }),
   ]);
   // Publish only the UI projection, never credentials or media handles.
-  return { snapshot: state.snapshot, platforms: platforms.platforms, library: library.library };
+  return { snapshot: state.snapshot, platforms: platforms.platforms, library: library.library, features: { discoveryRefresh: true } };
 }
 
 export function createSettingsHandler(bridge) {
@@ -66,6 +66,10 @@ export function createSettingsHandler(bridge) {
           throw Object.assign(new Error('Quick login is only available for the configured NetEase adapter'), { code: 'platform_unavailable' });
         }
         await bridge.start();
+        if (endpoint === 'fishfm/discovery-refresh') {
+          const refreshed = await bridge.request({ type: 'discovery' }, { signal, abortable: true });
+          return { ok: true, value: { discovery: refreshed.discovery, ...(await readSettingsState(bridge, signal)) } };
+        }
         if (endpoint === 'fishfm/login-start') {
           const started = await bridge.request({ type: 'login', step: 'begin', provider: QUICK_LOGIN_PROVIDER }, { signal, abortable: true });
           const key = started.login?.key;

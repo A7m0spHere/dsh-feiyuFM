@@ -2,6 +2,18 @@
 
 更新：2026-09-27。此契约由 `src/` 的可运行实现定义，供后续 DSH Adapter、Provider 和 Playback 接入；它不是 DSH 已发布的事件或 SDK 接口。
 
+## N0–N3 增量（2026-10-02）
+
+- NetEase 可选 `getDiscoveryTracks({limit=40,signal})` 返回规范化 Track 数组，附 `discovery={source,seedTrackKey,fetchedAt,expiresAt}`；当前来源为账号每日推荐/私人 FM。缺方法不伪装为空结果；QQ 尚未接入真实推荐。
+- facade/Host 有界后台刷新，selector 只读缓存；`snapshot.discovery` 为只读状态投影，包含 state/count/cached/sources、最近尝试/成功及下次允许时间。Host `discovery` 消息立即返回调度状态；认证 `fishfm/discovery-refresh` 使用同一入口，宿主 features 标志决定按钮是否可用。
+- `current.origin` 保存自主选择的来源；`lastSelection` 增加 decisionId/source。已有效听过的自主曲目可以进入熟悉池，但不写成用户导入环境。
+- `current.effectiveMs/agentEffectiveMs/audibleMs` 与 `positionMs` 分开。真实 Playback 的 progress 增加 `effectiveDeltaMs`，用单调时间和连续观测限定本段推进；恢复起点、长缺口和 seek 不补算。手动/自主及声音切换保持独立计数。
+- schema v4 增加历史分段标识/有效 Agent 时长/可听时长、`growth_jobs` 和曲目临时可用性；历史与待处理成长同一事务，成长与已处理标记同一事务，实例幂等。启动重放待处理项，旧历史不批量重新成长；旧快照缺失分段字段时从 0 开始。
+- 自主明确不可播替换最多 3 个候选，排除有效期 30 分钟；网络/账号失败不惩罚偏好。选择 RNG 状态随 Core 状态保留，重启恢复仍暂停。
+- Core/Adapter 生产诊断分别保存 runtime 报告，观察入口只读、不启动 Core。DSH 模型请求及上下文覆盖仍为 unknown；不因此声称 A09 两小时通过。
+
+以下为早期契约与历史验证说明，现场状态见 [N0](spikes/N0-runtime-evidence.md)、[N1](spikes/N1-autonomous-accounting.md)、[N2](spikes/N2-netease-discovery.md)、[N3](spikes/N3-discovery-cache.md)。
+
 ## 边界
 
 - 一个本地用户配置只有一个 `MusicCore` 实例和一条候选队列。Core 是状态唯一写入者；窗口和多个 DSH Session 将来都向它提交命令。
