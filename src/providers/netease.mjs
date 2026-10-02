@@ -130,7 +130,7 @@ function communityFailure(stage, { response = null, error = null } = {}) {
   });
 }
 
-function createCommunityTransport(transport, { api, credentials, accountRef, communityLogin }) {
+function createCommunityTransport(transport, { api, credentials, accountRef, communityLogin, onLog = () => {} }) {
   let currentSession = null;
   const cookieJar = createCookieJar();
   return {
@@ -162,6 +162,7 @@ function createCommunityTransport(transport, { api, credentials, accountRef, com
       let response;
       for (let attempt = 0; attempt < 2; attempt++) {
         try {
+          onLog({ type: 'platform-request', role: config.method, provider: NETEASE });
           response = await communityCallContext.run(true, () => method({ ...request.params, cookie: config.qr ? {} : session, timeout: config.qr ? 10_000 : 15_000 }));
           if (request.role === 'loginPoll' && (response?.status >= 500 || response?.body?.code === 502)) throw response;
           break;
@@ -284,6 +285,7 @@ export function createNetEaseProvider(options = {}) {
     credentials: options.credentials,
     accountRef,
     communityLogin: options.communityLogin !== false,
+    onLog: options.onLog,
   });
   const uid = () => store?.getCredentialReference?.(NETEASE)?.account_id ?? null;
   const provider = createPlatformProvider({

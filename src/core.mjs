@@ -51,7 +51,7 @@ function _pruneExpiries(map, now, keepMs = 10 * 60 * 1000, max = 32) {
 }
 
 export class MusicCore {
-  constructor({ store, provider, playback, selector = null, onListened = null, clock = { now: () => Date.now(), sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)) } }) {
+  constructor({ store, provider, playback, selector = null, onListened = null, onLog = () => {}, clock = { now: () => Date.now(), sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)) } }) {
     if (!store || !provider || !playback) throw new Error('store, provider and playback are required');
     this.store = store;
     this.provider = provider;
@@ -75,6 +75,7 @@ export class MusicCore {
     // Optional growth hook, called once per recorded listen. Policy lives in
     // src/growth.mjs so the core stays free of taste rules.
     this.onListened = onListened;
+    this.onLog = onLog;
     this.clock = clock;
     const saved = store.getCoreState();
     this.state = saved ? {
@@ -228,6 +229,7 @@ export class MusicCore {
     this.state.status = keepPaused ? 'paused' : 'resolving';
     this.state.lastError = null;
     this._commit();
+    this.onLog({ type: 'selected', playInstanceId: this.state.current.playInstanceId, trackKey: trackId(track), selectedBy, decisionId: this.state.lastSelection?.decisionId, pool: selectedBy === 'agent' ? this.state.lastSelection?.pool : 'user' });
     if (keepPaused) this._control('stop', { version });
     else this._launch(() => this._resolveAndPlay(version), version);
   }
@@ -422,6 +424,7 @@ export class MusicCore {
       });
       next = decision?.track ?? null;
       this.state.lastSelection = {
+        decisionId: randomUUID(),
         at: this.clock.now(),
         trackKey: next ? trackId(next) : null,
         pool: decision?.pool ?? null,
@@ -437,6 +440,7 @@ export class MusicCore {
       next = this._takeNext();
     }
 
+    this.onLog({ type: 'selection', ...this.state.lastSelection });
     if (!next) return false;
     this._select(next, 'agent', false);
     return true;

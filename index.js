@@ -18,6 +18,7 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { CoreBridge, registerAdapter } from './src/dsh-adapter.mjs';
 import { registerSettingsApi } from './src/ui/dsh-settings.mjs';
+import { createRuntimeEvidence } from './src/runtime/evidence.mjs';
 
 export const name = 'fishfm';
 
@@ -106,11 +107,13 @@ export function defaultDatabase(env = process.env) {
 
 export function apply(ctx, config = {}) {
   const settings = { ...DEFAULT_SETTINGS, ...(config ?? {}) };
+  const database = settings.database ?? defaultDatabase();
+  const evidence = createRuntimeEvidence({ directory: database === ':memory:' ? null : join(dirname(database), 'runtime'), component: 'adapter', mode: settings.playback === 'real' ? 'real' : 'synthetic' });
   const command = coreCommand({
     coreEntry: settings.coreEntry,
     playback: settings.playback,
     provider: settings.provider,
-    database: settings.database ?? defaultDatabase(),
+    database,
   });
 
   const bridge = new CoreBridge({
@@ -125,7 +128,7 @@ export function apply(ctx, config = {}) {
     },
   });
 
-  const dispose = registerAdapter(ctx, { bridge });
+  const dispose = registerAdapter(ctx, { bridge, onLog: entry => evidence.event(entry) });
   // Optional in headless profiles; the browser uses the host's authenticated RPC.
   if (typeof ctx.inject === 'function') {
     ctx.inject(['connection'], (uiCtx) => registerSettingsApi(uiCtx, bridge));
@@ -137,5 +140,5 @@ export function apply(ctx, config = {}) {
     try { ctx.logger?.('fishfm')?.warn?.(`music core failed to start: ${error.message}`); } catch { /* optional */ }
   });
 
-  return dispose;
+  return () => { dispose(); evidence.close(); };
 }

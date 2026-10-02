@@ -97,6 +97,7 @@ export function createHttpTransport({
       }
 
       const method = (descriptor.method ?? (descriptor.body ? 'POST' : 'GET')).toUpperCase();
+      onLog({ type: 'platform-request', role, provider: 'http' });
       const headers = { 'user-agent': userAgent, accept: 'application/json', ...(descriptor.headers ?? {}) };
       const cookie = jar.header();
       if (cookie && descriptor.includeCookies !== false) headers.cookie = cookie;

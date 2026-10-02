@@ -172,7 +172,7 @@ export function buildProviderRegistry({ adapters = {}, credentials = null, store
       onLog({ type: 'provider', provider: name, installed: false, reason: 'no transport or endpoints configured' });
       continue;
     }
-    const options = { transport, credentials, store, now, ...(config.options ?? {}) };
+    const options = { transport, credentials, store, now, onLog, ...(config.options ?? {}) };
     providers[name] = name === 'qq' ? createQQProvider(options) : createNetEaseProvider(options);
     onLog({
       type: 'provider', provider: name, installed: true,
@@ -343,6 +343,7 @@ export function createCoreHost({
           send({ type: 'result', id, ok: true, snapshot: core.snapshot() });
           return;
         case 'command': {
+          onLog({ type: 'command', kind: message.command?.type });
           const snapshot = core.dispatch({ ...message.command, commandId: message.command?.commandId ?? randomUUID() });
           await core.waitForIdle();
           send({ type: 'result', id, ok: true, snapshot: core.snapshot(), accepted: snapshot.revision });
@@ -581,6 +582,7 @@ export function createCoreHost({
       }, Math.max(maintenanceIntervalMs ?? stateIntervalMs * 30, 250));
       maintenance.unref?.();
       core = new MusicCore({
+        onLog,
         store,
         provider: activeProvider,
         playback,
@@ -603,6 +605,7 @@ export function createCoreHost({
           });
           onLog({
             type: 'growth', updated: report.updated, reason: report.reason, delta: report.delta ?? 0,
+            playInstanceId: entry.playInstanceId, effectiveMs: entry.effectiveMs, before: report.before, after: report.after,
             session: sessionId ? `${sessionId.slice(0, 8)}…` : null, capped: Boolean(report.sessionCapped),
           });
           if (report.updated) publishIfChanged();
@@ -612,6 +615,7 @@ export function createCoreHost({
       });
       playback.onEvent((event) => {
         const accepted = core.onPlaybackEvent(event);
+        onLog({ type: 'playback', event: event.type, playInstanceId: event.playInstanceId, positionMs: event.positionMs, accepted });
         if (accepted) publishIfChanged();
         return accepted;
       });

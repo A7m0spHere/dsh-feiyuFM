@@ -326,7 +326,8 @@ export function registerAdapter(ctx, { bridge, onLog = () => {} }) {
   };
 
   withService(['tools'], (toolCtx) => {
-    disposers.push(toolCtx.tools.register({
+    const registerTool = spec => { const dispose = toolCtx.tools.register(spec); onLog({ type: 'prompt-register', kind: 'tool', name: spec.name }); return dispose; };
+    disposers.push(registerTool({
       name: TOOL_NAMES.status,
       description: 'Report FishFM music state: current track, queue length, listening switches and the last error. No network access.',
       parameters: {
@@ -363,7 +364,7 @@ export function registerAdapter(ctx, { bridge, onLog = () => {} }) {
       },
     }));
 
-    disposers.push(toolCtx.tools.register({
+    disposers.push(registerTool({
       name: TOOL_NAMES.control,
       description: 'Control FishFM playback: pause, resume, next, or stop autonomous listening for today. Local only; never contacts a music platform.',
       parameters: {
@@ -407,7 +408,7 @@ export function registerAdapter(ctx, { bridge, onLog = () => {} }) {
       },
     }));
 
-    disposers.push(toolCtx.tools.register({
+    disposers.push(registerTool({
       name: TOOL_NAMES.request,
       description: 'Ask FishFM to play one specific track by platform id. Fails with a named reason when that platform is not connected or the track is banned.',
       parameters: {
@@ -448,7 +449,8 @@ export function registerAdapter(ctx, { bridge, onLog = () => {} }) {
   });
 
   withService(['commands'], (commandCtx) => {
-    disposers.push(commandCtx.commands.register({
+    const registerCommand = spec => { const dispose = commandCtx.commands.register(spec); onLog({ type: 'prompt-register', kind: 'command', name: spec.name }); return dispose; };
+    disposers.push(registerCommand({
       name: COMMAND_NAMES[0],
       description: 'Show FishFM music state.',
       handler: async () => {
@@ -458,7 +460,7 @@ export function registerAdapter(ctx, { bridge, onLog = () => {} }) {
         return { kind: 'success', text: `FishFM: ${label} (${answer.snapshot?.status ?? 'unknown'})` };
       },
     }));
-    disposers.push(commandCtx.commands.register({
+    disposers.push(registerCommand({
       name: COMMAND_NAMES[1],
       description: 'Pause FishFM playback. Autonomous events cannot undo this.',
       handler: async () => {
@@ -466,7 +468,7 @@ export function registerAdapter(ctx, { bridge, onLog = () => {} }) {
         return { kind: 'success', text: 'FishFM paused.' };
       },
     }));
-    disposers.push(commandCtx.commands.register({
+    disposers.push(registerCommand({
       name: COMMAND_NAMES[2],
       description: 'Play the next queued track in FishFM.',
       handler: async () => {

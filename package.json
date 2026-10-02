@@ -43,6 +43,7 @@
     "core": "node bin/fishfm-core.mjs",
     "login": "node scripts/login.mjs",
     "soak": "node scripts/soak.mjs",
+    "observe:runtime": "node scripts/observe-runtime.mjs",
     "verify:lifecycle": "node scripts/verify-lifecycle.mjs",
     "audit:acceptance": "node scripts/audit-acceptance.mjs",
     "smoke:playback": "node scripts/playback-smoke.mjs"

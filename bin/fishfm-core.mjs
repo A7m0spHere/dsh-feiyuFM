@@ -17,6 +17,7 @@ import { MusicStore } from '../src/storage.mjs';
 import { createDpapiCredentials } from '../src/providers/credentials-dpapi.mjs';
 import { neteaseEndpoints } from '../src/providers/endpoints/netease.mjs';
 import { dirname, join, resolve } from 'node:path';
+import { createRuntimeEvidence } from '../src/runtime/evidence.mjs';
 
 const argValue = (name, fallback) => {
   const index = process.argv.indexOf(name);
@@ -31,7 +32,9 @@ if (!['real', 'fake'].includes(playbackMode)) throw new Error('--playback must b
 if (!['real', 'fake'].includes(providerMode)) throw new Error('--provider must be real or fake');
 if (!['environment', 'queue'].includes(selectionMode)) throw new Error('--selection must be environment or queue');
 
+const evidence = createRuntimeEvidence({ directory: dbPath === ':memory:' ? null : join(dirname(resolve(dbPath)), 'runtime'), mode: playbackMode === 'real' && providerMode === 'real' ? 'real' : 'synthetic' });
 const onLog = (entry) => {
+  evidence.event(entry);
   // Diagnostics only; never log credentials or resolved media URLs.
   process.stderr.write(`fishfm-core: ${JSON.stringify(entry)}\n`);
 };
@@ -59,5 +62,6 @@ try {
     onLog,
   });
 } finally {
+  evidence.close();
   store?.close();
 }
