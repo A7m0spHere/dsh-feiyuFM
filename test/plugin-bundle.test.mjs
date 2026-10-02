@@ -4,7 +4,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { dirname, join, resolve } from 'node:path';
+import { dirname, isAbsolute, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { apply, coreCommand, defaultDatabase } from '../index.js';
 
@@ -48,7 +48,9 @@ test('the database lives under the Harness home, never in the repository', () =>
   assert.equal(defaultDatabase({}), join(homedir(), '.dsh', 'fishfm', 'music.sqlite'));
   assert.equal(defaultDatabase({ DSH_HOME: '  ' }), defaultDatabase({}));
   assert.equal(defaultDatabase({ DSH_HOME: '~/.dsh-test' }), join(homedir(), '.dsh-test', 'fishfm', 'music.sqlite'));
-  assert.equal(resolve(root).includes('dsh-音乐'), true);
+  const databaseRelativeToRepo = relative(root, defaultDatabase({}));
+  assert.ok(isAbsolute(databaseRelativeToRepo) || databaseRelativeToRepo.startsWith('..'),
+    'the default database must be outside any repository checkout path');
   assert.equal(defaultDatabase({ DSH_HOME: 'C:\\Users\\x\\.dsh' }).startsWith(root), false);
 });
 

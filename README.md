@@ -76,14 +76,13 @@ git clone https://github.com/A7m0spHere/dsh-feiyuFM.git
 cd dsh-feiyuFM
 ```
 
-每次开始工作前，在工作区干净时同步；独立工作使用单独分支：
+日常开发直接使用 `main`。每次开始工作前，在工作区干净时同步：
 
 ```sh
 git switch main
 git pull --ff-only
-git switch -c codex/your-task
 ```
 
-完成后提交本次相关文件并推送分支。在另一台设备继续同一任务时，先 `git fetch origin`，再切换对应分支并 `git pull --ff-only`。未提交的本地改动不会跨设备同步，推送需要有仓库写权限的 GitHub 账号。
+每项完成的任务形成独立提交，检查通过后推送 `main`。同一任务在两台设备之间串行接续，另一台先切到 `main` 并 `git pull --ff-only`。未提交的本地改动不会跨设备同步，推送需要有仓库写权限的 GitHub 账号。
 
 账号凭据、Cookie、运行数据库和音频文件留在各设备本地，不通过仓库同步。
