@@ -36,7 +36,7 @@ const EVIDENCE = [
       { file: 'test/providers.test.mjs', name: 'the NetEase adapter passes the shared provider contract' },
       { file: 'test/providers-qq.test.mjs', name: 'the QQ adapter passes the same shared contract checks as NetEase' },
     ],
-    unverified: '网易云 P3 登录/近期导入/点播/暂停/恢复/换曲已通过，搜索补充探针通过；QQ 仍未真实接入，双平台 A01 未通过',
+    unverified: '网易云 P3 通过；QQ 按用户要求暂缓，双平台 A01 未通过',
   },
   {
     id: 'A02', claim: '可导入目标数量；数量不足、收藏/歌单降级和空结果均如实展示',
@@ -90,7 +90,7 @@ const EVIDENCE = [
   {
     id: 'A07', claim: 'DSH 内嵌音乐设置与 shell.overlay 悬浮条共用 Core；显示状态同步，隐藏/页面切换不停止播放',
     status: 'partial',
-    files: ['test/ui-bridge.test.mjs', 'test/ui-ipc.test.mjs', 'test/ui-panel.test.mjs', 'test/dsh-client.test.mjs', 'test/dsh-settings.test.mjs', 'test/client-assets.test.mjs', 'docs/spikes/U3-dsh-settings.md', 'docs/spikes/U4-quick-login.md', 'docs/spikes/U5-official-desktop.md'],
+    files: ['test/ui-bridge.test.mjs', 'test/ui-ipc.test.mjs', 'test/ui-panel.test.mjs', 'test/dsh-client.test.mjs', 'test/dsh-settings.test.mjs', 'test/client-assets.test.mjs', 'docs/spikes/U3-dsh-settings.md', 'docs/spikes/U4-quick-login.md', 'docs/spikes/U5-official-desktop.md', 'docs/spikes/U7-phl-ui-motion.md', 'test/ui-presentation.test.mjs'],
     tests: [
       { file: 'test/dsh-client.test.mjs', name: 'client contributes native sidebar, main and settings seats; controls send Core commands' },
       { file: 'test/dsh-client.test.mjs', name: 'floating music control shares Core actions and its menu opens the full settings panel' },
@@ -99,7 +99,7 @@ const EVIDENCE = [
       { file: 'test/dsh-client.test.mjs', name: 'dragging docks the floating bar to an edge and arrow keys move it accessibly' },
       { file: 'test/dsh-settings.test.mjs', name: 'settings RPC persists changes through Core restart and preserves pause' },
     ],
-    unverified: '官方 desktop 基础 UI 与 P3 点播/离开面板且浮层隐藏时音频连续性已验；深色主题、窄窗口、完整键盘与播放中浮层控制仍未验',
+    unverified: 'U7 深色/窄窗口/键盘/动效浏览器验证与真实 DSH 搜索已验；完整真实宿主键盘与长期播放覆盖仍待验',
   },
   {
     id: 'A08', claim: '多 Session 不抢占播放；插件退出停止音乐，DSH 正常工作',

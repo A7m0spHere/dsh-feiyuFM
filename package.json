@@ -37,6 +37,8 @@
     "check": "node scripts/check.mjs",
     "test": "node --test --test-timeout=30000",
     "build": "node scripts/build.mjs",
+    "build:client": "node scripts/build-client.mjs",
+    "preview:ui": "node scripts/ui-preview.mjs",
     "debug": "node bin/fishfm-debug.mjs",
     "core": "node bin/fishfm-core.mjs",
     "login": "node scripts/login.mjs",

@@ -1,8 +1,10 @@
 import { readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { verifyClientBundle } from './client-bundle.mjs';
 
 const min = [24, 14];
+verifyClientBundle();
 const [major, minor] = process.versions.node.split('.').map(Number);
 if (major !== min[0] || minor < min[1]) throw new Error('Node 24.14 or newer within Node 24 is required');
 

@@ -10,7 +10,16 @@ function fixture(call, storage = new Map()) {
   let activeHooks = null, cursor = 0;
   let bundle;
   const React = {
-    createElement: (type, props, ...children) => ({ type, props: props || {}, children: children.flat(Infinity) }),
+    createElement(type, props, ...children) {
+      if (typeof type !== 'function') return { type, props: props || {}, children: children.flat(Infinity) };
+      const parentHooks = activeHooks, parentCursor = cursor;
+      const instanceKey = `${type.name}:${props?.key ?? ''}`;
+      activeHooks = hooks.get(instanceKey) ?? []; cursor = 0;
+      const tree = type({ ...props, children: children.flat(Infinity) });
+      hooks.set(instanceKey, activeHooks);
+      activeHooks = parentHooks; cursor = parentCursor;
+      return tree;
+    },
     useSyncExternalStore: (_subscribe, snapshot) => snapshot(),
     useState(initial) {
       const index = cursor++;
@@ -57,6 +66,38 @@ const state = value => ({ ok: true, value: { snapshot: value, platforms: {} } })
 const tick = () => new Promise(resolve => setImmediate(resolve));
 function all(tree) { return !tree || typeof tree !== 'object' ? [] : [tree, ...tree.children.flatMap(all)]; }
 
+test('motion preferences survive remount and never send Core commands', async () => {
+  const storage = new Map(), calls = [];
+  const f = fixture(async (_channel, endpoint) => { calls.push(endpoint); return state(snapshot(1)); }, storage);
+  const off = f.controller.subscribe(() => {});
+  await tick();
+  all(f.render()).find(n => n.props['aria-label'] === '动态效果').props.onChange({ target: { value: 'off' } });
+  assert.equal(f.render().props['data-motion'], 'off');
+  assert.equal(calls.includes('fishfm/command'), false);
+  off(); f.dispose();
+  const again = fixture(async () => state(snapshot(1)), storage);
+  try { assert.equal(again.render().props['data-motion'], 'off'); }
+  finally { again.dispose(); }
+});
+
+test('manual first-play preserves autonomy settings and business errors do not mark the connection offline', async () => {
+  const calls = [];
+  const track = { provider: 'netease', providerTrackId: '42', title: 'Song' };
+  const f = fixture(async (_channel, endpoint, payload) => {
+    calls.push({ endpoint, payload });
+    if (endpoint === 'fishfm/command') return { ok: false, error: { code: 'no_candidates', message: 'No candidates' } };
+    const value = snapshot(1); value.settings.listening = false;
+    return { ok: true, value: { snapshot: value, library: { total: 1, tracks: [track] } } };
+  });
+  const off = f.controller.subscribe(() => {});
+  try {
+    await tick(); await f.controller.playOrPause();
+    assert.equal(calls.at(-1).payload.type, 'requestTrack');
+    assert.equal(f.controller.getSnapshot().snapshot.settings.listening, false);
+    assert.equal(f.controller.getSnapshot().connected, true);
+  } finally { off(); f.dispose(); }
+});
+
 test('an imported library restored from Core enables first playback and point play without importing again', async () => {
   const calls = [];
   const track = { provider: 'netease', providerTrackId: '42', title: 'Saved song', artist: 'Artist', durationMs: 180000 };
@@ -71,9 +112,7 @@ test('an imported library restored from Core enables first playback and point pl
     assert.equal(start.props.disabled, false);
     await start.props.onClick();
     assert.equal(calls.at(-1).payload.type, 'resume');
-    const picker = all(f.render()).find(n => n.props['aria-label'] === '选择已导入曲目');
-    picker.props.onChange({ target: { value: 'netease:42' } });
-    await all(f.render()).find(n => n.children.includes('播放这首')).props.onClick();
+    await all(f.render()).find(n => n.props['aria-label'] === '播放 Saved song · Artist').props.onClick();
     await tick();
     assert.deepEqual(JSON.parse(JSON.stringify(calls.at(-1).payload)), { type: 'requestTrack', track });
   } finally { off(); f.dispose(); }
@@ -107,6 +146,8 @@ test('client contributes native sidebar, main and settings seats; controls send 
     let closed = false;
     const close = all(f.render({ close: () => { closed = true; } })).find(n => n.children.includes('关闭设置'));
     close.props.onClick(); assert.equal(closed, true);
+    assert.equal(all(f.render({ close() {} })).some(n => n.props.className === 'fm-library'), false,
+      'settings stay focused on controls instead of repeating the entire library');
     assert.equal(all(f.render()).find(n => n.children.includes('开始听歌')).props.disabled, true);
   } finally { off(); f.dispose(); }
   assert.equal(f.intervals.size, 0); assert.equal(f.styles.length, 0);

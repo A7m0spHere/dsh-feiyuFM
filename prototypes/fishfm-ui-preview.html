@@ -1,576 +1,71 @@
 <!doctype html>
 <html lang="zh-CN">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="color-scheme" content="light">
-  <title>FishFM · DSH 主页面交互原型</title>
-  <style>
-    :root {
-      --ink: #17243c;
-      --muted: #7f8ba0;
-      --subtle: #aab3c1;
-      --line: #e6eaf0;
-      --paper: #f4f6f8;
-      --surface: #fff;
-      --blue: #5276d6;
-      --blue-deep: #20366f;
-      --sky: #dfe8ff;
-      --mint: #b9e1d5;
-      --apricot: #f0b58d;
-      --serif: "Iowan Old Style", "Palatino Linotype", Georgia, serif;
-      --sans: "Segoe UI Variable", "Microsoft YaHei UI", "Noto Sans CJK SC", sans-serif;
-      --shadow: 0 20px 55px rgba(32, 49, 92, .12), 0 3px 10px rgba(32, 49, 92, .045);
-      --shadow-soft: 0 8px 22px rgba(32, 49, 92, .065);
-    }
-    * { box-sizing: border-box; }
-    body { margin: 0; min-width: 320px; min-height: 100vh; color: var(--ink); background: #edf0f4; font-family: var(--sans); }
-    button, input { font: inherit; }
-    button { color: inherit; }
-    button:focus-visible, input:focus-visible { outline: 3px solid rgba(82,118,214,.34); outline-offset: 3px; }
-    .app { min-height: 100vh; display: grid; grid-template-rows: 54px minmax(0,1fr); overflow: hidden; background: var(--paper); }
-    .app-bar { display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 0 23px; border-bottom: 1px solid rgba(221,226,235,.85); background: rgba(255,255,255,.76); }
-    .bar-brand { display: flex; align-items: center; gap: 10px; min-width: 0; }
-    .bar-mark { width: 27px; height: 27px; display: grid; place-items: center; border-radius: 9px; color: #fff; background: var(--blue-deep); font-family: var(--serif); font-size: 17px; line-height: 1; }
-    .bar-title { font-size: 11px; font-weight: 750; letter-spacing: .11em; }
-    .bar-divider { width: 1px; height: 17px; background: var(--line); }
-    .bar-context { color: var(--muted); font-size: 10px; }
-    .bar-right { display: flex; align-items: center; gap: 10px; }
-    .demo-badge { display: inline-flex; align-items: center; gap: 7px; padding: 6px 9px; border: 1px solid #e4e9f2; border-radius: 999px; color: #76839a; background: #fff; font-size: 9px; }
-    .demo-badge::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: #df9b65; box-shadow: 0 0 0 3px #faeee4; }
-    .bar-avatar { width: 27px; height: 27px; display: grid; place-items: center; border: 1px solid #e5e9f0; border-radius: 50%; color: #697997; background: #f7f8fa; font-size: 10px; }
-
-    .app-body { min-height: 0; display: grid; grid-template-columns: 228px minmax(0,1fr); }
-    .sidebar { display: flex; flex-direction: column; min-height: 0; padding: 22px 13px 16px; border-right: 1px solid #e4e8ee; background: #f8f9fb; }
-    .workspace-brand { display: flex; align-items: center; gap: 9px; padding: 0 9px; color: #45536b; font-size: 11px; font-weight: 690; }
-    .workspace-mark { width: 22px; height: 22px; display: grid; place-items: center; border-radius: 50%; color: #fff; background: #758bc0; font-family: var(--serif); font-size: 13px; }
-    .new-session { height: 36px; margin: 22px 3px 20px; padding: 0 11px; border: 1px solid #e2e6ed; border-radius: 10px; color: #55627a; background: #fff; text-align: left; font-size: 10px; }
-    .side-caption { margin: 0 10px 8px; color: #a0a9b8; font-size: 8px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; }
-    .side-row { width: 100%; min-height: 36px; display: flex; align-items: center; gap: 10px; padding: 0 10px; border: 0; border-radius: 10px; color: #747f92; background: transparent; text-align: left; cursor: pointer; font-size: 10px; transition: background .16s ease, color .16s ease, transform .16s ease; }
-    .side-row:hover { color: #344b81; background: #eef2fb; }
-    .side-row:active { transform: scale(.985); }
-    .side-row.active { color: #304d9c; background: #eaf0ff; font-weight: 650; }
-    .side-icon { width: 18px; flex: 0 0 18px; display: grid; place-items: center; color: currentColor; font-size: 13px; }
-    .side-label { flex: 1; }
-    .side-status { width: 6px; height: 6px; border-radius: 50%; background: #82bfa9; box-shadow: 0 0 0 3px rgba(130,191,169,.12); }
-    .side-rule { height: 1px; margin: 13px 9px 12px; background: #e9edf2; }
-    .recent { color: #9aa4b4; }
-    .sidebar-spacer { flex: 1; }
-    .sidebar-foot { display: flex; align-items: center; gap: 8px; padding: 10px 10px 0; border-top: 1px solid #e9edf2; color: #9ca6b4; font-size: 8px; line-height: 1.45; }
-    .foot-light { width: 6px; height: 6px; flex: 0 0 6px; border-radius: 50%; background: #d6a071; }
-
-    .main { min-width: 0; min-height: 0; overflow: auto; padding: 25px clamp(22px,4.8vw,76px) 20px; background:
-      radial-gradient(ellipse at 88% 4%, rgba(208,220,250,.38), transparent 28%),
-      radial-gradient(ellipse at 15% 75%, rgba(226,236,228,.42), transparent 28%),
-      var(--paper); }
-    .page-wrap { width: min(1120px, 100%); margin: 0 auto; animation: page-in .34s cubic-bezier(.2,.75,.2,1) both; }
-    @keyframes page-in { from { opacity: 0; transform: translateY(9px); } to { opacity: 1; transform: translateY(0); } }
-    .page-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; margin: 0 0 16px; }
-    .eyebrow { margin: 0 0 9px; color: #8794ac; font-size: 8px; font-weight: 750; letter-spacing: .17em; }
-    .page-head h1 { margin: 0; color: #1b2a47; font-family: var(--serif); font-size: clamp(27px,2.8vw,35px); line-height: 1.06; font-weight: 500; letter-spacing: -.045em; }
-    .page-head h1 em { color: #5472bf; font-weight: 500; }
-    .page-intro { margin: 8px 0 0; color: #8792a4; font-size: 10px; line-height: 1.55; }
-    .head-actions { display: flex; align-items: center; gap: 8px; padding-bottom: 2px; }
-    .text-action { height: 31px; padding: 0 11px; border: 1px solid #e1e6ee; border-radius: 9px; color: #64728c; background: rgba(255,255,255,.74); cursor: pointer; font-size: 9px; transition: .15s ease; }
-    .text-action:hover { border-color: #c8d4ef; color: #3658ad; background: #fff; }
-    .icon-action { width: 32px; height: 32px; display: grid; place-items: center; border: 1px solid #e1e6ee; border-radius: 10px; color: #75819a; background: rgba(255,255,255,.74); cursor: pointer; font-size: 14px; transition: .15s ease; }
-    .icon-action:hover { color: #3455a5; background: #fff; transform: translateY(-1px); }
-
-    .page-tabs { display: flex; gap: 5px; margin-bottom: 12px; }
-    .page-tab { min-height: 27px; padding: 0 12px; border: 0; border-radius: 8px; color: #8a95a6; background: transparent; cursor: pointer; font-size: 9px; transition: .16s ease; }
-    .page-tab:hover { color: #405989; background: rgba(255,255,255,.68); }
-    .page-tab.active { color: #3153a0; background: #fff; box-shadow: 0 2px 9px rgba(36,52,89,.07); font-weight: 680; }
-    .view { display: none; }
-    .view.active { display: block; }
-
-    .now-card { position: relative; isolation: isolate; min-height: 270px; display: grid; grid-template-columns: minmax(0,1.06fr) minmax(260px,.94fr); overflow: hidden; border: 1px solid rgba(255,255,255,.58); border-radius: 24px; color: #f5f6fb; background:
-      radial-gradient(ellipse at 78% 45%, rgba(111,140,221,.44), transparent 28%),
-      radial-gradient(ellipse at 90% 4%, rgba(108,137,216,.27), transparent 34%),
-      linear-gradient(118deg, #1a2a52 0%, #243966 55%, #26375f 100%);
-      box-shadow: 0 19px 45px rgba(38,55,95,.19); }
-    .now-card::before { content: ""; position: absolute; z-index: -1; inset: 0; opacity: .12; background-image: radial-gradient(rgba(255,255,255,.64) .55px, transparent .75px); background-size: 7px 7px; mask-image: linear-gradient(110deg,transparent 25%,#000 100%); }
-    .now-copy { position: relative; z-index: 2; display: flex; flex-direction: column; justify-content: center; padding: 22px 0 22px clamp(25px,3.4vw,42px); }
-    .broadcast-label { display: flex; align-items: center; gap: 9px; color: #c5d1ef; font-size: 8px; font-weight: 700; letter-spacing: .13em; }
-    .broadcast-dot { width: 6px; height: 6px; border-radius: 50%; background: #b8decf; box-shadow: 0 0 0 4px rgba(184,222,207,.13); }
-    .song-title { max-width: 490px; margin: 19px 0 5px; overflow: hidden; color: #fff; font-family: var(--serif); font-size: clamp(29px,4.2vw,48px); line-height: 1.02; font-weight: 500; letter-spacing: -.045em; text-overflow: ellipsis; white-space: nowrap; }
-    .song-meta { display: flex; align-items: center; gap: 8px; color: #c7d1e4; font-size: 10px; }
-    .meta-dot { width: 3px; height: 3px; border-radius: 50%; background: #a4b3d2; }
-    .song-source { margin-left: 2px; padding: 4px 7px; border: 1px solid rgba(221,230,255,.18); border-radius: 999px; color: #b9c8eb; background: rgba(255,255,255,.05); font-size: 8px; }
-    .progress-wrap { width: min(465px,100%); margin-top: 20px; }
-    .progress-times { display: flex; justify-content: space-between; margin-bottom: 7px; color: #aebbd4; font-size: 8px; font-variant-numeric: tabular-nums; }
-    .progress { width: 100%; height: 4px; display: block; margin: 0; appearance: none; border-radius: 99px; background: rgba(226,234,255,.2); cursor: pointer; }
-    .progress::-webkit-slider-thumb { width: 10px; height: 10px; appearance: none; border: 2px solid #fff; border-radius: 50%; background: #9db7ff; box-shadow: 0 0 0 4px rgba(157,183,255,.17); }
-    .progress::-moz-range-thumb { width: 7px; height: 7px; border: 2px solid #fff; border-radius: 50%; background: #9db7ff; box-shadow: 0 0 0 4px rgba(157,183,255,.17); }
-    .transport { display: flex; align-items: center; gap: 10px; margin-top: 15px; }
-    .transport-btn { width: 31px; height: 31px; display: grid; place-items: center; border: 1px solid rgba(226,234,255,.16); border-radius: 50%; color: #e4e9f5; background: rgba(255,255,255,.055); cursor: pointer; transition: .16s ease; font-size: 11px; }
-    .transport-btn:hover { background: rgba(255,255,255,.14); transform: translateY(-1px); }
-    .transport-btn.primary { width: 41px; height: 41px; border: 0; color: #243b75; background: #edf2ff; box-shadow: 0 7px 20px rgba(0,0,0,.13); font-size: 13px; }
-    .transport-btn.primary:hover { background: #fff; transform: scale(1.04); }
-    .transport-hint { margin-left: 3px; color: #b6c1d8; font-size: 8px; }
-    .art-stage { position: relative; min-height: 270px; display: grid; place-items: center; overflow: hidden; }
-    .art-stage::before { content: ""; position: absolute; width: 218px; height: 218px; border: 1px solid rgba(215,226,255,.13); border-radius: 50%; box-shadow: 0 0 0 19px rgba(215,226,255,.025), 0 0 0 44px rgba(215,226,255,.018); }
-    .art-stage::after { content: ""; position: absolute; width: 190px; height: 190px; border: 1px dashed rgba(215,226,255,.16); border-radius: 50%; transform: rotate(-22deg) scaleY(.7); }
-    .whale-art { position: relative; z-index: 1; width: min(82%,270px); height: 250px; object-fit: contain; filter: drop-shadow(0 14px 22px rgba(3,11,33,.28)); transform-origin: 50% 82%; animation: float 5.2s ease-in-out infinite; transition: opacity .22s ease, transform .22s ease; }
-    .whale-art.pose-change { opacity: .65; transform: scale(.96); }
-    @keyframes float { 0%,100% { transform: translateY(0) rotate(-1deg); } 50% { transform: translateY(-7px) rotate(1deg); } }
-    .art-caption { position: absolute; z-index: 2; right: 26px; bottom: 18px; color: rgba(225,232,248,.7); font-size: 7px; letter-spacing: .15em; }
-    .now-foot { position: absolute; z-index: 3; right: 20px; top: 17px; display: flex; align-items: center; gap: 7px; color: #b9c8e9; font-size: 8px; }
-    .tiny-wave { height: 12px; display: flex; align-items: center; gap: 2px; }
-    .tiny-wave i { width: 2px; height: 4px; border-radius: 9px; background: #bed0fb; animation: wave 1s ease-in-out infinite alternate; }
-    .tiny-wave i:nth-child(2) { height: 9px; animation-delay: .12s; }
-    .tiny-wave i:nth-child(3) { height: 6px; animation-delay: .24s; }
-    .tiny-wave i:nth-child(4) { height: 10px; animation-delay: .08s; }
-    .tiny-wave i:nth-child(5) { height: 4px; animation-delay: .3s; }
-    @keyframes wave { to { transform: scaleY(.45); opacity: .65; } }
-
-    .lower-grid { display: grid; grid-template-columns: minmax(0,1.05fr) minmax(300px,.95fr); gap: 12px; margin-top: 12px; }
-    .card { min-width: 0; border: 1px solid #e6eaf0; border-radius: 17px; background: rgba(255,255,255,.88); box-shadow: var(--shadow-soft); }
-    .control-card { padding: 15px 17px 12px; }
-    .card-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 9px; }
-    .card-title { margin: 0; color: #35445f; font-family: var(--serif); font-size: 18px; font-weight: 500; letter-spacing: -.025em; }
-    .card-link { padding: 3px 0; border: 0; color: #7286b5; background: transparent; cursor: pointer; font-size: 8px; }
-    .card-link:hover { color: #3d62bd; }
-    .setting-row { display: flex; align-items: center; justify-content: space-between; gap: 14px; min-height: 42px; border-top: 1px solid #eff1f5; }
-    .setting-copy strong { display: block; color: #526078; font-size: 9px; font-weight: 650; }
-    .setting-copy small { display: block; margin-top: 3px; color: #a0a9b7; font-size: 8px; }
-    .switch { position: relative; width: 34px; height: 19px; flex: 0 0 34px; padding: 0; border: 0; border-radius: 999px; background: #dfe4eb; cursor: pointer; transition: background .16s ease; }
-    .switch::after { content: ""; position: absolute; top: 3px; left: 3px; width: 13px; height: 13px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(21,34,59,.16); transition: transform .16s ease; }
-    .switch[aria-checked="true"] { background: #6480d1; }
-    .switch[aria-checked="true"]::after { transform: translateX(15px); }
-    .explore-row { display: grid; grid-template-columns: minmax(95px,1fr) minmax(100px,1.2fr) 34px; align-items: center; gap: 10px; min-height: 45px; border-top: 1px solid #eff1f5; }
-    .explore-copy strong { display: block; color: #526078; font-size: 9px; font-weight: 650; }
-    .explore-copy small { display: block; margin-top: 3px; color: #a0a9b7; font-size: 8px; }
-    .explore-slider { width: 100%; height: 4px; appearance: none; border-radius: 999px; background: linear-gradient(90deg,#6884d5 0 20%,#e5e9f0 20%); cursor: pointer; }
-    .explore-slider::-webkit-slider-thumb { width: 11px; height: 11px; appearance: none; border: 2px solid white; border-radius: 50%; background: #5577d0; box-shadow: 0 1px 4px rgba(35,53,94,.25); }
-    .explore-slider::-moz-range-thumb { width: 7px; height: 7px; border: 2px solid white; border-radius: 50%; background: #5577d0; box-shadow: 0 1px 4px rgba(35,53,94,.25); }
-    .explore-value { color: #506cba; text-align: right; font-size: 9px; font-variant-numeric: tabular-nums; }
-
-    .queue-card { padding: 15px 15px 10px; }
-    .queue-card .card-heading { margin: 0 2px 6px; }
-    .queue-count { padding: 4px 7px; border-radius: 999px; color: #8793a7; background: #f2f4f8; font-size: 8px; }
-    .queue-list { display: grid; }
-    .queue-item { min-width: 0; display: grid; grid-template-columns: 24px minmax(0,1fr) auto; align-items: center; gap: 9px; min-height: 38px; padding: 0 5px; border-top: 1px solid #f0f2f5; color: #798599; background: transparent; text-align: left; cursor: pointer; transition: color .15s ease, background .15s ease; }
-    .queue-item:hover { color: #385799; background: #f7f9fd; }
-    .queue-item.current { color: #38589f; }
-    .queue-index { color: #a8b0be; font-family: var(--serif); font-size: 11px; text-align: center; }
-    .queue-item.current .queue-index { color: #6480ca; }
-    .queue-track { min-width: 0; }
-    .queue-track strong { display: block; overflow: hidden; color: #53617a; font-size: 8px; font-weight: 620; text-overflow: ellipsis; white-space: nowrap; }
-    .queue-item.current .queue-track strong { color: #344f95; }
-    .queue-track small { display: block; margin-top: 2px; color: #a1aab7; font-size: 7px; }
-    .queue-time { color: #a0a9b7; font-size: 8px; font-variant-numeric: tabular-nums; }
-    .inline-status { display: flex; align-items: center; gap: 8px; margin-top: 9px; padding: 7px 9px; border: 1px solid #f0e7dc; border-radius: 10px; color: #8c7968; background: #fffaf4; font-size: 8px; line-height: 1.4; }
-    .inline-status .status-icon { color: #d49a66; font-size: 11px; }
-
-    .settings-layout { display: grid; grid-template-columns: minmax(0,1.1fr) minmax(240px,.9fr); gap: 14px; }
-    .settings-stack { display: grid; gap: 14px; align-content: start; }
-    .settings-card { padding: 19px 20px; }
-    .provider-row { display: flex; align-items: center; gap: 11px; min-height: 60px; border-top: 1px solid #eff1f5; }
-    .provider-mark { width: 30px; height: 30px; flex: 0 0 30px; display: grid; place-items: center; border-radius: 10px; color: #5975c7; background: #edf2ff; font-size: 9px; font-weight: 750; }
-    .provider-info { flex: 1; min-width: 0; }
-    .provider-info strong { display: block; color: #53617a; font-size: 9px; font-weight: 650; }
-    .provider-info small { display: block; margin-top: 3px; color: #a1aab7; font-size: 8px; }
-    .status-chip { padding: 5px 7px; border: 1px solid #e8ebf1; border-radius: 999px; color: #909bac; background: #fafbfc; font-size: 7px; white-space: nowrap; }
-    .pref-tile { display: flex; justify-content: space-between; align-items: center; min-height: 55px; border-top: 1px solid #eff1f5; }
-    .pref-tile strong { display: block; color: #53617a; font-size: 9px; font-weight: 650; }
-    .pref-tile small { display: block; margin-top: 3px; color: #a1aab7; font-size: 8px; }
-    .settings-note { margin: 13px 0 0; color: #9aa4b3; font-size: 8px; line-height: 1.6; }
-    .taste-card { position: relative; overflow: hidden; min-height: 196px; padding: 20px; border: 1px solid #e3e8f0; border-radius: 17px; background: linear-gradient(145deg,#f8f9fc,#edf2fa); }
-    .taste-card::after { content: "FM"; position: absolute; right: -5px; bottom: -41px; color: rgba(82,118,214,.06); font-family: var(--serif); font-size: 125px; line-height: 1; }
-    .taste-card h3 { margin: 0 0 8px; color: #334b83; font-family: var(--serif); font-size: 21px; font-weight: 500; }
-    .taste-card p { max-width: 250px; margin: 0; color: #8290a7; font-size: 9px; line-height: 1.65; }
-    .taste-tags { position: relative; z-index: 1; display: flex; flex-wrap: wrap; gap: 6px; margin-top: 17px; }
-    .taste-tag { padding: 5px 8px; border: 1px solid #dfe6f4; border-radius: 999px; color: #6b7ea9; background: rgba(255,255,255,.68); font-size: 8px; }
-
-    .conversation { display: none; width: min(780px,100%); min-height: 56vh; margin: 6vh auto 0; place-items: center; color: #9ca5b3; text-align: center; }
-    .conversation.active { display: grid; }
-    .conversation-mark { width: 48px; height: 48px; display: grid; place-items: center; margin: 0 auto 13px; border: 1px solid #e1e6ef; border-radius: 16px; color: #7789ad; background: #fff; font-size: 18px; }
-    .conversation h2 { margin: 0; color: #66748d; font-size: 13px; font-weight: 600; }
-    .conversation p { margin: 7px 0 0; font-size: 9px; }
-    .toast { position: fixed; z-index: 20; left: 50%; bottom: 24px; max-width: calc(100vw - 24px); transform: translate(-50%,9px); opacity: 0; pointer-events: none; padding: 9px 14px; border: 1px solid rgba(255,255,255,.15); border-radius: 999px; color: #f6f7fa; background: #202f53; box-shadow: var(--shadow); font-size: 9px; transition: opacity .2s ease, transform .2s ease; }
-    .toast.visible { transform: translate(-50%,0); opacity: 1; }
-
-    body[data-ds-dark-theme] { --ink:#e7eaf1; --muted:#9ba6ba; --line:#3a455b; --paper:#161d2a; --surface:#202a3b; }
-    body[data-ds-dark-theme] .app { color: var(--ink); background: var(--paper); }
-    body[data-ds-dark-theme] .app-bar, body[data-ds-dark-theme] .sidebar { border-color:#2b3548; background:#1b2433; }
-    body[data-ds-dark-theme] .main { background: radial-gradient(ellipse at 88% 4%,rgba(60,78,128,.18),transparent 28%),var(--paper); }
-    body[data-ds-dark-theme] .page-head h1, body[data-ds-dark-theme] .card-title { color:#e2e7f1; }
-    body[data-ds-dark-theme] .card, body[data-ds-dark-theme] .text-action, body[data-ds-dark-theme] .icon-action, body[data-ds-dark-theme] .page-tab.active { border-color:#2d384a; color:#c1cad8; background:#202a3b; }
-    body[data-ds-dark-theme] .setting-row, body[data-ds-dark-theme] .explore-row, body[data-ds-dark-theme] .queue-item, body[data-ds-dark-theme] .provider-row, body[data-ds-dark-theme] .pref-tile { border-color:#2d384a; }
-    body[data-ds-dark-theme] .setting-copy strong, body[data-ds-dark-theme] .queue-track strong, body[data-ds-dark-theme] .provider-info strong, body[data-ds-dark-theme] .pref-tile strong { color:#d2dae8; }
-    body[data-ds-dark-theme] .taste-card { border-color:#2d384a; background:linear-gradient(145deg,#202a3b,#242f43); }
-    body[data-ds-dark-theme] .taste-card h3 { color:#c8d5fa; }
-    body[data-ds-dark-theme] .taste-tag { border-color:#38445a; color:#b6c5ec; background:#273247; }
-    body[data-ds-dark-theme] .demo-badge, body[data-ds-dark-theme] .new-session { border-color:#303a4c; color:#b2bdcf; background:#222c3e; }
-    body[data-ds-dark-theme] .side-row { color:#a3aec0; }
-    body[data-ds-dark-theme] .side-row.active { color:#ced9ff; background:#2a3856; }
-    body[data-ds-dark-theme] .inline-status { border-color:#554738; color:#dac09e; background:#302b27; }
-
-    @media (max-width: 980px) {
-      .app-body { grid-template-columns: 188px minmax(0,1fr); }
-      .main { padding: 28px 24px 34px; }
-      .now-card { grid-template-columns: minmax(0,1fr) 250px; }
-      .whale-art { width: 245px; }
-    }
-    @media (max-width: 720px) {
-      .app { min-height: 100vh; overflow: auto; }
-      .app-body { grid-template-columns: 60px minmax(0,1fr); min-height: calc(100vh - 54px); }
-      .sidebar { align-items: center; padding: 16px 6px; }
-      .workspace-brand { padding: 0; }
-      .workspace-name, .new-session, .side-caption, .side-label, .side-rule, .recent, .sidebar-foot { display: none; }
-      .side-row { width: 42px; justify-content: center; padding: 0; margin-top: 9px; }
-      .side-status { display: none; }
-      .main { padding: 24px 16px 32px; }
-      .page-head { align-items: flex-start; }
-      .head-actions { display: none; }
-      .now-card { grid-template-columns: minmax(0,1fr) 190px; min-height: 300px; }
-      .art-stage { min-height: 300px; }
-      .whale-art { width: 195px; height: 265px; }
-      .lower-grid, .settings-layout { grid-template-columns: 1fr; }
-      .page-head h1 { font-size: 30px; }
-    }
-    @media (max-width: 520px) {
-      .app-bar { padding: 0 12px; }
-      .bar-context, .bar-divider { display: none; }
-      .demo-badge { font-size: 8px; }
-      .main { padding: 21px 12px 26px; }
-      .page-head { margin-bottom: 18px; }
-      .page-head h1 { max-width: 280px; font-size: 28px; }
-      .page-intro { max-width: 260px; }
-      .page-tabs { margin-bottom: 12px; }
-      .now-card { grid-template-columns: minmax(0,1fr); }
-      .now-copy { padding: 23px 22px 14px; }
-      .song-title { font-size: 34px; }
-      .art-stage { position: absolute; top: 23px; right: 4px; width: 112px; min-height: 135px; opacity: .52; }
-      .art-stage::before { width: 92px; height: 92px; box-shadow: 0 0 0 11px rgba(215,226,255,.025); }
-      .art-stage::after { width: 85px; height: 85px; }
-      .whale-art { width: 118px; height: 133px; }
-      .art-caption, .now-foot { display: none; }
-      .progress-wrap { margin-top: 20px; }
-      .transport-hint { font-size: 7px; }
-      .control-card, .queue-card, .settings-card { padding-left: 15px; padding-right: 15px; }
-      .explore-row { grid-template-columns: minmax(82px,1fr) minmax(70px,1fr) 31px; gap: 7px; }
-    }
-    @media (prefers-reduced-motion: reduce) {
-      *,*::before,*::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
-    }
-  </style>
-</head>
-<body>
-  <div class="app">
-    <header class="app-bar">
-      <div class="bar-brand">
-        <span class="bar-mark">F</span>
-        <span class="bar-title">FISHFM</span>
-        <span class="bar-divider"></span>
-        <span class="bar-context">肥鱼电台　/　主页面</span>
-      </div>
-      <div class="bar-right">
-        <span class="demo-badge">交互原型 · 演示状态</span>
-        <span class="bar-avatar" aria-label="当前工作区">F</span>
-      </div>
-    </header>
-
-    <div class="app-body">
-      <aside class="sidebar" aria-label="DSH 主导航示意">
-        <div class="workspace-brand"><span class="workspace-mark">D</span><span class="workspace-name">DeepSeek 工作区</span></div>
-        <button class="new-session" type="button">＋　新会话</button>
-        <p class="side-caption">主面板</p>
-        <button class="side-row" id="conversationNav" type="button" aria-current="false">
-          <span class="side-icon">▤</span><span class="side-label">对话</span>
-        </button>
-        <button class="side-row active" id="fishfmNav" type="button" aria-current="page">
-          <span class="side-icon">♫</span><span class="side-label">FishFM 电台</span><span class="side-status" aria-hidden="true"></span>
-        </button>
-        <div class="side-rule"></div>
-        <p class="side-caption">最近会话</p>
-        <button class="side-row recent" type="button"><span class="side-icon">◌</span><span class="side-label">音乐与专注</span></button>
-        <button class="side-row recent" type="button"><span class="side-icon">◌</span><span class="side-label">周末计划</span></button>
-        <div class="sidebar-spacer"></div>
-        <div class="sidebar-foot"><span class="foot-light"></span><span>FishFM 是一个主面板入口，<br>打开后仍可随时回到对话。</span></div>
-      </aside>
-
-      <main class="main">
-        <section class="conversation" id="conversationView" aria-label="对话页面示意">
-          <div>
-            <div class="conversation-mark">✦</div>
-            <h2>回到对话</h2>
-            <p>点击左侧 FishFM 电台，可以随时切回音乐主面板。</p>
-          </div>
-        </section>
-
-        <div class="page-wrap" id="fishfmView">
-          <header class="page-head">
-            <div>
-              <p class="eyebrow">A QUIET PLACE BETWEEN TURNS</p>
-              <h1>给思绪留一首歌，<em>就好。</em></h1>
-              <p class="page-intro">本地选曲，轻轻陪伴。音乐跟着你，不会打断对话。</p>
-            </div>
-            <div class="head-actions">
-              <button class="text-action" id="openSettings" type="button">听歌偏好　↗</button>
-              <button class="icon-action" id="quietAction" type="button" aria-label="暂停音乐">Ⅱ</button>
-            </div>
-          </header>
-
-          <nav class="page-tabs" aria-label="FishFM 页面">
-            <button class="page-tab active" type="button" data-view="player" aria-selected="true">电台</button>
-            <button class="page-tab" type="button" data-view="settings" aria-selected="false">偏好与平台</button>
-          </nav>
-
-          <section class="view active" id="playerView" aria-label="音乐播放控制">
-            <article class="now-card">
-              <div class="now-foot"><span class="tiny-wave" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span><span>QUIET BROADCAST</span></div>
-              <div class="now-copy">
-                <div class="broadcast-label"><span class="broadcast-dot"></span><span>正在播放</span><span>·</span><span id="playingSource">网易云音乐</span></div>
-                <h2 class="song-title" id="songTitle">花の塔</h2>
-                <div class="song-meta"><span id="songArtist">さユり</span><span class="meta-dot"></span><span>个人电台</span><span class="song-source">熟悉曲目</span></div>
-                <div class="progress-wrap">
-                  <div class="progress-times"><span id="elapsed">01:18</span><span id="duration">03:35</span></div>
-                  <input class="progress" id="progressSlider" type="range" min="0" max="215" value="78" aria-label="播放进度">
-                </div>
-                <div class="transport">
-                  <button class="transport-btn" id="shuffleButton" type="button" aria-label="切换随机播放" aria-pressed="false">⤨</button>
-                  <button class="transport-btn primary" id="playButton" type="button" aria-label="暂停">Ⅱ</button>
-                  <button class="transport-btn" id="nextButton" type="button" aria-label="下一首">→</button>
-                  <span class="transport-hint" id="transportHint">陪伴模式 · 轻声播放</span>
-                </div>
-              </div>
-              <div class="art-stage">
-                <img class="whale-art" id="whaleArt" src="assets/whale-listening.png" alt="鲸鱼娘听歌姿态">
-                <span class="art-caption">FISHFM · YOUR QUIET COMPANION</span>
-              </div>
-            </article>
-
-            <div class="lower-grid">
-              <section class="card control-card" aria-labelledby="controlsTitle">
-                <div class="card-heading">
-                  <h2 class="card-title" id="controlsTitle">把旋钮交给你</h2>
-                  <button class="card-link" id="openSettingsLink" type="button">更多设置　›</button>
-                </div>
-                <div class="setting-row">
-                  <span class="setting-copy"><strong>DeepSeek 自主听歌</strong><small>让它自己选歌与续播</small></span>
-                  <button class="switch" type="button" role="switch" aria-label="DeepSeek 自主听歌" aria-checked="true" data-label="自主听歌"></button>
-                </div>
-                <div class="setting-row">
-                  <span class="setting-copy"><strong>电脑输出声音</strong><small>关掉后只记录播放进度</small></span>
-                  <button class="switch" type="button" role="switch" aria-label="电脑输出声音" aria-checked="true" data-label="电脑输出声音"></button>
-                </div>
-                <div class="explore-row">
-                  <span class="explore-copy"><strong>新歌探索</strong><small>发现一点没听过的</small></span>
-                  <input class="explore-slider" id="exploreSlider" type="range" min="0" max="100" step="5" value="20" aria-label="新歌探索率">
-                  <span class="explore-value" id="exploreValue">20%</span>
-                </div>
-              </section>
-
-              <section class="card queue-card" aria-labelledby="queueTitle">
-                <div class="card-heading">
-                  <h2 class="card-title" id="queueTitle">接下来</h2>
-                  <span class="queue-count" id="queueCount">4 首候选</span>
-                </div>
-                <div class="queue-list" id="queueList"></div>
-                <div class="inline-status"><span class="status-icon">◌</span><span>原型演示状态。播放、切歌与开关只在此页面内反馈，不会控制真实播放器。</span></div>
-              </section>
-            </div>
-          </section>
-
-          <section class="view" id="settingsView" aria-label="听歌偏好与平台设置">
-            <div class="settings-layout">
-              <div class="settings-stack">
-                <section class="card settings-card" aria-labelledby="platformTitle">
-                  <div class="card-heading"><h2 class="card-title" id="platformTitle">连接音乐平台</h2><span class="queue-count">账号由你掌控</span></div>
-                  <div class="provider-row"><span class="provider-mark">云</span><span class="provider-info"><strong>网易云音乐</strong><small>登录后导入近期常听与播放</small></span><span class="status-chip">尚未连接</span></div>
-                  <div class="provider-row"><span class="provider-mark">QQ</span><span class="provider-info"><strong>QQ 音乐</strong><small>登录后搜索、导入并播放</small></span><span class="status-chip">尚未连接</span></div>
-                  <p class="settings-note">这是界面原型。平台登录与真实播放暂未接入此页面。</p>
-                </section>
-                <section class="card settings-card" aria-labelledby="listeningTitle">
-                  <div class="card-heading"><h2 class="card-title" id="listeningTitle">听歌方式</h2></div>
-                  <div class="pref-tile"><span><strong>DeepSeek Listening</strong><small>允许本地策略决定下一首</small></span><button class="switch" type="button" role="switch" aria-label="DeepSeek Listening" aria-checked="true" data-label="自主听歌"></button></div>
-                  <div class="pref-tile"><span><strong>Human Playback</strong><small>是否从电脑扬声器输出</small></span><button class="switch" type="button" role="switch" aria-label="Human Playback" aria-checked="true" data-label="电脑输出声音"></button></div>
-                  <div class="pref-tile"><span><strong>Discovery</strong><small>在熟悉曲目中穿插新歌</small></span><button class="switch" type="button" role="switch" aria-label="Discovery" aria-checked="true" data-label="新歌探索"></button></div>
-                </section>
-              </div>
-              <div class="settings-stack">
-                <section class="taste-card">
-                  <p class="eyebrow">A SMALL NOTE ABOUT TASTE</p>
-                  <h3>慢慢熟起来。</h3>
-                  <p>偏好只从真实播放经历中更新。用户的曲库和 DeepSeek 的听歌口味分别保存。</p>
-                  <div class="taste-tags"><span class="taste-tag">轻柔</span><span class="taste-tag">旋律感</span><span class="taste-tag">夜间</span></div>
-                </section>
-                <section class="card settings-card" aria-labelledby="discoveryTitle">
-                  <div class="card-heading"><h2 class="card-title" id="discoveryTitle">探索新歌</h2><span class="queue-count"><span id="settingsExploreValue">20</span>%</span></div>
-                  <div class="pref-tile"><span><strong>新歌探索率</strong><small>设为 0% 即只播熟悉曲目</small></span><input class="explore-slider" id="settingsExploreSlider" type="range" min="0" max="100" step="5" value="20" aria-label="新歌探索率设置"></div>
-                  <p class="settings-note">自动选歌在本地完成，不会为每轮音乐流程新增 LLM 请求。</p>
-                </section>
-              </div>
-            </div>
-          </section>
-        </div>
-      </main>
-    </div>
-  </div>
-  <div class="toast" id="toast" role="status" aria-live="polite"></div>
-
-  <script>
-    const tracks = [
-      { title: "花の塔", artist: "さユり", source: "网易云音乐", length: 215, start: 78, mood: "熟悉曲目" },
-      { title: "春を告げる", artist: "yama", source: "网易云音乐", length: 212, start: 33, mood: "轻轻探索" },
-      { title: "たぶん", artist: "YOASOBI", source: "QQ 音乐", length: 252, start: 0, mood: "熟悉曲目" },
-      { title: "夜明けと蛍", artist: "n-buna", source: "网易云音乐", length: 306, start: 0, mood: "轻轻探索" }
-    ];
-    let current = 0;
-    let playing = true;
-    let toastTimer;
-    let poseTimer;
-    const queueList = document.getElementById("queueList");
-    const progressSlider = document.getElementById("progressSlider");
-    const whaleArt = document.getElementById("whaleArt");
-    const images = {
-      idle: "assets/whale-idle.png",
-      listening: "assets/whale-listening.png",
-      dj: "assets/whale-dj.png"
-    };
-    Object.values(images).forEach(src => { const warm = new Image(); warm.src = src; });
-
-    function formatTime(seconds) {
-      const value = Math.max(0, Math.floor(Number(seconds) || 0));
-      return String(Math.floor(value / 60)).padStart(2, "0") + ":" + String(value % 60).padStart(2, "0");
-    }
-    function toast(message) {
-      const node = document.getElementById("toast");
-      node.textContent = message;
-      node.classList.add("visible");
-      clearTimeout(toastTimer);
-      toastTimer = setTimeout(() => node.classList.remove("visible"), 1900);
-    }
-    function setPose(pose, temporary) {
-      whaleArt.classList.add("pose-change");
-      setTimeout(() => {
-        whaleArt.src = images[pose];
-        whaleArt.alt = pose === "idle" ? "鲸鱼娘待机姿态" : pose === "dj" ? "鲸鱼娘 DJ 姿态" : "鲸鱼娘听歌姿态";
-        whaleArt.classList.remove("pose-change");
-      }, 130);
-      clearTimeout(poseTimer);
-      if (temporary) poseTimer = setTimeout(() => setPose(playing ? "listening" : "idle", false), 1250);
-    }
-    function syncProgress() {
-      const track = tracks[current];
-      progressSlider.max = String(track.length);
-      if (Number(progressSlider.value) > track.length) progressSlider.value = String(track.length);
-      document.getElementById("elapsed").textContent = formatTime(progressSlider.value);
-      document.getElementById("duration").textContent = formatTime(track.length);
-    }
-    function renderQueue() {
-      queueList.replaceChildren();
-      tracks.forEach((track, index) => {
-        const button = document.createElement("button");
-        button.type = "button";
-        button.className = "queue-item" + (index === current ? " current" : "");
-        button.setAttribute("aria-current", index === current ? "true" : "false");
-        button.setAttribute("aria-label", "播放 " + track.title + "，" + track.artist);
-        const number = document.createElement("span");
-        number.className = "queue-index";
-        number.textContent = index === current && playing ? "♫" : String(index + 1).padStart(2, "0");
-        const details = document.createElement("span");
-        details.className = "queue-track";
-        const title = document.createElement("strong");
-        title.textContent = track.title;
-        const artist = document.createElement("small");
-        artist.textContent = track.artist + " · " + track.mood;
-        details.append(title, artist);
-        const duration = document.createElement("span");
-        duration.className = "queue-time";
-        duration.textContent = formatTime(track.length);
-        button.append(number, details, duration);
-        button.addEventListener("click", () => setTrack(index, false));
-        queueList.append(button);
-      });
-    }
-    function setTrack(index, djPose) {
-      current = (index + tracks.length) % tracks.length;
-      const track = tracks[current];
-      document.getElementById("songTitle").textContent = track.title;
-      document.getElementById("songArtist").textContent = track.artist;
-      document.getElementById("playingSource").textContent = track.source;
-      progressSlider.value = String(track.start);
-      syncProgress();
-      renderQueue();
-      if (djPose) setPose("dj", true);
-      else setPose(playing ? "listening" : "idle", false);
-      toast("已切换到《" + track.title + "》 · 仅演示状态");
-    }
-    function setPlaying(value) {
-      playing = value;
-      const button = document.getElementById("playButton");
-      const quiet = document.getElementById("quietAction");
-      button.textContent = playing ? "Ⅱ" : "▶";
-      button.setAttribute("aria-label", playing ? "暂停" : "继续播放");
-      quiet.textContent = playing ? "Ⅱ" : "▶";
-      quiet.setAttribute("aria-label", playing ? "暂停音乐" : "继续播放");
-      document.getElementById("transportHint").textContent = playing ? "陪伴模式 · 轻声播放" : "已暂停 · 你说了算";
-      setPose(playing ? "listening" : "idle", false);
-      renderQueue();
-      toast(playing ? "继续播放 · 仅演示状态" : "音乐已暂停 · 仅演示状态");
-    }
-    function setScreen(screen) {
-      const isFishfm = screen === "fishfm";
-      document.getElementById("fishfmView").style.display = isFishfm ? "block" : "none";
-      document.getElementById("conversationView").classList.toggle("active", !isFishfm);
-      document.getElementById("fishfmNav").classList.toggle("active", isFishfm);
-      document.getElementById("conversationNav").classList.toggle("active", !isFishfm);
-      document.getElementById("fishfmNav").setAttribute("aria-current", isFishfm ? "page" : "false");
-      document.getElementById("conversationNav").setAttribute("aria-current", isFishfm ? "false" : "page");
-    }
-    function setView(view) {
-      document.querySelectorAll(".page-tab").forEach(button => {
-        const selected = button.dataset.view === view;
-        button.classList.toggle("active", selected);
-        button.setAttribute("aria-selected", String(selected));
-      });
-      document.getElementById("playerView").classList.toggle("active", view === "player");
-      document.getElementById("settingsView").classList.toggle("active", view === "settings");
-    }
-    function setExplore(value, source) {
-      const rate = Math.max(0, Math.min(100, Number(value)));
-      const mainSlider = document.getElementById("exploreSlider");
-      const settingsSlider = document.getElementById("settingsExploreSlider");
-      mainSlider.value = String(rate);
-      settingsSlider.value = String(rate);
-      const percent = rate + "%";
-      document.getElementById("exploreValue").textContent = percent;
-      document.getElementById("settingsExploreValue").textContent = String(rate);
-      [mainSlider, settingsSlider].forEach(slider => {
-        slider.style.background = "linear-gradient(90deg,#6884d5 0 " + rate + "%,#e5e9f0 " + rate + "%)";
-      });
-      if (source) toast("探索率已调整为 " + percent + " · 仅演示状态");
-    }
-
-    renderQueue();
-    syncProgress();
-    setExplore(20, false);
-    document.getElementById("fishfmNav").addEventListener("click", () => setScreen("fishfm"));
-    document.getElementById("conversationNav").addEventListener("click", () => setScreen("conversation"));
-    document.querySelectorAll(".page-tab").forEach(button => button.addEventListener("click", () => setView(button.dataset.view)));
-    document.getElementById("openSettings").addEventListener("click", () => setView("settings"));
-    document.getElementById("openSettingsLink").addEventListener("click", () => setView("settings"));
-    document.getElementById("quietAction").addEventListener("click", () => setPlaying(!playing));
-    document.getElementById("playButton").addEventListener("click", () => setPlaying(!playing));
-    document.getElementById("nextButton").addEventListener("click", () => setTrack(current + 1, true));
-    document.getElementById("shuffleButton").addEventListener("click", event => {
-      const button = event.currentTarget;
-      const active = button.getAttribute("aria-pressed") !== "true";
-      button.setAttribute("aria-pressed", String(active));
-      button.style.color = active ? "#d8e2ff" : "";
-      button.style.background = active ? "rgba(157,183,255,.18)" : "";
-      toast(active ? "随机顺序已开启 · 仅演示状态" : "已恢复原顺序 · 仅演示状态");
-    });
-    progressSlider.addEventListener("input", syncProgress);
-    document.getElementById("exploreSlider").addEventListener("input", event => setExplore(event.target.value, true));
-    document.getElementById("settingsExploreSlider").addEventListener("input", event => setExplore(event.target.value, true));
-    document.querySelectorAll(".switch").forEach(button => button.addEventListener("click", () => {
-      const enabled = button.getAttribute("aria-checked") !== "true";
-      document.querySelectorAll(".switch[data-label='" + button.dataset.label + "']").forEach(peer => peer.setAttribute("aria-checked", String(enabled)));
-      toast(button.dataset.label + (enabled ? " 已开启" : " 已关闭") + " · 仅演示状态");
-    }));
-  </script>
-</body>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>FishFM UI preview</title>
+<style>
+*{box-sizing:border-box}body{margin:0;font-family:system-ui,'Segoe UI',sans-serif;background:#f3f5f8;color:#172235}
+.preview-toolbar{position:fixed;z-index:100;inset:0 0 auto;display:flex;align-items:center;flex-wrap:wrap;gap:8px;padding:10px 16px;background:#fff;border-bottom:1px solid #dfe3e9;font-size:12px}
+.preview-toolbar button{font:inherit;padding:5px 9px;border:1px solid #dfe3e9;border-radius:6px;background:transparent;color:inherit;cursor:pointer}
+.preview-note{margin-right:auto;color:#566171}.preview-shell{padding-top:65px;min-height:100vh}.preview-main{width:100%;max-width:1050px;margin:auto;min-height:calc(100vh - 65px)}
+[data-shell-overlay]{position:fixed;inset:65px 0 0;pointer-events:none}.preview-conversation{padding:60px 24px;text-align:center;color:#566171}
+.preview-settings{max-width:440px;margin:24px auto;border:1px solid #dfe3e9;border-radius:10px;overflow:hidden}
+[data-ds-dark-theme] body{background:#11151d;color:#e4e9f2}[data-ds-dark-theme] .preview-toolbar{background:#1b202a;border-color:#303644}
+[data-ds-dark-theme] .preview-toolbar button{border-color:#303644}[data-ds-dark-theme] .preview-note{color:#a5adba}
+@media(max-width:600px){.preview-toolbar{gap:4px;padding:8px}.preview-note{width:100%;font-size:10px}.preview-shell{padding-top:88px}[data-shell-overlay]{top:88px}}
+</style>
+<div id="root"></div>
+<script src="/react.js"></script><script src="/react-dom.js"></script>
+<script>
+const registrations=[];let harnessBundle;
+// Preview-only media adapter lets QA exercise both motion environments without changing OS settings.
+let demoMotion=false;
+const nativeMatchMedia=window.matchMedia.bind(window);
+window.matchMedia=query=>demoMotion&&query==='(prefers-reduced-motion: reduce)'?{matches:false}:nativeMatchMedia(query);
+const previewAnimations=[];
+for(const type of ['animationstart','animationend'])document.addEventListener(type,event=>{
+ if(event.animationName.startsWith('fm-')){previewAnimations.push({type,name:event.animationName,elapsed:event.elapsedTime});document.documentElement.dataset.motionEvents=JSON.stringify(previewAnimations.slice(-30));}
+});
+window.__ModuleLoader__={load(def){harnessBundle=def.factory(name=>{if(name!=='react')throw Error(name);return React})}};
+</script>
+<script src="/client.js"></script>
+<script>
+const tracks=Array.from({length:100},(_,i)=>({provider:'netease',providerTrackId:String(i+1),title:`示例歌曲 ${String(i+1).padStart(2,'0')}`,artist:i%2?'夜航乐队':'沿途电台',durationMs:180000+i*1000}));
+let snapshot={revision:1,settings:{listening:true,humanPlayback:true,discovery:true,discoveryRate:.2,strategy:'normal'},paused:true,status:'paused',queue:[],current:{track:tracks[0],playInstanceId:'preview-1',positionMs:62000},lastError:null};
+let connected=true,empty=false,active='fishfm',changeActive;
+const connection={rpc:{async call(_channel,endpoint,payload){
+ await new Promise(r=>setTimeout(r,80));
+ if(!connected)return {ok:false,error:{code:'core_unavailable',message:'预览连接中断'}};
+ if(endpoint==='fishfm/command'){
+  const type=payload.type;
+  if(type==='pause'){snapshot.paused=true;snapshot.status='paused'}
+  if(type==='resume'){snapshot.paused=false;snapshot.status='playing';if(!snapshot.current)snapshot.current={track:tracks[0],playInstanceId:'preview-1',positionMs:0}}
+  if(type==='requestTrack'||type==='next'){const track=type==='requestTrack'?payload.track:tracks[(Number(snapshot.current?.track.providerTrackId)||0)%tracks.length];snapshot.current={track,playInstanceId:`preview-${Date.now()}`,positionMs:0};if(type==='requestTrack')snapshot.paused=false;snapshot.status=snapshot.paused?'paused':'playing'}
+  const field={setListening:'listening',setHumanPlayback:'humanPlayback',setDiscovery:'discovery',setDiscoveryRate:'discoveryRate'}[type];if(field)snapshot.settings[field]=payload.value;
+  if(type==='setMode'){snapshot.settings.listening=payload.value!=='off';snapshot.settings.humanPlayback=payload.value==='silent'||payload.value==='off'?false:snapshot.settings.humanPlayback;snapshot.settings.strategy=payload.value==='focus'?'focus':'normal';snapshot.paused=payload.value==='off';snapshot.status=snapshot.paused?'paused':'playing'}
+  if(type==='stopForToday'){snapshot.paused=true;snapshot.status='paused';snapshot.blockUntil=Date.now()+3600000}
+  snapshot.revision++;return {ok:true,value:{snapshot:structuredClone(snapshot)}};
+ }
+ return {ok:true,value:{snapshot:structuredClone(snapshot),platforms:{netease:{installed:true,account:{status:'authorized'}},qq:{installed:false}},library:{total:empty?0:100,tracks:empty?[]:tracks}}};
+}}};
+const layout={selectPanel(id){active=id;changeActive?.(id)}};
+harnessBundle.apply({connection,layout,effect(fn){fn()},slots:{inject(_name,fn){fn()},register(options,component){registrations.push({options,component});return()=>{}}}});
+const panel=registrations.find(r=>r.options.name==='main'),overlay=registrations.find(r=>r.options.name==='shell.overlay'),controller=panel.options.inject().controller;
+const previewStyle=document.querySelector('style[data-plugin="fishfm"]'),normalCss=previewStyle.textContent;
+function Harness(){
+ const [page,setPage]=React.useState(active),[dark,setDark]=React.useState(false),[settings,setSettings]=React.useState(false),[demo,setDemo]=React.useState(false);changeActive=setPage;
+ const show=id=>{active=id;setPage(id)};
+ return React.createElement(React.Fragment,null,
+  React.createElement('header',{className:'preview-toolbar'},React.createElement('span',{className:'preview-note'},'界面预览 · 模拟数据 · 不播放声音'),
+   React.createElement('button',{onClick:()=>{document.documentElement.toggleAttribute('data-ds-dark-theme',!dark);setDark(!dark)}},dark?'浅色':'深色'),
+   React.createElement('button',{onClick:()=>show(page==='fishfm'?null:'fishfm')},page==='fishfm'?'对话':'电台'),
+   React.createElement('button',{onClick:()=>setSettings(!settings)},settings?'主面板':'设置宽度'),
+   React.createElement('button',{onClick:()=>{demoMotion=!demo;previewStyle.textContent=demoMotion?normalCss.replace('@media(prefers-reduced-motion:reduce)','@media(preview-motion:none)'):normalCss;controller.setMotion('full');setDemo(!demo)}},demo?'系统动效':'动效演示'),
+   React.createElement('button',{onClick:()=>{empty=!empty;controller.refresh()}},'切换空库'),
+   React.createElement('button',{onClick:()=>{connected=!connected;controller.refresh()}},'切换连接')),
+  React.createElement('div',{className:'preview-shell'},page==='fishfm'?React.createElement('main',{className:settings?'preview-settings':'preview-main'},React.createElement(panel.component,{...panel.options.inject(),...(settings?{close:()=>setSettings(false)}:{})})):React.createElement('div',{className:'preview-conversation'},'对话面板 · 音乐服务独立于可见页面'),
+   React.createElement('div',{'data-shell-overlay':''},React.createElement(overlay.component,{...overlay.options.inject(),usePanelInfo:fn=>fn({activePanelId:page})}))));
+}
+ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(Harness));
+setInterval(()=>{if(!snapshot.paused&&snapshot.current)snapshot.current.positionMs=Math.min(snapshot.current.positionMs+1000,snapshot.current.track.durationMs)},1000);
+</script>
 </html>

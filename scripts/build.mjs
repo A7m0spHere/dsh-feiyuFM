@@ -2,9 +2,11 @@ import { copyFileSync, mkdirSync, readdirSync, rmSync, writeFileSync } from 'nod
 import { spawnSync } from 'node:child_process';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { buildClientBundle } from './client-bundle.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const output = resolve(root, 'dist');
+buildClientBundle();
 if (dirname(output) !== root) throw new Error('Build output escaped repository');
 
 function copyTree(from, to) {

@@ -1,5 +1,7 @@
 # 技术架构草案
 
+2026-10-02 UI 重构：`src/ui/client/` 拆分设计 token、展示状态、controller、组件、曲库、主面板、浮层与入口；无运行时构建依赖的 `scripts/client-bundle.mjs` 生成 DSH 所需的 `src/ui/dsh-client.js`。React 仍由宿主提供，未新增播放宿主、生产监听端口或模型请求。独立 `preview:ui` 是仅绑定 loopback、只服务固定白名单资源的开发模拟预览，不读取生产库或凭据。见 [U7](spikes/U7-phl-ui-motion.md)。
+
 2026-10-02：[网易云 P3](spikes/P3-real-loop.md) 真实闭环通过。Core Host 提供 `library` 元数据投影，认证设置状态返回导入库；主面板点播转为白名单 `requestTrack`，音频句柄仍只在 Provider/Playback 之间流动。用户下一首在队列为空时调用本地选择器，排除当前曲目并保留禁播/冷却过滤，暂停保持。以下旧阶段记录按日期阅读。
 
 2026-09-30 官方 desktop rc.2：设置 RPC 优先用 `connection.fetch.register` 的精确 `/api/fishfm/*` 路由与 Gateway 共存，保留宿主认证；默认数据目录遵循 `DSH_HOME` / `~/.dsh`。悬浮条通过 root selector 读取活动面板、以 `[data-shell-overlay]` 为位置边界，设置页按容器宽度布局。实测见 [U5](spikes/U5-official-desktop.md)。
