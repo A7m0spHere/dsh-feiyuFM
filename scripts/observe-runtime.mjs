@@ -10,11 +10,11 @@ const directory = resolve(value('--directory', join(process.env.DSH_HOME || join
 const seconds = Number(value('--seconds', '0'));
 if (!Number.isFinite(seconds) || seconds < 0) throw new Error('--seconds must be nonnegative');
 const startedAt = Date.now(), initial = readRuntimeEvidence(directory);
-if (!initial.components.core || initial.components.core.stale) throw new Error('No fresh Core evidence; restart/enable the plugin first');
+if (!initial.components.core || initial.components.core.stale || initial.components.core.mode !== 'real') throw new Error('No fresh real Core evidence; restart/enable the production plugin first');
 const deadline = startedAt + seconds * 1000;
 while (Date.now() < deadline) await delay(Math.min(5000, deadline - Date.now()));
 const final = readRuntimeEvidence(directory);
 const result = { mode: 'real-observation', startedAt, elapsedMs: Date.now() - startedAt, initial, final, sameRun: initial.components.core.runId === final.components.core?.runId };
 const out = value('--out', null);
 if (out) writeFileSync(resolve(out), `${JSON.stringify(result, null, 2)}\n`);
-console.log(JSON.stringify({ mode: result.mode, elapsedMs: result.elapsedMs, sameRun: result.sameRun, coreFresh: !final.components.core?.stale, counts: final.components.core?.counts, dshModelRequests: null, a09Passed: null, ...(out ? { report: resolve(out) } : {}) }, null, 2));
+console.log(JSON.stringify({ mode: result.mode, elapsedMs: result.elapsedMs, sameRun: result.sameRun, coreFresh: Boolean(final.components.core && !final.components.core.stale), counts: final.components.core?.counts, dshModelRequests: null, a09Passed: null, ...(out ? { report: resolve(out) } : {}) }, null, 2));

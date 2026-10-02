@@ -198,6 +198,7 @@ export function createSelector({
 
   return {
     parameters,
+    randomState: () => rng.getState?.(),
     decide,
     next(options = {}) {
       const decision = decide(options);

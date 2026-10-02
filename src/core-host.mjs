@@ -121,7 +121,8 @@ export function buildSelector({ store, now = () => Date.now(), rng = null, listD
     store,
     // A stored seed keeps selection reproducible across restarts; without one
     // the session still works, it just is not reproducible.
-    rng: rng ?? createRng(Number.isSafeInteger(seed) ? seed : 1),
+    rng: rng ?? createRng(store.getCoreState()?.selectionRngState ?? (Number.isSafeInteger(seed) ? seed : 1)),
+    isPlayable: track => store.isTrackAvailable(track, now()),
     listFamiliar: () => store.listEnvironment({ limit: 5000 }).map((row) => {
       // Restore the stored metadata, not just the key: the effective-progress
       // threshold needs the real duration, and a title is needed to tell the
@@ -368,7 +369,10 @@ export function createCoreHost({
           // The active session is what a listen gets attributed to, so growth can
           // tell a transient session's activity from long-term use.
           const active = sessions.activeSessionId(now());
-          if (active) core.currentSessionId = active;
+          if (active) {
+            core.currentSessionId = active;
+            core.currentSessionTransient = sessions.isTransient(active, now());
+          }
           const gate = mapped.allowsAutonomy
             ? mayStartPlayback({
               registry: sessions, sessionId: message.sessionId,
@@ -601,7 +605,7 @@ export function createCoreHost({
             store, entry, durationMs: entry.durationMs, now: now(),
             // A session that has not been around long precipitates only a little
             // into long-term preferences, and its total influence is capped.
-            session: sessionId ? { sessionId, transient: sessions.isTransient(sessionId, now()) } : null,
+            session: sessionId ? { sessionId, transient: entry.sessionTransient ?? sessions.isTransient(sessionId, now()) } : null,
           });
           onLog({
             type: 'growth', updated: report.updated, reason: report.reason, delta: report.delta ?? 0,
@@ -613,6 +617,10 @@ export function createCoreHost({
         },
         ...(clock ? { clock } : {}),
       });
+      for (const entry of store.pendingGrowthEntries()) {
+        try { core.onListened(entry); }
+        catch { onLog({ type: 'growth-replay-failed', playInstanceId: entry.playInstanceId }); }
+      }
       playback.onEvent((event) => {
         const accepted = core.onPlaybackEvent(event);
         onLog({ type: 'playback', event: event.type, playInstanceId: event.playInstanceId, positionMs: event.positionMs, accepted });

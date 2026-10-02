@@ -89,6 +89,12 @@ export class MusicCore {
       lastError: null,
     };
     this.state.commandVersion += 1;
+    if (this.state.current) {
+      this.state.current.effectiveMs ??= 0;
+      this.state.current.agentEffectiveMs ??= 0;
+      this.state.current.audibleMs ??= 0;
+    }
+    this.autoFailures = 0;
     this.abortController = null;
     this.tasks = new Set();
     this.store.setCoreState(this.state);
@@ -131,6 +137,9 @@ export class MusicCore {
       // would block every later selection, so one unplayable track would stop
       // music for good. Nothing is recorded: a track that never played is not a
       // listen, and history must not invent one (A10).
+      const failed = this.state.current;
+      const candidateFailure = ['media_unavailable', 'resource_unavailable'].includes(error.code);
+      if (failed && candidateFailure) this.store.markUnavailable(failed.track, error.code, this.clock.now() + 30 * 60_000);
       if (this.state.current && !this.state.current.finished) {
         this.state.current.finished = true;
         this.state.current = null;
@@ -138,6 +147,13 @@ export class MusicCore {
       this.state.paused = true;
       this.state.status = 'error';
       this._commit();
+      if (failed?.selectedBy === 'agent' && candidateFailure && this.autoFailures < 2
+        && this.state.settings.listening && !this._blockedUntil()) {
+        this.autoFailures++;
+        this.state.paused = false;
+        this.state.status = 'idle';
+        this.selectAutonomously();
+      }
     });
     this.tasks.add(task);
     task.finally(() => this.tasks.delete(task));
@@ -184,7 +200,12 @@ export class MusicCore {
       track: current.track,
       selectedBy: current.selectedBy,
       progressSource: current.progressSource,
-      effectiveMs: current.positionMs,
+      effectiveMs: current.effectiveMs ?? 0,
+      agentEffectiveMs: current.agentEffectiveMs ?? 0,
+      audibleMs: current.audibleMs ?? 0,
+      progressAccounting: 'segments-v1',
+      durationMs: current.track.durationMs ?? null,
+      sessionTransient: current.sessionTransient ?? false,
       agentListening: current.agentListening,
       audible: current.audible,
       endReason: reason,
@@ -194,6 +215,8 @@ export class MusicCore {
       sessionId: current.sessionId ?? null,
     });
     current.finished = true;
+    this.onLog({ type: 'history', playInstanceId: current.playInstanceId,
+      effectiveMs: current.effectiveMs ?? 0, agentEffectiveMs: current.agentEffectiveMs ?? 0, audibleMs: current.audibleMs ?? 0 });
     // Growth is a policy decision, so the core only reports the finished
     // listen; whether it changes anything is decided outside (src/growth.mjs).
     if (recorded && typeof this.onListened === 'function') {
@@ -203,7 +226,10 @@ export class MusicCore {
           track: current.track,
           selectedBy: current.selectedBy,
           progressSource: current.progressSource,
-          effectiveMs: current.positionMs,
+          effectiveMs: current.effectiveMs ?? 0,
+          agentEffectiveMs: current.agentEffectiveMs ?? 0,
+          audibleMs: current.audibleMs ?? 0,
+          sessionTransient: current.sessionTransient ?? false,
           agentListening: current.agentListening,
           audible: current.audible,
           endReason: reason,
@@ -220,11 +246,16 @@ export class MusicCore {
     const version = this.state.commandVersion;
     this.state.current = {
       track: normalizeTrack(track), playInstanceId: randomUUID(), selectedBy,
-      positionMs: 0, progressSource: 'audio', agentListening: false, audible: false, finished: false,
+      positionMs: 0, effectiveMs: 0, agentEffectiveMs: 0, audibleMs: 0,
+      progressSource: 'audio', agentListening: false, audible: false, finished: false,
       // The session that caused this listen, if any. A user's own pick carries
       // whatever session made it; autonomous playback carries the active one.
       sessionId: this.currentSessionId ?? null,
+      sessionTransient: this.currentSessionTransient ?? false,
     };
+    this.store.upsertTrack(this.state.current.track, this.clock.now());
+    const rngState = this.selector?.randomState?.();
+    if (Number.isSafeInteger(rngState)) this.state.selectionRngState = rngState;
     this.state.paused = keepPaused;
     this.state.status = keepPaused ? 'paused' : 'resolving';
     this.state.lastError = null;
@@ -461,6 +492,13 @@ export class MusicCore {
       if (event.progressSource === 'logical' && !current.track.durationMs) return false;
       const nextPosition = current.track.durationMs ? Math.min(event.positionMs, current.track.durationMs) : event.positionMs;
       if (nextPosition <= current.positionMs) return false;
+      const positionalDelta = nextPosition - current.positionMs;
+      const delta = Number.isFinite(event.effectiveDeltaMs)
+        ? Math.max(0, Math.min(positionalDelta, event.effectiveDeltaMs)) : positionalDelta;
+      current.effectiveMs = (current.effectiveMs ?? 0) + delta;
+      if (current.selectedBy === 'agent' && this.state.settings.listening) current.agentEffectiveMs = (current.agentEffectiveMs ?? 0) + delta;
+      if (event.progressSource !== 'logical' && this.state.settings.humanPlayback) current.audibleMs = (current.audibleMs ?? 0) + delta;
+      if (current.effectiveMs >= 30_000) this.autoFailures = 0;
       current.positionMs = nextPosition;
       current.progressSource = event.progressSource === 'logical' ? 'logical' : 'audio';
       current.agentListening ||= current.selectedBy === 'agent' && this.state.settings.listening;
@@ -504,6 +542,10 @@ export class MusicCore {
       this.state.current = null;
       this._commit();
       if (event.type === 'ended') this.selectAutonomously();
+      else if (current.selectedBy === 'agent' && event.code === 'media_unavailable') {
+        this.store.markUnavailable(current.track, event.code, this.clock.now() + 30 * 60_000);
+        if (this.autoFailures < 2) { this.autoFailures++; this.selectAutonomously(); }
+      }
       return true;
     }
     return false;

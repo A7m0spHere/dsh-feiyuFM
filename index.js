@@ -109,6 +109,7 @@ export function apply(ctx, config = {}) {
   const settings = { ...DEFAULT_SETTINGS, ...(config ?? {}) };
   const database = settings.database ?? defaultDatabase();
   const evidence = createRuntimeEvidence({ directory: database === ':memory:' ? null : join(dirname(database), 'runtime'), component: 'adapter', mode: settings.playback === 'real' ? 'real' : 'synthetic' });
+  ctx.effect(() => () => evidence.close(), 'fishfm: runtime evidence lifecycle');
   const command = coreCommand({
     coreEntry: settings.coreEntry,
     playback: settings.playback,

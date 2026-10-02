@@ -47,7 +47,8 @@ function clamp(value, min, max) {
  * @returns {{ qualifies: boolean, reason: string, effectiveMs: number, ratio: number|null, thresholdMs: number }}
  */
 export function qualifiesAsListen({ entry, durationMs = null, parameters = GROWTH_PARAMETERS }) {
-  const effectiveMs = Number.isFinite(entry?.effectiveMs) ? Math.max(0, entry.effectiveMs) : 0;
+  const progress = entry?.agentEffectiveMs ?? entry?.effectiveMs;
+  const effectiveMs = Number.isFinite(progress) ? Math.max(0, progress) : 0;
   const knownDuration = Number.isSafeInteger(durationMs) && durationMs > 0 ? durationMs : null;
   const ratio = knownDuration ? effectiveMs / knownDuration : null;
   const thresholdMs = knownDuration
@@ -57,7 +58,7 @@ export function qualifiesAsListen({ entry, durationMs = null, parameters = GROWT
   if (entry?.endReason === 'error') {
     return { qualifies: false, reason: 'the playback failed; that is not a preference signal', effectiveMs, ratio, thresholdMs };
   }
-  if (entry?.selectedBy !== 'agent') {
+  if (entry?.selectedBy !== 'agent' || entry?.agentListening === false) {
     return { qualifies: false, reason: 'the user chose this track, so it is not an agent experience', effectiveMs, ratio, thresholdMs };
   }
   if (effectiveMs < thresholdMs) {
@@ -82,7 +83,18 @@ export function listenWeight(entry, parameters = GROWTH_PARAMETERS, { sessionWei
  * Returns a report either way: a refusal is information too, and the caller
  * (or a test) must be able to see why nothing changed.
  */
-export function applyListenGrowth({
+export function applyListenGrowth(options) {
+  const { store, entry } = options;
+  if (!entry?.playInstanceId) throw new Error('Growth requires playInstanceId');
+  return store.transaction(() => {
+    if (store.getGrowthResult(entry.playInstanceId)) return { updated: false, delta: 0, reason: 'already-applied' };
+    const result = applyGrowthOnce(options);
+    store.completeGrowth(entry, result, options.now ?? Date.now());
+    return result;
+  });
+}
+
+function applyGrowthOnce({
   store,
   entry,
   durationMs = null,

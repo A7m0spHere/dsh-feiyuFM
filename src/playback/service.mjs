@@ -46,6 +46,7 @@ export class PlaybackService {
     this.hostExiting = false;
     this.lastForwardedMs = 0;
     this.lastProgressAt = 0;
+    this.lastEffectiveAt = performance.now();
     this.recoveries = 0;
     this.capabilities = { seek: null, mute: null };
 
@@ -115,6 +116,7 @@ export class PlaybackService {
     if (!active || active.finished) return;
     if (playInstanceId && playInstanceId !== active.playInstanceId) return;
     await this._send('play', { playInstanceId: active.playInstanceId, version });
+    this.lastEffectiveAt = performance.now();
   }
 
   async pause({ version } = {}) {
@@ -245,12 +247,18 @@ export class PlaybackService {
     const at = Date.now();
     if (message.force !== true && at - this.lastProgressAt < this.progressIntervalMs) return;
     this.lastProgressAt = at;
+    const monotonicAt = performance.now();
+    const elapsed = Math.max(0, monotonicAt - (this.lastEffectiveAt ?? monotonicAt));
+    const advance = positionMs - this.lastForwardedMs;
+    const effectiveDeltaMs = elapsed > 5000 || advance > elapsed + 1000 ? 0 : Math.min(advance, Math.round(elapsed));
+    this.lastEffectiveAt = monotonicAt;
     this.lastForwardedMs = positionMs;
     this._emit({
       type: 'progress',
       playInstanceId: active.playInstanceId,
       version: active.version,
       positionMs,
+      effectiveDeltaMs,
       progressSource: message.progressSource === 'logical' ? 'logical' : 'audio',
     });
   }
@@ -265,6 +273,7 @@ export class PlaybackService {
     if (!active || active.finished) return;
     if (state.playInstanceId && state.playInstanceId === active.playInstanceId) {
       const positionMs = Number(state.positionMs);
+      this.lastEffectiveAt = performance.now();
       if (Number.isFinite(positionMs) && positionMs > active.positionMs) {
         active.positionMs = positionMs;
         if (positionMs > this.lastForwardedMs) this.lastForwardedMs = positionMs;

@@ -91,6 +91,14 @@ CREATE TABLE session_influence (
 );
 `;
 
+const MIGRATION_4 = `
+ALTER TABLE listen_history ADD COLUMN agent_effective_ms INTEGER;
+ALTER TABLE listen_history ADD COLUMN audible_ms INTEGER;
+ALTER TABLE listen_history ADD COLUMN progress_accounting TEXT NOT NULL DEFAULT 'legacy-position';
+CREATE TABLE growth_jobs (play_instance_id TEXT PRIMARY KEY, entry_json TEXT NOT NULL, processed_at INTEGER, result_json TEXT);
+CREATE TABLE track_availability (track_key TEXT PRIMARY KEY, code TEXT NOT NULL, expires_at INTEGER NOT NULL);
+`;
+
 export class MusicStore {
   constructor(path = ':memory:') {
     if (path !== ':memory:') mkdirSync(dirname(path), { recursive: true });
@@ -107,7 +115,7 @@ export class MusicStore {
 
   migrate() {
     const version = this.db.prepare('PRAGMA user_version').get().user_version;
-    if (version > 3) throw new Error(`Unsupported schema version ${version}`);
+    if (version > 4) throw new Error(`Unsupported schema version ${version}`);
     if (version === 0) {
       this.transaction(() => {
         this.db.exec(MIGRATION_1);
@@ -129,17 +137,30 @@ export class MusicStore {
         this.db.exec('PRAGMA user_version = 3');
       });
     }
+    if (this.db.prepare('PRAGMA user_version').get().user_version === 3) {
+      this.transaction(() => {
+        this.db.exec(MIGRATION_4);
+        this.db.prepare('INSERT INTO schema_migrations VALUES (?, ?)').run(4, new Date().toISOString());
+        this.db.exec('PRAGMA user_version = 4');
+      });
+    }
   }
 
   transaction(fn) {
-    this.db.exec('BEGIN IMMEDIATE');
+    const nested = this.transactionDepth > 0;
+    const savepoint = `fishfm_${this.transactionDepth ?? 0}`;
+    this.db.exec(nested ? `SAVEPOINT ${savepoint}` : 'BEGIN IMMEDIATE');
+    this.transactionDepth = (this.transactionDepth ?? 0) + 1;
     try {
       const result = fn();
-      this.db.exec('COMMIT');
+      this.db.exec(nested ? `RELEASE ${savepoint}` : 'COMMIT');
       return result;
     } catch (error) {
-      this.db.exec('ROLLBACK');
+      this.db.exec(nested ? `ROLLBACK TO ${savepoint}` : 'ROLLBACK');
+      if (nested) this.db.exec(`RELEASE ${savepoint}`);
       throw error;
+    } finally {
+      this.transactionDepth--;
     }
   }
 
@@ -218,6 +239,10 @@ export class MusicStore {
         entry.progressSource, entry.effectiveMs, Number(entry.agentListening), Number(entry.audible),
         entry.endReason, entry.endedAt, entry.sessionId ?? null);
       if (result.changes === 0) return false;
+      this.db.prepare('UPDATE listen_history SET agent_effective_ms=?, audible_ms=?, progress_accounting=? WHERE play_instance_id=?')
+        .run(entry.agentEffectiveMs ?? null, entry.audibleMs ?? null, entry.progressAccounting ?? 'legacy-position', entry.playInstanceId);
+      this.db.prepare('INSERT OR IGNORE INTO growth_jobs (play_instance_id, entry_json) VALUES (?, ?)')
+        .run(entry.playInstanceId, JSON.stringify(entry));
       this.db.prepare(`INSERT INTO track_stats (track_key, play_count, effective_ms) VALUES (?, ?, ?)
         ON CONFLICT(track_key) DO UPDATE SET play_count=play_count+excluded.play_count,
         effective_ms=effective_ms+excluded.effective_ms`)
@@ -258,6 +283,29 @@ export class MusicStore {
 
   getHistory(playInstanceId) {
     return this.db.prepare('SELECT * FROM listen_history WHERE play_instance_id = ?').get(playInstanceId) ?? null;
+  }
+
+  pendingGrowthEntries({ limit = 100 } = {}) {
+    return this.db.prepare('SELECT entry_json FROM growth_jobs WHERE processed_at IS NULL ORDER BY rowid LIMIT ?').all(limit).map(row => JSON.parse(row.entry_json));
+  }
+
+  getGrowthResult(id) {
+    const row = this.db.prepare('SELECT result_json FROM growth_jobs WHERE play_instance_id=? AND processed_at IS NOT NULL').get(id);
+    return row ? JSON.parse(row.result_json) : null;
+  }
+
+  completeGrowth(entry, result, now) {
+    this.db.prepare(`INSERT INTO growth_jobs (play_instance_id, entry_json, processed_at, result_json) VALUES (?, ?, ?, ?)
+      ON CONFLICT(play_instance_id) DO UPDATE SET processed_at=excluded.processed_at, result_json=excluded.result_json`)
+      .run(entry.playInstanceId, JSON.stringify(entry), now, JSON.stringify(result));
+  }
+
+  markUnavailable(track, code, expiresAt) {
+    this.db.prepare('INSERT OR REPLACE INTO track_availability VALUES (?, ?, ?)').run(trackId(track), code, expiresAt);
+  }
+
+  isTrackAvailable(track, now) {
+    return !this.db.prepare('SELECT 1 FROM track_availability WHERE track_key=? AND expires_at>?').get(trackId(track), now);
   }
 
   getTrackStats(track) {
