@@ -30,18 +30,18 @@ const EVIDENCE = [
       'docs/spikes/P2-netease.md', 'docs/spikes/P4-P5-platforms.md',
       'test/providers.test.mjs', 'test/providers-qq.test.mjs', 'test/login-flow.test.mjs',
       'test/playback.test.mjs',
-      'test/netease-qr.test.mjs', 'docs/spikes/U6-qr-login-repair.md',
+      'test/netease-qr.test.mjs', 'docs/spikes/U6-qr-login-repair.md', 'docs/spikes/P3-real-loop.md',
     ],
     tests: [
       { file: 'test/providers.test.mjs', name: 'the NetEase adapter passes the shared provider contract' },
       { file: 'test/providers-qq.test.mjs', name: 'the QQ adapter passes the same shared contract checks as NetEase' },
     ],
-    unverified: '网易云真实扫码、MUSIC_U 与账号 ID 校验已通过；歌曲导入、搜索、资源解析和平台音频未验；QQ 仍未接入',
+    unverified: '网易云 P3 登录/近期导入/点播/暂停/恢复/换曲已通过，搜索补充探针通过；QQ 仍未真实接入，双平台 A01 未通过',
   },
   {
     id: 'A02', claim: '可导入目标数量；数量不足、收藏/歌单降级和空结果均如实展示',
     status: 'offline-passed',
-    files: ['docs/spikes/T1-environment.md', 'test/taste.test.mjs', 'test/core-host.test.mjs'],
+    files: ['docs/spikes/T1-environment.md', 'docs/spikes/P3-real-loop.md', 'test/taste.test.mjs', 'test/core-host.test.mjs'],
     tests: [
       { file: 'test/taste.test.mjs', name: 'an import records its real source, the requested and the imported counts' },
     ],
@@ -55,7 +55,7 @@ const EVIDENCE = [
       { file: 'test/core.test.mjs', name: 'mode and switch combinations preserve explicit mute and pause' },
       { file: 'test/ui-panel.test.mjs', name: 'the four switch combinations are all named, and the mode is derived, not stored twice' },
     ],
-    unverified: '真实桌面上的操作未验',
+    unverified: '真实暂停/恢复/换曲已验；四开关组合、全部模式和到期约束完整真机覆盖仍未完成',
   },
   {
     id: 'A04', claim: '用户点歌/下一首优先；禁播、暂停不会被自动事件覆盖',
@@ -85,7 +85,7 @@ const EVIDENCE = [
       { file: 'test/sessions.test.mjs', name: 'a transient session precipitates less, and its influence is capped' }
       , { file: 'test/taste.test.mjs', name: 'a restart keeps the same personality instead of reshuffling it' },
     ],
-    unverified: '真实导入数据与真实会话未验',
+    unverified: '真实导入与重启保留已验；真实成长对照及多会话影响未验',
   },
   {
     id: 'A07', claim: 'DSH 内嵌音乐设置与 shell.overlay 悬浮条共用 Core；显示状态同步，隐藏/页面切换不停止播放',
@@ -99,7 +99,7 @@ const EVIDENCE = [
       { file: 'test/dsh-client.test.mjs', name: 'dragging docks the floating bar to an edge and arrow keys move it accessibly' },
       { file: 'test/dsh-settings.test.mjs', name: 'settings RPC persists changes through Core restart and preserves pause' },
     ],
-    unverified: '官方 desktop rc.2 基础 UI、持久化、停用恢复和拖动吸边已验；深色主题、窄窗口、完整键盘及播放中连续性未验；独立窗口和托盘不属于当前方案',
+    unverified: '官方 desktop 基础 UI 与 P3 点播/离开面板且浮层隐藏时音频连续性已验；深色主题、窄窗口、完整键盘与播放中浮层控制仍未验',
   },
   {
     id: 'A08', claim: '多 Session 不抢占播放；插件退出停止音乐，DSH 正常工作',

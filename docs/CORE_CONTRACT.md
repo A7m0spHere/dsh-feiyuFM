@@ -27,7 +27,9 @@
 
 支持 `pause`、`resume`、`next`、`requestTrack`、`setListening`、`setHumanPlayback`、`setDiscovery`、`setDiscoveryRate`、`setMode`、`stopForToday`、`chooseSelf`、`banTrack`、`unbanTrack`。模式值为 `normal`、`focus`、`silent`、`off`。禁播曲目的明确点播返回 `constraint_conflict`，由上层向用户呈现并获取本次例外意图；本阶段不暗中覆盖约束。
 
-`setQueue()` 和 `selectAutonomously()` 是 Phase 1 调试与固定候选入口。完整候选来源、探索和多 Session 活动上下文属于后续阶段。当前 `next` 从同一队列取曲目；暂停期间换曲保持暂停。到期的“今天别听”限制只失效，不自动解除暂停。
+`setQueue()` 和 `selectAutonomously()` 是调试与固定候选入口。`next` 优先取同一队列，队列为空时从本地选择器取候选，排除当前曲目并保留禁播/冷却过滤；用户换曲标为 `selectedBy=user`，暂停期间换曲保持暂停。到期的“今天别听”限制只失效，不自动解除暂停。
+
+`library` Host 消息返回导入库总数及最多 300 首元数据；认证设置状态投影带同一库。主面板支持开始听歌、选择已导入曲目与 `requestTrack`；设置 RPC 只转发规范化的曲目字段，不接受音频 URL 或凭据。实测见 [P3](spikes/P3-real-loop.md)。
 
 ## 存储与进程
 

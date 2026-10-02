@@ -1,11 +1,11 @@
 // DSH 0.2.0-rc.1 Connection contract; no new HTTP listener or model tools.
 import { randomUUID } from 'node:crypto';
 import QRCode from 'qrcode';
-import { assertCommand } from '../contracts.mjs';
+import { assertCommand, normalizeTrack } from '../contracts.mjs';
 import { NETEASE_QR_LOGIN_URL } from '../providers/endpoints/netease.mjs';
 
 const ALLOWED = new Set(['pause', 'resume', 'next', 'setListening', 'setHumanPlayback',
-  'setDiscovery', 'setDiscoveryRate', 'setMode', 'stopForToday']);
+  'setDiscovery', 'setDiscoveryRate', 'setMode', 'stopForToday', 'requestTrack']);
 const QUICK_LOGIN_PROVIDER = 'netease';
 const STATE_ENDPOINT = 'fishfm/state';
 const PLATFORM_ENDPOINTS = new Set(['fishfm/login-start', 'fishfm/login-poll', 'fishfm/import', 'fishfm/logout']);
@@ -46,12 +46,13 @@ function safeImportDetails(details) {
 }
 
 async function readSettingsState(bridge, signal) {
-  const [state, platforms] = await Promise.all([
+  const [state, platforms, library] = await Promise.all([
     bridge.request({ type: 'snapshot' }, { signal, abortable: true }),
     bridge.request({ type: 'platforms' }, { signal, abortable: true }),
+    bridge.request({ type: 'library' }, { signal, abortable: true }),
   ]);
   // Publish only the UI projection, never credentials or media handles.
-  return { snapshot: state.snapshot, platforms: platforms.platforms };
+  return { snapshot: state.snapshot, platforms: platforms.platforms, library: library.library };
 }
 
 export function createSettingsHandler(bridge) {
@@ -102,6 +103,10 @@ export function createSettingsHandler(bridge) {
           throw Object.assign(new Error('Unsupported settings command'), { code: 'invalid_command' });
         }
         command = { type: payload.type, value: payload.value, commandId: randomUUID() };
+        if (command.type === 'requestTrack') {
+          try { command.track = normalizeTrack(payload.track); }
+          catch { throw Object.assign(new Error('A valid platform track is required'), { code: 'invalid_command' }); }
+        }
         if (command.type === 'setDiscoveryRate' && !Number.isFinite(command.value)) {
           throw Object.assign(new Error('Exploration rate must be finite'), { code: 'invalid_command' });
         }

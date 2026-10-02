@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import { MusicCore } from '../src/core.mjs';
 import { FakeClock, FakePlayback, FakeProvider } from '../src/fakes.mjs';
 import { MusicStore } from '../src/storage.mjs';
+import { createSelector } from '../src/selection.mjs';
 
 const a = { provider: 'netease', providerTrackId: '1', title: 'A', durationMs: 180000 };
 const b = { provider: 'qq', providerTrackId: '1', title: 'B', durationMs: 170000 };
@@ -20,6 +21,26 @@ function harness(store = new MusicStore()) {
   const send = (type, extra = {}) => core.dispatch({ commandId: `cmd-${++id}`, type, ...extra });
   return { store, provider, playback, clock, core, send };
 }
+
+test('next uses the imported library with an empty queue, excludes the current song and preserves pause', async () => {
+  const h = harness();
+  h.core.selector = createSelector({ store: h.store, listFamiliar: () => [a, b], now: () => h.clock.now() });
+  try {
+    h.send('requestTrack', { track: a });
+    await h.core.waitForIdle();
+    h.send('pause');
+    h.send('setListening', { value: false });
+    h.send('next');
+    await h.core.waitForIdle();
+    assert.equal(h.core.snapshot().current.track.provider, 'qq');
+    assert.equal(h.core.snapshot().current.selectedBy, 'user');
+    assert.equal(h.core.snapshot().paused, true);
+    assert.equal(h.playback.playing, false);
+    h.send('banTrack', { track: a });
+    assert.throws(() => h.send('next'), { code: 'no_candidates' });
+    assert.equal(h.core.snapshot().current.track.provider, 'qq');
+  } finally { h.store.close(); }
+});
 
 test('late resolve cannot replace a newer user track or undo pause', async () => {
   const h = harness();

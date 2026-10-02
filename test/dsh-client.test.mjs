@@ -57,6 +57,28 @@ const state = value => ({ ok: true, value: { snapshot: value, platforms: {} } })
 const tick = () => new Promise(resolve => setImmediate(resolve));
 function all(tree) { return !tree || typeof tree !== 'object' ? [] : [tree, ...tree.children.flatMap(all)]; }
 
+test('an imported library restored from Core enables first playback and point play without importing again', async () => {
+  const calls = [];
+  const track = { provider: 'netease', providerTrackId: '42', title: 'Saved song', artist: 'Artist', durationMs: 180000 };
+  const f = fixture(async (_channel, endpoint, payload) => {
+    calls.push({ endpoint, payload });
+    return { ok: true, value: { snapshot: snapshot(1), platforms: {}, library: { total: 1, tracks: [track] } } };
+  });
+  const off = f.controller.subscribe(() => {});
+  try {
+    await tick();
+    const start = all(f.render()).find(n => n.children.includes('开始听歌'));
+    assert.equal(start.props.disabled, false);
+    await start.props.onClick();
+    assert.equal(calls.at(-1).payload.type, 'resume');
+    const picker = all(f.render()).find(n => n.props['aria-label'] === '选择已导入曲目');
+    picker.props.onChange({ target: { value: 'netease:42' } });
+    await all(f.render()).find(n => n.children.includes('播放这首')).props.onClick();
+    await tick();
+    assert.deepEqual(JSON.parse(JSON.stringify(calls.at(-1).payload)), { type: 'requestTrack', track });
+  } finally { off(); f.dispose(); }
+});
+
 test('the floating player selects the active panel from the host hook and returns after leaving FishFM', () => {
   const f = fixture(async () => state(snapshot(1)));
   try {
@@ -85,7 +107,7 @@ test('client contributes native sidebar, main and settings seats; controls send 
     let closed = false;
     const close = all(f.render({ close: () => { closed = true; } })).find(n => n.children.includes('关闭设置'));
     close.props.onClick(); assert.equal(closed, true);
-    assert.equal(all(f.render()).find(n => n.children.includes('继续播放')).props.disabled, true);
+    assert.equal(all(f.render()).find(n => n.children.includes('开始听歌')).props.disabled, true);
   } finally { off(); f.dispose(); }
   assert.equal(f.intervals.size, 0); assert.equal(f.styles.length, 0);
 });

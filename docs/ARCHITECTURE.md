@@ -1,5 +1,7 @@
 # 技术架构草案
 
+2026-10-02：[网易云 P3](spikes/P3-real-loop.md) 真实闭环通过。Core Host 提供 `library` 元数据投影，认证设置状态返回导入库；主面板点播转为白名单 `requestTrack`，音频句柄仍只在 Provider/Playback 之间流动。用户下一首在队列为空时调用本地选择器，排除当前曲目并保留禁播/冷却过滤，暂停保持。以下旧阶段记录按日期阅读。
+
 2026-09-30 官方 desktop rc.2：设置 RPC 优先用 `connection.fetch.register` 的精确 `/api/fishfm/*` 路由与 Gateway 共存，保留宿主认证；默认数据目录遵循 `DSH_HOME` / `~/.dsh`。悬浮条通过 root selector 读取活动面板、以 `[data-shell-overlay]` 为位置边界，设置页按容器宽度布局。实测见 [U5](spikes/U5-official-desktop.md)。
 
 2026-09-29 增量：DSH Web 主界面通过 `dsh.client` / `./client` 加载 `src/ui/dsh-client.js`，注册 `sidebar.panellist`、`main`、`settings.section` 和 `shell.overlay`。设置面板与悬浮条使用 `src/ui/dsh-settings.mjs` 中基于宿主认证的 `/api` RPC，共享同一个 Core controller。NetEase provider 在 Core 内直接调用固定版本 `@neteasecloudmusicapienhanced/api@4.40.1` 读取账号和导入来源；DPAPI、SQLite 凭据引用边界不变。UI 没有独立状态库、播放服务、监听端口或模型调用。真实实例当前发现已存会话返回游客态，导入被阻止；详见 [U4](spikes/U4-quick-login.md)。

@@ -42,7 +42,7 @@ window.__ModuleLoader__.load({
     function createController(connection) {
       let state = {
         snapshot: null, platforms: {}, busy: false, connected: false, error: '', notice: '',
-        login: null, imported: null, importAttempts: [],
+        login: null, imported: null, importAttempts: [], library: { total: 0, tracks: [] },
         widgetVisible: readPreference(WIDGET_VISIBLE_KEY, true) !== false,
         widgetPosition: readPreference(WIDGET_POSITION_KEY, null),
       };
@@ -94,7 +94,7 @@ window.__ModuleLoader__.load({
           write = new AbortController();
           const timeout = setTimeout(() => write?.abort(), 25000);
           try {
-            const result = await connection.rpc.call('/api', 'fishfm/command', { type, value }, write.signal);
+            const result = await connection.rpc.call('/api', 'fishfm/command', type === 'requestTrack' ? { type, track: value } : { type, value }, write.signal);
             if (!result.ok) throw result.error;
             emit({ snapshot: result.value.snapshot, notice: '已保存到本机' });
           } catch (error) { emit({ connected: false, error: failure(error), notice: '未确认保存，请刷新核对' }); }
@@ -117,13 +117,13 @@ window.__ModuleLoader__.load({
             const value = result.value;
             const login = Object.hasOwn(value, 'login') ? value.login : state.login;
             if (action === 'poll' && login) login.qrImage = state.login?.qrImage;
-            emit({ snapshot: value.snapshot, platforms: value.platforms ?? state.platforms, login,
+            emit({ snapshot: value.snapshot, platforms: value.platforms ?? state.platforms, library: value.library ?? state.library, login,
               imported: action === 'logout' ? null : Object.hasOwn(value, 'imported') ? value.imported : state.imported,
               importAttempts: action === 'import' ? value.attempts ?? [] : state.importAttempts,
               connected: true, error: '',
               notice: action === 'logout' ? '已退出网易云账号，本机凭据已删除。'
                 : action === 'import'
-                  ? `已读取${value.imported?.source || '平台音乐'}：本次新增 ${value.imported?.imported ?? 0} 首，当前共 ${value.imported?.total ?? 0} 首${value.imported?.degraded ? '，已自动降级来源' : ''}`
+                  ? `已读取${sourceNames[value.imported?.source] || '平台音乐'}：本次新增 ${value.imported?.imported ?? 0} 首，当前共 ${value.imported?.total ?? 0} 首${value.imported?.source !== 'recent' ? '，使用备用来源' : ''}${value.imported?.total < value.imported?.requested ? '，返回数量不足目标，仍可播放' : ''}`
                   : value.login?.identityError || (value.login?.status === 'authorized' ? '登录成功，可以导入音乐。'
                     : value.login?.status === 'scanned' ? '已扫码，请在手机上确认登录。'
                       : value.login?.status === 'expired' ? '二维码已过期，请重新获取。'
@@ -221,6 +221,7 @@ window.__ModuleLoader__.load({
       const snapshot = state.snapshot;
       const settings = snapshot?.settings || {};
       const [rate, setRate] = React.useState(20);
+      const [selectedTrack, setSelectedTrack] = React.useState('');
       const rateId = React.useId();
       React.useEffect(() => { if (snapshot) setRate(Math.round(settings.discoveryRate * 100)); }, [settings.discoveryRate]);
       React.useEffect(() => {
@@ -313,8 +314,15 @@ window.__ModuleLoader__.load({
             current && h(React.Fragment, null,
               h('div', { className: 'fm-progress', 'aria-label': '播放进度' }, h('span', { style: { width: `${progressPercent(current)}%` } })),
               h('div', { className: 'fm-time' }, h('span', null, minutes(current.positionMs)), h('span', null, current.track.durationMs ? minutes(current.track.durationMs) : '--:--'))),
-            h('div', { className: 'fm-controls' }, button(snapshot?.paused ? '继续播放' : '暂停', snapshot?.paused ? 'resume' : 'pause', !current),
-              button('下一首', 'next', !current && !snapshot?.queue?.length), button('今天停止', 'stopForToday')))),
+            h('div', { className: 'fm-controls' }, button(!current ? '开始听歌' : snapshot?.paused ? '继续播放' : '暂停', !current || snapshot?.paused ? 'resume' : 'pause', !current && !state.library?.total && !snapshot?.queue?.length),
+              button('下一首', 'next', !current && !snapshot?.queue?.length && !state.library?.total), button('今天停止', 'stopForToday')),
+            state.library?.tracks?.length > 0 && h('div', { className: 'fm-controls' },
+              h('select', { className: 'fm-button', 'aria-label': '选择已导入曲目', value: selectedTrack, disabled,
+                style: { maxWidth: '100%', minWidth: 0 }, onChange: event => setSelectedTrack(event.target.value) },
+                h('option', { value: '' }, '选择已导入曲目'), ...state.library.tracks.map(track =>
+                  h('option', { key: `${track.provider}:${track.providerTrackId}`, value: `${track.provider}:${track.providerTrackId}` }, `${track.title || track.providerTrackId} · ${track.artist || track.provider}`))),
+              h('button', { type: 'button', className: 'fm-button', disabled: disabled || !selectedTrack,
+                onClick: () => { const track = state.library.tracks.find(row => `${row.provider}:${row.providerTrackId}` === selectedTrack); if (track) controller.command('requestTrack', track); } }, '播放这首')))),
         state.error && h('div', { className: 'fm-notice', 'data-error': true, role: 'alert' }, state.error,
           ' ', h('button', { className: 'fm-button', type: 'button', disabled: state.busy, onClick: controller.refresh }, '重新连接')),
         snapshot?.lastError && h('div', { className: 'fm-notice', role: 'status' }, `播放尚未成功：${snapshot.lastError.code || 'playback_failed'}。请核对平台连接和曲目权限。`),
@@ -458,9 +466,9 @@ window.__ModuleLoader__.load({
                 h('span', null, `${minutes(current.positionMs)} / ${current.track?.durationMs ? minutes(current.track.durationMs) : '--:--'}`)))
               : h('div', { className: 'fm-float-empty' }, snapshot ? '当前没有播放曲目。可以打开电台设置或导入音乐。' : state.connected ? '正在读取播放状态…' : '本地音乐服务暂时无法连接。'),
             h('div', { className: 'fm-float-controls' },
-              h('button', { type: 'button', className: 'fm-button', disabled: blocked || !current,
-                'aria-label': paused ? '继续播放' : '暂停', onClick: () => controller.command(paused ? 'resume' : 'pause') }, h(Svg, { type: paused ? 'play' : 'pause' }), paused ? '继续播放' : '暂停'),
-              h('button', { type: 'button', className: 'fm-button', disabled: blocked || (!current && !snapshot?.queue?.length),
+              h('button', { type: 'button', className: 'fm-button', disabled: blocked || (!current && !state.library?.total && !snapshot?.queue?.length),
+                'aria-label': !current ? '开始听歌' : paused ? '继续播放' : '暂停', onClick: () => controller.command(!current || paused ? 'resume' : 'pause') }, h(Svg, { type: !current || paused ? 'play' : 'pause' }), !current ? '开始听歌' : paused ? '继续播放' : '暂停'),
+              h('button', { type: 'button', className: 'fm-button', disabled: blocked || (!current && !snapshot?.queue?.length && !state.library?.total),
                 'aria-label': '播放下一首', onClick: () => controller.command('next') }, h(Svg, { type: 'next' }), '下一首')))),
         menuOpen && h('div', { className: 'fm-float-menu', role: 'menu', 'aria-label': '音乐快捷菜单' },
           h('div', { className: 'fm-menu-section' }, '快捷模式'),

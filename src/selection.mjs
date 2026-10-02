@@ -124,15 +124,16 @@ export function createSelector({
 } = {}) {
   if (!store) throw new Error('store is required');
 
-  const decide = ({ discoveryRate, at = now() } = {}) => {
+  const decide = ({ discoveryRate, at = now(), excludeTrackKeys = [] } = {}) => {
     const rate = clampRate(discoveryRate);
     const banned = bannedTrackKeys(store, at);
+    const excluded = new Set(excludeTrackKeys);
     const plays = recentPlays(store, { now: at, windowMs: parameters.repeatWindowMs, limit: parameters.historyWindow });
 
     const prepare = (tracks) => {
       const all = tracks.map((track) => ({ track, key: trackId(track) }));
       const usable = all
-        .filter(({ track, key }) => !banned.has(key) && isPlayable(track))
+        .filter(({ track, key }) => !banned.has(key) && !excluded.has(key) && isPlayable(track))
         // A track inside its cooldown is deliberately not a candidate at all.
         .filter(({ key }) => {
           const play = plays.get(key);

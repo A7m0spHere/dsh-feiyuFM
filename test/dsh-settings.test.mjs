@@ -7,6 +7,20 @@ import { join, resolve } from 'node:path';
 import { CoreBridge } from '../src/dsh-adapter.mjs';
 import { createSettingsHandler, registerSettingsApi } from '../src/ui/dsh-settings.mjs';
 
+test('authenticated point play strips resource and credential fields and validates the track before forwarding', async () => {
+  let sent;
+  const api = createSettingsHandler({ async start() {}, async command(command) { sent = command; return { snapshot: {} }; } });
+  const result = await api('fishfm/command', { type: 'requestTrack', track: {
+    provider: 'netease', providerTrackId: '42', title: 'Song', artist: 'Artist', durationMs: 180000,
+    handle: 'https://example.invalid/audio', cookie: 'secret',
+  } });
+  assert.equal(result.ok, true);
+  assert.deepEqual(sent.track, { provider: 'netease', providerTrackId: '42', title: 'Song', artist: 'Artist', durationMs: 180000 });
+  sent = null;
+  assert.equal((await api('fishfm/command', { type: 'requestTrack', track: { provider: 'other', providerTrackId: '42' } })).error.code, 'invalid_command');
+  assert.equal(sent, null);
+});
+
 test('settings RPC persists changes through Core restart and preserves pause', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'fishfm-ui-'));
   const makeBridge = () => new CoreBridge({ spawnCore: () => spawn(process.execPath,

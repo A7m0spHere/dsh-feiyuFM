@@ -312,7 +312,11 @@ export class MusicCore {
         }
         break;
       case 'next': {
-        const next = this._takeNext();
+        const next = this._takeNext() ?? this.selector?.next({
+          discoveryRate: this.state.settings.discovery ? this.state.settings.discoveryRate : 0,
+          at: now,
+          excludeTrackKeys: this.state.current ? [trackId(this.state.current.track)] : [],
+        })?.track;
         if (!next) throw new MusicError('no_candidates', 'No queued track is available');
         this._select(next, 'user', this.state.paused);
         break;

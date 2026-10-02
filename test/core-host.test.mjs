@@ -107,6 +107,13 @@ test('an import fills the environment, initializes taste and becomes selectable'
     assert.equal(env.bySource.liked.count, 2);
     assert.equal(env.bySource.liked.label, '我喜欢');
 
+    await host.handle({ id: 'library', type: 'library' });
+    const library = out.messages.at(-1).library;
+    assert.equal(library.total, 2);
+    assert.equal(library.tracks[0].providerTrackId, 'h1');
+    assert.equal(library.tracks[0].durationMs, 600);
+    assert.deepEqual(Object.keys(library.tracks[0]).sort(), ['artist', 'durationMs', 'provider', 'providerTrackId', 'title']);
+
     // The newly imported tracks are selectable: the selector reads the
     // environment on every decision rather than caching it at startup.
     await host.handle({ id: 'self', type: 'command', command: { type: 'chooseSelf', commandId: 'c1' } });

@@ -414,6 +414,15 @@ export function createCoreHost({
           send({ type: 'result', id, ok: true, import: result, taste, snapshot: core.snapshot() });
           return;
         }
+        case 'library': {
+          const tracks = store.listEnvironment({ limit: 300 }).map(row => {
+            const track = store.getTrack({ provider: row.provider, providerTrackId: row.track_key.split(':').slice(1).join(':') });
+            return { provider: track.provider, providerTrackId: track.provider_track_id,
+              title: track.title, artist: track.artist, durationMs: track.duration_ms };
+          });
+          send({ type: 'result', id, ok: true, library: { total: store.countEnvironment(), tracks } });
+          return;
+        }
         case 'environment': {
           send({
             type: 'result', id, ok: true,
