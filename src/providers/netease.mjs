@@ -10,7 +10,8 @@
 // live service. docs/spikes/P2-netease.md records exactly what remains
 // unconfirmed (P0-02 / P3). Nothing here asserts a verified platform API.
 import { createPlatformProvider } from './platform.mjs';
-import { MusicError } from '../contracts.mjs';
+import { MusicError, trackId } from '../contracts.mjs';
+import { toTrack, capability, needsLogin } from './contract.mjs';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { randomUUID } from 'node:crypto';
 import { createRequire } from 'node:module';
@@ -97,9 +98,12 @@ const COMMUNITY_CALLS = Object.freeze({
   playlists: { method: 'user_playlist', stage: 'user_playlist' },
   playlistTracks: { method: 'playlist_detail', stage: 'playlist_detail' },
   songDetails: { method: 'song_detail', stage: 'song_detail' },
+  dailyRecommendations: { method: 'recommend_songs', stage: 'recommend_songs' },
+  personalRecommendations: { method: 'personal_fm', stage: 'personal_fm' },
 });
 
 const STAGE_LABELS = Object.freeze({
+  recommend_songs: '每日推荐', personal_fm: '私人 FM',
   login_qr_key: '生成二维码', login_qr_check: '检测扫码状态',
   login_status: '登录状态', user_record: '近期记录', likelist: '喜欢列表',
   user_playlist: '用户歌单', playlist_detail: '歌单详情', song_detail: '歌曲详情',
@@ -280,8 +284,9 @@ const listOf = (body) => body?.data?.list ?? body?.list ?? body?.songs ?? body?.
 export function createNetEaseProvider(options = {}) {
   const accountRef = options.accountRef ?? 'fishfm/netease';
   const store = options.store;
+  const communityApi = options.communityApi ?? loadCommunityApi();
   const transport = createCommunityTransport(options.transport, {
-    api: options.communityApi ?? loadCommunityApi(),
+    api: communityApi,
     credentials: options.credentials,
     accountRef,
     communityLogin: options.communityLogin !== false,
@@ -406,6 +411,47 @@ export function createNetEaseProvider(options = {}) {
       },
     },
   });
+  const baseCapabilities = provider.getCapabilities.bind(provider);
+  const canRecommend = typeof communityApi.recommend_songs === 'function';
+  let recommendationError = null;
+  provider.getCapabilities = () => ({ ...baseCapabilities(),
+    recommendation: provider.getAccount().status !== 'authorized' ? needsLogin('fetch NetEase recommendations')
+      : canRecommend ? capability(recommendationError ? 'degraded' : 'available', { source: 'netease_daily', ...(recommendationError ? { reason: recommendationError } : {}) })
+        : capability('unavailable', { reason: 'The pinned API has no recommend_songs method' }) });
+  provider.getDiscoveryTracks = async ({ limit = 40, signal = null } = {}) => {
+    if (provider.getAccount().status !== 'authorized') throw new MusicError('login_required', '请先登录网易云音乐。');
+    if (!canRecommend) throw new MusicError('capability_unavailable', '网易云每日推荐入口不可用。');
+    if (!Number.isInteger(limit) || limit < 1 || limit > 200) throw new MusicError('invalid_command', '候选数量必须为 1–200。');
+    const roles = ['dailyRecommendations', ...(typeof communityApi.personal_fm === 'function' ? ['personalRecommendations'] : [])];
+    const failures = [];
+    for (const role of roles) {
+      if (signal?.aborted) throw new MusicError('cancelled', 'Discovery was cancelled');
+      try {
+        const response = await transport.request({ role, params: {}, signal });
+        const body = response.body;
+        const rows = role === 'dailyRecommendations' ? body?.data?.dailySongs : body?.data;
+        if (!Array.isArray(rows)) throw new MusicError('provider_failure', '推荐结果结构与已验证接口不符。');
+        const seen = new Set();
+        const fetchedAt = (options.now ?? Date.now)();
+        const tracks = rows.map(row => toTrack(NETEASE, row)).filter(track => {
+          if (!track || seen.has(trackId(track))) return false;
+          seen.add(trackId(track)); return true;
+        }).slice(0, limit).map(track => ({ ...track, discovery: {
+          source: role === 'dailyRecommendations' ? 'netease_daily' : 'netease_personal_fm',
+          seedTrackKey: null, fetchedAt, expiresAt: fetchedAt + 6 * 60 * 60_000,
+        } }));
+        if (tracks.length || role === roles.at(-1)) {
+          recommendationError = failures.length ? failures.join('; ') : null;
+          return tracks;
+        }
+      } catch (error) {
+        if (signal?.aborted || ['cancelled','login_required','expired'].includes(error.code)) throw error;
+        failures.push(`${role}:${error.code ?? 'provider_failure'}`);
+      }
+    }
+    recommendationError = failures.join('; ');
+    throw new MusicError('provider_failure', `网易云推荐暂不可用（${recommendationError}）。`, { retryable: true });
+  };
   const getSeedTracks = provider.getSeedTracks.bind(provider);
   provider.getSeedTracks = async (seedOptions = {}) => {
     if (provider.getAccount().status === 'authorized' && !uid()) {

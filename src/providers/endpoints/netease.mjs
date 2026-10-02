@@ -31,7 +31,7 @@ export const NETEASE_ENDPOINT_PROVENANCE = Object.freeze({
   ],
   communityPackage: {
     name: '@neteasecloudmusicapienhanced/api', version: '4.40.1', license: 'MIT',
-    modules: ['login_qr_key', 'login_qr_check', 'login_status', 'user_record', 'likelist', 'user_playlist', 'playlist_detail', 'song_detail'],
+    modules: ['login_qr_key', 'login_qr_check', 'login_status', 'user_record', 'likelist', 'user_playlist', 'playlist_detail', 'song_detail', 'recommend_songs', 'personal_fm'],
     note: 'Production QR login uses the pinned type=3 modules with a fresh cookie context. The legacy type=1 descriptors are retained for diagnostic fixtures. A fresh 801 response was measured on 2026-09-30; real authorization still needs user confirmation.',
   },
   legacyHypotheses: [
