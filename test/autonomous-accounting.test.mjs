@@ -84,3 +84,23 @@ test('a restarted selector continues the persisted random stream', async () => {
     assert.equal(nextAfterRestart.detail.randomValue, nextWithoutRestart.detail.randomValue);
   } finally { store.close(); }
 });
+
+test('an autonomous media-open timeout temporarily defers that candidate and tries another instead of pausing the whole station', async () => {
+  const store=new MusicStore(), playback=new FakePlayback(), provider=new FakeProvider(), clock=new FakeClock();
+  const tracks=[1,2].map(id=>({...track,providerTrackId:`timeout-${id}`}));
+  importSeedTracks({store,provider:'netease',source:'recent',tracks,requested:2});
+  playback.failNextLoad(new MusicError('media_open_timeout','opening timed out',{retryable:true}));
+  const core=new MusicCore({store,playback,provider,clock,selector:buildSelector({store,now:()=>clock.now()})});
+  playback.onEvent(event=>core.onPlaybackEvent(event));
+  try {
+    core.dispatch({type:'chooseSelf',commandId:'open-timeout'});
+    await core.waitForIdle();
+    assert.equal(provider.calls.length,2);
+    assert.equal(core.snapshot().status,'playing');
+    assert.equal(core.snapshot().paused,false);
+    const deferred=store.db.prepare('SELECT * FROM track_availability').get();
+    assert.equal(deferred.code,'media_open_timeout');
+    assert.equal(deferred.expires_at,clock.now()+5*60_000);
+    assert.equal(store.db.prepare('SELECT COUNT(*) AS n FROM listen_history').get().n,0);
+  } finally {store.close();}
+});

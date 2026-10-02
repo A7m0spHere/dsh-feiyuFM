@@ -138,8 +138,9 @@ export class MusicCore {
       // music for good. Nothing is recorded: a track that never played is not a
       // listen, and history must not invent one (A10).
       const failed = this.state.current;
-      const candidateFailure = ['media_unavailable', 'resource_unavailable'].includes(error.code);
-      if (failed && candidateFailure) this.store.markUnavailable(failed.track, error.code, this.clock.now() + 30 * 60_000);
+      const candidateFailure = ['media_unavailable', 'resource_unavailable', 'media_open_timeout', 'media_failed'].includes(error.code);
+      if (failed && candidateFailure) this.store.markUnavailable(failed.track, error.code, this.clock.now()
+        + (['media_open_timeout','media_failed'].includes(error.code) ? 5 : 30) * 60_000);
       if (this.state.current && !this.state.current.finished) {
         this.state.current.finished = true;
         this.state.current = null;
@@ -545,8 +546,8 @@ export class MusicCore {
       this.state.current = null;
       this._commit();
       if (event.type === 'ended') this.selectAutonomously();
-      else if (current.selectedBy === 'agent' && event.code === 'media_unavailable') {
-        this.store.markUnavailable(current.track, event.code, this.clock.now() + 30 * 60_000);
+      else if (current.selectedBy === 'agent' && ['media_unavailable','media_failed','media_open_timeout'].includes(event.code)) {
+        this.store.markUnavailable(current.track, event.code, this.clock.now() + (event.code === 'media_unavailable' ? 30 : 5) * 60_000);
         if (this.autoFailures < 2) { this.autoFailures++; this.selectAutonomously(); }
       }
       return true;
