@@ -9,7 +9,7 @@
 
 ## 事实与文档入口
 
-- 2026-10-03 N9 落地：透明人格、decisionId 短回复与 token 账本已实现并有生产总结调用证据（schema v6，`music_model_calls` 成功 1 条 / 失败 1 条），见 `docs/spikes/N9-transparent-persona.md`；总结仍默认手动，逐曲零模型请求。同日清理本地 git：删除 3 个已并入 `main` 的历史分支并 prune 远端引用，只保留 `main` 跟踪 `origin/main`。
+- 2026-10-03 N9 落地：透明人格、decisionId 短回复与 token 账本已实现并有生产总结调用证据（schema v7，`music_model_calls` 成功 1 条 / 失败 1 条），见 `docs/spikes/N9-transparent-persona.md`；逐曲零模型请求。自动总结默认关闭，开启后由 Core 判定 7 项条件并在预留时复检；单次输出上限 64–256 由 Core 读取。同日清理本地 git：删除 3 个已并入 `main` 的历史分支并 prune 远端引用，只保留 `main` 跟踪 `origin/main`。
 
 - 2026-10-03 最新指令：用户提前结束长跑，短跑 72.86 分钟/17 首自然结束/17 次有效静音成长/11 次陌生经历，完整观察报告中断未落盘，见 `docs/spikes/N7-short-run.md`；两小时/完整对照保持未验。N6 最新明细已单独重载音乐插件并实测，音乐暂停，391 首输入与 70% 探索率保持。用户随后明确“直接开始 N9”，覆盖此前等待 N7 全验的顺序要求；进入 N9 开发，QQ 继续暂缓。
 
