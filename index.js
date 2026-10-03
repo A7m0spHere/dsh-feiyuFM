@@ -20,6 +20,7 @@ import { CoreBridge, registerAdapter } from './src/dsh-adapter.mjs';
 import { registerSettingsApi } from './src/ui/dsh-settings.mjs';
 import { createRuntimeEvidence } from './src/runtime/evidence.mjs';
 import {createHostCollector} from './src/runtime/host-collector.mjs';
+import {createPersonaModelService} from './src/persona-model.mjs';
 
 export const name = 'fishfm';
 
@@ -133,9 +134,16 @@ export function apply(ctx, config = {}) {
   const hostCollector=createHostCollector({onLog:entry=>evidence.event(entry)});
   evidence.setHostCollector(hostCollector);
   const dispose = registerAdapter(ctx, { bridge, hostCollector, onLog: entry => evidence.event(entry) });
+  const summaryService={current:null};
+  if(typeof ctx.inject==='function')ctx.inject(['llm'],modelCtx=>{
+    const service=createPersonaModelService({llm:modelCtx.llm,bridge,onLog:entry=>evidence.event(entry)});
+    summaryService.current=service;
+    modelCtx.on('llm/stream',(options,next)=>{service.observe(options);return next();});
+    modelCtx.effect(()=>()=>{service.dispose();if(summaryService.current===service)summaryService.current=null;},'fishfm: optional summaries');
+  });
   // Optional in headless profiles; the browser uses the host's authenticated RPC.
   if (typeof ctx.inject === 'function') {
-    ctx.inject(['connection'], (uiCtx) => registerSettingsApi(uiCtx, bridge));
+    ctx.inject(['connection'], (uiCtx) => registerSettingsApi(uiCtx, bridge,summaryService));
     ctx.inject(['webServer'], registerClientAssets);
   }
   // Start eagerly so a failure is visible at load time, but never block apply:

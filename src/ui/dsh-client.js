@@ -6,6 +6,14 @@ window.__ModuleLoader__.load({
     // src/ui/client/styles.mjs
     // PHL-inspired tokens and timing. Source/provenance: THIRD_PARTY_NOTICES.md.
     const css = `
+      .fm-input-library { padding:12px; border:1px solid var(--fm-line); border-radius:9px; background:var(--fm-surface); }
+      .fm-input-library>summary { cursor:pointer; font-weight:600; }
+      .fm-input-library[open]>summary { margin-bottom:14px; }
+      .fm-summary { padding:12px 0; border-top:1px solid var(--fm-line); margin-top:12px; }
+      .fm-summary select { max-width:100%; margin:8px 8px 8px 0; padding:5px; color:var(--fm-ink); background:var(--fm-surface); border:1px solid var(--fm-line); border-radius:6px; }
+      .fm-summary-text { white-space:pre-wrap; overflow-wrap:anywhere; line-height:1.8; }
+      .fishfm details>summary { cursor:pointer; }
+      .fishfm input[type=number] { width:105px; margin:8px; padding:5px; color:var(--fm-ink); background:var(--fm-surface); border:1px solid var(--fm-line); border-radius:5px; }
       .fishfm,.fm-float {
         --fm-canvas:hsl(220 20% 96%); --fm-surface:hsl(0 0% 100%);
         --fm-raised:hsl(0 0% 100%); --fm-sunken:hsl(220 20% 97%);
@@ -328,9 +336,9 @@ window.__ModuleLoader__.load({
         widgetPosition: readPreference(WIDGET_POSITION_KEY, null),
         motion: ['full', 'reduced', 'off'].includes(readPreference(MOTION_KEY, 'full')) ? readPreference(MOTION_KEY, 'full') : 'full',
       };
-      let epoch = 0, timer, read, write, disposed = false;
+      let epoch = 0, timer, read, write,summaryWrite, disposed = false;
       const listeners = new Set();
-      const emit = (patch) => { if (!disposed) { state = { ...state, ...patch }; listeners.forEach(fn => fn()); } };
+      const emit = (patch) => { if (!disposed) {if(patch.persona?.generatedAt<state.persona?.generatedAt){patch={...patch};delete patch.persona;} state = { ...state, ...patch }; listeners.forEach(fn => fn()); } };
       const failure = error => `${error?.message || '音乐服务连接失败，请刷新重试。'}${error?.code ? ` (${error.code})` : ''}`;
       async function refresh() {
         if (disposed || state.busy || read) return;
@@ -457,7 +465,19 @@ window.__ModuleLoader__.load({
               login });
           } finally { clearTimeout(timeout); write = null; emit({ busy: false }); }
         },
-        dispose() { disposed = true; ++epoch; clearInterval(timer); read?.abort(); write?.abort(); listeners.clear(); },
+        async personaAction(action,payload){
+          if(disposed||state.summaryBusy||!state.connected)return;
+          summaryWrite=new AbortController();const timeout=setTimeout(()=>summaryWrite?.abort(),65000);
+          emit({summaryBusy:true,summaryError:'',summaryNotice:action==='summary'?'正在总结聚合画像…':'正在保存总结预算…'});
+          try{
+            const result=await connection.rpc.call('/api',action==='summary'?'fishfm/persona-summary':'fishfm/persona-budget',payload,summaryWrite.signal);
+            if(!result.ok)throw result.error;
+            // This operation never overwrites live playback with a late snapshot.
+            emit({persona:result.value.persona,summaryNotice:action==='summary'?(result.value.summaryResult?.cached?'已复用缓存，没有新增模型调用。':'总结已更新。'):'总结预算已保存。'});
+          }catch(error){emit({summaryError:failure(error),summaryNotice:'本地选歌和旧总结仍保留。'});}
+          finally{clearTimeout(timeout);summaryWrite=null;emit({summaryBusy:false});}
+        },
+        dispose() { disposed = true; ++epoch; clearInterval(timer); read?.abort(); write?.abort();summaryWrite?.abort(); listeners.clear(); },
       };
     }
 
@@ -568,6 +588,38 @@ window.__ModuleLoader__.load({
             h('button', { type: 'button', className: 'fm-button', 'aria-label': '下一页曲目', disabled: currentPage === pages - 1, onClick: () => setPage(currentPage + 1) }, '下一页'))));
     }
 
+    // src/ui/client/persona.mjs
+    function Persona({state,controller}){
+     const view=state.persona,[selected,setSelected]=React.useState(''),[budget,setBudget]=React.useState(4000);
+     React.useEffect(()=>{if(view)setBudget(view.policy.dailyTokens);},[view?.policy?.dailyTokens]);
+     if(!view)return null;
+     const routes=state.summaryModels??[],key=r=>JSON.stringify([r.provider,r.model]),summary=view.summary,ledger=view.ledger;
+     const cachedRoute=summary&&routes.find(r=>r.provider===summary.provider&&r.model===summary.model);
+     const chosen=selected||(cachedRoute?key(cachedRoute):routes[0]?key(routes[0]):'');
+     const route=routes.find(r=>key(r)===chosen);
+     const usageText=u=>u?`输入 ${u.inputTokens} / 输出 ${u.outputTokens}${u.cacheReadTokens?` / 缓存读 ${u.cacheReadTokens}`:''}${u.cacheWriteTokens?` / 缓存写 ${u.cacheWriteTokens}`:''}${Number.isFinite(u.reasoningTokens)?` / 推理 ${u.reasoningTokens}（输出细分）`:''}`:'用量未知';
+     return h('section',{'aria-label':'音乐人格与模型用量'},h('h2',null,'大肥鱼的音乐画像',h('small',null,'PERSONA')),
+      h('div',{className:'fm-card'},
+       h('p',{className:'fm-label'},'本地事实与推荐策略'),
+       h('p',{className:'fm-note'},view.facts.artists.length?`目前较高权重的艺人：${view.facts.artists.map(a=>a.name).join('、')}。已追踪窗口中有 ${view.facts.validListens} 次有效自主经历。`:'尚未形成足够的艺人偏好，先导入或积累收听经历。'),
+       h('p',{className:'fm-note'},`探索目标 ${view.facts.discoveryEnabled?view.facts.exploration:0}%；平台相似候选与账号推荐分别记录，本地偏好和重复限制参与选择。权重来自初始化或有效经历，不等同于心理人格；流派和情绪未知。`),
+       h('div',{className:'fm-summary'},h('p',{className:'fm-label'},'LLM 总结 · 仅作展示'),
+        summary?h(React.Fragment,null,h('p',{className:'fm-summary-text'},summary.text),h('p',{className:'fm-note'},`${summary.provider} / ${summary.model} · ${new Date(summary.generatedAt).toLocaleString()} · ${usageText(summary.usage)}${view.summaryStale?' · 画像已变化，可在预算和冷却允许时更新':''}`))
+         :h('p',{className:'fm-note'},'还没有模型总结。默认手动生成，播放和逐曲回复不会自动调用模型。'),
+        h('select',{'aria-label':'总结模型',value:chosen,disabled:state.summaryBusy||!routes.length,onChange:e=>setSelected(e.target.value)},
+          ...(routes.length?routes.map(r=>h('option',{key:key(r),value:key(r)},r.label)):[h('option',{value:''},'DSH 模型列表尚不可用')])),
+        h('button',{type:'button',className:'fm-button',disabled:state.summaryBusy||!state.connected||!state.features?.personaSummary||!route,
+          onClick:()=>controller.personaAction('summary',{provider:route.provider,model:route.model})},state.summaryBusy?'正在处理…':'根据画像总结一次'),
+        h('p',{className:'fm-note',role:'status','aria-live':'polite'},state.summaryError||state.summaryNotice||'只发送少量聚合事实，不发送整份曲库。相同画像和模型复用缓存；成功总结间隔至少 1 小时，已对账失败可手动重试，每日最多 3 次新尝试。')),
+       h('details',null,h('summary',null,'插件 token 账本与预算'),
+        h('p',{className:'fm-note'},`本地选歌 / 逐曲回复：${ledger.localDecisionRequests} 次模型调用。人格总结今日已知 ${ledger.today.knownTokens} tokens，累计已知 ${ledger.total.knownTokens} tokens；${ledger.total.attempts} 次已记录尝试，其中 ${ledger.total.unknownCalls} 次用量未知或仍进行中。`),
+        h('p',{className:'fm-note'},`今日预算剩余 ${ledger.remainingTokens} tokens。未知用量按保守预留扣预算，不冒充真实用量；DSH 主任务和共享上下文成本未归因，不计入这里。`),
+        ...(ledger.recent??[]).map(r=>h('p',{className:'fm-note',key:r.callId},`${new Date(r.startedAt).toLocaleString()} · ${r.model} · ${r.status} · ${usageText(r.usage)}`)),
+        h('label',{className:'fm-label'},'每日总结预算',h('input',{type:'number','aria-label':'每日总结 token 预算',min:0,max:100000,step:100,value:budget,onChange:e=>setBudget(Number(e.target.value))})),
+        h('button',{type:'button',className:'fm-button',disabled:state.summaryBusy||!Number.isSafeInteger(budget)||budget<0||budget>100000,onClick:()=>controller.personaAction('budget',{value:budget})},'保存预算'),
+        h('p',{className:'fm-note'},'输出上限 256 tokens；输入有长度限制，预算预留包含保守余量，实际用量以模型返回为准。自动总结关闭。'))));
+    }
+
     // src/ui/client/panel.mjs
     function Panel({ controller, back, close }) {
       const state = React.useSyncExternalStore(controller.subscribe, controller.getSnapshot);
@@ -660,6 +712,7 @@ window.__ModuleLoader__.load({
           h('p', { className: 'fm-platform-note' }, '近期记录优先，读取失败时尝试喜欢列表和用户歌单。QQ 接入暂缓。登录材料仅保存在本机。')));
 
       const preferencesColumn = h('div', null,
+            h(Persona,{state,controller}),
             insights&&h('section',null,h('h2',null,'音乐倾向',h('small',null,'LOCAL PROFILE')),h('div',{className:'fm-card'},
               h('p',{className:'fm-note'},'本地画像 · 来自已保存的独立偏好'),
               ...(insights.profile?.artists?.length?insights.profile.artists.slice(0,5).map(a=>h('div',{className:'fm-row',key:a.key},
@@ -698,8 +751,9 @@ window.__ModuleLoader__.load({
               h('p', { className: 'fm-note' }, '同时遵循系统的减少动态效果设置。'),
               h('div', { className: 'fm-widget-note' }, h(Svg, { type: 'grip' }),
                 h('span', null, state.widgetVisible ? '离开面板后显示，可拖动吸附。' : '悬浮条已隐藏，可随时显示。')))));
-      const libraryColumn = h('div', null, h(Library, { state, controller }), platformSection);
-      const grid = h('div', { className: 'fm-grid' }, close ? preferencesColumn : libraryColumn, close ? platformSection : preferencesColumn);
+      const libraryColumn = h('div', null, h('details',{className:'fm-input-library'},h('summary',null,`输入曲库 · ${state.library?.total??0} 首（展开查看）`),h(Library, { state, controller })), platformSection);
+      const settingsInput=h('div',null,h('details',{className:'fm-input-library'},h('summary',null,'输入音乐 · 查看和点播'),h(Library,{state,controller})),platformSection);
+      const grid = h('div', { className: 'fm-grid' }, preferencesColumn,close?settingsInput:libraryColumn);
 
       return h('div', { className: 'fishfm', 'data-motion': state.motion || 'full' }, h('div', { className: 'fm-wrap' },
         h('header', { className: 'fm-top' },
@@ -716,7 +770,7 @@ window.__ModuleLoader__.load({
               h('div', { className: 'fm-track' }, current?.track?.title || '今天，从哪一首开始？'),
               h('p', { className: 'fm-artist' }, current?.track?.artist || (state.library?.total ? '从音乐库点播，或让电台为你选一首。' : '连接网易云，导入常听的音乐。'))),
             current&&h('p',{className:'fm-note'},current.selectedBy==='user'?'你点播的歌曲':'大肥鱼自主选择'),
-            insights?.explanation&&h('div',{className:'fm-note',role:'status'},insights.explanation.text,
+            insights?.explanation&&h('div',{className:'fm-note',role:'status',key:insights.reply?.decisionId},insights.reply?.text||insights.explanation.text,
               h('details',null,h('summary',null,'展开选歌依据'),h('p',null,`来源：${({netease_similar:'种子相似关系',netease_daily:'网易云每日推荐',netease_personal_fm:'网易云私人 FM'})[current?.origin?.source]??(current?.selectedBy==='user'?'用户指定':'熟悉歌曲')}`),
                 current?.selectedBy==='agent'&&snapshot?.lastSelection?.detail&&h('p',null,`本地评分 ${snapshot.lastSelection.score?.toFixed(3)}；关系项 ${(snapshot.lastSelection.detail.relationship??0).toFixed(3)}；重复次数 ${snapshot.lastSelection.detail.repeatPlays??0}；艺人集中惩罚 ${(snapshot.lastSelection.detail.diversityPenalty??0).toFixed(3)}。`),
                 h('p',null,'解释由实际决策记录生成，逐曲不新增模型请求。'))),

@@ -3,6 +3,7 @@ import React from 'react';
 import { h, minutes, progressPercent, modes, sourceNames, stageNames } from './shared.mjs';
 import { Svg, StatusMark } from './components.mjs';
 import { Library } from './library.mjs';
+import {Persona} from './persona.mjs';
 export function Panel({ controller, back, close }) {
   const state = React.useSyncExternalStore(controller.subscribe, controller.getSnapshot);
   const snapshot = state.snapshot;
@@ -94,6 +95,7 @@ export function Panel({ controller, back, close }) {
       h('p', { className: 'fm-platform-note' }, '近期记录优先，读取失败时尝试喜欢列表和用户歌单。QQ 接入暂缓。登录材料仅保存在本机。')));
 
   const preferencesColumn = h('div', null,
+        h(Persona,{state,controller}),
         insights&&h('section',null,h('h2',null,'音乐倾向',h('small',null,'LOCAL PROFILE')),h('div',{className:'fm-card'},
           h('p',{className:'fm-note'},'本地画像 · 来自已保存的独立偏好'),
           ...(insights.profile?.artists?.length?insights.profile.artists.slice(0,5).map(a=>h('div',{className:'fm-row',key:a.key},
@@ -132,8 +134,9 @@ export function Panel({ controller, back, close }) {
           h('p', { className: 'fm-note' }, '同时遵循系统的减少动态效果设置。'),
           h('div', { className: 'fm-widget-note' }, h(Svg, { type: 'grip' }),
             h('span', null, state.widgetVisible ? '离开面板后显示，可拖动吸附。' : '悬浮条已隐藏，可随时显示。')))));
-  const libraryColumn = h('div', null, h(Library, { state, controller }), platformSection);
-  const grid = h('div', { className: 'fm-grid' }, close ? preferencesColumn : libraryColumn, close ? platformSection : preferencesColumn);
+  const libraryColumn = h('div', null, h('details',{className:'fm-input-library'},h('summary',null,`输入曲库 · ${state.library?.total??0} 首（展开查看）`),h(Library, { state, controller })), platformSection);
+  const settingsInput=h('div',null,h('details',{className:'fm-input-library'},h('summary',null,'输入音乐 · 查看和点播'),h(Library,{state,controller})),platformSection);
+  const grid = h('div', { className: 'fm-grid' }, preferencesColumn,close?settingsInput:libraryColumn);
 
   return h('div', { className: 'fishfm', 'data-motion': state.motion || 'full' }, h('div', { className: 'fm-wrap' },
     h('header', { className: 'fm-top' },
@@ -150,7 +153,7 @@ export function Panel({ controller, back, close }) {
           h('div', { className: 'fm-track' }, current?.track?.title || '今天，从哪一首开始？'),
           h('p', { className: 'fm-artist' }, current?.track?.artist || (state.library?.total ? '从音乐库点播，或让电台为你选一首。' : '连接网易云，导入常听的音乐。'))),
         current&&h('p',{className:'fm-note'},current.selectedBy==='user'?'你点播的歌曲':'大肥鱼自主选择'),
-        insights?.explanation&&h('div',{className:'fm-note',role:'status'},insights.explanation.text,
+        insights?.explanation&&h('div',{className:'fm-note',role:'status',key:insights.reply?.decisionId},insights.reply?.text||insights.explanation.text,
           h('details',null,h('summary',null,'展开选歌依据'),h('p',null,`来源：${({netease_similar:'种子相似关系',netease_daily:'网易云每日推荐',netease_personal_fm:'网易云私人 FM'})[current?.origin?.source]??(current?.selectedBy==='user'?'用户指定':'熟悉歌曲')}`),
             current?.selectedBy==='agent'&&snapshot?.lastSelection?.detail&&h('p',null,`本地评分 ${snapshot.lastSelection.score?.toFixed(3)}；关系项 ${(snapshot.lastSelection.detail.relationship??0).toFixed(3)}；重复次数 ${snapshot.lastSelection.detail.repeatPlays??0}；艺人集中惩罚 ${(snapshot.lastSelection.detail.diversityPenalty??0).toFixed(3)}。`),
             h('p',null,'解释由实际决策记录生成，逐曲不新增模型请求。'))),

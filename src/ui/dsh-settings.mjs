@@ -8,6 +8,7 @@ const ALLOWED = new Set(['pause', 'resume', 'next', 'setListening', 'setHumanPla
   'setDiscovery', 'setDiscoveryRate', 'setMode', 'stopForToday', 'requestTrack']);
 const QUICK_LOGIN_PROVIDER = 'netease';
 const STATE_ENDPOINT = 'fishfm/state';
+const PERSONA_ENDPOINTS=new Set(['fishfm/persona-summary','fishfm/persona-budget']);
 const PLATFORM_ENDPOINTS = new Set(['fishfm/login-start', 'fishfm/login-poll', 'fishfm/import', 'fishfm/logout', 'fishfm/discovery-refresh','fishfm/playlists']);
 const SAFE_STAGES = new Set(['login_qr_key', 'login_qr_check', 'login_status', 'user_record', 'likelist', 'user_playlist', 'playlist_detail', 'song_detail',
   'accountInfo', 'recentTracks', 'likedTracks', 'playlists', 'playlistTracks', 'songDetails']);
@@ -46,22 +47,35 @@ function safeImportDetails(details) {
 }
 
 async function readSettingsState(bridge, signal) {
-  const [state, platforms, library,insights] = await Promise.all([
+  const [state, platforms, library,insights,persona] = await Promise.all([
     bridge.request({ type: 'snapshot' }, { signal, abortable: true }),
     bridge.request({ type: 'platforms' }, { signal, abortable: true }),
     bridge.request({ type: 'library' }, { signal, abortable: true }),
     bridge.request({type:'insights'},{signal,abortable:true}),
+    bridge.request({type:'persona'},{signal,abortable:true}),
   ]);
   // Publish only the UI projection, never credentials or media handles.
-  return { snapshot: state.snapshot, platforms: platforms.platforms, library: library.library, insights:insights?.insights,
+  return { snapshot: state.snapshot, platforms: platforms.platforms, library: library.library, insights:insights?.insights,persona:persona?.persona,
     features: { discoveryRefresh: true,importSources:true,insights:true } };
 }
 
-export function createSettingsHandler(bridge) {
+export function createSettingsHandler(bridge,summaryService={current:null}) {
   return async (endpoint, payload, signal) => {
     try {
-      if (endpoint !== STATE_ENDPOINT && endpoint !== 'fishfm/command' && !PLATFORM_ENDPOINTS.has(endpoint)) {
+      if (endpoint !== STATE_ENDPOINT && endpoint !== 'fishfm/command' && !PLATFORM_ENDPOINTS.has(endpoint)&&!PERSONA_ENDPOINTS.has(endpoint)) {
         throw Object.assign(new Error('Unknown FishFM endpoint'), { code: 'not_found' });
+      }
+      if(PERSONA_ENDPOINTS.has(endpoint)){
+        let summaryResult=null;
+        if(endpoint==='fishfm/persona-budget'&&(!Number.isSafeInteger(payload?.value)||payload.value<0||payload.value>100000))throw Object.assign(new Error('预算需为 0–100000 的整数。'),{code:'invalid_budget'});
+        await bridge.start();
+        if(endpoint==='fishfm/persona-budget'){
+          await bridge.request({type:'persona-budget',value:payload.value});
+        }else{
+          if(!summaryService.current)throw Object.assign(new Error('DSH 模型服务尚不可用。'),{code:'model_unavailable'});
+          summaryResult=await summaryService.current.summarize({provider:payload?.provider,model:payload?.model},{signal});
+        }
+        return{ok:true,value:{...await readSettingsState(bridge,signal),summaryResult}};
       }
       if (PLATFORM_ENDPOINTS.has(endpoint)) {
         if (payload?.provider !== QUICK_LOGIN_PROVIDER) {
@@ -131,7 +145,11 @@ export function createSettingsHandler(bridge) {
         const value = await bridge.command(command, { signal });
         return { ok: true, value };
       }
-      return { ok: true, value: await readSettingsState(bridge, signal) };
+      const value=await readSettingsState(bridge,signal);
+      value.summaryModels=summaryService.current?.peekModels()??[];
+      summaryService.current?.warm();
+      value.features.personaSummary=Boolean(summaryService.current);
+      return { ok: true, value };
     } catch (error) {
       return { ok: false, error: { code: error.code ?? 'core_unavailable',
         message: safeText(error.message || '音乐服务未能完成操作，请刷新后重试。', 420),
@@ -140,14 +158,14 @@ export function createSettingsHandler(bridge) {
   };
 }
 
-export function registerSettingsApi(ctx, bridge) {
-  const handler = createSettingsHandler(bridge);
+export function registerSettingsApi(ctx, bridge,summaryService) {
+  const handler = createSettingsHandler(bridge,summaryService);
   // rc.2 reserves the shared /api interceptor for the host Gateway. Exact
   // Fetch routes coexist with it and use the same authenticated carrier in
   // both the Electron renderer and a Web profile.
   if (typeof ctx.connection.fetch?.register === 'function') {
     ctx.effect(() => {
-      const disposers = [STATE_ENDPOINT, 'fishfm/command', ...PLATFORM_ENDPOINTS].map(endpoint =>
+      const disposers = [STATE_ENDPOINT, 'fishfm/command', ...PLATFORM_ENDPOINTS,...PERSONA_ENDPOINTS].map(endpoint =>
         ctx.connection.fetch.register({
           path: `/api/${endpoint}`, methods: ['POST'], requestBody: 'buffered',
           async fetch(request) {
@@ -167,6 +185,6 @@ export function registerSettingsApi(ctx, bridge) {
     }, 'fishfm: authenticated settings routes');
   } else {
     ctx.effect(() => ctx.connection.rpc.intercept('/api',
-      endpoint => endpoint === STATE_ENDPOINT || endpoint === 'fishfm/command' || PLATFORM_ENDPOINTS.has(endpoint), handler));
+      endpoint => endpoint === STATE_ENDPOINT || endpoint === 'fishfm/command' || PLATFORM_ENDPOINTS.has(endpoint)||PERSONA_ENDPOINTS.has(endpoint), handler));
   }
 }

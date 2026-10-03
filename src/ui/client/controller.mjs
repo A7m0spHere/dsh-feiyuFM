@@ -20,9 +20,9 @@ export function createController(connection) {
     widgetPosition: readPreference(WIDGET_POSITION_KEY, null),
     motion: ['full', 'reduced', 'off'].includes(readPreference(MOTION_KEY, 'full')) ? readPreference(MOTION_KEY, 'full') : 'full',
   };
-  let epoch = 0, timer, read, write, disposed = false;
+  let epoch = 0, timer, read, write,summaryWrite, disposed = false;
   const listeners = new Set();
-  const emit = (patch) => { if (!disposed) { state = { ...state, ...patch }; listeners.forEach(fn => fn()); } };
+  const emit = (patch) => { if (!disposed) {if(patch.persona?.generatedAt<state.persona?.generatedAt){patch={...patch};delete patch.persona;} state = { ...state, ...patch }; listeners.forEach(fn => fn()); } };
   const failure = error => `${error?.message || '音乐服务连接失败，请刷新重试。'}${error?.code ? ` (${error.code})` : ''}`;
   async function refresh() {
     if (disposed || state.busy || read) return;
@@ -149,6 +149,18 @@ export function createController(connection) {
           login });
       } finally { clearTimeout(timeout); write = null; emit({ busy: false }); }
     },
-    dispose() { disposed = true; ++epoch; clearInterval(timer); read?.abort(); write?.abort(); listeners.clear(); },
+    async personaAction(action,payload){
+      if(disposed||state.summaryBusy||!state.connected)return;
+      summaryWrite=new AbortController();const timeout=setTimeout(()=>summaryWrite?.abort(),65000);
+      emit({summaryBusy:true,summaryError:'',summaryNotice:action==='summary'?'正在总结聚合画像…':'正在保存总结预算…'});
+      try{
+        const result=await connection.rpc.call('/api',action==='summary'?'fishfm/persona-summary':'fishfm/persona-budget',payload,summaryWrite.signal);
+        if(!result.ok)throw result.error;
+        // This operation never overwrites live playback with a late snapshot.
+        emit({persona:result.value.persona,summaryNotice:action==='summary'?(result.value.summaryResult?.cached?'已复用缓存，没有新增模型调用。':'总结已更新。'):'总结预算已保存。'});
+      }catch(error){emit({summaryError:failure(error),summaryNotice:'本地选歌和旧总结仍保留。'});}
+      finally{clearTimeout(timeout);summaryWrite=null;emit({summaryBusy:false});}
+    },
+    dispose() { disposed = true; ++epoch; clearInterval(timer); read?.abort(); write?.abort();summaryWrite?.abort(); listeners.clear(); },
   };
 }

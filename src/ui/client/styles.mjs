@@ -1,5 +1,13 @@
 // PHL-inspired tokens and timing. Source/provenance: THIRD_PARTY_NOTICES.md.
 export const css = `
+  .fm-input-library { padding:12px; border:1px solid var(--fm-line); border-radius:9px; background:var(--fm-surface); }
+  .fm-input-library>summary { cursor:pointer; font-weight:600; }
+  .fm-input-library[open]>summary { margin-bottom:14px; }
+  .fm-summary { padding:12px 0; border-top:1px solid var(--fm-line); margin-top:12px; }
+  .fm-summary select { max-width:100%; margin:8px 8px 8px 0; padding:5px; color:var(--fm-ink); background:var(--fm-surface); border:1px solid var(--fm-line); border-radius:6px; }
+  .fm-summary-text { white-space:pre-wrap; overflow-wrap:anywhere; line-height:1.8; }
+  .fishfm details>summary { cursor:pointer; }
+  .fishfm input[type=number] { width:105px; margin:8px; padding:5px; color:var(--fm-ink); background:var(--fm-surface); border:1px solid var(--fm-line); border-radius:5px; }
   .fishfm,.fm-float {
     --fm-canvas:hsl(220 20% 96%); --fm-surface:hsl(0 0% 100%);
     --fm-raised:hsl(0 0% 100%); --fm-sunken:hsl(220 20% 97%);

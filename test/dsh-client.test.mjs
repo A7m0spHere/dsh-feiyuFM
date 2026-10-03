@@ -146,8 +146,9 @@ test('client contributes native sidebar, main and settings seats; controls send 
     let closed = false;
     const close = all(f.render({ close: () => { closed = true; } })).find(n => n.children.includes('关闭设置'));
     close.props.onClick(); assert.equal(closed, true);
-    assert.equal(all(f.render({ close() {} })).some(n => n.props.className === 'fm-library'), false,
-      'settings stay focused on controls instead of repeating the entire library');
+    const input=all(f.render({close(){}})).find(n=>n.type==='details'&&n.props.className==='fm-input-library');
+    assert.ok(input,'settings retain the input library behind a disclosure');
+    assert.notEqual(input.props.open,true,'input library starts collapsed');
     assert.equal(all(f.render()).find(n => n.children.includes('开始听歌')).props.disabled, true);
   } finally { off(); f.dispose(); }
   assert.equal(f.intervals.size, 0); assert.equal(f.styles.length, 0);
@@ -171,6 +172,21 @@ test('a stale read cannot overwrite a saved setting, and hidden panels stop poll
   } finally { f.dispose(); }
 });
 
+test('a pending model summary does not block pause and its stale response cannot overwrite playback',async()=>{
+ let complete;const calls=[];
+ const f=fixture(async(_channel,endpoint,payload)=>{
+  calls.push(endpoint);
+  if(endpoint==='fishfm/persona-summary')return new Promise(resolve=>{complete=resolve;});
+  if(endpoint==='fishfm/command')return state({...snapshot(2),paused:true});
+  return state({...snapshot(1),paused:false});
+ });
+ const off=f.controller.subscribe(()=>{});
+ try{await tick();const pending=f.controller.personaAction('summary',{provider:'configured',model:'model'});await tick();
+  await f.controller.command('pause');assert.equal(calls.includes('fishfm/command'),true);assert.equal(f.controller.getSnapshot().snapshot.paused,true);
+  complete({ok:true,value:{snapshot:{...snapshot(0),paused:false},persona:null}});await pending;
+  assert.equal(f.controller.getSnapshot().snapshot.paused,true);assert.equal(f.controller.getSnapshot().summaryBusy,false);
+ }finally{off();f.dispose();}
+});
 test('failed writes are visible and block further changes until a successful refresh', async () => {
   const f = fixture(async (_channel, endpoint) => endpoint === 'fishfm/command'
     ? { ok: false, error: { code: 'core_unavailable', message: '服务离线' } } : state(snapshot(1)));

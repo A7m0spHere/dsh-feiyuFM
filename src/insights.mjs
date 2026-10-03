@@ -33,7 +33,13 @@ export function describeMusicInsights(store,snapshot,now=Date.now()) {
  const startedIds=new Set(recorded.filter(r=>Number.isFinite(r.entry.startedAt)).map(r=>r.entry.playInstanceId));
  if(Number.isFinite(snapshot?.current?.startedAt)&&ids.has(snapshot.current.playInstanceId))startedIds.add(snapshot.current.playInstanceId);
  const started=startedIds.size;
+ const current=snapshot?.current,seed=current?.origin?.seedTrackKey;
+ const reply=current?{decisionId:current.decisionId,kind:current.selectedBy==='user'?'user':'agent',
+  text:current.selectedBy==='user'?'这是你点的，我按你的选择播放。':current.origin?.source==='netease_similar'
+   ?`这次想试一首相近的新歌。网易云把它与《${titles.get(seed)||'已有歌曲'}》关联，我再按本地偏好与重复限制选中了它。`
+   :explainSelection(snapshot).text}:null;
  return {version:1,generatedAt:now,explanation:explainSelection(snapshot),
+  reply,
   profile:{kind:'agent_preferences',artists,tracks,coverage:{genres:0,moods:0},modelSummary:false},
   decisions:log.slice(-10).reverse().map(d=>({...d,trackTitle:titles.get(d.trackKey)||d.trackKey||'未选中歌曲'})),
   recentChanges:recorded.filter(r=>r.growth?.updated&&Number.isFinite(r.growth.before)&&Number.isFinite(r.growth.after)).slice(0,5)
