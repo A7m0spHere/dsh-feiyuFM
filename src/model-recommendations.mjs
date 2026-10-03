@@ -39,7 +39,11 @@ function matches(song,track){
 }
 function selectMatchedVersion(song,found){
  if(found.length===1)return found[0];
- const identities=found.map(t=>t.artists?.length&&t.artists.every(a=>/^[\w-]{1,80}$/.test(String(a.id??''))&&String(a.id)!=='0')?t.artists.map(a=>String(a.id)).sort().join('|'):null);
+ const identities=found.map(t=>{
+  const matched=(t.artists??[]).filter(a=>artistMatches(song.artist,a.name));
+  const artists=matched.length?matched:t.artists;
+  return artists?.length&&artists.every(a=>/^[\w-]{1,80}$/.test(String(a.id??''))&&String(a.id)!=='0')?artists.map(a=>String(a.id)).sort().join('|'):null;
+ });
  if(!identities.length||!identities[0]||!identities.every(id=>id===identities[0]))return null;
  // The model chose a work/performer, not a recording ID. Prefer the full title,
  // then the catalogue's first matching recording, and expose the version choice.
