@@ -1,7 +1,7 @@
 import { DatabaseSync } from 'node:sqlite';
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
-import { trackId } from './contracts.mjs';
+import { trackId, normalizeTrack } from './contracts.mjs';
 
 const MIGRATION_1 = `
 CREATE TABLE schema_migrations (version INTEGER PRIMARY KEY, applied_at TEXT NOT NULL);
@@ -115,7 +115,7 @@ export class MusicStore {
 
   migrate() {
     const version = this.db.prepare('PRAGMA user_version').get().user_version;
-    if (version > 4) throw new Error(`Unsupported schema version ${version}`);
+    if (version > 5) throw new Error(`Unsupported schema version ${version}`);
     if (version === 0) {
       this.transaction(() => {
         this.db.exec(MIGRATION_1);
@@ -142,6 +142,20 @@ export class MusicStore {
         this.db.exec(MIGRATION_4);
         this.db.prepare('INSERT INTO schema_migrations VALUES (?, ?)').run(4, new Date().toISOString());
         this.db.exec('PRAGMA user_version = 4');
+      });
+    }
+    if (this.db.prepare('PRAGMA user_version').get().user_version === 4) {
+      this.transaction(() => {
+        this.db.exec(`ALTER TABLE tracks ADD COLUMN artists_json TEXT NOT NULL DEFAULT '[]';
+          ALTER TABLE tracks ADD COLUMN metadata_source TEXT;
+          CREATE TABLE environment_sources (track_key TEXT NOT NULL, source TEXT NOT NULL, source_ref TEXT NOT NULL DEFAULT '',
+            play_count INTEGER, last_played_at INTEGER, first_seen_at INTEGER NOT NULL, observed_at INTEGER NOT NULL,
+            PRIMARY KEY(track_key,source,source_ref));
+          INSERT INTO environment_sources SELECT track_key,source,'',play_count,last_played_at,added_at,added_at FROM user_environment;
+          CREATE INDEX environment_sources_track ON environment_sources(track_key);
+          CREATE INDEX listen_history_track ON listen_history(track_key,ended_at);`);
+        this.db.prepare('INSERT INTO schema_migrations VALUES (?, ?)').run(5, new Date().toISOString());
+        this.db.exec('PRAGMA user_version = 5');
       });
     }
   }
@@ -329,6 +343,7 @@ export class MusicStore {
 
   upsertTrack(track, now) {
     const key = trackId(track);
+    const oldArtist = this.getTrack(track)?.artist ?? '';
     this.db.prepare(`INSERT INTO tracks (track_key, provider, provider_track_id, title, artist, duration_ms, updated_at)
       VALUES (?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(track_key) DO UPDATE SET
@@ -341,11 +356,37 @@ export class MusicStore {
         typeof track.artist === 'string' ? track.artist : '',
         Number.isSafeInteger(track.durationMs) && track.durationMs > 0 ? track.durationMs : null,
         now);
+    const artists = normalizeTrack(track).artists ?? [];
+    this.db.prepare(`UPDATE tracks SET artists_json=CASE WHEN ?<>'[]' THEN ?
+      WHEN ?<>'' AND ?<>? THEN '[]' ELSE artists_json END,
+      metadata_source=COALESCE(?,metadata_source) WHERE track_key=?`)
+      .run(JSON.stringify(artists),JSON.stringify(artists),track.artist??'',oldArtist,track.artist??'',track.metadataSource??null,key);
     return key;
   }
 
   getTrack(track) {
     return this.db.prepare('SELECT * FROM tracks WHERE track_key = ?').get(trackId(track)) ?? null;
+  }
+
+  getNormalizedTrack(track) {
+    const row=this.getTrack(track);
+    if (!row) return normalizeTrack(track);
+    let artists=[]; try {artists=JSON.parse(row.artists_json);} catch { /* unknown metadata */ }
+    return normalizeTrack({provider:row.provider,providerTrackId:row.provider_track_id,title:row.title,artist:row.artist,
+      durationMs:row.duration_ms,artists,metadataSource:row.metadata_source});
+  }
+
+  recordEnvironmentSource({track,source,sourceRef='',playCount=null,lastPlayedAt=null}, now) {
+    this.db.prepare(`INSERT INTO environment_sources VALUES (?,?,?,?,?,?,?)
+      ON CONFLICT(track_key,source,source_ref) DO UPDATE SET play_count=COALESCE(excluded.play_count,play_count),
+      last_played_at=COALESCE(excluded.last_played_at,last_played_at),observed_at=excluded.observed_at`)
+      .run(trackId(track),source,String(sourceRef).slice(0,100),Number.isSafeInteger(playCount)&&playCount>=0?playCount:null,
+        Number.isSafeInteger(lastPlayedAt)&&lastPlayedAt>0?lastPlayedAt:null,now,now);
+  }
+
+  listEnvironmentSources(track=null) {
+    return track ? this.db.prepare('SELECT * FROM environment_sources WHERE track_key=? ORDER BY source,source_ref').all(trackId(track))
+      : this.db.prepare('SELECT * FROM environment_sources ORDER BY track_key,source,source_ref').all();
   }
 
   recordImportBatch(batch) {

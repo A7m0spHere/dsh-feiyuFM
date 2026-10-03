@@ -45,6 +45,20 @@ test('an old authorized account recovers profile.userId before recent-history im
   } finally { context.close(); }
 });
 
+test('explicit playlist selection is validated and preserves source reference without claiming fallback',async()=>{
+ const context=fixture({
+  async user_playlist(){return{status:200,body:{code:200,playlist:[{id:10,name:'First',creator:{userId:'42'},trackCount:1},{id:20,name:'Chosen',creator:{userId:'42'},trackCount:1}]}};},
+  async playlist_detail(params){assert.equal(params.id,'20');return{status:200,body:{code:200,playlist:{trackIds:[{id:1}]}}};},
+  async song_detail(){return{status:200,body:{code:200,songs:[{...song(1),ar:[{id:99,name:'Artist'}]}]}};},
+ },{accountId:'42'});
+ try{
+  assert.equal((await context.provider.getUserPlaylists()).length,2);
+  const result=await context.provider.getSeedTracks({source:'playlist',playlistId:'20',limit:5});
+  assert.equal(result.sourceRef,'20');assert.equal(result.degraded,false);assert.equal(result.tracks[0].artists[0].id,'99');
+  await assert.rejects(context.provider.getSeedTracks({source:'playlist',playlistId:'999',limit:5}),/No NetEase seed source/);
+ }finally{context.close();}
+});
+
 test('failed recent history degrades to likes, resolves liked IDs to song metadata, and returns a secret-free source trail', async () => {
   const calls = [];
   const context = fixture({

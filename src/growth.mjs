@@ -165,16 +165,18 @@ function applyGrowthOnce({
       updatedAt: now,
     });
     const artist = typeof entry.track?.artist === 'string' ? entry.track.artist.trim() : '';
-    if (artist) {
-      const current = store.getPreference('artist', artist);
+    const targets=entry.track?.artists?.length ? entry.track.artists.map(a=>({type:'artist_id',key:`${entry.track.provider}:${a.id}`}))
+      : artist ? [{type:'artist',key:artist}] : [];
+    for (const target of targets) {
+      const current = store.getPreference(target.type, target.key);
       const artistBefore = current ? current.affinity : parameters.neutral;
       const artistHeadroom = Math.max(0, parameters.max - artistBefore);
       // An artist moves a fraction of what the track moved: one play is weak
       // evidence about an artist.
-      const artistDelta = Math.min(delta * 0.3, artistHeadroom * 0.25);
+      const artistDelta = Math.min(delta * 0.3 / targets.length, artistHeadroom * 0.25);
       store.setPreference({
-        targetType: 'artist',
-        targetKey: artist,
+        targetType: target.type,
+        targetKey: target.key,
         affinity: clamp(artistBefore + artistDelta, parameters.min, parameters.max),
         source: 'listen',
         updatedAt: now,

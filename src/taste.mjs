@@ -9,6 +9,7 @@
 //   - the same seed over the same environment produces the same preferences.
 import { randomUUID } from 'node:crypto';
 import { trackId } from './contracts.mjs';
+import { environmentWeight } from './environment.mjs';
 
 /** Stored key for the initialization seed. */
 export const AGENT_SEED_KEY = 'agent_seed';
@@ -94,20 +95,31 @@ export function initializeAgentPreferences({
 
   const preferences = [];
   const artistTotals = new Map();
+  const identifiedTotals = new Map(), idsByName = new Map();
 
   for (const entry of tracks) {
     const bias = parameters.sourceBias[entry.source] ?? 0;
     const jitter = (rng() * 2 - 1) * parameters.jitter;
-    const affinity = clamp(parameters.base + bias + jitter, parameters.min, parameters.max);
+    const key={provider:entry.provider,providerTrackId:entry.track_key.split(':').slice(1).join(':')};
+    const facts=store.listEnvironmentSources(key);
+    const frequencyBias=Math.min(0.04,Math.max(0,environmentWeight(facts,now)-1)*0.08);
+    const affinity = clamp(parameters.base + bias + jitter + frequencyBias, parameters.min, parameters.max);
     preferences.push({ targetType: 'track', targetKey: entry.track_key, affinity, source: 'seed' });
 
-    const track = store.getTrack({ provider: entry.provider, providerTrackId: entry.track_key.split(':').slice(1).join(':') });
+    const track = store.getNormalizedTrack(key);
     const artist = track?.artist?.trim();
     if (artist) {
       const current = artistTotals.get(artist) ?? { sum: 0, count: 0 };
       current.sum += affinity;
       current.count += 1;
       artistTotals.set(artist, current);
+    }
+    const evidenceAffinity=store.getPreference('track',entry.track_key)?.affinity ?? affinity;
+    for(const member of track.artists??[]) {
+      const id=`${entry.provider}:${member.id}`;
+      const item=identifiedTotals.get(id)??{name:member.name,sum:0,count:0};
+      item.sum+=evidenceAffinity; item.count++; identifiedTotals.set(id,item);
+      const ids=idsByName.get(member.name)??new Set();ids.add(id);idsByName.set(member.name,ids);
     }
   }
 
@@ -116,6 +128,10 @@ export function initializeAgentPreferences({
   for (const [artist, totals] of [...artistTotals.entries()].sort((a, b) => (a[0] < b[0] ? -1 : 1))) {
     const mean = clamp(totals.sum / totals.count, parameters.min, parameters.max);
     preferences.push({ targetType: 'artist', targetKey: artist, affinity: mean, source: 'seed' });
+  }
+  for(const [id,item] of [...identifiedTotals.entries()].sort(([a],[b])=>a.localeCompare(b))) {
+    const legacy=idsByName.get(item.name)?.size===1 ? store.getPreference('artist',item.name) : null;
+    preferences.push({targetType:'artist_id',targetKey:id,affinity:legacy?.affinity??clamp(item.sum/item.count,parameters.min,parameters.max),source:legacy?'legacy_artist_link':'seed'});
   }
 
   // Only rows that do not exist yet are written: an affinity that is already
@@ -149,6 +165,14 @@ export function getAffinity(store, { targetType, targetKey }) {
 
 export function getTrackAffinity(store, track) {
   return getAffinity(store, { targetType: 'track', targetKey: trackId(track) });
+}
+
+export function getArtistAffinity(store,track) {
+  if(track.artists?.length) {
+    const values=track.artists.map(a=>store.getPreference('artist_id',`${track.provider}:${a.id}`)?.affinity);
+    return values.some(v=>v!==undefined)?values.reduce((sum,v)=>sum+(v??0.5),0)/values.length:null;
+  }
+  return track.artist ? store.getPreference('artist',track.artist.trim())?.affinity ?? null : null;
 }
 
 /** Compact view for diagnostics and the future decision layer. */

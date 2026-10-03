@@ -403,31 +403,34 @@ window.__ModuleLoader__.load({
           }
           finally { clearTimeout(timeout); write = null; emit({ busy: false }); }
         },
-        async platformAction(action, provider) {
+        async platformAction(action, provider, options = {}) {
           if (disposed || state.busy || !state.connected) return;
-          const endpoint = ({ begin: 'fishfm/login-start', poll: 'fishfm/login-poll', import: 'fishfm/import', logout: 'fishfm/logout', discovery: 'fishfm/discovery-refresh' })[action];
+          const endpoint = ({ begin: 'fishfm/login-start', poll: 'fishfm/login-poll', import: 'fishfm/import', logout: 'fishfm/logout', discovery: 'fishfm/discovery-refresh', playlists:'fishfm/playlists' })[action];
           if (!endpoint) return;
           ++epoch; read?.abort(); read = null;
           const progress = action === 'poll' ? '正在确认手机扫码…'
-            : action === 'import' ? '正在读取近期记录；若不可用会继续尝试喜欢列表和用户歌单…'
+            : action === 'import' ? options.source ? `正在读取${sourceNames[options.source]||'指定来源'}…` : '正在读取近期记录；若不可用会继续尝试喜欢列表和用户歌单…'
               : action === 'begin' ? '正在向网易云申请二维码…' : '正在连接音乐平台…';
           emit({ busy: true, error: '', notice: progress, importAttempts: action === 'import' ? [] : state.importAttempts });
           write = new AbortController();
           const timeout = setTimeout(() => write?.abort(), action === 'import' ? 120000 : 45000);
           try {
-            const result = await connection.rpc.call('/api', endpoint, { provider }, write.signal);
+            const result = await connection.rpc.call('/api', endpoint, { provider,
+              ...(action==='import'?{source:options.source??null,playlistId:options.playlistId??null}:{}) }, write.signal);
             if (!result.ok) throw result.error;
             const value = result.value;
             const login = Object.hasOwn(value, 'login') ? value.login : state.login;
             if (action === 'poll' && login) login.qrImage = state.login?.qrImage;
             emit({ snapshot: value.snapshot, platforms: value.platforms ?? state.platforms, library: value.library ?? state.library, login,
+              playlists: value.playlists??state.playlists,
               imported: action === 'logout' ? null : Object.hasOwn(value, 'imported') ? value.imported : state.imported,
               importAttempts: action === 'import' ? value.attempts ?? [] : state.importAttempts,
               connected: true, error: '',
-              notice: action === 'discovery' ? (value.discovery?.refreshing ? '正在后台刷新推荐候选…' : '候选状态已更新；刷新间隔限制仍有效。')
+              notice: action === 'playlists' ? `已读取 ${value.playlists?.length??0} 个歌单，请选择后导入。`
+                : action === 'discovery' ? (value.discovery?.refreshing ? '正在后台刷新推荐候选…' : '候选状态已更新；刷新间隔限制仍有效。')
                 : action === 'logout' ? '已退出网易云账号，本机凭据已删除。'
                 : action === 'import'
-                  ? `已读取${sourceNames[value.imported?.source] || '平台音乐'}：本次新增 ${value.imported?.imported ?? 0} 首，当前共 ${value.imported?.total ?? 0} 首${value.imported?.source !== 'recent' ? '，使用备用来源' : ''}${value.imported?.total < value.imported?.requested ? '，返回数量不足目标，仍可播放' : ''}`
+                  ? `已读取${sourceNames[value.imported?.source] || '平台音乐'}：本次新增 ${value.imported?.imported ?? 0} 首，当前共 ${value.imported?.total ?? 0} 首${value.imported?.source !== 'recent' && !options.source ? '，使用备用来源' : ''}${value.imported?.total < value.imported?.requested ? '，返回数量不足目标，仍可播放' : ''}`
                   : value.login?.identityError || (value.login?.status === 'authorized' ? '登录成功，可以导入音乐。'
                     : value.login?.status === 'scanned' ? '已扫码，请在手机上确认登录。'
                       : value.login?.status === 'expired' ? '二维码已过期，请重新获取。'
@@ -570,6 +573,8 @@ window.__ModuleLoader__.load({
       const snapshot = state.snapshot;
       const settings = snapshot?.settings || {};
       const [rate, setRate] = React.useState(20);
+      const [importSource,setImportSource]=React.useState('auto');
+      const [playlistId,setPlaylistId]=React.useState('');
       const rateId = React.useId();
       React.useEffect(() => { if (snapshot) setRate(Math.round(settings.discoveryRate * 100)); }, [settings.discoveryRate]);
       React.useEffect(() => {
@@ -596,10 +601,16 @@ window.__ModuleLoader__.load({
           login_required: platform.account?.pending ? '等待扫码' : '未登录',
         }[platform.account?.status] || '未连接');
         const available = id === 'netease' && platform?.installed;
+        const selectedPlaylist=playlistId||state.playlists?.[0]?.id||'';
         const action = platform?.account?.status === 'authorized'
           ? h(React.Fragment, null,
-            h('button', { type: 'button', className: 'fm-button fm-primary', disabled: state.busy || !state.connected,
-              onClick: () => controller.platformAction('import', id) }, '导入我的音乐'),
+            state.features?.importSources&&h('select',{ 'aria-label':'导入来源',value:importSource,disabled:state.busy||!state.connected,
+              onChange:e=>{setImportSource(e.target.value);if(e.target.value==='playlist')controller.platformAction('playlists',id);} },
+              h('option',{value:'auto'},'自动来源'),h('option',{value:'recent'},'近期播放'),h('option',{value:'liked'},'我喜欢'),h('option',{value:'playlist'},'指定歌单')),
+            state.features?.importSources&&importSource==='playlist'&&h('select',{'aria-label':'输入歌单',value:selectedPlaylist,disabled:state.busy||!state.playlists?.length,
+              onChange:e=>setPlaylistId(e.target.value)},...(state.playlists?.length?state.playlists.map(p=>h('option',{key:p.id,value:p.id},p.title)):[h('option',{value:''},'读取歌单…')])),
+            h('button', { type: 'button', className: 'fm-button fm-primary', disabled: state.busy || !state.connected || (importSource==='playlist'&&!selectedPlaylist),
+              onClick: () => controller.platformAction('import', id,{source:importSource==='auto'?null:importSource,playlistId:importSource==='playlist'?selectedPlaylist:null}) }, '导入我的音乐'),
             h('button', { type: 'button', className: 'fm-button fm-subtle', disabled: state.busy || !state.connected,
               onClick: () => controller.platformAction('logout', id) }, '退出'))
           : available && !state.login && h('button', { type: 'button', className: 'fm-button fm-primary', disabled: state.busy || !state.connected,

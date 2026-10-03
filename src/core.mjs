@@ -245,11 +245,13 @@ export class MusicCore {
   }
 
   _select(track, selectedBy, keepPaused) {
+    const stored=this.store.getTrack(track);
+    const enriched=stored ? this.store.getNormalizedTrack(track) : null;
     this._finishCurrent('skipped');
     this._invalidate();
     const version = this.state.commandVersion;
     this.state.current = {
-      track: normalizeTrack(track), playInstanceId: randomUUID(), selectedBy,
+      track: normalizeTrack(selectedBy==='user'&&enriched ? enriched : {...enriched,...track,artists:track.artists??enriched?.artists}), playInstanceId: randomUUID(), selectedBy,
       decisionId: selectedBy === 'agent' ? this.state.lastSelection?.decisionId ?? randomUUID() : randomUUID(),
       positionMs: 0, effectiveMs: 0, agentEffectiveMs: 0, audibleMs: 0,
       progressSource: 'audio', agentListening: false, audible: false, finished: false,

@@ -8,7 +8,7 @@ const ALLOWED = new Set(['pause', 'resume', 'next', 'setListening', 'setHumanPla
   'setDiscovery', 'setDiscoveryRate', 'setMode', 'stopForToday', 'requestTrack']);
 const QUICK_LOGIN_PROVIDER = 'netease';
 const STATE_ENDPOINT = 'fishfm/state';
-const PLATFORM_ENDPOINTS = new Set(['fishfm/login-start', 'fishfm/login-poll', 'fishfm/import', 'fishfm/logout', 'fishfm/discovery-refresh']);
+const PLATFORM_ENDPOINTS = new Set(['fishfm/login-start', 'fishfm/login-poll', 'fishfm/import', 'fishfm/logout', 'fishfm/discovery-refresh','fishfm/playlists']);
 const SAFE_STAGES = new Set(['login_qr_key', 'login_qr_check', 'login_status', 'user_record', 'likelist', 'user_playlist', 'playlist_detail', 'song_detail',
   'accountInfo', 'recentTracks', 'likedTracks', 'playlists', 'playlistTracks', 'songDetails']);
 
@@ -52,7 +52,7 @@ async function readSettingsState(bridge, signal) {
     bridge.request({ type: 'library' }, { signal, abortable: true }),
   ]);
   // Publish only the UI projection, never credentials or media handles.
-  return { snapshot: state.snapshot, platforms: platforms.platforms, library: library.library, features: { discoveryRefresh: true } };
+  return { snapshot: state.snapshot, platforms: platforms.platforms, library: library.library, features: { discoveryRefresh: true,importSources:true } };
 }
 
 export function createSettingsHandler(bridge) {
@@ -66,6 +66,10 @@ export function createSettingsHandler(bridge) {
           throw Object.assign(new Error('Quick login is only available for the configured NetEase adapter'), { code: 'platform_unavailable' });
         }
         await bridge.start();
+        if(endpoint==='fishfm/playlists') {
+          const listed=await bridge.request({type:'playlists',provider:QUICK_LOGIN_PROVIDER},{signal,abortable:true,timeoutMs:40000});
+          return {ok:true,value:{playlists:listed.playlists,...(await readSettingsState(bridge,signal))}};
+        }
         if (endpoint === 'fishfm/discovery-refresh') {
           const refreshed = await bridge.request({ type: 'discovery' }, { signal, abortable: true });
           return { ok: true, value: { discovery: refreshed.discovery, ...(await readSettingsState(bridge, signal)) } };
@@ -96,7 +100,10 @@ export function createSettingsHandler(bridge) {
           await bridge.request({ type: 'logout', provider: QUICK_LOGIN_PROVIDER }, { signal, abortable: true });
           return { ok: true, value: { login: null, imported: null, ...(await readSettingsState(bridge, signal)) } };
         }
-        const imported = await bridge.request({ type: 'import-platform', provider: QUICK_LOGIN_PROVIDER, limit: 300 },
+        const source=['recent','liked','playlist'].includes(payload.source)?payload.source:null;
+        const playlistId=source==='playlist' && /^\d{1,20}$/.test(String(payload.playlistId??''))?String(payload.playlistId):null;
+        if(source==='playlist'&&!playlistId)throw Object.assign(new Error('请选择有效歌单。'),{code:'invalid_command'});
+        const imported = await bridge.request({ type: 'import-platform', provider: QUICK_LOGIN_PROVIDER, limit: 300,source,playlistId },
           { signal, abortable: true, timeoutMs: 75_000 });
         return { ok: true, value: { login: { provider: QUICK_LOGIN_PROVIDER, status: 'authorized' }, imported: imported.import,
           attempts: imported.attempts ?? [], snapshot: imported.snapshot, ...(await readSettingsState(bridge, signal)) } };
@@ -108,7 +115,8 @@ export function createSettingsHandler(bridge) {
         }
         command = { type: payload.type, value: payload.value, commandId: randomUUID() };
         if (command.type === 'requestTrack') {
-          try { command.track = normalizeTrack(payload.track); }
+          try { const t=payload.track; command.track = normalizeTrack({provider:t?.provider,providerTrackId:t?.providerTrackId,
+            title:t?.title,artist:t?.artist,durationMs:t?.durationMs}); }
           catch { throw Object.assign(new Error('A valid platform track is required'), { code: 'invalid_command' }); }
         }
         if (command.type === 'setDiscoveryRate' && !Number.isFinite(command.value)) {

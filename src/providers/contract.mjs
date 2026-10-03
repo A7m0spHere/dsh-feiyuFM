@@ -172,11 +172,17 @@ export function toTrack(provider, entry) {
     providerTrackId: String(id),
     title: typeof entry.name === 'string' ? entry.name : (typeof entry.title === 'string' ? entry.title : ''),
     artist: artistOf(entry),
+    artists: (entry.ar ?? entry.artists ?? entry.singer ?? []).filter(a => a && (a.id ?? a.mid) !== undefined)
+      .map(a => ({ id: String(a.mid ?? a.id), name: a.name ?? '' })),
+    ...((entry.ar ?? entry.artists ?? entry.singer ?? []).some(a=>a && (a.id ?? a.mid)) ? { metadataSource: `${provider}_track` } : {}),
     durationMs: Number.isSafeInteger(entry.durationMs ?? entry.dt ?? entry.duration)
       ? (entry.durationMs ?? entry.dt ?? entry.duration)
       : null,
   });
-  return track;
+  return { ...track,
+    ...(Number.isSafeInteger(entry.playCount) && entry.playCount >= 0 ? { playCount: entry.playCount } : {}),
+    ...(Number.isSafeInteger(entry.lastPlayedAt) && entry.lastPlayedAt > 0 ? { lastPlayedAt: entry.lastPlayedAt } : {}),
+  };
 }
 
 /** Platform payloads disagree about where the artist lives; accept the shapes. */

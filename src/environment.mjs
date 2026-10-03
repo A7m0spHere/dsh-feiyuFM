@@ -52,6 +52,7 @@ export function importSeedTracks({
   reason = null,
   now = Date.now(),
   batchId = randomUUID(),
+  sourceRef = '',
 }) {
   assertSource(source);
   if (!tracks || typeof tracks[Symbol.iterator] !== 'function') throw new Error('tracks must be iterable');
@@ -72,10 +73,12 @@ export function importSeedTracks({
 
       const existing = store.getEnvironmentEntry(track);
       store.upsertTrack(track, now);
+      store.recordEnvironmentSource({track,source,sourceRef,playCount:raw.playCount,lastPlayedAt:raw.lastPlayedAt},now);
       if (existing) {
         duplicates += 1;
         // Refresh metadata only; the environment row keeps its original source
         // so a later import cannot relabel where a track came from.
+        store.addEnvironmentEntry({track,source,batchId,playCount:raw.playCount,lastPlayedAt:raw.lastPlayedAt},now);
         continue;
       }
       store.addEnvironmentEntry({
@@ -109,6 +112,40 @@ export function importSeedTracks({
       sufficient: total >= COMFORTABLE_IMPORT_MINIMUM,
     };
   });
+}
+
+export function environmentWeight(facts, now = Date.now()) {
+  return Math.max(0.5,...facts.map(fact => {
+    const base={recent:1,liked:1.15,playlist:0.8,plugin_history:0.6}[fact.source] ?? 0.5;
+    const count=fact.play_count;
+    const frequency=count===null||!Number.isFinite(count)?0:Math.min(0.35,Math.log1p(Math.max(0,count))/Math.log(101)*0.35);
+    const age=fact.last_played_at===null||!Number.isFinite(fact.last_played_at)?null:Math.max(0,now-fact.last_played_at);
+    const recency=age===null?0:Math.max(0,1-age/(30*86400_000))*0.15;
+    return base+frequency+recency;
+  }));
+}
+
+export function describeEnvironmentProfile(store, now=Date.now()) {
+  const entries=store.listEnvironment({limit:100000}), artists=new Map(), sources={};
+  let withIds=0, knownCounts=0, knownDates=0, totalWeight=0;
+  for (const row of entries) {
+    const key={provider:row.provider,providerTrackId:row.track_key.split(':').slice(1).join(':')};
+    const track=store.getNormalizedTrack(key), facts=store.listEnvironmentSources(key);
+    const weight=environmentWeight(facts,now); totalWeight+=weight;
+    knownCounts+=Number(facts.some(f=>f.play_count!==null)); knownDates+=Number(facts.some(f=>f.last_played_at!==null));
+    for(const source of new Set(facts.map(f=>f.source))) sources[source]=(sources[source]??0)+1;
+    const members=track.artists?.length?track.artists:[{id:null,name:track.artist||'未知艺人'}];
+    if(track.artists?.length)withIds++;
+    for(const member of members) {
+      const artistKey=member.id?`${row.provider}:${member.id}`:`${row.provider}:name:${member.name}`;
+      const current=artists.get(artistKey)??{key:artistKey,name:member.name,identified:Boolean(member.id),weight:0,tracks:0};
+      current.weight+=weight/members.length;current.tracks++;artists.set(artistKey,current);
+    }
+  }
+  return {version:1,kind:'user_environment',total:entries.length,sources,coverage:{artistIds:entries.length?withIds/entries.length:0,
+    playCounts:entries.length?knownCounts/entries.length:0,dates:entries.length?knownDates/entries.length:0,genres:0,moods:0},
+    artists:[...artists.values()].map(a=>({...a,share:totalWeight?a.weight/totalWeight:0})).sort((a,b)=>b.share-a.share||a.key.localeCompare(b.key)),
+    featureLimits:['genre_unknown','mood_unknown','no_audio_analysis']};
 }
 
 /**

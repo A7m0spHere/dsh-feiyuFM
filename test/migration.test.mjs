@@ -54,7 +54,7 @@ test('an existing version 1 database upgrades to the current version without los
 
     const store = new MusicStore(path);
     try {
-      assert.equal(store.db.prepare('PRAGMA user_version').get().user_version, 4, 'all migrations applied');
+      assert.equal(store.db.prepare('PRAGMA user_version').get().user_version, 5, 'all migrations applied');
       // Old data is intact.
       assert.deepEqual(store.getSetting('window'), { x: 10, y: 20 });
       assert.equal(store.getHistory('inst-1').effective_ms, 4200);
@@ -65,7 +65,7 @@ test('an existing version 1 database upgrades to the current version without los
       assert.equal(store.countPreferences(), 0);
       assert.deepEqual(
         store.db.prepare('SELECT version FROM schema_migrations ORDER BY version').all().map((row) => row.version),
-        [1, 2, 3, 4],
+        [1, 2, 3, 4, 5],
       );
     } finally {
       store.close();
@@ -74,10 +74,10 @@ test('an existing version 1 database upgrades to the current version without los
     // Reopening is idempotent: no second migration, no error.
     const again = new MusicStore(path);
     try {
-      assert.equal(again.db.prepare('PRAGMA user_version').get().user_version, 4);
+      assert.equal(again.db.prepare('PRAGMA user_version').get().user_version, 5);
       assert.deepEqual(
         again.db.prepare('SELECT version FROM schema_migrations ORDER BY version').all().map((row) => row.version),
-        [1, 2, 3, 4],
+        [1, 2, 3, 4, 5],
       );
     } finally {
       again.close();
@@ -115,7 +115,7 @@ test('a version 2 database gains session attribution without losing history', ()
 
     const store = new MusicStore(path);
     try {
-      assert.equal(store.db.prepare('PRAGMA user_version').get().user_version, 4);
+      assert.equal(store.db.prepare('PRAGMA user_version').get().user_version, 5);
       // The pre-existing listen survived, with no session attached.
       const row = store.getHistory('old-1');
       assert.equal(row.effective_ms, 5000);

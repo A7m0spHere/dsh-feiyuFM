@@ -366,7 +366,9 @@ export function createNetEaseProvider(options = {}) {
         parse: (body, { limit }) => {
           const data = responseData(body);
           const rows = data?.weekData ?? data?.recent ?? listOf(body);
-          return Array.isArray(rows) ? rows.slice(0, limit).map((entry) => entry?.song ?? entry?.track ?? entry) : [];
+          return Array.isArray(rows) ? rows.slice(0, limit).map((entry) => ({ ...(entry?.song ?? entry?.track ?? entry),
+            ...(Number.isSafeInteger(entry?.playCount)?{playCount:entry.playCount}:{}),
+            ...(Number.isSafeInteger(entry?.lastPlayedAt)?{lastPlayedAt:entry.lastPlayedAt}:{}) })) : [];
         },
       },
       liked: {
@@ -392,7 +394,11 @@ export function createNetEaseProvider(options = {}) {
         steps: [
           {
             role: 'playlists', params: () => ({ uid: uid(), limit: 100, offset: 0 }), collect: false,
-            parse: (body) => ({ playlistId: playlistIdForUser(body, uid()) }),
+            parse: (body, {playlistId}) => {
+              const list=responseData(body)?.playlist??[];
+              if(playlistId && !list.some(p=>String(p.id)===String(playlistId))) throw new MusicError('invalid_command','指定歌单不在此账号的歌单列表中。');
+              return {playlistId:playlistId ? String(playlistId) : playlistIdForUser(body,uid())};
+            },
           },
           {
             role: 'playlistTracks', params: ({ playlistId }) => (playlistId ? { id: playlistId } : null), collect: false,
@@ -412,6 +418,15 @@ export function createNetEaseProvider(options = {}) {
     },
   });
   const baseCapabilities = provider.getCapabilities.bind(provider);
+  provider.getUserPlaylists = async ({signal=null}={}) => {
+    if(provider.getAccount().status!=='authorized')throw new MusicError('login_required','请先登录网易云音乐。');
+    if(!uid())await provider.restore({signal});
+    const response=await transport.request({role:'playlists',params:{uid:uid(),limit:100,offset:0},signal});
+    const rows=responseData(response.body)?.playlist;
+    if(!Array.isArray(rows))throw new MusicError('provider_failure','歌单列表结构无效。');
+    return rows.slice(0,100).map(p=>({id:String(p.id),title:typeof p.name==='string'?p.name:'未命名歌单',
+      trackCount:Number.isSafeInteger(p.trackCount)?p.trackCount:null,owned:String(p.creator?.userId??p.userId??'')===String(uid())}));
+  };
   const canRecommend = typeof communityApi.recommend_songs === 'function';
   let recommendationError = null;
   provider.getCapabilities = () => ({ ...baseCapabilities(),

@@ -12,7 +12,7 @@
 //     term;
 //   - with no candidates, select nothing and wait; a caller must not spin.
 import { trackId } from './contracts.mjs';
-import { createRng } from './taste.mjs';
+import { createRng, getArtistAffinity } from './taste.mjs';
 
 /**
  * First-pass parameters, recorded here and in docs/DECISIONS.md section 12.
@@ -83,8 +83,7 @@ export function scoreCandidate({
   const key = trackId(track);
   const preference = store.getPreference('track', key);
   const affinity = preference ? preference.affinity : parameters.neutralAffinity;
-  const artist = typeof track.artist === 'string' ? track.artist.trim() : '';
-  const artistAffinity = artist && store.getPreference('artist', artist) ? store.getPreference('artist', artist).affinity : null;
+  const artistAffinity = getArtistAffinity(store,track);
 
   const play = plays.get(key);
   const repeatPenalty = play ? Math.pow(parameters.repeatPenalty, play.plays) : 1;

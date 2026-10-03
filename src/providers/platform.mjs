@@ -54,7 +54,7 @@ export function createPlatformProvider({
   let loginVersion = 0;
   let lastError = null;
   let cachedSecret;
-  const noted = { seedSource: null, seedReason: null, recommendation: null, lastResolveAt: null };
+  const noted = { seedSource: null, seedReason: null, seedDegraded: false, recommendation: null, lastResolveAt: null };
 
   const readSecret = () => {
     if (cachedSecret !== undefined) return cachedSecret;
@@ -119,11 +119,11 @@ export function createPlatformProvider({
   }
 
   /** Runs one seed source, which may need more than one platform call. */
-  async function fetchSource(source, { limit, signal }) {
+  async function fetchSource(source, { limit, signal, playlistId = null }) {
     const descriptor = seedSources[source];
     if (!descriptor) throw new MusicError('invalid_command', `Unknown seed source ${source}`);
     const steps = descriptor.steps ?? [{ role: descriptor.role, params: descriptor.params, parse: descriptor.parse }];
-    let context = {};
+    let context = { playlistId };
     let entries = [];
     const stages = [];
     for (const step of steps) {
@@ -147,7 +147,7 @@ export function createPlatformProvider({
       if (step.collect === false) context = { ...context, ...parsed };
       else entries = parsed;
     }
-    return { tracks: normalizeList(entries), stages };
+    return { tracks: normalizeList(entries), stages, sourceRef: source==='playlist' ? String(context.playlistId??'') : '' };
   }
 
   function normalizeList(entries) {
@@ -197,7 +197,7 @@ export function createPlatformProvider({
             : unavailable(account.reason ?? 'the account state is unknown'),
         seed: signedIn
           ? noted.seedSource
-            ? capability(noted.seedSource === seedOrder[0] ? 'available' : 'degraded', {
+            ? capability(noted.seedDegraded ? 'degraded' : 'available', {
               source: noted.seedSource, reason: noted.seedReason,
             })
             : noted.seedReason
@@ -298,14 +298,14 @@ export function createPlatformProvider({
      * actually worked. A fallback is labelled degraded; it is never presented
      * as the preferred source.
      */
-    async getSeedTracks({ limit = 300, source = null, signal = null } = {}) {
+    async getSeedTracks({ limit = 300, source = null, signal = null, playlistId = null } = {}) {
       if (!authorized()) throw new MusicError('login_required', `Sign in to ${displayName} before importing`);
 
       const order = source ? [source] : seedOrder;
       const attempts = [];
       for (const candidate of order) {
         try {
-          const fetched = await fetchSource(candidate, { limit, signal });
+          const fetched = await fetchSource(candidate, { limit, signal, playlistId });
           const tracks = fetched.tracks;
           if (!tracks.length) {
             attempts.push({ source: candidate, count: 0, ok: false, code: 'empty_result',
@@ -316,15 +316,17 @@ export function createPlatformProvider({
           attempts.push({ source: candidate, count: tracks.length, ok: true, code: null,
             stage: null, stages: fetched.stages, reason: null });
           noted.seedSource = candidate;
-          noted.seedReason = candidate === seedOrder[0]
+          noted.seedDegraded = !source && candidate !== seedOrder[0];
+          noted.seedReason = !noted.seedDegraded
             ? null
             : `${phrase.firstSource ?? seedOrder[0]} was unavailable, so ${candidate} was used instead`;
           return {
             source: candidate,
+            sourceRef: fetched.sourceRef,
             tracks,
             requested: limit,
             imported: tracks.length,
-            degraded: candidate !== seedOrder[0],
+            degraded: noted.seedDegraded,
             attempts,
             reason: noted.seedReason,
           };

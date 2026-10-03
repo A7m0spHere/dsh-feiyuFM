@@ -15,7 +15,7 @@ import { MusicCore } from './core.mjs';
 import { FakePlayback } from './fakes.mjs';
 import { createSelector } from './selection.mjs';
 import { createRng, readAgentSeed, initializeAgentPreferences, describeTaste } from './taste.mjs';
-import { importSeedTracks, describeEnvironment } from './environment.mjs';
+import { importSeedTracks, describeEnvironment, describeEnvironmentProfile } from './environment.mjs';
 import { applyListenGrowth, decayPreferences, describeGrowth } from './growth.mjs';
 import { createSessionRegistry, mayStartPlayback } from './sessions.mjs';
 import { createHttpTransport } from './providers/transport.mjs';
@@ -128,17 +128,11 @@ export function buildSelector({ store, now = () => Date.now(), rng = null, listD
       // Restore the stored metadata, not just the key: the effective-progress
       // threshold needs the real duration, and a title is needed to tell the
       // user what is playing.
-      const stored = store.getTrack({
+      const stored = store.getNormalizedTrack({
         provider: row.provider,
         providerTrackId: row.track_key.split(':').slice(1).join(':'),
       });
-      return {
-        provider: row.provider,
-        providerTrackId: row.track_key.split(':').slice(1).join(':'),
-        ...(stored?.title ? { title: stored.title } : {}),
-        ...(stored?.artist ? { artist: stored.artist } : {}),
-        ...(stored?.duration_ms ? { durationMs: stored.duration_ms } : {}),
-      };
+      return stored;
     }),
     // Platform recommendations feed the discovery pool. They are read from a cache
 // because the selector runs synchronously and must never perform network I/O;
@@ -434,6 +428,7 @@ export function createCoreHost({
           send({
             type: 'result', id, ok: true,
             environment: describeEnvironment(store),
+            profile: describeEnvironmentProfile(store,now()),
             taste: describeTaste(store),
             growth: describeGrowth(store),
           });
@@ -490,10 +485,11 @@ export function createCoreHost({
           try {
             const seed = await accountProvider.getSeedTracks({
               limit: message.limit ?? 300, source: message.source ?? null, signal: null,
+              playlistId: message.playlistId ?? null,
             });
             const imported = importSeedTracks({
               store, provider: message.provider, source: seed.source, tracks: seed.tracks,
-              requested: seed.requested, degraded: seed.degraded, reason: seed.reason, now: now(),
+              requested: seed.requested, degraded: seed.degraded, reason: seed.reason, sourceRef:seed.sourceRef??'', now: now(),
             });
             const taste = initializeAgentPreferences({ store, seed: message.seed ?? null, now: now() });
             platformsFacade.tickDiscovery();
@@ -527,6 +523,12 @@ export function createCoreHost({
           const found = await accountProvider.search(message.query ?? '', { limit: message.limit ?? 20, signal: null });
           send({ type: 'result', id, ok: true, provider: message.provider, query: found.query, tracks: found.tracks, capability: found.capability });
           return;
+        }
+        case 'playlists': {
+          const adapter=requireProvider(message.provider);
+          if(typeof adapter.getUserPlaylists!=='function')throw new MusicError('capability_unavailable','Playlist selection is unavailable');
+          const playlists=await adapter.getUserPlaylists();
+          send({type:'result',id,ok:true,playlists});return;
         }
         case 'account': {
           send({

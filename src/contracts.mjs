@@ -33,6 +33,10 @@ export function normalizeTrack(value) {
     title: typeof value.title === 'string' ? value.title : '',
     artist: typeof value.artist === 'string' ? value.artist : '',
     durationMs: Number.isSafeInteger(value.durationMs) && value.durationMs > 0 ? value.durationMs : null,
+    ...(Array.isArray(value.artists) && value.artists.length ? { artists: value.artists.slice(0, 16)
+      .filter(a => a && String(a.id) !== '0' && /^[\w-]{1,80}$/.test(String(a.id ?? '')) && typeof a.name === 'string' && a.name.trim())
+      .map(a => ({ id: String(a.id), name: a.name.trim().slice(0, 160) })) } : {}),
+    ...(typeof value.metadataSource === 'string' && /^[\w-]{1,60}$/.test(value.metadataSource) ? { metadataSource: value.metadataSource } : {}),
   };
 }
 

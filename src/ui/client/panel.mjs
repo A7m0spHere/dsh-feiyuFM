@@ -8,6 +8,8 @@ export function Panel({ controller, back, close }) {
   const snapshot = state.snapshot;
   const settings = snapshot?.settings || {};
   const [rate, setRate] = React.useState(20);
+  const [importSource,setImportSource]=React.useState('auto');
+  const [playlistId,setPlaylistId]=React.useState('');
   const rateId = React.useId();
   React.useEffect(() => { if (snapshot) setRate(Math.round(settings.discoveryRate * 100)); }, [settings.discoveryRate]);
   React.useEffect(() => {
@@ -34,10 +36,16 @@ export function Panel({ controller, back, close }) {
       login_required: platform.account?.pending ? '等待扫码' : '未登录',
     }[platform.account?.status] || '未连接');
     const available = id === 'netease' && platform?.installed;
+    const selectedPlaylist=playlistId||state.playlists?.[0]?.id||'';
     const action = platform?.account?.status === 'authorized'
       ? h(React.Fragment, null,
-        h('button', { type: 'button', className: 'fm-button fm-primary', disabled: state.busy || !state.connected,
-          onClick: () => controller.platformAction('import', id) }, '导入我的音乐'),
+        state.features?.importSources&&h('select',{ 'aria-label':'导入来源',value:importSource,disabled:state.busy||!state.connected,
+          onChange:e=>{setImportSource(e.target.value);if(e.target.value==='playlist')controller.platformAction('playlists',id);} },
+          h('option',{value:'auto'},'自动来源'),h('option',{value:'recent'},'近期播放'),h('option',{value:'liked'},'我喜欢'),h('option',{value:'playlist'},'指定歌单')),
+        state.features?.importSources&&importSource==='playlist'&&h('select',{'aria-label':'输入歌单',value:selectedPlaylist,disabled:state.busy||!state.playlists?.length,
+          onChange:e=>setPlaylistId(e.target.value)},...(state.playlists?.length?state.playlists.map(p=>h('option',{key:p.id,value:p.id},p.title)):[h('option',{value:''},'读取歌单…')])),
+        h('button', { type: 'button', className: 'fm-button fm-primary', disabled: state.busy || !state.connected || (importSource==='playlist'&&!selectedPlaylist),
+          onClick: () => controller.platformAction('import', id,{source:importSource==='auto'?null:importSource,playlistId:importSource==='playlist'?selectedPlaylist:null}) }, '导入我的音乐'),
         h('button', { type: 'button', className: 'fm-button fm-subtle', disabled: state.busy || !state.connected,
           onClick: () => controller.platformAction('logout', id) }, '退出'))
       : available && !state.login && h('button', { type: 'button', className: 'fm-button fm-primary', disabled: state.busy || !state.connected,

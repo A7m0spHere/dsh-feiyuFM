@@ -17,6 +17,8 @@
 
 ## 边界
 
+N4 增量：schema v5 增加 `tracks.artists_json/metadata_source` 和 `environment_sources`；曲目可带稳定艺人数组和来源，首次导入来源保留，重复导入追加/更新独立事实，不覆盖已有 Agent affinity。`environment.profile` 返回有界来源/艺人分布及覆盖率，流派/情绪缺失保持未知；艺人偏好在有 ID 时按平台 ID 保存/成长。`playlists` 读取账号歌单，`import-platform` 可指定 `source/playlistId` 并保留实际 sourceRef；认证 `fishfm/playlists` 与导入参数白名单对应。新客户端仅在宿主声明 importSources 时显示来源选择。
+
 - 一个本地用户配置只有一个 `MusicCore` 实例和一条候选队列。Core 是状态唯一写入者；窗口和多个 DSH Session 将来都向它提交命令。
 - Track key 是 `(provider, providerTrackId)`，`provider` 仅可为 `netease` 或 `qq`。同名歌曲不能替代 ID。
 - Provider `resolve(track, { signal, version })` 返回 `{ handle, expiresAt? }`。`handle` 只在调用 Playback 时传递，不保存到 SQLite 或状态快照。Provider 同时暴露显式账号状态和能力状态；缺失能力不能伪装为空结果。
