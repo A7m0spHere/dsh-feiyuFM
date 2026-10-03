@@ -27,8 +27,8 @@ export function auditObservation(report,history=[]){
  }));
  const samplingComplete=['core','adapter'].every(n=>resources[n].maxSampleGapMs!==null&&resources[n].maxSampleGapMs<=20000);
  const missingHistory=distinct(autonomous)-new Set(matched.map(r=>r.playInstanceId)).size;
- const passed=real&&report.elapsedMs>=7200000&&report.sameRun&&report.uninterruptedEvidence&&samplingComplete&&distinct(natural)>=5&&valid.length>=5&&controls.length===0&&missingHistory===0&&duplicateHistory===0&&duplicateGrowth===0;
- return{scope:'unattended_real_music_window',elapsedMs:report?.elapsedMs??null,real,sameRun:report?.sameRun??false,
+ const passed=real&&report.status==='completed'&&report.elapsedMs>=7200000&&report.sameRun&&report.uninterruptedEvidence&&samplingComplete&&distinct(natural)>=5&&valid.length>=5&&controls.length===0&&missingHistory===0&&duplicateHistory===0&&duplicateGrowth===0;
+ return{scope:'unattended_real_music_window',status:report?.status??'unknown',elapsedMs:report?.elapsedMs??null,real,sameRun:report?.sameRun??false,
   uninterruptedEvidence:report?.uninterruptedEvidence??false,samplingComplete,unattendedRunPassed:Boolean(passed),
   naturalAutonomousEnds:distinct(natural),autonomousHistory:distinct(autonomous),observedPlaybackStarts:distinct(starts),
   validAgentListens:valid.length,validUnfamiliarListens:valid.filter(r=>r.selectionPool==='discovery').length,
