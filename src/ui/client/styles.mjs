@@ -158,6 +158,13 @@ export const css = `
   .fm-reset-confirm { padding:12px; border:1px solid var(--fm-line); border-radius:7px; background:var(--fm-sunken); }
   .fm-reset-confirm .fm-check-row { margin:10px 0; align-items:flex-start; font-size:11px; }
   .fm-reset-confirm input { flex:none; margin-top:2px; }
+  .fm-model-playlist { margin:10px 0; border:1px solid var(--fm-line); border-radius:7px; overflow:hidden; }
+  .fm-model-song { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:9px 10px; border-bottom:1px solid var(--fm-line); }
+  .fm-model-song:last-child { border-bottom:0; }
+  .fm-model-song div { min-width:0; }
+  .fm-model-song strong,.fm-model-song div>span { display:block; overflow-wrap:anywhere; }
+  .fm-model-song strong { font-size:12px; font-weight:500; }
+  .fm-model-song div>span { margin-top:3px; font-size:10px; color:var(--fm-muted); }
   .fm-row { display:flex; align-items:center; justify-content:space-between; gap:14px;
     padding:12px 0; border-bottom:1px solid var(--fm-line); }
   .fm-label { font-size:12px; font-weight:550; }

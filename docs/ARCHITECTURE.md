@@ -1,5 +1,7 @@
 # 技术架构草案
 
+2026-10-04 N11：[模型歌单](spikes/N11-model-playlist.md) 替代仅展示/平台推荐作为默认产品方向。DSH LLM 服务低频输出具体歌曲，Core 验证与记账，`model-recommendations.mjs` 有界搜索核对，selector 同步执行缓存；Provider 负责平台元数据和资源，不把网易云推荐当作模型推荐。输入清空与旧成长重置分开，保留可恢复数据边界。
+
 2026-10-03 N10：[歌曲反馈与重置](spikes/N10-feedback-reset.md) 新增独立 `user_track_feedback`（schema v9）。Core 接收显式反馈/重置/撤销命令，selector 只读反馈做有界评分，喜欢的歌曲进入熟悉池/种子；不覆盖 Agent affinity 或输入环境。重置、恢复点和命令去重记录同事务，Growth 拒绝重置边界前的旧经历；UI 读取 `insights.feedback`，不自行计算权重或同步平台收藏。
 
 2026-10-02 N0–N3 已落地：`src/discovery.mjs` 在 facade/Host 内负责候选缓存和后台调度；selector 同步读缓存及用户环境/Agent 已知歌曲。schema v4 将历史、待处理成长与幂等应用接通；Playback 提供受连续观测限制的有效增量。生产入口采集实际请求/播放/成长，Adapter 采集实际注册，观察脚本只读报告；DSH 全量请求/上下文仍未覆盖。接口与证据见 [CORE_CONTRACT](CORE_CONTRACT.md) 及 [N3](spikes/N3-discovery-cache.md)。

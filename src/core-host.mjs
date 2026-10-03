@@ -25,6 +25,7 @@ import { describePlatforms, collectDiscovery, resolveOnOwnPlatform, summarizeSee
 import { createDiscoveryCache } from './discovery.mjs';
 import {describeMusicInsights} from './insights.mjs';
 import {personaView,reserveSummary,startSummary,finishSummary,recoverSummaryCalls,setSummaryBudget,setSummaryOutputTokens,setSummaryAutomatic} from './persona.mjs';
+import {modelRecommendations,modelRecommendationTracks,recommendationMode,createModelRecommendationResolver} from './model-recommendations.mjs';
 
 /** Bump when the host/owner message shapes change in a way an older peer cannot read. */
 export const CORE_HOST_PROTOCOL = 1;
@@ -126,7 +127,7 @@ export function buildSelector({ store, now = () => Date.now(), rng = null, listD
     // the session still works, it just is not reproducible.
     rng: rng ?? createRng(store.getCoreState()?.selectionRngState ?? (Number.isSafeInteger(seed) ? seed : 1)),
     isPlayable: track => store.isTrackAvailable(track, now()),
-    listFamiliar: () => [...new Map([...store.listEnvironment({ limit: 100000 }), ...store.listAgentKnownTracks(), ...store.listLikedTracks()].map(row => [row.track_key, row])).values()].map((row) => {
+    listFamiliar: () => recommendationMode(store)==='llm'?modelRecommendationTracks(store).filter(t=>store.getEnvironmentEntry(t)||store.hasEffectiveListen(t)||store.listLikedTracks().some(r=>r.track_key===`${t.provider}:${t.providerTrackId}`)):[...new Map([...store.listEnvironment({ limit: 100000 }), ...store.listAgentKnownTracks(), ...store.listLikedTracks()].map(row => [row.track_key, row])).values()].map((row) => {
       // Restore the stored metadata, not just the key: the effective-progress
       // threshold needs the real duration, and a title is needed to tell the
       // user what is playing.
@@ -139,7 +140,7 @@ export function buildSelector({ store, now = () => Date.now(), rng = null, listD
     // Platform recommendations feed the discovery pool. They are read from a cache
 // because the selector runs synchronously and must never perform network I/O;
 // an empty pool is a real state and is recorded as such.
-    listDiscovery: listDiscovery ?? (() => []),
+    listDiscovery: () => recommendationMode(store)==='llm'?modelRecommendationTracks(store).filter(t=>!store.getEnvironmentEntry(t)&&!store.hasEffectiveListen(t)&&!store.listLikedTracks().some(r=>r.track_key===`${t.provider}:${t.providerTrackId}`)):(listDiscovery?.()??[]),
     now,
   });
 }
@@ -191,6 +192,8 @@ export function createProviderFacade({ registry, store = null, now = () => Date.
   // Discovery candidates are refreshed on demand and cached, because the
   // selector is synchronous and must never block playback on the network.
   const discovery = createDiscoveryCache({ registry, store, now, onLog });
+  const modelResolver=createModelRecommendationResolver({store,registry,now,onChange:()=>listeners.forEach(fn=>fn())});
+  const listeners=new Set();
 
   return {
     registry,
@@ -204,15 +207,16 @@ export function createProviderFacade({ registry, store = null, now = () => Date.
 
     /** Synchronous, cache-only: the selector must not perform network I/O. */
     discoveryTracks: () => discovery.tracks(),
-    discoveryStatus: () => discovery.status(),
-    setDiscoveryEnabled: value => discovery.setEnabled(value),
-    tickDiscovery: () => discovery.tick(),
-    onDiscoveryChange: fn => discovery.onChange(fn),
-    closeDiscovery: () => discovery.close(),
+    discoveryStatus: () => recommendationMode(store)==='llm'?{state:modelRecommendations(store)?.verification??'empty',count:modelRecommendationTracks(store).filter(t=>!store.getEnvironmentEntry(t)&&!store.hasEffectiveListen(t)).length,verified:modelRecommendations(store)?.verified.length??0,sources:['llm_recommendation'],reason:modelRecommendations(store)?null:'model-playlist-needed',refreshing:modelResolver.busy}:discovery.status(),
+    setDiscoveryEnabled: value => discovery.setEnabled(value&&recommendationMode(store)!=='llm'),
+    tickDiscovery: () => recommendationMode(store)==='llm'?modelResolver.tick():discovery.tick(),
+    onDiscoveryChange: fn => {listeners.add(fn);const off=discovery.onChange(fn);return()=>{listeners.delete(fn);off();};},
+    closeDiscovery: () => {modelResolver.close();discovery.close();listeners.clear();},
 
-    refreshDiscovery: options => discovery.refresh(options),
+    refreshDiscovery: options => recommendationMode(store)==='llm'?modelResolver.refresh({manual:true}):discovery.refresh(options),
+    verifyModelRecommendations:()=>modelResolver.tick(),
 
-    clearDiscovery() { discovery.clear(); },
+    clearDiscovery() { modelResolver.cancel();discovery.clear(); },
   };
 }
 
@@ -277,6 +281,7 @@ export function createCoreHost({
 // references from the same store the host writes them to, and a caller that
 // already owns a store should not end up with two.
   const store = givenStore ?? new MusicStore(dbPath);
+  if(playbackMode==='real'&&store.getSetting('recommendation_mode_v1',null)===null)store.setSetting('recommendation_mode_v1','llm');
   // With no adapter installed the core must fail resolution honestly instead of
   // resolving through a stand-in, so a fake provider is opt-in only.
   const registry = providerRegistry ?? new ProviderRegistry({});
@@ -343,6 +348,7 @@ export function createCoreHost({
         case 'command': {
           onLog({ type: 'command', kind: message.command?.type });
           const snapshot = core.dispatch({ ...message.command, commandId: message.command?.commandId ?? randomUUID() });
+          if(['resetLibrary','resetTaste','undoTasteReset','setRecommendationMode'].includes(message.command?.type))platformsFacade?.clearDiscovery();
           platformsFacade?.setDiscoveryEnabled(snapshot.settings.discovery && snapshot.settings.discoveryRate > 0);
           platformsFacade?.tickDiscovery();
           send({ type: 'result', id, ok: true, snapshot: core.snapshot(), accepted: snapshot.revision });
@@ -443,9 +449,9 @@ export function createCoreHost({
         case 'persona-budget':setSummaryBudget(store,message.value);send({type:'result',id,ok:true});return;
         case 'persona-output':setSummaryOutputTokens(store,message.value);send({type:'result',id,ok:true});return;
         case 'persona-automatic':setSummaryAutomatic(store,message.value);send({type:'result',id,ok:true});return;
-        case 'persona-reserve':send({type:'result',id,ok:true,plan:reserveSummary({store,snapshot:core.snapshot(),provider:message.provider,model:message.model,now:now()})});return;
+        case 'persona-reserve':send({type:'result',id,ok:true,plan:reserveSummary({store,snapshot:core.snapshot(),provider:message.provider,model:message.model,now:now(),automatic:message.automatic===true,purpose:message.purpose??'persona-summary'})});return;
         case 'persona-start':send({type:'result',id,ok:true,started:startSummary(store,message.callId)});return;
-        case 'persona-finish':send({type:'result',id,ok:true,result:finishSummary({store,...message,now:now()})});return;
+        case 'persona-finish':{const result=finishSummary({store,...message,now:now()});send({type:'result',id,ok:true,result});platformsFacade?.setDiscoveryEnabled(core.snapshot().settings.discovery&&core.snapshot().settings.discoveryRate>0);platformsFacade?.verifyModelRecommendations();return;}
         case 'platforms': {
           if (!platformsFacade) {
             send({ type: 'result', id, ok: true, platforms: { platforms: {}, usable: [], reason: 'no platform adapters are configured in this build' } });

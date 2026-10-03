@@ -45,7 +45,7 @@ export function assertCommand(command) {
     throw new MusicError('invalid_command', 'commandId is required');
   }
   const types = ['pause', 'resume', 'next', 'requestTrack', 'setListening', 'setHumanPlayback',
-    'setDiscovery', 'setDiscoveryRate', 'setMode', 'stopForToday', 'chooseSelf', 'banTrack', 'unbanTrack', 'setTrackFeedback', 'resetTaste', 'undoTasteReset'];
+    'setDiscovery', 'setDiscoveryRate', 'setMode', 'stopForToday', 'chooseSelf', 'banTrack', 'unbanTrack', 'setTrackFeedback', 'resetTaste', 'resetLibrary', 'undoTasteReset','setRecommendationMode'];
   if (!types.includes(command.type)) throw new MusicError('invalid_command', `Unknown command: ${command.type}`);
   if (['setListening', 'setHumanPlayback', 'setDiscovery'].includes(command.type) && typeof command.value !== 'boolean') {
     throw new MusicError('invalid_command', 'Boolean value required');
@@ -62,7 +62,8 @@ export function assertCommand(command) {
     trackKey(command.track);
     if (![-1,0,1].includes(command.value) || typeof command.playInstanceId !== 'string' || !command.playInstanceId) throw new MusicError('invalid_command', '歌曲反馈需要有效分值与播放实例。');
   }
-  if (command.type === 'resetTaste' && (!command.value || typeof command.value.clearFeedback !== 'boolean')) throw new MusicError('invalid_command', '请明确是否同时清除手动反馈。');
+  if (['resetTaste','resetLibrary'].includes(command.type) && (!command.value || typeof command.value.clearFeedback !== 'boolean')) throw new MusicError('invalid_command', '请明确是否同时清除手动反馈。');
+  if(command.type==='setRecommendationMode'&&!['llm','platform'].includes(command.value))throw new MusicError('invalid_command','未知的推荐来源。');
   return command;
 }
 

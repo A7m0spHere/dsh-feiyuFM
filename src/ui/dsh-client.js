@@ -164,6 +164,13 @@ window.__ModuleLoader__.load({
       .fm-reset-confirm { padding:12px; border:1px solid var(--fm-line); border-radius:7px; background:var(--fm-sunken); }
       .fm-reset-confirm .fm-check-row { margin:10px 0; align-items:flex-start; font-size:11px; }
       .fm-reset-confirm input { flex:none; margin-top:2px; }
+      .fm-model-playlist { margin:10px 0; border:1px solid var(--fm-line); border-radius:7px; overflow:hidden; }
+      .fm-model-song { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:9px 10px; border-bottom:1px solid var(--fm-line); }
+      .fm-model-song:last-child { border-bottom:0; }
+      .fm-model-song div { min-width:0; }
+      .fm-model-song strong,.fm-model-song div>span { display:block; overflow-wrap:anywhere; }
+      .fm-model-song strong { font-size:12px; font-weight:500; }
+      .fm-model-song div>span { margin-top:3px; font-size:10px; color:var(--fm-muted); }
       .fm-row { display:flex; align-items:center; justify-content:space-between; gap:14px;
         padding:12px 0; border-bottom:1px solid var(--fm-line); }
       .fm-label { font-size:12px; font-weight:550; }
@@ -343,11 +350,15 @@ window.__ModuleLoader__.load({
 
     function discoveryPresentation(snapshot) {
       const data = snapshot?.discovery;
-      if (!snapshot?.settings?.discovery || snapshot.settings.discoveryRate === 0) return '探索已关闭；自主选择使用熟悉歌曲。';
+      const model=data?.sources?.includes('llm_recommendation');
+      if (!snapshot?.settings?.discovery || snapshot.settings.discoveryRate === 0) return model?'探索已关闭；续播只使用模型歌单中的已知歌曲。':'探索已关闭；自主选择使用熟悉歌曲。';
       if (!data) return '推荐候选状态尚未读取。';
-      const names = { netease_daily: '网易云每日推荐', netease_personal_fm: '网易云私人 FM', netease_similar:'种子相似歌曲', platform_recommendation: '平台推荐' };
+      const names = {llm_recommendation:'模型推荐歌单', netease_daily: '网易云每日推荐', netease_personal_fm: '网易云私人 FM', netease_similar:'种子相似歌曲', platform_recommendation: '平台推荐' };
       const sources = (data.sources ?? []).map(source => names[source] || '平台推荐').join('、');
       if (data.refreshing) return `正在后台刷新；现有陌生候选 ${data.count ?? 0} 首。`;
+      if(data.reason==='model-playlist-needed')return '等待模型生成推荐歌单；网易云只用于搜歌与播放。';
+      if(model&&data.state==='login-required')return '模型已给出歌单，需要登录网易云后核对歌曲。';
+      if(model&&!data.count)return data.verified?'模型歌单暂无陌生曲目，按已核对的已知歌曲与冷却规则选择。':'暂无通过核对的模型歌曲，请生成或重新核对歌单。';
       if (data.count > 0) return `陌生候选 ${data.count} 首${sources ? ` · ${sources}` : ''}${data.reason ? '；刷新暂未成功，保留有效缓存。' : ''}`;
       if (data.state === 'idle') return '等待后台获取推荐候选。';
       if (data.reason === 'login-required') return '推荐需要有效登录；暂从熟悉歌曲选择。';
@@ -454,8 +465,8 @@ window.__ModuleLoader__.load({
             const result = await connection.rpc.call('/api', 'fishfm/command', payload, write.signal);
             if (!result.ok) throw result.error;
             const feedbackNotice = type==='setTrackFeedback' ? value.value===1?'已喜欢，将提高这首歌的排序权重':value.value===-1?'已降低这首歌的排序权重':'已撤销这首歌的反馈'
-              :type==='resetTaste'?'已重置推荐偏好，可撤销最近一次重置':type==='undoTasteReset'?'已恢复重置前的偏好':null;
-            emit({ ...result.value, notice: feedbackNotice || (['pause', 'resume', 'next', 'requestTrack'].includes(type) ? '播放控制已更新' : '已保存到本机') });
+              :type==='resetTaste'?'已重置成长偏好，输入曲库保留':type==='resetLibrary'?'已清空输入曲库并重建偏好，可撤销':type==='undoTasteReset'?'已恢复最近一次重置前的数据':type==='setRecommendationMode'?'推荐来源已更新':null;
+            emit({ ...result.value,...(['resetTaste','resetLibrary','undoTasteReset','setRecommendationMode'].includes(type)?{summaryNotice:'',summaryError:''}:{}),...(type==='resetLibrary'?{imported:null,importAttempts:[]}:{}), notice: feedbackNotice || (['pause', 'resume', 'next', 'requestTrack'].includes(type) ? '播放控制已更新' : '已保存到本机') });
           } catch (error) {
             const actionError = ['no_candidates', 'constraint_conflict', 'invalid_command', 'media_unavailable','stale_track','summary_busy','no_reset_backup','invalid_track'].includes(error?.code);
             emit({ connected: actionError ? state.connected : false, error: failure(error), notice: actionError ? '请调整曲目或设置后重试' : '未确认操作，请刷新核对' });
@@ -519,15 +530,15 @@ window.__ModuleLoader__.load({
         async personaAction(action,payload){
           if(disposed||state.summaryBusy||!state.connected)return;
           summaryWrite=new AbortController();const timeout=setTimeout(()=>summaryWrite?.abort(),65000);
-          const endpoint={summary:'fishfm/persona-summary',budget:'fishfm/persona-budget',output:'fishfm/persona-output',automatic:'fishfm/persona-automatic'}[action];
-          const pending={summary:'正在总结聚合画像…',budget:'正在保存总结预算…',output:'正在保存单次输出上限…',automatic:'正在保存自动总结设置…'}[action];
+          const endpoint={summary:'fishfm/persona-summary',recommendations:'fishfm/persona-recommendations',budget:'fishfm/persona-budget',output:'fishfm/persona-output',automatic:'fishfm/persona-automatic'}[action];
+          const pending={summary:'正在总结聚合画像…',recommendations:'正在由模型生成具体推荐歌单…',budget:'正在保存总结预算…',output:'正在保存单次输出上限…',automatic:'正在保存自动总结设置…'}[action];
           emit({summaryBusy:true,summaryError:'',summaryNotice:pending});
           try{
             if(!endpoint)throw Object.assign(new Error('未知的画像操作。'),{code:'invalid_command'});
             const result=await connection.rpc.call('/api',endpoint,payload,summaryWrite.signal);
             if(!result.ok)throw result.error;
             // This operation never overwrites live playback with a late snapshot.
-            const notice=action==='summary'?(result.value.summaryResult?.cached?'已复用缓存，没有新增模型调用。':'总结已更新。')
+            const notice=['summary','recommendations'].includes(action)?(result.value.summaryResult?.cached?'已复用缓存，没有新增模型调用。':action==='recommendations'?'模型歌单已生成，正在核对平台歌曲。':'总结已更新。')
               :action==='automatic'?(payload?.value?'自动总结已开启，只在画像更新且预算允许时运行。':'自动总结已关闭。')
               :action==='output'?'单次输出上限已保存。':'总结预算已保存。';
             emit({persona:result.value.persona,summaryNotice:notice});
@@ -663,7 +674,8 @@ window.__ModuleLoader__.load({
       if (!view) return null;
       const routes = state.summaryModels ?? [], key = r => JSON.stringify([r.provider, r.model]);
       const { summary, ledger, policy, facts } = view;
-      const cachedRoute = summary && routes.find(r => r.provider === summary.provider && r.model === summary.model);
+      const recommendations=view.recommendations,baseline=recommendations??summary??view.lastModelRoute;
+      const cachedRoute = baseline && routes.find(r => r.provider === baseline.provider && r.model === baseline.model);
       const chosen = selected || (cachedRoute ? key(cachedRoute) : routes[0] ? key(routes[0]) : '');
       const route = routes.find(r => key(r) === chosen);
       const busy = Boolean(state.summaryBusy), disabled = busy || !state.connected;
@@ -682,9 +694,18 @@ window.__ModuleLoader__.load({
             h('span', { className: 'fm-fact' }, `有效经历 ${facts.validListens} 次`),
             h('span', { className: 'fm-fact' }, `探索目标 ${facts.discoveryEnabled ? facts.exploration : 0}%`)),
           !facts.artists.length && h('p', { className: 'fm-note' }, '尚未形成足够的艺人偏好，先导入或积累收听经历。'),
-          h('p', { className: 'fm-note' }, '按本地偏好、平台候选与重复限制选歌。艺人标签展示较高权重，经历数仅覆盖已追踪窗口；流派和情绪未知。'),
+          h('p', { className: 'fm-note' }, state.insights?.recommendationMode==='llm'?'模型决定推荐哪些歌，本地只执行顺序、手动反馈与重复限制。以下画像是已追踪的本地记录；流派和情绪未知。':'兼容模式按本地偏好与平台候选选歌。以下画像只覆盖已追踪窗口；流派和情绪未知。'),
           h('div', { className: 'fm-summary' },
-            h('div', { className: 'fm-section-head' }, h('p', { className: 'fm-label' }, '模型总结'), h('span', { className: 'fm-badge' }, summary ? view.summaryStale ? '画像已变化' : '已缓存' : '按需生成')),
+            h('div', { className: 'fm-section-head' }, h('p', { className: 'fm-label' }, 'LLM 推荐歌单'), h('span', { className: 'fm-badge' }, recommendations ? `已核对 ${recommendations.verified.length} / ${recommendations.songs.length} 首${view.recommendationsStale?' · 参考已变化':''}` : '未生成')),
+            h('div',{className:'fm-motion-row'},h('label',null,'推荐来源'),h('select',{'aria-label':'推荐来源',value:state.insights?.recommendationMode??'platform',disabled:disabled||!view.recommendationsSupported,onChange:e=>controller.command('setRecommendationMode',e.target.value)},h('option',{value:'llm'},'LLM 歌单'),h('option',{value:'platform'},'网易云推荐（兼容模式）'))),
+            recommendations&&h('p',{className:'fm-summary-text'},recommendations.text),
+            recommendations&&h('div',{className:'fm-model-playlist'},...recommendations.songs.map((song,index)=>h('div',{key:index,className:'fm-model-song'},h('div',null,h('strong',null,song.title),h('span',null,song.artist)),h('span',{className:'fm-badge'},({matched:'已核对',ambiguous:'版本不唯一','not-found':'未找到','login-required':'需要登录','lookup-failed':'核对失败'})[recommendations.attempts.find(a=>a.index===index)?.status]??'待核对')))),
+            h('p',{className:'fm-note'},`模型参考 ${view.referenceCoverage?.sampled??0} / ${view.referenceCoverage?.total??state.library?.total??0} 首代表输入歌曲及手动反馈，低频给出具体歌单；网易云负责搜索核对与播放。`),
+            h('div',{className:'fm-summary-actions'},
+              h('select',{'aria-label':'推荐模型',value:chosen,disabled:disabled||!routes.length,onChange:e=>setSelected(e.target.value)},...(routes.length?routes.map(r=>h('option',{key:key(r),value:key(r)},r.label)):[h('option',{value:''},'DSH 模型列表尚不可用')])),
+              h('button',{type:'button',className:'fm-button fm-primary',disabled:disabled||!route||!state.features?.personaSummary||!view.recommendationsSupported||policy.maxOutputTokens<128||!(view.referenceCoverage?.sampled||state.insights?.feedback?.liked),onClick:()=>controller.personaAction('recommendations',{provider:route.provider,model:route.model})},busy?'正在处理…':'根据歌曲推荐一批')),
+            h('p',{className:'fm-note',role:'status','aria-live':'polite'},state.summaryError||state.summaryNotice||(!view.recommendationsSupported?'新版模型推荐功能尚未加载。':!(view.referenceCoverage?.sampled||state.insights?.feedback?.liked)?'请先导入参考歌曲，或标记喜欢；空曲库不会发送模型请求。':policy.maxOutputTokens<128?'请在预算设置中将输出上限调到至少 128 tokens。':'相同参考数据复用缓存，不逐曲调用模型。新生成受冷却、每日尝试次数与 token 预算限制。')),
+            h('details',{className:'fm-disclosure'},h('summary',null,'画像总结（仅展示）'),
             summary ? h(React.Fragment, null,
               h('p', { className: 'fm-summary-text' }, summary.text),
               h('p', { className: 'fm-note fm-summary-meta' }, `${summary.provider} / ${summary.model} · ${new Date(summary.generatedAt).toLocaleString()} · ${TRIGGER[summary.trigger] ?? '手动'}触发`))
@@ -694,21 +715,21 @@ window.__ModuleLoader__.load({
                 ...(routes.length ? routes.map(r => h('option', { key: key(r), value: key(r) }, r.label)) : [h('option', { value: '' }, 'DSH 模型列表尚不可用')])),
               h('button', { type: 'button', className: 'fm-button', disabled: disabled || !state.features?.personaSummary || !route,
                 onClick: () => controller.personaAction('summary', { provider: route.provider, model: route.model }) }, busy ? '正在处理…' : '根据画像总结一次')),
-            h('p', { className: 'fm-note', role: 'status', 'aria-live': 'polite' }, state.summaryError || state.summaryNotice || '只发送聚合事实；相同画像和模型复用缓存。总结仅作展示，不改变选歌权重。')),
+            h('p', { className: 'fm-note' }, '这段旧画像总结只作展示；上方模型歌单才提供具体推荐歌曲。'))),
           h('div', { className: 'fm-token-strip', 'aria-label': '插件模型用量' },
             h('div', null, h('span', null, '今日已知用量'), h('strong', null, ledger.today.knownTokens, h('small', null, ' tokens'))),
             h('div', null, h('span', null, '累计已知用量'), h('strong', null, ledger.total.knownTokens, h('small', null, ' tokens'))),
             h('p', null, `共 ${ledger.total.attempts} 次尝试 · ${ledger.total.unknownCalls} 次用量未知或进行中`)),
           h('details', { className: 'fm-disclosure' },
-            h('summary', null, '自动总结', h('span', { className: 'fm-disclosure-meta' }, policy.automatic ? '已开启' : '默认关闭')),
+            h('summary', null, '低频自动更新', h('span', { className: 'fm-disclosure-meta' }, policy.automatic ? '已开启' : '默认关闭')),
             h('div', { className: 'fm-disclosure-body' },
               h('label', { className: 'fm-check-row' }, h('input', { type: 'checkbox', checked: policy.automatic === true, disabled: disabled || !automaticAvailable,
-                'aria-label': '开启自动总结', onChange: e => controller.personaAction('automatic', { value: e.target.checked }) }), '开启低频自动总结'),
+                'aria-label': '开启自动总结', onChange: e => controller.personaAction('automatic', { value: e.target.checked }) }), '开启低频自动更新'),
               h('p', { className: 'fm-note', role: 'status', 'aria-live': 'polite' }, policy.automatic
                 ? policy.automaticDue ? '条件已满足，下一次检查会运行一次总结。' : blocked || '尚未满足自动总结条件。'
                 : '关闭时不会自动产生模型请求。'),
               h('p', { className: 'fm-note' }, automaticAvailable
-                ? `沿用上次成功总结的模型；新增有效经历 ${policy.autoMinNewListens} 次、距上次至少 24 小时、冷却 1 小时，每日最多 3 次尝试，且画像与预算允许。`
+                ? `更新对象：${policy.automaticPurpose==='model-recommendations'?'模型推荐歌单':'画像总结'}。沿用上次成功生成的模型；新增有效经历 ${policy.autoMinNewListens} 次、距上次至少 24 小时、冷却 1 小时，每日最多 3 次尝试，且参考数据与预算允许。`
                 : '当前 Core 尚未提供自动总结设置。'))),
           h('details', { className: 'fm-disclosure' }, h('summary', null, '插件 token 账本与预算', h('span', { className: 'fm-disclosure-meta' }, `今日剩余 ${ledger.remainingTokens}`)),
             h('div', { className: 'fm-disclosure-body' },
@@ -723,7 +744,7 @@ window.__ModuleLoader__.load({
               !outputAvailable && h('p', { className: 'fm-note' }, '当前 Core 尚未提供输出上限设置。'),
               h('details', { className: 'fm-call-history' }, h('summary', null, '最近调用明细'),
                 ...(ledger.recent ?? []).map(r => h('div', { className: 'fm-call', key: r.callId },
-                  h('p', { className: 'fm-label' }, `${r.model} · ${r.status}`),
+                  h('p', { className: 'fm-label' }, `${r.purpose==='model-recommendations'?'推荐歌单':'画像总结'} · ${r.model} · ${r.status}`),
                   h('p', { className: 'fm-note' }, `${new Date(r.startedAt).toLocaleString()} · ${usageText(r.usage)}`))),
                 !(ledger.recent?.length) && h('p', { className: 'fm-note' }, '暂无调用记录。')),
               h('p', { className: 'fm-note' }, `聚合事实 ${policy.factsBytes} / ${policy.maxPromptBytes} 字节（UTF-8，不是精确 token 数）。实际用量以模型返回为准。`)))));
@@ -731,26 +752,27 @@ window.__ModuleLoader__.load({
 
     // src/ui/client/feedback.mjs
     function FeedbackSettings({state,controller}) {
-      const [confirm,setConfirm]=React.useState(false),[clearFeedback,setClearFeedback]=React.useState(false);
+      const [confirm,setConfirm]=React.useState(null),[clearFeedback,setClearFeedback]=React.useState(false);
       const feedback=state.insights?.feedback,available=feedback?.version===1;
       const disabled=state.busy||state.summaryBusy||!state.connected||!available;
       return h('section',null,h('h2',null,'推荐反馈',h('small',null,'FEEDBACK')),
         h('div',{className:'fm-card'},
-          available?h('p',{className:'fm-note'},`喜欢 ${feedback.liked} 首 · 少推荐 ${feedback.reduced} 首。手动反馈独立保存，不会被自动成长覆盖。`)
+          available?h('p',{className:'fm-note'},`输入曲库 ${state.library?.total??0} 首 · 喜欢 ${feedback.liked} 首 · 少推荐 ${feedback.reduced} 首。`)
             :h('p',{className:'fm-note'},'当前 Core 尚未提供反馈功能，重新加载新版插件后可用。'),
           h('details',{className:'fm-disclosure'},h('summary',null,'偏好重置与恢复'),h('div',{className:'fm-disclosure-body'},
-            h('p',{className:'fm-note'},'恢复为当前输入曲库的初始偏好。保留账号、曲库、历史和 token 账本；旧模型总结会移除。'),
+            h('p',{className:'fm-note'},'清空曲库会移除输入名单和积累偏好；仅重置成长会保留输入歌曲。账号、播放历史和 token 账本保留。'),
             feedback?.resetAt&&h('p',{className:'fm-note'},`最近重置：${new Date(feedback.resetAt).toLocaleString()}`),
             confirm?h('div',{className:'fm-reset-confirm'},
-              h('p',{className:'fm-label'},'重置积累的推荐偏好？'),
+              h('p',{className:'fm-label'},confirm==='library'?`清空 ${state.library?.total??0} 首输入歌曲并重建偏好？`:'仅重置成长偏好，保留输入曲库？'),
               h('label',{className:'fm-check-row'},h('input',{type:'checkbox',checked:clearFeedback,disabled,'aria-label':'同时清除喜欢和少推荐反馈',onChange:e=>setClearFeedback(e.target.checked)}),'同时清除喜欢 / 少推荐反馈'),
               h('div',{className:'fm-feedback-actions'},
-                h('button',{type:'button',className:'fm-button',disabled,onClick:async()=>{await controller.command('resetTaste',{clearFeedback});setConfirm(false);}},'确认重置'),
-                h('button',{type:'button',className:'fm-button',disabled:state.busy,onClick:()=>setConfirm(false)},'取消')))
+                h('button',{type:'button',className:'fm-button',disabled,onClick:async()=>{await controller.command(confirm==='library'?'resetLibrary':'resetTaste',{clearFeedback});setConfirm(null);}},confirm==='library'?'确认清空输入曲库':'确认重置'),
+                h('button',{type:'button',className:'fm-button',disabled:state.busy,onClick:()=>setConfirm(null)},'取消')))
               :h('div',{className:'fm-feedback-actions'},
-                h('button',{type:'button',className:'fm-button',disabled,onClick:()=>{setClearFeedback(false);setConfirm(true);}},'重置推荐偏好'),
+                h('button',{type:'button',className:'fm-button',disabled:disabled||!state.insights?.libraryResetSupported,onClick:()=>{setClearFeedback(false);setConfirm('library');}},'清空输入曲库并重建偏好'),
+                h('button',{type:'button',className:'fm-button',disabled,onClick:()=>{setClearFeedback(false);setConfirm('taste');}},'仅重置成长偏好'),
                 feedback?.canUndoReset&&h('button',{type:'button',className:'fm-button',disabled,onClick:()=>controller.command('undoTasteReset')},'撤销最近一次重置')),
-            h('p',{className:'fm-note'},'保留最近一次恢复点。撤销会恢复旧权重，覆盖重置后的成长；再次重置会替换恢复点。')))));
+            h('p',{className:'fm-note'},'清空后可重新导入参考歌曲。保留最近一次恢复点；撤销会覆盖重置之后的导入和成长。')))));
     }
 
     // src/ui/client/panel.mjs
@@ -906,13 +928,13 @@ window.__ModuleLoader__.load({
             h('div', { className: 'fm-track-swap', key: current?.playInstanceId || 'empty' },
               h('div', { className: 'fm-track' }, current?.track?.title || '今天，从哪一首开始？'),
               h('p', { className: 'fm-artist' }, current?.track?.artist || (state.library?.total ? '从音乐库点播，或让电台为你选一首。' : '连接网易云，导入常听的音乐。'))),
-            current&&h('p',{className:'fm-note'},current.selectedBy==='user'?'你点播的歌曲':current.selectionTrigger==='user-next'?'你触发换曲 · 大肥鱼推荐':'大肥鱼自主选择'),
+            current&&h('p',{className:'fm-note'},current.selectionTrigger==='legacy-unknown'?'旧版选曲 · 来源未区分':current.selectedBy==='user'?'你点播的歌曲':current.selectionTrigger==='user-next'?'你触发换曲 · 大肥鱼推荐':'大肥鱼自主选择'),
             current && h(React.Fragment, null,
               h('div', { className: 'fm-progress', 'aria-label': '播放进度' }, h('span', { style: { width: `${progressPercent(current)}%` } })),
               h('div', { className: 'fm-time' }, h('span', null, minutes(current.positionMs)), h('span', null, current.track.durationMs ? minutes(current.track.durationMs) : '--:--'))),
-            h('div', { className: 'fm-controls' }, button(!current ? '开始听歌' : snapshot?.paused ? '继续播放' : '暂停', 'resume', !current && !state.library?.total && !snapshot?.queue?.length,
+            h('div', { className: 'fm-controls' }, button(!current ? '开始听歌' : snapshot?.paused ? '继续播放' : '暂停', 'resume', !current && !state.library?.total && !snapshot?.queue?.length && !state.persona?.recommendations?.verified?.length,
               { className: 'fm-button fm-primary', onClick: () => controller.playOrPause() }),
-              button('下一首', 'next', !current && !snapshot?.queue?.length && !state.library?.total), button('今天停止', 'stopForToday'))),
+              button('下一首', 'next', !current && !snapshot?.queue?.length && !state.library?.total && !state.persona?.recommendations?.verified?.length), button('今天停止', 'stopForToday'))),
             current&&h('div',{className:'fm-track-feedback','aria-label':'当前歌曲推荐反馈'},
               h('div',{className:'fm-feedback-actions'},
                 ...[[1,'喜欢','♥'],[-1,'少推荐','↓']].map(([score,label,mark])=>h('button',{type:'button',key:score,className:'fm-button fm-feedback-button','aria-pressed':insights?.feedback?.current===score,
@@ -922,7 +944,7 @@ window.__ModuleLoader__.load({
                 :insights.feedback.current===-1?'已少推荐：降低权重，不再作为相似推荐种子。再次点击可撤销。'
                 :'仅影响肥鱼电台推荐；重复点击可撤销。')),
             insights?.explanation&&h('div',{className:'fm-reply',role:'status',key:insights.reply?.decisionId},h('p',{className:'fm-label'},'大肥鱼说'),h('p',{className:'fm-reply-text'},insights.reply?.text||insights.explanation.text),
-              h('details',null,h('summary',null,'展开选歌依据'),h('p',null,`来源：${({netease_similar:'种子相似关系',netease_daily:'网易云每日推荐',netease_personal_fm:'网易云私人 FM'})[current?.origin?.source]??(current?.selectedBy==='user'?'用户指定':'熟悉歌曲')}`),
+              h('details',null,h('summary',null,'展开选歌依据'),h('p',null,`来源：${({llm_recommendation:'LLM 生成的推荐歌单',netease_similar:'种子相似关系',netease_daily:'网易云每日推荐',netease_personal_fm:'网易云私人 FM'})[current?.origin?.source]??(current?.selectedBy==='user'?'用户指定':'熟悉歌曲')}`),
                 current?.selectedBy==='agent'&&snapshot?.lastSelection?.detail&&h('p',null,`本地评分 ${snapshot.lastSelection.score?.toFixed(3)}；关系项 ${(snapshot.lastSelection.detail.relationship??0).toFixed(3)}；重复次数 ${snapshot.lastSelection.detail.repeatPlays??0}；艺人集中惩罚 ${(snapshot.lastSelection.detail.diversityPenalty??0).toFixed(3)}。`),
                 Number.isFinite(snapshot?.lastSelection?.detail?.feedback)&&h('p',null,`本次决策的手动反馈评分项：${snapshot.lastSelection.detail.feedback>0?'+':''}${snapshot.lastSelection.detail.feedback.toFixed(2)}。之后的反馈从下一次决策生效。`),
                 h('p',null,'解释由实际决策记录生成，逐曲不新增模型请求。')))),

@@ -82,7 +82,7 @@ test('song feedback follows the captured playback instance and reset requires an
   assert.equal(calls[0].type,'setTrackFeedback');assert.equal(calls[0].playInstanceId,'client-play');assert.equal(calls[0].track.providerTrackId,'1');
   nodes=all(f.render());assert.equal(nodes.find(n=>n.children.includes('喜欢')).props['aria-pressed'],true);
   await nodes.find(n=>n.children.includes('喜欢')).props.onClick();assert.equal(calls.at(-1).value,0);
-  nodes=all(f.render());nodes.find(n=>n.children.includes('重置推荐偏好')).props.onClick();
+  nodes=all(f.render());nodes.find(n=>n.children.includes('仅重置成长偏好')).props.onClick();
   assert.equal(calls.some(c=>c.type==='resetTaste'),false,'opening confirmation never changes preferences');
   nodes=all(f.render());await nodes.find(n=>n.children.includes('确认重置')).props.onClick();
   assert.equal(calls.at(-1).type,'resetTaste');assert.equal(calls.at(-1).value.clearFeedback,false);
@@ -103,6 +103,19 @@ test('a saved low output cap can be raised again within the allowed range',async
   assert.equal(input.props.max,256);input.props.onChange({target:{value:'256'}});
   nodes=all(f.render());const save=nodes.find(n=>n.children.includes('保存上限'));assert.equal(save.props.disabled,false);
   await save.props.onClick();assert.equal(sent[0].value,256);assert.equal(f.controller.getSnapshot().persona.policy.maxOutputTokens,256);
+ }finally{off();f.dispose();}
+});
+
+test('clearing imported songs requires its own confirmation and updates the input library counter immediately',async()=>{
+ let total=472;const calls=[];
+ const f=fixture(async(_c,endpoint,payload)=>{
+  if(endpoint==='fishfm/command'){calls.push(payload);if(payload.type==='resetLibrary')total=0;}
+  return{ok:true,value:{snapshot:snapshot(1),library:{total,tracks:[]},insights:{libraryResetSupported:true,feedback:{version:1,current:0,liked:0,reduced:0,canUndoReset:total===0}},platforms:{}}};
+ });const off=f.controller.subscribe(()=>{});try{
+  await tick();let nodes=all(f.render());nodes.find(n=>n.children.includes('清空输入曲库并重建偏好')).props.onClick();
+  assert.equal(calls.length,0);nodes=all(f.render());assert.ok(nodes.some(n=>n.children.includes('清空 472 首输入歌曲并重建偏好？')));
+  await nodes.find(n=>n.children.includes('确认清空输入曲库')).props.onClick();assert.equal(calls.at(-1).type,'resetLibrary');assert.equal(f.controller.getSnapshot().library.total,0);
+  assert.ok(all(f.render()).some(n=>n.children.includes('输入曲库 · 0 首（展开查看）')));
  }finally{off();f.dispose();}
 });
 

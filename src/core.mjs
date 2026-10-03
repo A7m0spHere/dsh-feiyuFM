@@ -91,6 +91,7 @@ export class MusicCore {
     };
     this.state.commandVersion += 1;
     if (this.state.current) {
+      if(this.state.current.selectedBy==='user'&&!this.state.current.selectionTrigger)this.state.current.selectionTrigger='legacy-unknown';
       this.state.current.effectiveMs ??= 0;
       this.state.current.agentEffectiveMs ??= 0;
       this.state.current.audibleMs ??= 0;
@@ -363,7 +364,7 @@ export class MusicCore {
           at: now,
           excludeTrackKeys: this.state.current ? [trackId(this.state.current.track)] : [],
         });
-        if (!decision?.track) throw new MusicError('no_candidates', 'No queued track is available');
+        if (!decision?.track) throw new MusicError('no_candidates',this.store.getSetting('recommendation_mode_v1')==='llm'?'模型歌单暂时没有可用歌曲，请先生成或核对歌单，或等待冷却。':'No queued track is available');
         this._applyRecommendation(decision,{trigger:'user-next',keepPaused:this.state.paused});
         break;
       }
@@ -446,7 +447,17 @@ export class MusicCore {
         setTrackFeedback(this.store, this.state.current.track, command.value, now);
         break;
       case 'resetTaste': resetRecommendationTaste(this.store, this.state, { clearFeedback:command.value.clearFeedback, now,commandId:command.commandId }); break;
-      case 'undoTasteReset': undoRecommendationReset(this.store,{commandId:command.commandId,now}); break;
+      case 'resetLibrary': {
+        const before=structuredClone(this.state);
+        try{this.store.transaction(()=>{resetRecommendationTaste(this.store, this.state, { clearFeedback:command.value.clearFeedback,clearLibrary:true,now,commandId:command.commandId });this.state.queue=[];this._commit();});}
+        catch(error){this.state=before;throw error;}break;
+      }
+      case 'undoTasteReset': {
+        const before=structuredClone(this.state);
+        try{this.store.transaction(()=>{const restored=undoRecommendationReset(this.store,{commandId:command.commandId,now});if(Array.isArray(restored.queue))this.state.queue=restored.queue;this._commit();});}
+        catch(error){this.state=before;throw error;}break;
+      }
+      case 'setRecommendationMode':this.store.setSetting('recommendation_mode_v1',command.value);break;
     }
     this.state.decisionVersion += 1;
     if(!this.store.hasCommand(command.commandId)) this.store.recordCommand(command.commandId, now);

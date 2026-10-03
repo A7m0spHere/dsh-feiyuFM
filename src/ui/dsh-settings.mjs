@@ -5,10 +5,10 @@ import { assertCommand, normalizeTrack } from '../contracts.mjs';
 import { NETEASE_QR_LOGIN_URL } from '../providers/endpoints/netease.mjs';
 
 const ALLOWED = new Set(['pause', 'resume', 'next', 'setListening', 'setHumanPlayback',
-  'setDiscovery', 'setDiscoveryRate', 'setMode', 'stopForToday', 'requestTrack', 'setTrackFeedback', 'resetTaste', 'undoTasteReset']);
+  'setDiscovery', 'setDiscoveryRate', 'setMode', 'stopForToday', 'requestTrack', 'setTrackFeedback', 'resetTaste', 'resetLibrary', 'undoTasteReset','setRecommendationMode']);
 const QUICK_LOGIN_PROVIDER = 'netease';
 const STATE_ENDPOINT = 'fishfm/state';
-const PERSONA_ENDPOINTS=new Set(['fishfm/persona-summary','fishfm/persona-budget','fishfm/persona-output','fishfm/persona-automatic']);
+const PERSONA_ENDPOINTS=new Set(['fishfm/persona-summary','fishfm/persona-recommendations','fishfm/persona-budget','fishfm/persona-output','fishfm/persona-automatic']);
 const OUTPUT_RANGE={min:64,max:256};
 const PLATFORM_ENDPOINTS = new Set(['fishfm/login-start', 'fishfm/login-poll', 'fishfm/import', 'fishfm/logout', 'fishfm/discovery-refresh','fishfm/playlists']);
 const SAFE_STAGES = new Set(['login_qr_key', 'login_qr_check', 'login_status', 'user_record', 'likelist', 'user_playlist', 'playlist_detail', 'song_detail',
@@ -83,7 +83,7 @@ export function createSettingsHandler(bridge,summaryService={current:null}) {
           const persona=await bridge.request({type:'persona'},{signal,abortable:true});
           const maxOutput=persona?.persona?.policy?.maxOutputTokens;
           if(!Number.isSafeInteger(maxOutput)||maxOutput<OUTPUT_RANGE.min||maxOutput>OUTPUT_RANGE.max)throw Object.assign(new Error('总结输出上限未就绪。'),{code:'invalid_output'});
-          summaryResult=await summaryService.current.summarize({provider:payload?.provider,model:payload?.model},{signal,maxOutputTokens:maxOutput});
+          summaryResult=await summaryService.current.summarize({provider:payload?.provider,model:payload?.model},{signal,maxOutputTokens:maxOutput,...(endpoint==='fishfm/persona-recommendations'?{purpose:'model-recommendations'}:{})});
         }
         return{ok:true,value:{...await readSettingsState(bridge,signal),summaryResult}};
       }
@@ -158,9 +158,10 @@ export function createSettingsHandler(bridge,summaryService={current:null}) {
       await bridge.start();
       if (command) {
         const value = await bridge.command(command, { signal });
-        if(['setTrackFeedback','resetTaste','undoTasteReset'].includes(command.type)) {
+        if(['setTrackFeedback','resetTaste','resetLibrary','undoTasteReset','setRecommendationMode'].includes(command.type)) {
           const [insights,persona]=await Promise.all([bridge.request({type:'insights'},{signal,abortable:true}),bridge.request({type:'persona'},{signal,abortable:true})]);
-          return {ok:true,value:{...value,insights:insights.insights,persona:persona.persona}};
+          const library=await bridge.request({type:'library'},{signal,abortable:true});
+          return {ok:true,value:{...value,insights:insights.insights,persona:persona.persona,library:library.library}};
         }
         return { ok: true, value };
       }

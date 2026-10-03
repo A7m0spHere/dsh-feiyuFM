@@ -16,9 +16,11 @@ export function createPersonaScheduler({bridge,service,onLog=()=>{},intervalMs=6
    if(!persona.policy.automaticDue)return last={skipped:persona.policy.automaticBlockedBy??'not_due'};
    // Reuse the route of the last successful summary instead of inventing a
    // default model; a removed model makes the Core refuse before it reserves.
-   const route={provider:persona.summary?.provider,model:persona.summary?.model};
+   const purpose=persona.policy.automaticPurpose??'persona-summary';
+   const baseline=purpose==='model-recommendations'?persona.recommendations:persona.summary;
+   const route={provider:baseline?.provider,model:baseline?.model};
    if(!route.provider||!route.model)return last={skipped:'no_model'};
-   const result=await service.summarize(route,{automatic:true});
+   const result=await service.summarize(route,{automatic:true,purpose});
    if(result?.cached)return last={skipped:'current',cached:true};
    emit({type:'persona-auto-summary',provider:route.provider,model:route.model});
    return last={ran:true};

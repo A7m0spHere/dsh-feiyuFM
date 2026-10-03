@@ -1,10 +1,13 @@
 // Deterministic explanations and measured local history. No model invocation.
 import {qualifiesAsListen} from './growth.mjs';
 import {feedbackView} from './feedback.mjs';
+import {recommendationMode} from './model-recommendations.mjs';
 export function explainSelection(snapshot) {
  const current=snapshot?.current,choice=snapshot?.lastSelection;
  if(!current)return{kind:'idle',text:choice?.reason==='every candidate was filtered out'?'候选暂时都被约束或冷却过滤，等待可用歌曲。':'电台待命，尚未选择歌曲。'};
+ if(current.selectionTrigger==='legacy-unknown')return{kind:'legacy',text:'这首来自旧版选曲，旧数据没有区分点播和请求下一首。'};
  if(current.selectedBy==='user')return{kind:'user',text:'这首由你点播，按手动播放处理。'};
+ if(current.origin?.source==='llm_recommendation')return{kind:'model-recommended',text:`${current.selectionTrigger==='user-next'?'你请求了下一首，':''}这首来自模型生成的缓存歌单，平台已核对歌名和艺人。本地规则只负责播放顺序、反馈与重复限制。`};
  if(current.selectionTrigger==='user-next')return{kind:'recommended-next',text:choice?.pool==='queue'?'你请求了下一首，我按既定队列继续。':'你请求了下一首，这首由推荐器按偏好、候选来源和重复限制选择。'};
  if(choice?.fellBack)return{kind:'fallback',text:'陌生候选暂不可用，这次回到熟悉歌曲。'};
  if(current.origin?.source==='netease_similar')return{kind:'related',text:'这首与已有种子存在平台相似关系，本地偏好和重复限制共同选中了它。'};
@@ -37,11 +40,11 @@ export function describeMusicInsights(store,snapshot,now=Date.now()) {
  const started=startedIds.size;
  const current=snapshot?.current,seed=current?.origin?.seedTrackKey;
  const reply=current?{decisionId:current.decisionId,kind:current.selectedBy==='user'?'user':'agent',
-  text:current.selectedBy==='user'?'这是你点的，我按你的选择播放。':current.selectionTrigger==='user-next'?explainSelection(snapshot).text:current.origin?.source==='netease_similar'
+  text:current.selectionTrigger==='legacy-unknown'||current.origin?.source==='llm_recommendation'?explainSelection(snapshot).text:current.selectedBy==='user'?'这是你点的，我按你的选择播放。':current.selectionTrigger==='user-next'?explainSelection(snapshot).text:current.origin?.source==='netease_similar'
    ?`这次想试一首相近的新歌。网易云把它与《${titles.get(seed)||'已有歌曲'}》关联，我再按本地偏好与重复限制选中了它。`
    :explainSelection(snapshot).text}:null;
  const reset=store.getSetting('preference_reset_v1',null);
- return {version:1,generatedAt:now,explanation:explainSelection(snapshot),feedback:feedbackView(store,snapshot),
+ return {version:1,generatedAt:now,explanation:explainSelection(snapshot),feedback:feedbackView(store,snapshot),recommendationMode:recommendationMode(store),libraryResetSupported:true,
   reply,
   profile:{kind:'agent_preferences',artists,tracks,coverage:{genres:0,moods:0},modelSummary:false},
   decisions:log.slice(-10).reverse().map(d=>({...d,trackTitle:titles.get(d.trackKey)||d.trackKey||'未选中歌曲'})),

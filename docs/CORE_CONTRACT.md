@@ -1,5 +1,12 @@
 # Phase 1 内部控制契约
 
+## N11 增量（2026-10-04）
+
+- `fishfm/persona-recommendations` 走既有认证通道和 DSH 模型服务，内部 `persona-reserve` 转发 `purpose='model-recommendations'` 与 `automatic`，真实费用共用模型账本；Core 验证输出并保存歌名/艺人建议，不采信模型提供的资源/平台 ID。
+- `persona.recommendations` 返回建议、已核对条目和匹配状态；异步搜索有单飞、每分钟重试预算和代次取消，准确唯一的元数据才进入缓存。LLM 模式的熟悉/陌生池均来自这份缓存，网易云推荐入口不参与。
+- `setRecommendationMode` 只接受 `llm/platform`。`resetLibrary` 接收 `{clearFeedback:boolean}`，清空输入/来源/偏好/队列/旧模型缓存；同事务存恢复点与去重标记，响应立即更新 library，`undoTasteReset` 可恢复。账号、历史与模型账本保留。
+- schema v10 增加 `music_model_calls.purpose/facts_json`，旧记录为展示总结。新用途有独立冷却，日预算/尝试次数/并发锁共享。完整定义与验收见 [N11](spikes/N11-model-playlist.md)。
+
 2026-10-03 修正“下一首”归属：`next` 只代表用户触发换曲，歌曲仍由推荐器/既定队列选择，记录 `selectedBy='agent'`、`selectionTrigger='user-next'`，保留来源、评分与同一 decisionId 的决策记录。暂停保持、选择本身不生成有效经历；只有显式 `requestTrack` 才记录用户点播。历史记录不按新语义倒改。
 
 ## N10 增量（2026-10-03）

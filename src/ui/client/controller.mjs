@@ -90,8 +90,8 @@ export function createController(connection) {
         const result = await connection.rpc.call('/api', 'fishfm/command', payload, write.signal);
         if (!result.ok) throw result.error;
         const feedbackNotice = type==='setTrackFeedback' ? value.value===1?'已喜欢，将提高这首歌的排序权重':value.value===-1?'已降低这首歌的排序权重':'已撤销这首歌的反馈'
-          :type==='resetTaste'?'已重置推荐偏好，可撤销最近一次重置':type==='undoTasteReset'?'已恢复重置前的偏好':null;
-        emit({ ...result.value, notice: feedbackNotice || (['pause', 'resume', 'next', 'requestTrack'].includes(type) ? '播放控制已更新' : '已保存到本机') });
+          :type==='resetTaste'?'已重置成长偏好，输入曲库保留':type==='resetLibrary'?'已清空输入曲库并重建偏好，可撤销':type==='undoTasteReset'?'已恢复最近一次重置前的数据':type==='setRecommendationMode'?'推荐来源已更新':null;
+        emit({ ...result.value,...(['resetTaste','resetLibrary','undoTasteReset','setRecommendationMode'].includes(type)?{summaryNotice:'',summaryError:''}:{}),...(type==='resetLibrary'?{imported:null,importAttempts:[]}:{}), notice: feedbackNotice || (['pause', 'resume', 'next', 'requestTrack'].includes(type) ? '播放控制已更新' : '已保存到本机') });
       } catch (error) {
         const actionError = ['no_candidates', 'constraint_conflict', 'invalid_command', 'media_unavailable','stale_track','summary_busy','no_reset_backup','invalid_track'].includes(error?.code);
         emit({ connected: actionError ? state.connected : false, error: failure(error), notice: actionError ? '请调整曲目或设置后重试' : '未确认操作，请刷新核对' });
@@ -155,15 +155,15 @@ export function createController(connection) {
     async personaAction(action,payload){
       if(disposed||state.summaryBusy||!state.connected)return;
       summaryWrite=new AbortController();const timeout=setTimeout(()=>summaryWrite?.abort(),65000);
-      const endpoint={summary:'fishfm/persona-summary',budget:'fishfm/persona-budget',output:'fishfm/persona-output',automatic:'fishfm/persona-automatic'}[action];
-      const pending={summary:'正在总结聚合画像…',budget:'正在保存总结预算…',output:'正在保存单次输出上限…',automatic:'正在保存自动总结设置…'}[action];
+      const endpoint={summary:'fishfm/persona-summary',recommendations:'fishfm/persona-recommendations',budget:'fishfm/persona-budget',output:'fishfm/persona-output',automatic:'fishfm/persona-automatic'}[action];
+      const pending={summary:'正在总结聚合画像…',recommendations:'正在由模型生成具体推荐歌单…',budget:'正在保存总结预算…',output:'正在保存单次输出上限…',automatic:'正在保存自动总结设置…'}[action];
       emit({summaryBusy:true,summaryError:'',summaryNotice:pending});
       try{
         if(!endpoint)throw Object.assign(new Error('未知的画像操作。'),{code:'invalid_command'});
         const result=await connection.rpc.call('/api',endpoint,payload,summaryWrite.signal);
         if(!result.ok)throw result.error;
         // This operation never overwrites live playback with a late snapshot.
-        const notice=action==='summary'?(result.value.summaryResult?.cached?'已复用缓存，没有新增模型调用。':'总结已更新。')
+        const notice=['summary','recommendations'].includes(action)?(result.value.summaryResult?.cached?'已复用缓存，没有新增模型调用。':action==='recommendations'?'模型歌单已生成，正在核对平台歌曲。':'总结已更新。')
           :action==='automatic'?(payload?.value?'自动总结已开启，只在画像更新且预算允许时运行。':'自动总结已关闭。')
           :action==='output'?'单次输出上限已保存。':'总结预算已保存。';
         emit({persona:result.value.persona,summaryNotice:notice});

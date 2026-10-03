@@ -122,8 +122,8 @@ test('current-song feedback rejects stale instances and reset commands are idemp
 test('v8 migrates without loss and feedback plus undo checkpoint survive a real file reopen',()=>{
  const folder=mkdtempSync(join(tmpdir(),'fm-feedback-')),path=join(folder,'music.sqlite');
  try {
-  let store=fixture(path);const prefs=store.listPreferences();store.db.exec('DROP TABLE user_track_feedback; DELETE FROM schema_migrations WHERE version=9; PRAGMA user_version=8');store.close();
-  store=new MusicStore(path);assert.equal(store.db.prepare('PRAGMA user_version').get().user_version,9);assert.deepEqual(store.listPreferences(),prefs);
+  let store=fixture(path);const prefs=store.listPreferences();store.db.exec('DROP TABLE user_track_feedback; ALTER TABLE music_model_calls DROP COLUMN purpose; ALTER TABLE music_model_calls DROP COLUMN facts_json; DELETE FROM schema_migrations WHERE version>=9; PRAGMA user_version=8');store.close();
+  store=new MusicStore(path);assert.equal(store.db.prepare('PRAGMA user_version').get().user_version,10);assert.deepEqual(store.listPreferences(),prefs);
   setTrackFeedback(store,track(1),-1,2000);resetRecommendationTaste(store,{settings},{now:3000});store.close();
   store=new MusicStore(path);assert.equal(trackFeedback(store,track(1)),-1);assert.equal(feedbackView(store,{}).canUndoReset,true);
   undoRecommendationReset(store);assert.deepEqual(store.listPreferences(),prefs);store.close();
