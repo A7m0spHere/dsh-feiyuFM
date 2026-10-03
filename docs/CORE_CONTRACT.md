@@ -1,5 +1,7 @@
 # Phase 1 内部控制契约
 
+2026-10-03 修正“下一首”归属：`next` 只代表用户触发换曲，歌曲仍由推荐器/既定队列选择，记录 `selectedBy='agent'`、`selectionTrigger='user-next'`，保留来源、评分与同一 decisionId 的决策记录。暂停保持、选择本身不生成有效经历；只有显式 `requestTrack` 才记录用户点播。历史记录不按新语义倒改。
+
 ## N10 增量（2026-10-03）
 
 显式用户命令经既有认证 `fishfm/command` 白名单转发，均要求唯一 `commandId`：

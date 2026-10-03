@@ -262,6 +262,7 @@ export class MusicCore {
       sessionId: this.currentSessionId ?? null,
       sessionTransient: this.currentSessionTransient ?? false,
       selectionPool:selectedBy==='agent'?this.state.lastSelection?.pool??'queue':'user',startedAt:null,
+      selectionTrigger:selectedBy==='agent'?this.state.lastSelection?.trigger??'automatic':'user-track',
       origin: selectedBy === 'agent' ? track.discovery ?? null : null,
     };
     this.store.upsertTrack(this.state.current.track, this.clock.now());
@@ -356,13 +357,14 @@ export class MusicCore {
         }
         break;
       case 'next': {
-        const next = this._takeNext() ?? this.selector?.next({
+        const queued = this._takeNext();
+        const decision = queued ? {track:queued,pool:'queue',attemptedDiscovery:false} : this.selector?.next({
           discoveryRate: this.state.settings.discovery ? this.state.settings.discoveryRate : 0,
           at: now,
           excludeTrackKeys: this.state.current ? [trackId(this.state.current.track)] : [],
-        })?.track;
-        if (!next) throw new MusicError('no_candidates', 'No queued track is available');
-        this._select(next, 'user', this.state.paused);
+        });
+        if (!decision?.track) throw new MusicError('no_candidates', 'No queued track is available');
+        this._applyRecommendation(decision,{trigger:'user-next',keepPaused:this.state.paused});
         break;
       }
       case 'requestTrack':
@@ -463,16 +465,18 @@ export class MusicCore {
     // environment and platform candidates; otherwise the fixed debug queue is
     // used. Either way, no user command is involved and nothing is retried
     // when there is nothing to play.
-    let next = null;
-    let decision = null;
-    if (this.selector) {
-      decision = this.selector.next({
+    const decision = this.selector ? this.selector.next({
         discoveryRate: this.state.settings.discovery ? this.state.settings.discoveryRate : 0,
         at: this.clock.now(),
-      });
-      next = decision?.track ?? null;
+      }) : {track:this._takeNext(),pool:'queue',attemptedDiscovery:false};
+    return this._applyRecommendation(decision,{trigger:'automatic',keepPaused:false});
+  }
+
+  _applyRecommendation(decision,{trigger,keepPaused}) {
+      const next = decision?.track ?? null;
       this.state.lastSelection = {
         decisionId: randomUUID(),
+        trigger,
         at: this.clock.now(),
         trackKey: next ? trackId(next) : null,
         pool: decision?.pool ?? null,
@@ -486,13 +490,9 @@ export class MusicCore {
         attemptedDiscovery:Boolean(decision?.attemptedDiscovery),
         considered: decision?.considered ?? null,
       };
-    } else {
-      next = this._takeNext();
-    }
-
     this.onLog({ type: 'selection', ...this.state.lastSelection });
     this.store.transaction(()=>{
-      if(next)this._select(next,'agent',false);else this._commit();
+      if(next)this._select(next,'agent',keepPaused);else this._commit();
       if(decision){
         const log=this.store.getSetting('decision_history_v1',[]);
         log.push({...this.state.lastSelection,playInstanceId:next?this.state.current.playInstanceId:null});

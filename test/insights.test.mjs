@@ -5,6 +5,7 @@ import {describeMusicInsights,explainSelection} from '../src/insights.mjs';impor
 const track={provider:'netease',providerTrackId:'1',title:'Related',durationMs:60000,discovery:{source:'netease_similar',seedTrackKey:'netease:2'}};
 test('explanations identify manual, account and real relationship origins without a fabricated model summary',()=>{
  assert.equal(explainSelection({current:{selectedBy:'user'}}).kind,'user');
+ assert.equal(explainSelection({current:{selectedBy:'agent',selectionTrigger:'user-next'}}).kind,'recommended-next');
  assert.equal(explainSelection({current:{selectedBy:'agent',origin:{source:'netease_similar'}}}).kind,'related');
  assert.equal(explainSelection({current:{selectedBy:'agent',origin:{source:'netease_daily'}}}).kind,'account');
 });

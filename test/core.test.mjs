@@ -7,6 +7,7 @@ import { MusicCore } from '../src/core.mjs';
 import { FakeClock, FakePlayback, FakeProvider } from '../src/fakes.mjs';
 import { MusicStore } from '../src/storage.mjs';
 import { createSelector } from '../src/selection.mjs';
+import {applyListenGrowth} from '../src/growth.mjs';
 
 const a = { provider: 'netease', providerTrackId: '1', title: 'A', durationMs: 180000 };
 const b = { provider: 'qq', providerTrackId: '1', title: 'B', durationMs: 170000 };
@@ -33,13 +34,35 @@ test('next uses the imported library with an empty queue, excludes the current s
     h.send('next');
     await h.core.waitForIdle();
     assert.equal(h.core.snapshot().current.track.provider, 'qq');
-    assert.equal(h.core.snapshot().current.selectedBy, 'user');
+    assert.equal(h.core.snapshot().current.selectedBy, 'agent');
+    assert.equal(h.core.snapshot().current.selectionTrigger, 'user-next');
+    assert.equal(h.core.snapshot().lastSelection.trackKey,'qq:1');
+    assert.equal(h.core.snapshot().lastSelection.decisionId,h.core.snapshot().current.decisionId);
+    assert.equal(h.store.getSetting('decision_history_v1').at(-1).playInstanceId,h.core.snapshot().current.playInstanceId);
     assert.equal(h.core.snapshot().paused, true);
     assert.equal(h.playback.playing, false);
     h.send('banTrack', { track: a });
     assert.throws(() => h.send('next'), { code: 'no_candidates' });
     assert.equal(h.core.snapshot().current.track.provider, 'qq');
   } finally { h.store.close(); }
+});
+
+test('user-next retains recommendation origin and only subsequent valid listening earns growth',async()=>{
+ const h=harness(),recommended={...a,discovery:{source:'netease_daily'}};
+ h.core.selector=createSelector({store:h.store,listDiscovery:()=>[recommended],now:()=>h.clock.now()});
+ h.core.onListened=entry=>applyListenGrowth({store:h.store,entry,durationMs:entry.durationMs,now:h.clock.now()});
+ try{
+  h.send('setDiscoveryRate',{value:1});h.send('next');await h.core.waitForIdle();
+  const current=h.core.snapshot().current;
+  assert.equal(current.selectedBy,'agent');assert.equal(current.selectionTrigger,'user-next');
+  assert.equal(current.origin.source,'netease_daily');assert.equal(current.selectionPool,'discovery');
+  assert.equal(h.store.getPreference('track','netease:1'),null,'selecting while paused cannot manufacture growth');
+  h.send('resume');await h.core.waitForIdle();
+  h.playback.emit({type:'progress',playInstanceId:current.playInstanceId,positionMs:60000});
+  h.send('pause');h.core._finishCurrent('ended');
+  assert.equal(h.store.getHistory(current.playInstanceId).selected_by,'agent');assert.ok(h.store.getPreference('track','netease:1').affinity>.5);
+  h.send('requestTrack',{track:b});await h.core.waitForIdle();assert.equal(h.core.snapshot().current.selectedBy,'user');
+ }finally{await h.core.waitForIdle();h.store.close();}
 });
 
 test('late resolve cannot replace a newer user track or undo pause', async () => {

@@ -906,7 +906,7 @@ window.__ModuleLoader__.load({
             h('div', { className: 'fm-track-swap', key: current?.playInstanceId || 'empty' },
               h('div', { className: 'fm-track' }, current?.track?.title || '今天，从哪一首开始？'),
               h('p', { className: 'fm-artist' }, current?.track?.artist || (state.library?.total ? '从音乐库点播，或让电台为你选一首。' : '连接网易云，导入常听的音乐。'))),
-            current&&h('p',{className:'fm-note'},current.selectedBy==='user'?'你点播的歌曲':'大肥鱼自主选择'),
+            current&&h('p',{className:'fm-note'},current.selectedBy==='user'?'你点播的歌曲':current.selectionTrigger==='user-next'?'你触发换曲 · 大肥鱼推荐':'大肥鱼自主选择'),
             current && h(React.Fragment, null,
               h('div', { className: 'fm-progress', 'aria-label': '播放进度' }, h('span', { style: { width: `${progressPercent(current)}%` } })),
               h('div', { className: 'fm-time' }, h('span', null, minutes(current.positionMs)), h('span', null, current.track.durationMs ? minutes(current.track.durationMs) : '--:--'))),
