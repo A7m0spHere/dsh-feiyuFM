@@ -66,6 +66,22 @@ const state = value => ({ ok: true, value: { snapshot: value, platforms: {} } })
 const tick = () => new Promise(resolve => setImmediate(resolve));
 function all(tree) { return !tree || typeof tree !== 'object' ? [] : [tree, ...tree.children.flatMap(all)]; }
 
+test('a saved low output cap can be raised again within the allowed range',async()=>{
+ let cap=64;const sent=[];
+ const view=()=>({generatedAt:1,facts:{artists:[],validListens:0,exploration:70,discoveryEnabled:true},summary:null,
+  policy:{dailyTokens:4000,maxOutputTokens:cap,minOutputTokens:64,outputMaximumTokens:256,automatic:false,autoMinNewListens:50},
+  ledger:{today:{knownTokens:0},total:{knownTokens:0,attempts:0,unknownCalls:0},localDecisionRequests:0,remainingTokens:4000,recent:[]}});
+ const f=fixture(async(_channel,endpoint,payload)=>{
+  if(endpoint==='fishfm/persona-output'){sent.push(payload);cap=payload.value;}
+  return{ok:true,value:{snapshot:snapshot(1),persona:view(),platforms:{}}};
+ });const off=f.controller.subscribe(()=>{});
+ try{await tick();let nodes=all(f.render());const input=nodes.find(n=>n.props['aria-label']==='单次输出 token 上限');
+  assert.equal(input.props.max,256);input.props.onChange({target:{value:'256'}});
+  nodes=all(f.render());const save=nodes.find(n=>n.children.includes('保存上限'));assert.equal(save.props.disabled,false);
+  await save.props.onClick();assert.equal(sent[0].value,256);assert.equal(f.controller.getSnapshot().persona.policy.maxOutputTokens,256);
+ }finally{off();f.dispose();}
+});
+
 test('motion preferences survive remount and never send Core commands', async () => {
   const storage = new Map(), calls = [];
   const f = fixture(async (_channel, endpoint) => { calls.push(endpoint); return state(snapshot(1)); }, storage);
