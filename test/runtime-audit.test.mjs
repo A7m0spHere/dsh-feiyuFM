@@ -12,3 +12,9 @@ test('simulation, instance changes, missing DB histories and duplicate growth pr
  {component:'core',type:'growth',updated:true,playInstanceId:'one'},{component:'core',type:'growth',updated:true,playInstanceId:'one'}];
  const r=auditObservation(p);assert.equal(r.missingHistory,1);assert.equal(r.duplicateGrowth,1);assert.equal(r.unattendedRunPassed,false);
 });
+test('a wall-clock jump or sleeping machine cannot pass even with valid milestones and a claimed uninterrupted flag',()=>{
+ const p=empty(),history=[];
+ for(let i=0;i<5;i++){const id=String(i);p.events.push({component:'core',type:'history',selectedBy:'agent',endReason:'ended',playInstanceId:id});history.push({playInstanceId:id,qualifies:true,agentEffectiveMs:30000});}
+ for(const component of ['core','adapter'])p.samples.push({component,at:1,rss:1},{component,at:7200001,rss:1});
+ const result=auditObservation(p,history);assert.equal(result.validAgentListens,5);assert.equal(result.samplingComplete,false);assert.equal(result.resources.core.maxSampleGapMs,7200000);assert.equal(result.unattendedRunPassed,false);
+});

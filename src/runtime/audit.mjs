@@ -17,15 +17,19 @@ export function auditObservation(report,history=[]){
  const from=initial.adapter?.host,to=components.adapter?.host;
  const hostCalls=real&&Number.isFinite(from?.attachedAt)&&Number.isFinite(from?.calls)&&Number.isFinite(to?.calls)&&to.calls>=from.calls?to.calls-from.calls:null;
  const resources=Object.fromEntries(['core','adapter'].map(name=>{
-  const rows=(report?.samples??[]).filter(s=>s.component===name);
+  const rows=(report?.samples??[]).filter(s=>s.component===name&&Number.isFinite(s.at)).sort((a,b)=>a.at-b.at);
   const average=items=>items.length?items.reduce((sum,r)=>sum+r.rss,0)/items.length:null;
+  const maxSampleGapMs=rows.length?Math.max(0,rows[0].at-report.startedAt,report.finishedAt-rows.at(-1).at,
+    ...rows.slice(1).map((r,i)=>r.at-rows[i].at)):null;
   return[name,{samples:rows.length,firstRss:rows[0]?.rss??null,lastRss:rows.at(-1)?.rss??null,
+   maxSampleGapMs,
    firstTenMinuteMean:average(rows.filter(r=>r.at<report.startedAt+600000)),lastTenMinuteMean:average(rows.filter(r=>r.at>report.finishedAt-600000))}];
  }));
+ const samplingComplete=['core','adapter'].every(n=>resources[n].maxSampleGapMs!==null&&resources[n].maxSampleGapMs<=20000);
  const missingHistory=distinct(autonomous)-new Set(matched.map(r=>r.playInstanceId)).size;
- const passed=real&&report.elapsedMs>=7200000&&report.sameRun&&report.uninterruptedEvidence&&distinct(natural)>=5&&valid.length>=5&&controls.length===0&&missingHistory===0&&duplicateHistory===0&&duplicateGrowth===0;
+ const passed=real&&report.elapsedMs>=7200000&&report.sameRun&&report.uninterruptedEvidence&&samplingComplete&&distinct(natural)>=5&&valid.length>=5&&controls.length===0&&missingHistory===0&&duplicateHistory===0&&duplicateGrowth===0;
  return{scope:'unattended_real_music_window',elapsedMs:report?.elapsedMs??null,real,sameRun:report?.sameRun??false,
-  uninterruptedEvidence:report?.uninterruptedEvidence??false,unattendedRunPassed:Boolean(passed),
+  uninterruptedEvidence:report?.uninterruptedEvidence??false,samplingComplete,unattendedRunPassed:Boolean(passed),
   naturalAutonomousEnds:distinct(natural),autonomousHistory:distinct(autonomous),observedPlaybackStarts:distinct(starts),
   validAgentListens:valid.length,validUnfamiliarListens:valid.filter(r=>r.selectionPool==='discovery').length,
   appliedGrowth:distinct(growth),missingHistory,duplicateHistory,duplicateGrowth,controlInterventions:controls.length,playbackErrors:errors.length,
