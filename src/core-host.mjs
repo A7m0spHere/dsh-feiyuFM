@@ -23,6 +23,7 @@ import { createNetEaseProvider } from './providers/netease.mjs';
 import { createQQProvider } from './providers/qq.mjs';
 import { describePlatforms, collectDiscovery, resolveOnOwnPlatform, summarizeSeedRuns } from './providers/coordinator.mjs';
 import { createDiscoveryCache } from './discovery.mjs';
+import {describeMusicInsights} from './insights.mjs';
 
 /** Bump when the host/owner message shapes change in a way an older peer cannot read. */
 export const CORE_HOST_PROTOCOL = 1;
@@ -434,6 +435,9 @@ export function createCoreHost({
           });
           return;
         }
+        case 'insights': {
+          send({type:'result',id,ok:true,insights:describeMusicInsights(store,core.snapshot(),now())});return;
+        }
         case 'platforms': {
           if (!platformsFacade) {
             send({ type: 'result', id, ok: true, platforms: { platforms: {}, usable: [], reason: 'no platform adapters are configured in this build' } });
@@ -647,7 +651,7 @@ export function createCoreHost({
     },
     // Dispatch/reads are synchronous until their first await. Keep them out of
     // long account/import work so a slow media request cannot hold up pause.
-    handle: (message) => ['command','snapshot','platforms','library','account','environment','sessions','discovery','shutdown','wait','autonomous','session-event','setQueue'].includes(message.type)
+    handle: (message) => ['command','snapshot','platforms','library','account','environment','insights','sessions','discovery','shutdown','wait','autonomous','session-event','setQueue'].includes(message.type)
       ? handle(message) : enqueue(() => handle(message)),
     close,
     get core() { return core; },

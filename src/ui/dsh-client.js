@@ -289,7 +289,7 @@ window.__ModuleLoader__.load({
       const data = snapshot?.discovery;
       if (!snapshot?.settings?.discovery || snapshot.settings.discoveryRate === 0) return '探索已关闭；自主选择使用熟悉歌曲。';
       if (!data) return '推荐候选状态尚未读取。';
-      const names = { netease_daily: '网易云每日推荐', netease_personal_fm: '网易云私人 FM', platform_recommendation: '平台推荐' };
+      const names = { netease_daily: '网易云每日推荐', netease_personal_fm: '网易云私人 FM', netease_similar:'种子相似歌曲', platform_recommendation: '平台推荐' };
       const sources = (data.sources ?? []).map(source => names[source] || '平台推荐').join('、');
       if (data.refreshing) return `正在后台刷新；现有陌生候选 ${data.count ?? 0} 首。`;
       if (data.count > 0) return `陌生候选 ${data.count} 首${sources ? ` · ${sources}` : ''}${data.reason ? '；刷新暂未成功，保留有效缓存。' : ''}`;
@@ -422,6 +422,7 @@ window.__ModuleLoader__.load({
             const login = Object.hasOwn(value, 'login') ? value.login : state.login;
             if (action === 'poll' && login) login.qrImage = state.login?.qrImage;
             emit({ snapshot: value.snapshot, platforms: value.platforms ?? state.platforms, library: value.library ?? state.library, login,
+              insights:value.insights??state.insights,
               playlists: value.playlists??state.playlists,
               imported: action === 'logout' ? null : Object.hasOwn(value, 'imported') ? value.imported : state.imported,
               importAttempts: action === 'import' ? value.attempts ?? [] : state.importAttempts,
@@ -587,6 +588,7 @@ window.__ModuleLoader__.load({
       const current = snapshot?.current;
       const playing = snapshot?.status === 'playing';
       const presentation = playbackPresentation(snapshot, state.connected);
+      const insights=state.insights;
       const art = presentation.art;
       function toggle(title, description, field, command) {
         return h('div', { className: 'fm-row', key: field }, h('div', null, h('div', { className: 'fm-label' }, title), h('p', null, description)),
@@ -658,6 +660,13 @@ window.__ModuleLoader__.load({
           h('p', { className: 'fm-platform-note' }, '近期记录优先，读取失败时尝试喜欢列表和用户歌单。QQ 接入暂缓。登录材料仅保存在本机。')));
 
       const preferencesColumn = h('div', null,
+            insights&&h('section',null,h('h2',null,'音乐倾向',h('small',null,'LOCAL PROFILE')),h('div',{className:'fm-card'},
+              h('p',{className:'fm-note'},'本地画像 · 来自已保存的独立偏好'),
+              ...(insights.profile?.artists?.length?insights.profile.artists.slice(0,5).map(a=>h('div',{className:'fm-row',key:a.key},
+                h('span',null,a.name),h('span',{className:'fm-badge'},`权重 ${Math.round(a.affinity*100)}% · ${['listen','listen_silent'].includes(a.source)?'有效经历':a.source==='legacy_artist_link'?'旧偏好链接':'初始化/维护'}`))):[h('p',{className:'fm-note'},'还没有足够的艺人偏好记录。')]),
+              h('p',{className:'fm-note'},'流派/情绪特征尚未提供，不据歌名推断。'),
+              h('details',null,h('summary',null,'查看选歌统计'),h('p',{className:'fm-note'},`最近保留 ${insights.statistics?.retainedDecisions??0} 次自主决策；探索尝试 ${insights.statistics?.explorationAttempts??0} 次，选中陌生候选 ${insights.statistics?.unfamiliarSelections??0} 次，已观测开始 ${insights.statistics?.observedStarts??0} 次，有效陌生经历 ${insights.statistics?.validUnfamiliarListens??0} 次。`),
+                h('p',{className:'fm-note'},'按已追踪的决策实例统计，历史覆盖不足时不视作全期比例。')))),
             h('section', null, h('h2', null, '听歌方式', h('small', null, 'MODES')), h('div', { className: 'fm-modes' }, modes.map(([id, title, desc]) =>
               h('button', { type: 'button', key: id, className: 'fm-mode', 'data-selected': mode === id, 'aria-pressed': mode === id, disabled,
                 onClick: () => controller.command('setMode', id) }, h('strong', null, title), h('span', null, desc)))),
@@ -700,6 +709,11 @@ window.__ModuleLoader__.load({
             h('div', { className: 'fm-track-swap', key: current?.playInstanceId || 'empty' },
               h('div', { className: 'fm-track' }, current?.track?.title || '今天，从哪一首开始？'),
               h('p', { className: 'fm-artist' }, current?.track?.artist || (state.library?.total ? '从音乐库点播，或让电台为你选一首。' : '连接网易云，导入常听的音乐。'))),
+            current&&h('p',{className:'fm-note'},current.selectedBy==='user'?'你点播的歌曲':'大肥鱼自主选择'),
+            insights?.explanation&&h('div',{className:'fm-note',role:'status'},insights.explanation.text,
+              h('details',null,h('summary',null,'展开选歌依据'),h('p',null,`来源：${({netease_similar:'种子相似关系',netease_daily:'网易云每日推荐',netease_personal_fm:'网易云私人 FM'})[current?.origin?.source]??(current?.selectedBy==='user'?'用户指定':'熟悉歌曲')}`),
+                current?.selectedBy==='agent'&&snapshot?.lastSelection?.detail&&h('p',null,`本地评分 ${snapshot.lastSelection.score?.toFixed(3)}；关系项 ${(snapshot.lastSelection.detail.relationship??0).toFixed(3)}；重复次数 ${snapshot.lastSelection.detail.repeatPlays??0}；艺人集中惩罚 ${(snapshot.lastSelection.detail.diversityPenalty??0).toFixed(3)}。`),
+                h('p',null,'解释由实际决策记录生成，逐曲不新增模型请求。'))),
             current && h(React.Fragment, null,
               h('div', { className: 'fm-progress', 'aria-label': '播放进度' }, h('span', { style: { width: `${progressPercent(current)}%` } })),
               h('div', { className: 'fm-time' }, h('span', null, minutes(current.positionMs)), h('span', null, current.track.durationMs ? minutes(current.track.durationMs) : '--:--'))),

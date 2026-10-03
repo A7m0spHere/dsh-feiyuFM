@@ -16,7 +16,7 @@ export function discoveryPresentation(snapshot) {
   const data = snapshot?.discovery;
   if (!snapshot?.settings?.discovery || snapshot.settings.discoveryRate === 0) return '探索已关闭；自主选择使用熟悉歌曲。';
   if (!data) return '推荐候选状态尚未读取。';
-  const names = { netease_daily: '网易云每日推荐', netease_personal_fm: '网易云私人 FM', platform_recommendation: '平台推荐' };
+  const names = { netease_daily: '网易云每日推荐', netease_personal_fm: '网易云私人 FM', netease_similar:'种子相似歌曲', platform_recommendation: '平台推荐' };
   const sources = (data.sources ?? []).map(source => names[source] || '平台推荐').join('、');
   if (data.refreshing) return `正在后台刷新；现有陌生候选 ${data.count ?? 0} 首。`;
   if (data.count > 0) return `陌生候选 ${data.count} 首${sources ? ` · ${sources}` : ''}${data.reason ? '；刷新暂未成功，保留有效缓存。' : ''}`;

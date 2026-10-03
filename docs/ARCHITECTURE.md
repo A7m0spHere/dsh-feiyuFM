@@ -94,6 +94,8 @@ Core/Playback 故障后保留可恢复状态并有限重连；UI 故障只影响
 
 ## 6. SQLite 逻辑实体
 
+N4–N6 使用 schema v5：曲目保存有来源的稳定艺人数组，`environment_sources` 保留各导入来源事实；环境分布和 Agent 偏好分别计算。推荐刷新一次最多选 3 首种子，平台关系与账号候选各自保留来源。Core 的有界决策记录关联实际播放实例，UI 读取 `insights` 投影，不另算成长或请求模型。
+
 | 实体 | 关键字段/边界 |
 |---|---|
 | tracks | provider、providerTrackId、标题、艺人、可选时长/流派；元数据带来源 |

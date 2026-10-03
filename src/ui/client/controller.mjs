@@ -114,6 +114,7 @@ export function createController(connection) {
         const login = Object.hasOwn(value, 'login') ? value.login : state.login;
         if (action === 'poll' && login) login.qrImage = state.login?.qrImage;
         emit({ snapshot: value.snapshot, platforms: value.platforms ?? state.platforms, library: value.library ?? state.library, login,
+          insights:value.insights??state.insights,
           playlists: value.playlists??state.playlists,
           imported: action === 'logout' ? null : Object.hasOwn(value, 'imported') ? value.imported : state.imported,
           importAttempts: action === 'import' ? value.attempts ?? [] : state.importAttempts,

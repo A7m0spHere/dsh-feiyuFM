@@ -46,13 +46,15 @@ function safeImportDetails(details) {
 }
 
 async function readSettingsState(bridge, signal) {
-  const [state, platforms, library] = await Promise.all([
+  const [state, platforms, library,insights] = await Promise.all([
     bridge.request({ type: 'snapshot' }, { signal, abortable: true }),
     bridge.request({ type: 'platforms' }, { signal, abortable: true }),
     bridge.request({ type: 'library' }, { signal, abortable: true }),
+    bridge.request({type:'insights'},{signal,abortable:true}),
   ]);
   // Publish only the UI projection, never credentials or media handles.
-  return { snapshot: state.snapshot, platforms: platforms.platforms, library: library.library, features: { discoveryRefresh: true,importSources:true } };
+  return { snapshot: state.snapshot, platforms: platforms.platforms, library: library.library, insights:insights?.insights,
+    features: { discoveryRefresh: true,importSources:true,insights:true } };
 }
 
 export function createSettingsHandler(bridge) {
