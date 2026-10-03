@@ -41,11 +41,11 @@ const EVIDENCE = [
   {
     id: 'A02', claim: '可导入目标数量；数量不足、收藏/歌单降级和空结果均如实展示',
     status: 'offline-passed',
-    files: ['docs/spikes/T1-environment.md', 'docs/spikes/P3-real-loop.md', 'test/taste.test.mjs', 'test/core-host.test.mjs'],
+    files: ['docs/spikes/T1-environment.md', 'docs/spikes/P3-real-loop.md', 'docs/spikes/N4-environment-profile.md', 'test/taste.test.mjs', 'test/core-host.test.mjs'],
     tests: [
       { file: 'test/taste.test.mjs', name: 'an import records its real source, the requested and the imported counts' },
     ],
-    unverified: '真实平台的收藏/歌单响应未验',
+    unverified: '网易云近期/喜欢/指定歌单响应与 UI 更新已验；自动降级的完整失败/空结果轨迹及 QQ 未验',
   },
   {
     id: 'A03', claim: '两个开关四种组合、四个模式、暂停保持和到期约束符合第 3 节',
