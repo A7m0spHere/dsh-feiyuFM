@@ -107,6 +107,10 @@ function applyGrowthOnce({
    */
   session = null,
 } = {}) {
+  const reset = store.getSetting('preference_reset_v1', null);
+  if (reset && (entry.playInstanceId === reset.playInstanceId || !Number.isFinite(entry.startedAt) || entry.startedAt < reset.at)) {
+    return { updated:false,delta:0,reason:'preference-reset-boundary' };
+  }
   const verdict = qualifiesAsListen({ entry, durationMs, parameters });
   if (!verdict.qualifies) {
     // The qualification reason is the explanation here, so it stays.

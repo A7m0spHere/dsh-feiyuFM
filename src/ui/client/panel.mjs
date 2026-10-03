@@ -4,6 +4,7 @@ import { h, minutes, progressPercent, modes, sourceNames, stageNames } from './s
 import { Svg, StatusMark } from './components.mjs';
 import { Library } from './library.mjs';
 import {Persona} from './persona.mjs';
+import {FeedbackSettings} from './feedback.mjs';
 export function Panel({ controller, back, close }) {
   const state = React.useSyncExternalStore(controller.subscribe, controller.getSnapshot);
   const snapshot = state.snapshot;
@@ -132,6 +133,7 @@ export function Panel({ controller, back, close }) {
         h('section', null, h('h2', null, '输入与连接',h('small',null,'LIBRARY')),
           h('details',{className:'fm-input-library'},h('summary',null,close?'输入音乐 · 查看和点播':`输入曲库 · ${state.library?.total??0} 首（展开查看）`),h(Library,{state,controller})),
           h('details',{className:'fm-platform-details fm-input-library'},h('summary',null,'音乐平台',h('span',{className:'fm-disclosure-meta'},accountHint)),platformSection)),
+        h(FeedbackSettings,{state,controller}),
         h('section', null, h('details', { className: 'fm-card fm-interface-details' }, h('summary',null,'界面与悬浮条'),
           h('div', { className: 'fm-motion-row' }, h('label', { htmlFor: `${rateId}-motion` }, '动态效果'),
             h('select', { id: `${rateId}-motion`, 'aria-label': '动态效果', value: state.motion || 'full', onChange: event => controller.setMotion(event.target.value) },
@@ -162,9 +164,18 @@ export function Panel({ controller, back, close }) {
         h('div', { className: 'fm-controls' }, button(!current ? '开始听歌' : snapshot?.paused ? '继续播放' : '暂停', 'resume', !current && !state.library?.total && !snapshot?.queue?.length,
           { className: 'fm-button fm-primary', onClick: () => controller.playOrPause() }),
           button('下一首', 'next', !current && !snapshot?.queue?.length && !state.library?.total), button('今天停止', 'stopForToday'))),
+        current&&h('div',{className:'fm-track-feedback','aria-label':'当前歌曲推荐反馈'},
+          h('div',{className:'fm-feedback-actions'},
+            ...[[1,'喜欢','♥'],[-1,'少推荐','↓']].map(([score,label,mark])=>h('button',{type:'button',key:score,className:'fm-button fm-feedback-button','aria-pressed':insights?.feedback?.current===score,
+              disabled:disabled||insights?.feedback?.version!==1,onClick:()=>controller.command('setTrackFeedback',{track:current.track,playInstanceId:current.playInstanceId,value:insights.feedback.current===score?0:score})},h('span',{'aria-hidden':true},mark),label))),
+          h('p',{className:'fm-note',role:'status','aria-live':'polite'},insights?.feedback?.version!==1?'反馈功能需重新加载新版 Core。'
+            :insights.feedback.current===1?'已喜欢：提高这首歌的排序权重。再次点击可撤销。'
+            :insights.feedback.current===-1?'已少推荐：降低权重，不再作为相似推荐种子。再次点击可撤销。'
+            :'仅影响肥鱼电台推荐；重复点击可撤销。')),
         insights?.explanation&&h('div',{className:'fm-reply',role:'status',key:insights.reply?.decisionId},h('p',{className:'fm-label'},'大肥鱼说'),h('p',{className:'fm-reply-text'},insights.reply?.text||insights.explanation.text),
           h('details',null,h('summary',null,'展开选歌依据'),h('p',null,`来源：${({netease_similar:'种子相似关系',netease_daily:'网易云每日推荐',netease_personal_fm:'网易云私人 FM'})[current?.origin?.source]??(current?.selectedBy==='user'?'用户指定':'熟悉歌曲')}`),
             current?.selectedBy==='agent'&&snapshot?.lastSelection?.detail&&h('p',null,`本地评分 ${snapshot.lastSelection.score?.toFixed(3)}；关系项 ${(snapshot.lastSelection.detail.relationship??0).toFixed(3)}；重复次数 ${snapshot.lastSelection.detail.repeatPlays??0}；艺人集中惩罚 ${(snapshot.lastSelection.detail.diversityPenalty??0).toFixed(3)}。`),
+            Number.isFinite(snapshot?.lastSelection?.detail?.feedback)&&h('p',null,`本次决策的手动反馈评分项：${snapshot.lastSelection.detail.feedback>0?'+':''}${snapshot.lastSelection.detail.feedback.toFixed(2)}。之后的反馈从下一次决策生效。`),
             h('p',null,'解释由实际决策记录生成，逐曲不新增模型请求。')))),
     state.error && h('div', { className: 'fm-notice', 'data-error': true, role: 'alert' }, state.error,
       ' ', h('button', { className: 'fm-button', type: 'button', disabled: state.busy, onClick: controller.refresh }, '重新连接')),

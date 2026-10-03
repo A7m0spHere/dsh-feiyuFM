@@ -66,6 +66,30 @@ const state = value => ({ ok: true, value: { snapshot: value, platforms: {} } })
 const tick = () => new Promise(resolve => setImmediate(resolve));
 function all(tree) { return !tree || typeof tree !== 'object' ? [] : [tree, ...tree.children.flatMap(all)]; }
 
+test('song feedback follows the captured playback instance and reset requires an explicit in-panel confirmation',async()=>{
+ const current={playInstanceId:'client-play',track:{provider:'netease',providerTrackId:'1',title:'Song'}};
+ let feedback={version:1,current:0,liked:0,reduced:0,canUndoReset:false};const calls=[];
+ const f=fixture(async(_channel,endpoint,payload)=>{
+  if(endpoint==='fishfm/command') {
+   calls.push(payload);
+   if(payload.type==='setTrackFeedback')feedback={...feedback,current:payload.value,liked:payload.value===1?1:0,reduced:payload.value===-1?1:0};
+   if(payload.type==='resetTaste')feedback={...feedback,canUndoReset:true};
+  }
+  return {ok:true,value:{snapshot:{...snapshot(1),current},insights:{feedback},platforms:{}}};
+ });
+ const off=f.controller.subscribe(()=>{});try {
+  await tick();let nodes=all(f.render());await nodes.find(n=>n.children.includes('喜欢')).props.onClick();
+  assert.equal(calls[0].type,'setTrackFeedback');assert.equal(calls[0].playInstanceId,'client-play');assert.equal(calls[0].track.providerTrackId,'1');
+  nodes=all(f.render());assert.equal(nodes.find(n=>n.children.includes('喜欢')).props['aria-pressed'],true);
+  await nodes.find(n=>n.children.includes('喜欢')).props.onClick();assert.equal(calls.at(-1).value,0);
+  nodes=all(f.render());nodes.find(n=>n.children.includes('重置推荐偏好')).props.onClick();
+  assert.equal(calls.some(c=>c.type==='resetTaste'),false,'opening confirmation never changes preferences');
+  nodes=all(f.render());await nodes.find(n=>n.children.includes('确认重置')).props.onClick();
+  assert.equal(calls.at(-1).type,'resetTaste');assert.equal(calls.at(-1).value.clearFeedback,false);
+  assert.equal(f.controller.getSnapshot().snapshot.paused,true);assert.equal(f.controller.getSnapshot().insights.feedback.canUndoReset,true);
+ }finally{off();f.dispose();}
+});
+
 test('a saved low output cap can be raised again within the allowed range',async()=>{
  let cap=64;const sent=[];
  const view=()=>({generatedAt:1,facts:{artists:[],validListens:0,exploration:70,discoveryEnabled:true},summary:null,

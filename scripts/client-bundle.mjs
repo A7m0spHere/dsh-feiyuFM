@@ -3,7 +3,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
-const names = ['styles', 'shared', 'presentation', 'controller', 'components', 'library', 'persona', 'panel', 'floating', 'entry'];
+const names = ['styles', 'shared', 'presentation', 'controller', 'components', 'library', 'persona', 'feedback', 'panel', 'floating', 'entry'];
 export function renderClientBundle() {
   const parts = names.map(name => {
     const file = join(root, 'src', 'ui', 'client', `${name}.mjs`);

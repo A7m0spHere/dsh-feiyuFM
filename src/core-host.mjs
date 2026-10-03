@@ -126,7 +126,7 @@ export function buildSelector({ store, now = () => Date.now(), rng = null, listD
     // the session still works, it just is not reproducible.
     rng: rng ?? createRng(store.getCoreState()?.selectionRngState ?? (Number.isSafeInteger(seed) ? seed : 1)),
     isPlayable: track => store.isTrackAvailable(track, now()),
-    listFamiliar: () => [...new Map([...store.listEnvironment({ limit: 100000 }), ...store.listAgentKnownTracks()].map(row => [row.track_key, row])).values()].map((row) => {
+    listFamiliar: () => [...new Map([...store.listEnvironment({ limit: 100000 }), ...store.listAgentKnownTracks(), ...store.listLikedTracks()].map(row => [row.track_key, row])).values()].map((row) => {
       // Restore the stored metadata, not just the key: the effective-progress
       // threshold needs the real duration, and a title is needed to tell the
       // user what is playing.

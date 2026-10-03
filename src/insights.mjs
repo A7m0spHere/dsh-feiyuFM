@@ -1,5 +1,6 @@
 // Deterministic explanations and measured local history. No model invocation.
 import {qualifiesAsListen} from './growth.mjs';
+import {feedbackView} from './feedback.mjs';
 export function explainSelection(snapshot) {
  const current=snapshot?.current,choice=snapshot?.lastSelection;
  if(!current)return{kind:'idle',text:choice?.reason==='every candidate was filtered out'?'候选暂时都被约束或冷却过滤，等待可用歌曲。':'电台待命，尚未选择歌曲。'};
@@ -38,11 +39,12 @@ export function describeMusicInsights(store,snapshot,now=Date.now()) {
   text:current.selectedBy==='user'?'这是你点的，我按你的选择播放。':current.origin?.source==='netease_similar'
    ?`这次想试一首相近的新歌。网易云把它与《${titles.get(seed)||'已有歌曲'}》关联，我再按本地偏好与重复限制选中了它。`
    :explainSelection(snapshot).text}:null;
- return {version:1,generatedAt:now,explanation:explainSelection(snapshot),
+ const reset=store.getSetting('preference_reset_v1',null);
+ return {version:1,generatedAt:now,explanation:explainSelection(snapshot),feedback:feedbackView(store,snapshot),
   reply,
   profile:{kind:'agent_preferences',artists,tracks,coverage:{genres:0,moods:0},modelSummary:false},
   decisions:log.slice(-10).reverse().map(d=>({...d,trackTitle:titles.get(d.trackKey)||d.trackKey||'未选中歌曲'})),
-  recentChanges:recorded.filter(r=>r.growth?.updated&&Number.isFinite(r.growth.before)&&Number.isFinite(r.growth.after)).slice(0,5)
+  recentChanges:recorded.filter(r=>(!reset||r.processedAt>=reset.at)&&r.growth?.updated&&Number.isFinite(r.growth.before)&&Number.isFinite(r.growth.after)).slice(0,5)
    .map(r=>({playInstanceId:r.entry.playInstanceId,title:r.entry.track.title||r.entry.track.providerTrackId,
     before:r.growth.before,after:r.growth.after,at:r.processedAt,audible:r.growth.audible===true})),
   statistics:{windowStart:log[0]?.at??null,retainedDecisions:log.length,autonomousDecisions:log.length,

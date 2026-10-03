@@ -115,7 +115,7 @@ export class MusicStore {
 
   migrate() {
     const version = this.db.prepare('PRAGMA user_version').get().user_version;
-    if (version > 8) throw new Error(`Unsupported schema version ${version}`);
+    if (version > 9) throw new Error(`Unsupported schema version ${version}`);
     if (version === 0) {
       this.transaction(() => {
         this.db.exec(MIGRATION_1);
@@ -185,6 +185,14 @@ export class MusicStore {
         this.db.exec('ALTER TABLE music_model_calls ADD COLUMN baseline_growth_rowid INTEGER');
         this.db.prepare('INSERT INTO schema_migrations VALUES (?, ?)').run(8,new Date().toISOString());
         this.db.exec('PRAGMA user_version = 8');
+      });
+    }
+    if(this.db.prepare('PRAGMA user_version').get().user_version===8){
+      this.transaction(()=>{
+        this.db.exec(`CREATE TABLE user_track_feedback (
+          track_key TEXT PRIMARY KEY, score INTEGER NOT NULL CHECK(score IN (-1,0,1)), updated_at INTEGER NOT NULL);`);
+        this.db.prepare('INSERT INTO schema_migrations VALUES (?, ?)').run(9,new Date().toISOString());
+        this.db.exec('PRAGMA user_version = 9');
       });
     }
   }
@@ -362,6 +370,9 @@ export class MusicStore {
       WHERE h.selected_by='agent' AND h.agent_listening=1 AND h.end_reason IN ('ended','skipped')
       AND COALESCE(h.agent_effective_ms, h.effective_ms) >= MIN(30000, COALESCE(t.duration_ms / 2.0, 30000))
       ORDER BY t.track_key`).all();
+  }
+  listLikedTracks() {
+    return this.db.prepare('SELECT t.* FROM tracks t JOIN user_track_feedback f USING(track_key) WHERE f.score=1 ORDER BY t.track_key').all();
   }
 
   getTrackStats(track) {

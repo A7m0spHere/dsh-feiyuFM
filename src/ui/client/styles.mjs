@@ -151,6 +151,13 @@ export const css = `
   .fishfm .fm-reply-text { margin:5px 0 8px; font-size:12px; line-height:1.75; overflow-wrap:anywhere; }
   .fm-reply details { color:var(--fm-muted); font-size:11px; }
   .fm-reply details p { margin-top:8px; overflow-wrap:anywhere; }
+  .fm-track-feedback { grid-column:1/-1; display:flex; align-items:center; flex-wrap:wrap; gap:8px 14px; border-top:1px solid var(--fm-line); padding-top:12px; }
+  .fm-track-feedback .fm-note { margin:0!important; }
+  .fm-feedback-actions { display:flex; flex-wrap:wrap; gap:7px; }
+  .fm-feedback-button[aria-pressed=true] { background:var(--fm-accent-soft); color:var(--fm-accent-ink); border-color:var(--fm-accent); }
+  .fm-reset-confirm { padding:12px; border:1px solid var(--fm-line); border-radius:7px; background:var(--fm-sunken); }
+  .fm-reset-confirm .fm-check-row { margin:10px 0; align-items:flex-start; font-size:11px; }
+  .fm-reset-confirm input { flex:none; margin-top:2px; }
   .fm-row { display:flex; align-items:center; justify-content:space-between; gap:14px;
     padding:12px 0; border-bottom:1px solid var(--fm-line); }
   .fm-label { font-size:12px; font-weight:550; }

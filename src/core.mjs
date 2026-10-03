@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { assertCommand, MusicError, normalizeTrack, trackId } from './contracts.mjs';
+import {setTrackFeedback,resetRecommendationTaste,undoRecommendationReset} from './feedback.mjs';
 
 async function resolveWithTimeout(provider, track, signal, version, timeoutMs) {
   const attempt = new AbortController();
@@ -438,9 +439,15 @@ export class MusicCore {
           track: command.track, createdAt: now, summary: command.summary ?? '' });
         break;
       case 'unbanTrack': this.store.removeConstraint(`ban:${trackId(command.track)}`); break;
+      case 'setTrackFeedback':
+        if (this.state.current?.playInstanceId !== command.playInstanceId || trackId(this.state.current.track) !== trackId(command.track)) throw new MusicError('stale_track', '歌曲已经切换，请对当前歌曲重新反馈。');
+        setTrackFeedback(this.store, this.state.current.track, command.value, now);
+        break;
+      case 'resetTaste': resetRecommendationTaste(this.store, this.state, { clearFeedback:command.value.clearFeedback, now,commandId:command.commandId }); break;
+      case 'undoTasteReset': undoRecommendationReset(this.store,{commandId:command.commandId,now}); break;
     }
     this.state.decisionVersion += 1;
-    this.store.recordCommand(command.commandId, now);
+    if(!this.store.hasCommand(command.commandId)) this.store.recordCommand(command.commandId, now);
     this._commit();
     if ((command.type === 'resume' || command.type === 'chooseSelf' ||
       (command.type === 'setMode' && command.value !== 'off')) && !this.state.current) {

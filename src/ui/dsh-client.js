@@ -157,6 +157,13 @@ window.__ModuleLoader__.load({
       .fishfm .fm-reply-text { margin:5px 0 8px; font-size:12px; line-height:1.75; overflow-wrap:anywhere; }
       .fm-reply details { color:var(--fm-muted); font-size:11px; }
       .fm-reply details p { margin-top:8px; overflow-wrap:anywhere; }
+      .fm-track-feedback { grid-column:1/-1; display:flex; align-items:center; flex-wrap:wrap; gap:8px 14px; border-top:1px solid var(--fm-line); padding-top:12px; }
+      .fm-track-feedback .fm-note { margin:0!important; }
+      .fm-feedback-actions { display:flex; flex-wrap:wrap; gap:7px; }
+      .fm-feedback-button[aria-pressed=true] { background:var(--fm-accent-soft); color:var(--fm-accent-ink); border-color:var(--fm-accent); }
+      .fm-reset-confirm { padding:12px; border:1px solid var(--fm-line); border-radius:7px; background:var(--fm-sunken); }
+      .fm-reset-confirm .fm-check-row { margin:10px 0; align-items:flex-start; font-size:11px; }
+      .fm-reset-confirm input { flex:none; margin-top:2px; }
       .fm-row { display:flex; align-items:center; justify-content:space-between; gap:14px;
         padding:12px 0; border-bottom:1px solid var(--fm-line); }
       .fm-label { font-size:12px; font-weight:550; }
@@ -443,11 +450,14 @@ window.__ModuleLoader__.load({
           write = new AbortController();
           const timeout = setTimeout(() => write?.abort(), 25000);
           try {
-            const result = await connection.rpc.call('/api', 'fishfm/command', type === 'requestTrack' ? { type, track: value } : { type, value }, write.signal);
+            const payload = type === 'requestTrack' ? {type,track:value} : type === 'setTrackFeedback' ? {type,...value} : {type,value};
+            const result = await connection.rpc.call('/api', 'fishfm/command', payload, write.signal);
             if (!result.ok) throw result.error;
-            emit({ snapshot: result.value.snapshot, notice: ['pause', 'resume', 'next', 'requestTrack'].includes(type) ? '播放控制已更新' : '已保存到本机' });
+            const feedbackNotice = type==='setTrackFeedback' ? value.value===1?'已喜欢，将提高这首歌的排序权重':value.value===-1?'已降低这首歌的排序权重':'已撤销这首歌的反馈'
+              :type==='resetTaste'?'已重置推荐偏好，可撤销最近一次重置':type==='undoTasteReset'?'已恢复重置前的偏好':null;
+            emit({ ...result.value, notice: feedbackNotice || (['pause', 'resume', 'next', 'requestTrack'].includes(type) ? '播放控制已更新' : '已保存到本机') });
           } catch (error) {
-            const actionError = ['no_candidates', 'constraint_conflict', 'invalid_command', 'media_unavailable'].includes(error?.code);
+            const actionError = ['no_candidates', 'constraint_conflict', 'invalid_command', 'media_unavailable','stale_track','summary_busy','no_reset_backup','invalid_track'].includes(error?.code);
             emit({ connected: actionError ? state.connected : false, error: failure(error), notice: actionError ? '请调整曲目或设置后重试' : '未确认操作，请刷新核对' });
           }
           finally { clearTimeout(timeout); write = null; emit({ busy: false }); }
@@ -719,6 +729,30 @@ window.__ModuleLoader__.load({
               h('p', { className: 'fm-note' }, `聚合事实 ${policy.factsBytes} / ${policy.maxPromptBytes} 字节（UTF-8，不是精确 token 数）。实际用量以模型返回为准。`)))));
     }
 
+    // src/ui/client/feedback.mjs
+    function FeedbackSettings({state,controller}) {
+      const [confirm,setConfirm]=React.useState(false),[clearFeedback,setClearFeedback]=React.useState(false);
+      const feedback=state.insights?.feedback,available=feedback?.version===1;
+      const disabled=state.busy||state.summaryBusy||!state.connected||!available;
+      return h('section',null,h('h2',null,'推荐反馈',h('small',null,'FEEDBACK')),
+        h('div',{className:'fm-card'},
+          available?h('p',{className:'fm-note'},`喜欢 ${feedback.liked} 首 · 少推荐 ${feedback.reduced} 首。手动反馈独立保存，不会被自动成长覆盖。`)
+            :h('p',{className:'fm-note'},'当前 Core 尚未提供反馈功能，重新加载新版插件后可用。'),
+          h('details',{className:'fm-disclosure'},h('summary',null,'偏好重置与恢复'),h('div',{className:'fm-disclosure-body'},
+            h('p',{className:'fm-note'},'恢复为当前输入曲库的初始偏好。保留账号、曲库、历史和 token 账本；旧模型总结会移除。'),
+            feedback?.resetAt&&h('p',{className:'fm-note'},`最近重置：${new Date(feedback.resetAt).toLocaleString()}`),
+            confirm?h('div',{className:'fm-reset-confirm'},
+              h('p',{className:'fm-label'},'重置积累的推荐偏好？'),
+              h('label',{className:'fm-check-row'},h('input',{type:'checkbox',checked:clearFeedback,disabled,'aria-label':'同时清除喜欢和少推荐反馈',onChange:e=>setClearFeedback(e.target.checked)}),'同时清除喜欢 / 少推荐反馈'),
+              h('div',{className:'fm-feedback-actions'},
+                h('button',{type:'button',className:'fm-button',disabled,onClick:async()=>{await controller.command('resetTaste',{clearFeedback});setConfirm(false);}},'确认重置'),
+                h('button',{type:'button',className:'fm-button',disabled:state.busy,onClick:()=>setConfirm(false)},'取消')))
+              :h('div',{className:'fm-feedback-actions'},
+                h('button',{type:'button',className:'fm-button',disabled,onClick:()=>{setClearFeedback(false);setConfirm(true);}},'重置推荐偏好'),
+                feedback?.canUndoReset&&h('button',{type:'button',className:'fm-button',disabled,onClick:()=>controller.command('undoTasteReset')},'撤销最近一次重置')),
+            h('p',{className:'fm-note'},'保留最近一次恢复点。撤销会恢复旧权重，覆盖重置后的成长；再次重置会替换恢复点。')))));
+    }
+
     // src/ui/client/panel.mjs
     function Panel({ controller, back, close }) {
       const state = React.useSyncExternalStore(controller.subscribe, controller.getSnapshot);
@@ -848,6 +882,7 @@ window.__ModuleLoader__.load({
             h('section', null, h('h2', null, '输入与连接',h('small',null,'LIBRARY')),
               h('details',{className:'fm-input-library'},h('summary',null,close?'输入音乐 · 查看和点播':`输入曲库 · ${state.library?.total??0} 首（展开查看）`),h(Library,{state,controller})),
               h('details',{className:'fm-platform-details fm-input-library'},h('summary',null,'音乐平台',h('span',{className:'fm-disclosure-meta'},accountHint)),platformSection)),
+            h(FeedbackSettings,{state,controller}),
             h('section', null, h('details', { className: 'fm-card fm-interface-details' }, h('summary',null,'界面与悬浮条'),
               h('div', { className: 'fm-motion-row' }, h('label', { htmlFor: `${rateId}-motion` }, '动态效果'),
                 h('select', { id: `${rateId}-motion`, 'aria-label': '动态效果', value: state.motion || 'full', onChange: event => controller.setMotion(event.target.value) },
@@ -878,9 +913,18 @@ window.__ModuleLoader__.load({
             h('div', { className: 'fm-controls' }, button(!current ? '开始听歌' : snapshot?.paused ? '继续播放' : '暂停', 'resume', !current && !state.library?.total && !snapshot?.queue?.length,
               { className: 'fm-button fm-primary', onClick: () => controller.playOrPause() }),
               button('下一首', 'next', !current && !snapshot?.queue?.length && !state.library?.total), button('今天停止', 'stopForToday'))),
+            current&&h('div',{className:'fm-track-feedback','aria-label':'当前歌曲推荐反馈'},
+              h('div',{className:'fm-feedback-actions'},
+                ...[[1,'喜欢','♥'],[-1,'少推荐','↓']].map(([score,label,mark])=>h('button',{type:'button',key:score,className:'fm-button fm-feedback-button','aria-pressed':insights?.feedback?.current===score,
+                  disabled:disabled||insights?.feedback?.version!==1,onClick:()=>controller.command('setTrackFeedback',{track:current.track,playInstanceId:current.playInstanceId,value:insights.feedback.current===score?0:score})},h('span',{'aria-hidden':true},mark),label))),
+              h('p',{className:'fm-note',role:'status','aria-live':'polite'},insights?.feedback?.version!==1?'反馈功能需重新加载新版 Core。'
+                :insights.feedback.current===1?'已喜欢：提高这首歌的排序权重。再次点击可撤销。'
+                :insights.feedback.current===-1?'已少推荐：降低权重，不再作为相似推荐种子。再次点击可撤销。'
+                :'仅影响肥鱼电台推荐；重复点击可撤销。')),
             insights?.explanation&&h('div',{className:'fm-reply',role:'status',key:insights.reply?.decisionId},h('p',{className:'fm-label'},'大肥鱼说'),h('p',{className:'fm-reply-text'},insights.reply?.text||insights.explanation.text),
               h('details',null,h('summary',null,'展开选歌依据'),h('p',null,`来源：${({netease_similar:'种子相似关系',netease_daily:'网易云每日推荐',netease_personal_fm:'网易云私人 FM'})[current?.origin?.source]??(current?.selectedBy==='user'?'用户指定':'熟悉歌曲')}`),
                 current?.selectedBy==='agent'&&snapshot?.lastSelection?.detail&&h('p',null,`本地评分 ${snapshot.lastSelection.score?.toFixed(3)}；关系项 ${(snapshot.lastSelection.detail.relationship??0).toFixed(3)}；重复次数 ${snapshot.lastSelection.detail.repeatPlays??0}；艺人集中惩罚 ${(snapshot.lastSelection.detail.diversityPenalty??0).toFixed(3)}。`),
+                Number.isFinite(snapshot?.lastSelection?.detail?.feedback)&&h('p',null,`本次决策的手动反馈评分项：${snapshot.lastSelection.detail.feedback>0?'+':''}${snapshot.lastSelection.detail.feedback.toFixed(2)}。之后的反馈从下一次决策生效。`),
                 h('p',null,'解释由实际决策记录生成，逐曲不新增模型请求。')))),
         state.error && h('div', { className: 'fm-notice', 'data-error': true, role: 'alert' }, state.error,
           ' ', h('button', { className: 'fm-button', type: 'button', disabled: state.busy, onClick: controller.refresh }, '重新连接')),

@@ -86,11 +86,14 @@ export function createController(connection) {
       write = new AbortController();
       const timeout = setTimeout(() => write?.abort(), 25000);
       try {
-        const result = await connection.rpc.call('/api', 'fishfm/command', type === 'requestTrack' ? { type, track: value } : { type, value }, write.signal);
+        const payload = type === 'requestTrack' ? {type,track:value} : type === 'setTrackFeedback' ? {type,...value} : {type,value};
+        const result = await connection.rpc.call('/api', 'fishfm/command', payload, write.signal);
         if (!result.ok) throw result.error;
-        emit({ snapshot: result.value.snapshot, notice: ['pause', 'resume', 'next', 'requestTrack'].includes(type) ? '播放控制已更新' : '已保存到本机' });
+        const feedbackNotice = type==='setTrackFeedback' ? value.value===1?'已喜欢，将提高这首歌的排序权重':value.value===-1?'已降低这首歌的排序权重':'已撤销这首歌的反馈'
+          :type==='resetTaste'?'已重置推荐偏好，可撤销最近一次重置':type==='undoTasteReset'?'已恢复重置前的偏好':null;
+        emit({ ...result.value, notice: feedbackNotice || (['pause', 'resume', 'next', 'requestTrack'].includes(type) ? '播放控制已更新' : '已保存到本机') });
       } catch (error) {
-        const actionError = ['no_candidates', 'constraint_conflict', 'invalid_command', 'media_unavailable'].includes(error?.code);
+        const actionError = ['no_candidates', 'constraint_conflict', 'invalid_command', 'media_unavailable','stale_track','summary_busy','no_reset_backup','invalid_track'].includes(error?.code);
         emit({ connected: actionError ? state.connected : false, error: failure(error), notice: actionError ? '请调整曲目或设置后重试' : '未确认操作，请刷新核对' });
       }
       finally { clearTimeout(timeout); write = null; emit({ busy: false }); }

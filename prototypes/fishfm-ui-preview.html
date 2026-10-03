@@ -36,7 +36,8 @@ const persona={generatedAt:Date.now(),facts:{artists:[{key:'a1',name:'沿途电�
  summary:{provider:'preview',model:'example-model',trigger:'manual',generatedAt:Date.now(),text:'最近的有效经历更偏向沿途电台与夜航乐队。接下来会结合这些艺人的相似歌曲，保留 70% 的探索目标，在熟悉与陌生候选之间选择。\n这些是已记录的音乐偏好，流派和情绪尚无数据。',usage:{inputTokens:166,outputTokens:83}},summaryStale:false,
  policy:{dailyTokens:4000,maxOutputTokens:256,outputMaximumTokens:256,minOutputTokens:64,maxPromptBytes:1500,factsBytes:682,automatic:false,automaticDue:false,automaticBlockedBy:'disabled',autoMinNewListens:50,automaticNewListens:2},
  ledger:{localDecisionRequests:0,today:{knownTokens:696},total:{knownTokens:696,attempts:2,unknownCalls:0},remainingTokens:3304,recent:[{callId:'preview-1',model:'example-model',status:'completed',startedAt:Date.now(),usage:{inputTokens:166,outputTokens:83}},{callId:'preview-2',model:'example-model',status:'failed',startedAt:Date.now()-60000,usage:{inputTokens:191,outputTokens:256}}]}};
-const insights={explanation:{text:'从沿途电台的相似候选中选择，避免连续重复同一位艺人。'},reply:{decisionId:'preview-1',text:'这首来自沿途电台的相似推荐。想沿着最近的偏好，听一点没听过的声音。'},profile:{artists:[{key:'a1',name:'沿途电台',affinity:.74,source:'listen_silent'},{key:'a2',name:'夜航乐队',affinity:.69,source:'listen'}],tracks:[{key:'t1',title:'示例歌曲 01',affinity:.53,source:'listen_silent'}]},recentChanges:[{playInstanceId:'preview-1',title:'示例歌曲 01',before:.5,after:.53,audible:false}],statistics:{retainedDecisions:42,explorationAttempts:28,unfamiliarSelections:17,observedStarts:42,validUnfamiliarListens:11,repeatedSelections:3},decisions:[]};
+const insights={feedback:{version:1,current:0,liked:0,reduced:0,resetAt:null,canUndoReset:false},explanation:{text:'从沿途电台的相似候选中选择，避免连续重复同一位艺人。'},reply:{decisionId:'preview-1',text:'这首来自沿途电台的相似推荐。想沿着最近的偏好，听一点没听过的声音。'},profile:{artists:[{key:'a1',name:'沿途电台',affinity:.74,source:'listen_silent'},{key:'a2',name:'夜航乐队',affinity:.69,source:'listen'}],tracks:[{key:'t1',title:'示例歌曲 01',affinity:.53,source:'listen_silent'}]},recentChanges:[{playInstanceId:'preview-1',title:'示例歌曲 01',before:.5,after:.53,audible:false}],statistics:{retainedDecisions:42,explorationAttempts:28,unfamiliarSelections:17,observedStarts:42,validUnfamiliarListens:11,repeatedSelections:3},decisions:[]};
+const votes=new Map();let previewResetBackup=null;
 const summaryModels=[{provider:'preview',model:'example-model',label:'已配置模型 · 示例总结路线'}];
 let connected=true,empty=false,active='fishfm',changeActive;
 const connection={rpc:{async call(_channel,endpoint,payload){
@@ -51,13 +52,20 @@ const connection={rpc:{async call(_channel,endpoint,payload){
  }
  if(endpoint==='fishfm/command'){
   const type=payload.type;
+  if(type==='setTrackFeedback')votes.set(payload.track.providerTrackId,payload.value);
+  if(type==='resetTaste'){
+   previewResetBackup={votes:[...votes],summary:structuredClone(persona.summary)};
+   if(payload.value.clearFeedback)votes.clear();persona.summary=null;insights.feedback.resetAt=Date.now();insights.feedback.canUndoReset=true;
+  }
+  if(type==='undoTasteReset'&&previewResetBackup){for(const [key,value] of previewResetBackup.votes)if(!votes.has(key))votes.set(key,value);persona.summary=previewResetBackup.summary;insights.feedback.resetAt=null;insights.feedback.canUndoReset=false;previewResetBackup=null;}
   if(type==='pause'){snapshot.paused=true;snapshot.status='paused'}
   if(type==='resume'){snapshot.paused=false;snapshot.status='playing';if(!snapshot.current)snapshot.current={track:tracks[0],playInstanceId:'preview-1',positionMs:0}}
   if(type==='requestTrack'||type==='next'){const track=type==='requestTrack'?payload.track:tracks[(Number(snapshot.current?.track.providerTrackId)||0)%tracks.length];snapshot.current={track,playInstanceId:`preview-${Date.now()}`,positionMs:0};if(type==='requestTrack')snapshot.paused=false;snapshot.status=snapshot.paused?'paused':'playing'}
   const field={setListening:'listening',setHumanPlayback:'humanPlayback',setDiscovery:'discovery',setDiscoveryRate:'discoveryRate'}[type];if(field)snapshot.settings[field]=payload.value;
   if(type==='setMode'){snapshot.settings.listening=payload.value!=='off';snapshot.settings.humanPlayback=payload.value==='silent'||payload.value==='off'?false:snapshot.settings.humanPlayback;snapshot.settings.strategy=payload.value==='focus'?'focus':'normal';snapshot.paused=payload.value==='off';snapshot.status=snapshot.paused?'paused':'playing'}
   if(type==='stopForToday'){snapshot.paused=true;snapshot.status='paused';snapshot.blockUntil=Date.now()+3600000}
-  snapshot.revision++;return {ok:true,value:{snapshot:structuredClone(snapshot)}};
+  insights.feedback.current=votes.get(snapshot.current?.track.providerTrackId)??0;insights.feedback.liked=[...votes.values()].filter(v=>v===1).length;insights.feedback.reduced=[...votes.values()].filter(v=>v===-1).length;
+  snapshot.revision++;return {ok:true,value:{snapshot:structuredClone(snapshot),insights:structuredClone(insights),persona:structuredClone(persona)}};
  }
  return {ok:true,value:{snapshot:structuredClone(snapshot),persona:structuredClone(persona),insights:structuredClone(insights),summaryModels,features:{personaSummary:true,discoveryRefresh:true,importSources:true},platforms:{netease:{installed:true,account:{status:'authorized'}},qq:{installed:false}},library:{total:empty?0:100,tracks:empty?[]:tracks},playlists:[{id:'preview-list',title:'示例输入歌单'}]}};
 }}};

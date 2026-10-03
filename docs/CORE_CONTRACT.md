@@ -1,5 +1,15 @@
 # Phase 1 内部控制契约
 
+## N10 增量（2026-10-03）
+
+显式用户命令经既有认证 `fishfm/command` 白名单转发，均要求唯一 `commandId`：
+
+- `setTrackFeedback`：`track={provider,providerTrackId}`、`playInstanceId`、`value ∈ {-1,0,1}`。Core 校验与当前歌曲/实例一致，旧实例返回 `stale_track`；仅写独立反馈，不改播放和 affinity。
+- `resetTaste`：`value={clearFeedback:boolean}`。重置积累偏好并按输入环境重新初始化，默认保留手动反馈；保留账号、历史、约束与模型账本。Core 事务保存恢复点及去重记录，清除旧展示总结；模型预留/运行中返回 `summary_busy`。
+- `undoTasteReset`：恢复最近恢复点；无恢复点返回 `no_reset_backup`。重置后新增手动反馈优先；恢复旧权重会覆盖重置之后的成长。
+
+`insights.feedback={version:1,current,liked,reduced,resetAt,canUndoReset}` 是同一 Core 的只读投影。反馈/重置命令响应附新 insights/persona；歌曲评分增加 `userFeedback/feedback` 与 `algorithm='local-v3'`，逐曲仍不请求模型。schema v9、成长边界与验证见 [N10](spikes/N10-feedback-reset.md)。
+
 更新：2026-09-27。此契约由 `src/` 的可运行实现定义，供后续 DSH Adapter、Provider 和 Playback 接入；它不是 DSH 已发布的事件或 SDK 接口。
 
 ## N0–N3 增量（2026-10-02）

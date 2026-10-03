@@ -25,6 +25,6 @@ test('recent artist concentration reduces repeated-artist rank even when the tra
  const s=new MusicStore();try{
  s.upsertTrack(t(1,10),0);s.recordHistory({playInstanceId:'recent',track:t(1,10),selectedBy:'agent',progressSource:'audio',effectiveMs:50000,agentListening:true,audible:true,endReason:'ended',endedAt:1000});
  const selector=createSelector({store:s,rng:()=>0,listDiscovery:()=>[t(2,10),t(3,30)],now:()=>2000});
- const decision=selector.decide({discoveryRate:1});assert.equal(decision.track.providerTrackId,'3');assert.equal(decision.detail.algorithm,'local-v2');
+ const decision=selector.decide({discoveryRate:1});assert.equal(decision.track.providerTrackId,'3');assert.equal(decision.detail.algorithm,'local-v3');
  }finally{s.close();}
 });

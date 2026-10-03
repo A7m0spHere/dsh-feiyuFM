@@ -5,7 +5,7 @@ import { assertCommand, normalizeTrack } from '../contracts.mjs';
 import { NETEASE_QR_LOGIN_URL } from '../providers/endpoints/netease.mjs';
 
 const ALLOWED = new Set(['pause', 'resume', 'next', 'setListening', 'setHumanPlayback',
-  'setDiscovery', 'setDiscoveryRate', 'setMode', 'stopForToday', 'requestTrack']);
+  'setDiscovery', 'setDiscoveryRate', 'setMode', 'stopForToday', 'requestTrack', 'setTrackFeedback', 'resetTaste', 'undoTasteReset']);
 const QUICK_LOGIN_PROVIDER = 'netease';
 const STATE_ENDPOINT = 'fishfm/state';
 const PERSONA_ENDPOINTS=new Set(['fishfm/persona-summary','fishfm/persona-budget','fishfm/persona-output','fishfm/persona-automatic']);
@@ -145,6 +145,11 @@ export function createSettingsHandler(bridge,summaryService={current:null}) {
             title:t?.title,artist:t?.artist,durationMs:t?.durationMs}); }
           catch { throw Object.assign(new Error('A valid platform track is required'), { code: 'invalid_command' }); }
         }
+        if(command.type==='setTrackFeedback') {
+          try { command.track=normalizeTrack({provider:payload.track?.provider,providerTrackId:payload.track?.providerTrackId}); }
+          catch { throw Object.assign(new Error('反馈需要有效的平台歌曲。'),{code:'invalid_command'}); }
+          command.playInstanceId=payload.playInstanceId;
+        }
         if (command.type === 'setDiscoveryRate' && !Number.isFinite(command.value)) {
           throw Object.assign(new Error('Exploration rate must be finite'), { code: 'invalid_command' });
         }
@@ -153,6 +158,10 @@ export function createSettingsHandler(bridge,summaryService={current:null}) {
       await bridge.start();
       if (command) {
         const value = await bridge.command(command, { signal });
+        if(['setTrackFeedback','resetTaste','undoTasteReset'].includes(command.type)) {
+          const [insights,persona]=await Promise.all([bridge.request({type:'insights'},{signal,abortable:true}),bridge.request({type:'persona'},{signal,abortable:true})]);
+          return {ok:true,value:{...value,insights:insights.insights,persona:persona.persona}};
+        }
         return { ok: true, value };
       }
       const value=await readSettingsState(bridge,signal);

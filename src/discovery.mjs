@@ -2,6 +2,7 @@
 import { trackId, normalizeTrack } from './contracts.mjs';
 import { collectDiscovery } from './providers/coordinator.mjs';
 import {selectRecommendationSeeds} from './recommendation.mjs';
+import {trackFeedback} from './feedback.mjs';
 export const DISCOVERY_PARAMETERS = Object.freeze({ limit: 40, capacity: 200, ttlMs: 6 * 60 * 60_000,
   lowWater: 10, intervalMs: 30 * 60_000, manualIntervalMs: 60_000, retryMs: 5 * 60_000 });
 export function createDiscoveryCache({ registry, store = null, now = () => Date.now(), onLog = () => {}, parameters = DISCOVERY_PARAMETERS } = {}) {
@@ -45,7 +46,7 @@ export function createDiscoveryCache({ registry, store = null, now = () => Date.
   const usable = () => entries.filter(track => {
     const expiry = track.discovery?.expiresAt;
     return Number.isFinite(expiry) && expiry > now()
-      && !store?.getEnvironmentEntry(track) && !store?.hasEffectiveListen(track)
+      && !store?.getEnvironmentEntry(track) && !store?.hasEffectiveListen(track) && (!store || trackFeedback(store,track)!==1)
       && (!store || store.isTrackAvailable(track, now()));
   });
   const status = () => {
