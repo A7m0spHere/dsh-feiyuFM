@@ -1,0 +1,14 @@
+import test from 'node:test';import assert from 'node:assert/strict';import {auditObservation} from '../src/runtime/audit.mjs';
+const empty=()=>({mode:'real-observation',elapsedMs:7200000,sameRun:true,uninterruptedEvidence:true,startedAt:1,finishedAt:7200001,samples:[],events:[],
+ initial:{components:{core:{runId:'c',mode:'real'},adapter:{runId:'a',mode:'real',host:{attachedAt:1,calls:10}}}},
+ final:{components:{core:{runId:'c',mode:'real',counts:{'history:':10000}},adapter:{runId:'a',mode:'real',host:{calls:10}}}}});
+test('two hours and large final counters cannot pass a window with no real milestone deltas',()=>{
+ const r=auditObservation(empty());assert.equal(r.naturalAutonomousEnds,0);assert.equal(r.unattendedRunPassed,false);assert.equal(r.observedHostServiceCalls,0);assert.equal(r.a09Passed,null);assert.equal(r.musicModelRequests,null);
+});
+test('simulation, instance changes, missing DB histories and duplicate growth prevent a pass',()=>{
+ const p=empty();p.final.components.core.mode='synthetic';assert.equal(auditObservation(p).real,false);
+ p.final.components.core.mode='real';p.final.components.core.runId='new';assert.equal(auditObservation(p).real,false);
+ p.final.components.core.runId='c';p.events=[{component:'core',type:'history',selectedBy:'agent',endReason:'ended',playInstanceId:'one'},
+ {component:'core',type:'growth',updated:true,playInstanceId:'one'},{component:'core',type:'growth',updated:true,playInstanceId:'one'}];
+ const r=auditObservation(p);assert.equal(r.missingHistory,1);assert.equal(r.duplicateGrowth,1);assert.equal(r.unattendedRunPassed,false);
+});
