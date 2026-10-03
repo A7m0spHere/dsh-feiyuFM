@@ -85,7 +85,7 @@ const EVIDENCE = [
       { file: 'test/sessions.test.mjs', name: 'a transient session precipitates less, and its influence is capped' }
       , { file: 'test/taste.test.mjs', name: 'a restart keeps the same personality instead of reshuffling it' },
     ],
-    unverified: '真实导入与重启保留已验；真实成长对照及多会话影响未验',
+    unverified: '真实导入/重启与 N1 五条成长对照已验；完整多会话与长期差异未验',
   },
   {
     id: 'A07', claim: 'DSH 内嵌音乐设置与 shell.overlay 悬浮条共用 Core；显示状态同步，隐藏/页面切换不停止播放',

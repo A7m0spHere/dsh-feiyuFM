@@ -9,6 +9,8 @@
 
 ## 事实与文档入口
 
+- 2026-10-03：N0–N3 本轮闭环完成，见 `docs/spikes/N0-runtime-evidence.md` 至 `N3-discovery-cache.md`。真实连续 5 曲自然自主续播、4 首陌生推荐和 5 次有效成长已验；完整 DSH 启动后的注册采集、认证手动刷新、预算与暂停保持已验。schema v4，保留 102 首导入环境，结束时三个开关 ON、Normal、用户最新探索率 70%，音乐暂停。下一项 N4/N5；两小时、DSH 模型请求/上下文对照、完整多 Session 和 QQ 仍未通过。
+
 - 2026-10-02 用户调整优先级：QQ 音乐接入暂缓，优先完善网易云 UI 和动效，参考 `D:/AI项目/dsh-phl` 的画风与短促动效；保留鲸鱼娘并缩小为播放器状态视觉。QQ 的既有适配代码与后续任务保留，本轮 UI 完成不以 QQ 为前置。
 - 客户端维护入口为 `src/ui/client/`，`src/ui/dsh-client.js` 是生成的 DSH 单文件 bundle；修改后运行 `npm run build:client` 或 `npm run build`。界面、动效与验证见 `docs/spikes/U7-phl-ui-motion.md`。
 
