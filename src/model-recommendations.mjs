@@ -25,9 +25,25 @@ export function modelRecommendationTracks(store){
  return value.verified.map(row=>({...normalizeTrack(row.track),discovery:{source:'llm_recommendation',modelCallId:value.callId,reason:value.text}}));
 }
 export function recommendationMode(store){return store?.getSetting('recommendation_mode_v1','platform')==='llm'?'llm':'platform';}
+const workTitle=value=>normalizeSongText(value).replace(/\([^)]*\)/g,'');
+function artistMatches(query,candidate){
+ const a=normalizeSongText(query),b=normalizeSongText(candidate);
+ if(a===b)return true;
+ // Public catalogues sometimes prefix a Chinese stage name with its Latin alias.
+ return /^[\p{Script=Han}·]{2,30}$/u.test(a)&&b.endsWith(a)&&/^[a-z0-9._()\-]+$/i.test(b.slice(0,-a.length));
+}
 function matches(song,track){
- return normalizeSongText(song.title)===normalizeSongText(track.title)&&
-  (normalizeSongText(song.artist)===normalizeSongText(track.artist)||(track.artists??[]).some(a=>normalizeSongText(a.name)===normalizeSongText(song.artist)));
+ const exact=normalizeSongText(song.title)===normalizeSongText(track.title);
+ return (exact||(!/\([^)]*\)/.test(normalizeSongText(song.title))&&workTitle(song.title)===workTitle(track.title)))&&
+  (artistMatches(song.artist,track.artist)||(track.artists??[]).some(a=>artistMatches(song.artist,a.name)));
+}
+function selectMatchedVersion(song,found){
+ if(found.length===1)return found[0];
+ const identities=found.map(t=>t.artists?.length&&t.artists.every(a=>/^[\w-]{1,80}$/.test(String(a.id??''))&&String(a.id)!=='0')?t.artists.map(a=>String(a.id)).sort().join('|'):null);
+ if(!identities.length||!identities[0]||!identities.every(id=>id===identities[0]))return null;
+ // The model chose a work/performer, not a recording ID. Prefer the full title,
+ // then the catalogue's first matching recording, and expose the version choice.
+ return found.find(t=>normalizeSongText(t.title)===normalizeSongText(song.title))??found[0];
 }
 export function createModelRecommendationResolver({store,registry,now=()=>Date.now(),onChange=()=>{}}){
  let stopped=false,pending=null,controller=null,lastAttempt=null;
@@ -50,8 +66,9 @@ export function createModelRecommendationResolver({store,registry,now=()=>Date.n
       const result=await registry.search('netease',`${song.title} ${song.artist}`,{limit:10,signal});
       found=[...new Map((result.tracks??[]).filter(t=>t.provider==='netease'&&matches(song,t)).map(t=>[trackId(t),t])).values()];
      }
-     if(found.length!==1){attempts.push({index,status:found.length?'ambiguous':'not-found'});continue;}
-     const track=normalizeTrack(found[0]);verified.push({index,track});attempts.push({index,status:'matched'});
+     const selected=selectMatchedVersion(song,found);
+     if(!selected){attempts.push({index,status:found.length?'ambiguous':'not-found'});continue;}
+     const track=normalizeTrack(selected);verified.push({index,track,versions:found.length});attempts.push({index,status:'matched',versions:found.length});
     }catch(error){attempts.push({index,status:error.code==='login_required'?'login-required':'lookup-failed'});if(error.code==='login_required')loginUnavailable=true;}
    }
    if(signal.aborted||stopped||modelRecommendations(store)?.callId!==id)return{reason:'cancelled'};

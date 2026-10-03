@@ -125,3 +125,11 @@ test('a persistence failure rolls back both input deletion and the in-memory que
   store.setCoreState=persist;
  }finally{store.close();}
 });
+
+test('catalogue aliases and multiple recordings with the same performer IDs resolve without replacing the model work',async()=>{
+ const store=fixture();try{
+  generate(store,2000,JSON.stringify({summary:'按参考歌曲推荐',songs:[['光年之外','邓紫棋'],['Faded','Alan Walker']]}));
+  const resolver=createModelRecommendationResolver({store,now:()=>3000,registry:{async search(_p,q){return{tracks:q.includes('光年')?[{...t(51,'光年之外','G.E.M.邓紫棋'),artists:[{id:'1',name:'G.E.M.邓紫棋'}]}]:[{...t(52,'Faded','Alan Walker'),artists:[{id:'2',name:'Alan Walker'}]},{...t(53,'Faded (Remastered)','Alan Walker'),artists:[{id:'2',name:'Alan Walker'}]}]};}}});
+  await resolver.refresh();const record=modelRecommendations(store);assert.equal(record.verified.length,2);assert.equal(record.verified[1].track.providerTrackId,'52');assert.equal(record.verified[1].versions,2);resolver.close();
+ }finally{store.close();}
+});
