@@ -289,7 +289,7 @@ function sessionIdOfShallow(value) {
   return null;
 }
 
-export function registerAdapter(ctx, { bridge, onLog = () => {} }) {
+export function registerAdapter(ctx, { bridge, onLog = () => {}, hostCollector = null }) {
   const disposers = [];
   if (typeof ctx.effect === 'function') {
     disposers.push(ctx.effect(() => () => bridge.stop()));
@@ -300,6 +300,7 @@ export function registerAdapter(ctx, { bridge, onLog = () => {} }) {
     // bridge is told what it can, and the core reports "no session id" rather
     // than guessing which session was active.
     disposers.push(ctx.on('session/event', (session, event) => {
+      hostCollector?.observeSession(sessionIdOf(session),event);
       const translated = translateSessionEvent(event);
       if (!translated) return;
       const sessionId = sessionIdOf(session);
@@ -324,6 +325,11 @@ export function registerAdapter(ctx, { bridge, onLog = () => {} }) {
     }
     register(ctx);
   };
+
+  if(hostCollector)withService(['llm'],llmCtx=>{
+    disposers.push(llmCtx.on('llm/stream',(options,next)=>hostCollector.stream(options,next)));
+    hostCollector.attach();
+  });
 
   withService(['tools'], (toolCtx) => {
     const registerTool = spec => { const dispose = toolCtx.tools.register(spec); onLog({ type: 'prompt-register', kind: 'tool', name: spec.name }); return dispose; };

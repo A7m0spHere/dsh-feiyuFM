@@ -19,6 +19,7 @@ import { fileURLToPath } from 'node:url';
 import { CoreBridge, registerAdapter } from './src/dsh-adapter.mjs';
 import { registerSettingsApi } from './src/ui/dsh-settings.mjs';
 import { createRuntimeEvidence } from './src/runtime/evidence.mjs';
+import {createHostCollector} from './src/runtime/host-collector.mjs';
 
 export const name = 'fishfm';
 
@@ -129,7 +130,9 @@ export function apply(ctx, config = {}) {
     },
   });
 
-  const dispose = registerAdapter(ctx, { bridge, onLog: entry => evidence.event(entry) });
+  const hostCollector=createHostCollector({onLog:entry=>evidence.event(entry)});
+  evidence.setHostCollector(hostCollector);
+  const dispose = registerAdapter(ctx, { bridge, hostCollector, onLog: entry => evidence.event(entry) });
   // Optional in headless profiles; the browser uses the host's authenticated RPC.
   if (typeof ctx.inject === 'function') {
     ctx.inject(['connection'], (uiCtx) => registerSettingsApi(uiCtx, bridge));

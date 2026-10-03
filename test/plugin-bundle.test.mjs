@@ -55,12 +55,12 @@ test('the database lives under the Harness home, never in the repository', () =>
 });
 
 test('apply registers the adapter and reports a core that cannot start', async () => {
-  const registered = { tools: new Map(), commands: new Map(), logs: [] };
+  const registered = { tools: new Map(), commands: new Map(), logs: [],events:new Map() };
   const failure = Promise.withResolvers();
   const disposers = [];
   const ctx = {
     effect(fn) { const dispose = fn(); disposers.push(dispose); return () => dispose?.(); },
-    on(name, handler) { registered.events = name; registered.handler = handler; return () => {}; },
+    on(name, handler) { registered.events.set(name,handler); return () => registered.events.delete(name); },
     tools: { register: (definition) => { registered.tools.set(definition.name, definition); return () => registered.tools.delete(definition.name); } },
     commands: { register: (definition) => { registered.commands.set(definition.name, definition); return () => registered.commands.delete(definition.name); } },
     logger: () => ({ warn: (text) => { registered.logs.push(text); failure.resolve(); }, debug: () => {} }),
@@ -73,7 +73,8 @@ test('apply registers the adapter and reports a core that cannot start', async (
   assert.equal(typeof dispose, 'function');
   assert.equal(registered.tools.size, 3, 'status, control and point-play must all register');
   assert.equal(registered.commands.size, 3);
-  assert.equal(registered.events, 'session/event');
+  assert.ok(registered.events.has('session/event'));
+  assert.ok(registered.events.has('llm/stream'));
 
   const timer = setTimeout(() => failure.reject(new Error('Core startup failure was not reported within 5 seconds')), 5000);
   try { await failure.promise; } finally { clearTimeout(timer); }
@@ -82,6 +83,7 @@ test('apply registers the adapter and reports a core that cannot start', async (
   dispose();
   assert.equal(registered.tools.size, 0, 'unload must remove the tools');
   assert.equal(registered.commands.size, 0, 'unload must remove the commands');
+  assert.equal(registered.events.size,0,'unload must remove the passive observers');
 });
 
 test('the plugin declares no Config schema and injects what it touches', async () => {

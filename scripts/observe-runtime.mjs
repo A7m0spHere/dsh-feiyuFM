@@ -5,6 +5,7 @@ import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 import { readRuntimeEvidence } from '../src/runtime/evidence.mjs';
+import {createObservation} from '../src/runtime/observation.mjs';
 const value = (name, fallback) => { const i = process.argv.indexOf(name); return i < 0 ? fallback : process.argv[i + 1]; };
 const directory = resolve(value('--directory', join(process.env.DSH_HOME || join(homedir(), '.dsh'), 'fishfm', 'runtime')));
 const seconds = Number(value('--seconds', '0'));
@@ -12,9 +13,11 @@ if (!Number.isFinite(seconds) || seconds < 0) throw new Error('--seconds must be
 const startedAt = Date.now(), initial = readRuntimeEvidence(directory);
 if (!initial.components.core || initial.components.core.stale || initial.components.core.mode !== 'real') throw new Error('No fresh real Core evidence; restart/enable the production plugin first');
 const deadline = startedAt + seconds * 1000;
-while (Date.now() < deadline) await delay(Math.min(5000, deadline - Date.now()));
+const observation=createObservation(initial,startedAt);
+while (Date.now() < deadline){await delay(Math.min(5000, deadline - Date.now()));observation.accept(readRuntimeEvidence(directory));}
 const final = readRuntimeEvidence(directory);
-const result = { mode: 'real-observation', startedAt, elapsedMs: Date.now() - startedAt, initial, final, sameRun: initial.components.core.runId === final.components.core?.runId };
+observation.accept(final);
+const result=observation.report(final);
 const out = value('--out', null);
 if (out) writeFileSync(resolve(out), `${JSON.stringify(result, null, 2)}\n`);
-console.log(JSON.stringify({ mode: result.mode, elapsedMs: result.elapsedMs, sameRun: result.sameRun, coreFresh: Boolean(final.components.core && !final.components.core.stale), counts: final.components.core?.counts, dshModelRequests: null, a09Passed: null, ...(out ? { report: resolve(out) } : {}) }, null, 2));
+console.log(JSON.stringify({ mode: result.mode, elapsedMs: result.elapsedMs, sameRun: result.sameRun, uninterruptedEvidence:result.uninterruptedEvidence,coreFresh: Boolean(final.components.core && !final.components.core.stale), counts: final.components.core?.counts, hostCalls:final.components.adapter?.host?.calls??null,a09Passed: null, ...(out ? { report: resolve(out) } : {}) }, null, 2));

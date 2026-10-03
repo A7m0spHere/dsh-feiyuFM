@@ -22,9 +22,11 @@ export function createRuntimeEvidence({ directory = null, component = 'core', mo
   const lastProgress = new Map();
   let seq = 0, dropped = 0, closed = false;
   let published = false;
+  let hostCollector=null;
   const report = () => ({ schema: 1, runId, component, mode, pid: process.pid, parentPid: process.ppid, node: process.versions.node, metadata, startedAt, updatedAt: now(), closed, sequence: seq, droppedEvents: dropped, counts: { ...counts }, events: structuredClone(events), samples: [...samples],
-    coverage: { platformRequests: component === 'core' ? 'instrumented' : 'unknown', playbackEvents: component === 'core' ? mode : 'unknown', promptRegistration: component === 'adapter' ? 'instrumented' : 'unknown', musicModelRequests: null, dshModelRequests: null, perTurnContextInjection: 'unknown' },
-    a09: { holds: null, statement: 'DSH request/context coverage requires a verified host collector' } });
+    coverage: { platformRequests: component === 'core' ? 'instrumented' : 'unknown', playbackEvents: component === 'core' ? mode : 'unknown', promptRegistration: component === 'adapter' ? 'instrumented' : 'unknown', musicModelRequests: null, dshModelRequests: hostCollector?.report().attachedAt?'llm_stream_service_calls':null, perTurnContextInjection: 'unknown' },
+    host:hostCollector?.report()??null,
+    a09: { holds: null, statement: 'A09 also requires real elapsed time, playback and source attribution audit' } });
   const flush = () => {
     if (!directory) return;
     try {
@@ -63,7 +65,7 @@ export function createRuntimeEvidence({ directory = null, component = 'core', mo
   const timer = directory ? setInterval(sample, intervalMs) : null;
   timer?.unref();
   flush();
-  return { event, report, flush, close() { closed = true; clearInterval(timer); sample(); } };
+  return { event, report, flush, setHostCollector(collector){hostCollector=collector;}, close() { closed = true; clearInterval(timer); sample(); } };
 }
 export function readRuntimeEvidence(directory, now = Date.now()) {
   const components = {};
