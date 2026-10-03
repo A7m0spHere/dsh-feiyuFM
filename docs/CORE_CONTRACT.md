@@ -11,6 +11,7 @@
 - schema v4 增加历史分段标识/有效 Agent 时长/可听时长、`growth_jobs` 和曲目临时可用性；历史与待处理成长同一事务，成长与已处理标记同一事务，实例幂等。启动重放待处理项，旧历史不批量重新成长；旧快照缺失分段字段时从 0 开始。
 - 自主明确不可播替换最多 3 个候选，排除有效期 30 分钟；网络/账号失败不惩罚偏好。选择 RNG 状态随 Core 状态保留，重启恢复仍暂停。
 - Core/Adapter 生产诊断分别保存 runtime 报告，观察入口只读、不启动 Core。DSH 模型请求及上下文覆盖仍为 unknown；不因此声称 A09 两小时通过。
+- `command` 返回命令接受后的快照，媒体可能仍是 resolving；后端异步错误通过后续快照/事件显示，不把接受当成声音已播放。控制与读取不被慢账号/导入工作排队；stdio 持续读取消息，暂停可以取消前一个慢加载。调试需要媒体就绪时显式使用 `wait`。
 
 以下为早期契约与历史验证说明，现场状态见 [N0](spikes/N0-runtime-evidence.md)、[N1](spikes/N1-autonomous-accounting.md)、[N2](spikes/N2-netease-discovery.md)、[N3](spikes/N3-discovery-cache.md)。
 

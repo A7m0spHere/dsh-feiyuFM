@@ -410,7 +410,7 @@ export function registerAdapter(ctx, { bridge, onLog = () => {} }) {
 
     disposers.push(registerTool({
       name: TOOL_NAMES.request,
-      description: 'Ask FishFM to play one specific track by platform id. Fails with a named reason when that platform is not connected or the track is banned.',
+      description: 'Ask FishFM to play one specific track by platform id. Acceptance may report resolving; use fishfm_status to inspect later playback or platform failures. A banned track fails immediately with a named reason.',
       parameters: {
         type: 'object',
         properties: {

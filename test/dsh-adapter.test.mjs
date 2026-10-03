@@ -128,11 +128,13 @@ test('the product path reports a missing platform adapter instead of inventing a
       tracks: [track],
     });
     const selected = await bridge.command({ type: 'chooseSelf' });
+    assert.equal(selected.snapshot.status, 'resolving', 'selection acknowledgement is not playback success');
+    const resolved = await bridge.request({ type: 'wait' });
     // Selection works; resolving to something playable is what must fail while
     // no platform adapter exists, and it must fail with the real reason.
-    assert.equal(selected.snapshot.status, 'error');
-    assert.equal(selected.snapshot.lastError.code, 'provider_unavailable');
-    assert.equal(selected.snapshot.lastSelection.trackKey, 'netease:a1');
+    assert.equal(resolved.snapshot.status, 'error');
+    assert.equal(resolved.snapshot.lastError.code, 'provider_unavailable');
+    assert.equal(resolved.snapshot.lastSelection.trackKey, 'netease:a1');
 
     const account = await bridge.request({ type: 'account', provider: 'netease' });
     assert.equal(account.account.status, 'unavailable');
@@ -186,7 +188,8 @@ test('registering the adapter exposes tools and commands, and unload removes eve
     );
     assert.equal(request.accepted, true);
     assert.equal(request.error, '');
-    assert.equal(request.status, 'playing');
+    assert.equal(request.status, 'resolving', 'the tool reports acceptance while media is prepared');
+    assert.equal((await bridge.request({ type: 'wait' })).snapshot.status, 'playing');
 
     // A user ban is a constraint, not a suggestion: the conflict must surface.
     await bridge.command({ type: 'banTrack', track: { provider: 'netease', providerTrackId: 'a1' } });

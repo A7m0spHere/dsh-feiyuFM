@@ -2,7 +2,7 @@
 import { mkdirSync, writeFileSync, renameSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
-const TEXT = new Set(['type', 'kind', 'role', 'event', 'phase', 'code', 'pool', 'provider', 'playInstanceId', 'decisionId', 'trackKey', 'selectedBy', 'progressSource', 'name', 'status', 'source']);
+const TEXT = new Set(['type', 'kind', 'role', 'event', 'phase', 'code', 'endReason', 'pool', 'provider', 'playInstanceId', 'decisionId', 'trackKey', 'selectedBy', 'progressSource', 'name', 'status', 'source']);
 const NUMBERS = new Set(['positionMs', 'effectiveMs', 'effectiveDeltaMs', 'agentEffectiveMs', 'audibleMs', 'count', 'delta', 'before', 'after', 'version', 'discoveryRate', 'familiar', 'discovery', 'offered']);
 const FLAGS = new Set(['accepted', 'updated', 'fellBack', 'paused', 'audible', 'agentListening']);
 export function safeEvidenceEvent(entry) {
@@ -21,6 +21,7 @@ export function createRuntimeEvidence({ directory = null, component = 'core', mo
   const counts = {};
   const lastProgress = new Map();
   let seq = 0, dropped = 0, closed = false;
+  let published = false;
   const report = () => ({ schema: 1, runId, component, mode, pid: process.pid, parentPid: process.ppid, node: process.versions.node, metadata, startedAt, updatedAt: now(), closed, sequence: seq, droppedEvents: dropped, counts: { ...counts }, events: structuredClone(events), samples: [...samples],
     coverage: { platformRequests: component === 'core' ? 'instrumented' : 'unknown', playbackEvents: component === 'core' ? mode : 'unknown', promptRegistration: component === 'adapter' ? 'instrumented' : 'unknown', musicModelRequests: null, dshModelRequests: null, perTurnContextInjection: 'unknown' },
     a09: { holds: null, statement: 'DSH request/context coverage requires a verified host collector' } });
@@ -29,8 +30,14 @@ export function createRuntimeEvidence({ directory = null, component = 'core', mo
     try {
       mkdirSync(directory, { recursive: true });
       const target = join(directory, `${component}.json`), temporary = `${target}.${process.pid}.tmp`;
+      if (published) {
+        try {
+          if (JSON.parse(readFileSync(target, 'utf8')).runId !== runId) return;
+        } catch { /* retry a missing report, never publish another run's data */ }
+      }
       writeFileSync(temporary, `${JSON.stringify(report())}\n`, 'utf8');
       renameSync(temporary, target);
+      published = true;
     } catch { /* Diagnostics must not interrupt music. */ }
   };
   const event = (raw) => {

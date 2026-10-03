@@ -109,6 +109,7 @@ test('two concurrent sessions do not let the inactive one start music', async ()
     // A fresh core starts paused, and a pause must never be undone by an
     // automatic event, so the user opts in first (which also selects a track).
     await host.handle({ id: 'self', type: 'command', command: { type: 'chooseSelf', commandId: 'c0' } });
+    await host.core.waitForIdle();
     assert.equal(host.snapshot().paused, false, 'autonomy needs the user to opt in');
 
     // Session A becomes the active one.

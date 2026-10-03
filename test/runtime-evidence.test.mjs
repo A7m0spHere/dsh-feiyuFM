@@ -33,3 +33,16 @@ test('production evidence retains actual counts, bounds traces and cannot claim 
     assert.equal(readRuntimeEvidence(directory, now).components.core.stale, true);
   } finally { evidence.close(); rmSync(directory, { recursive: true, force: true }); }
 });
+
+test('a late shutdown from the old Core does not overwrite the new runtime report', () => {
+  const directory=mkdtempSync(join(tmpdir(),'fishfm-evidence-restart-'));
+  const old=createRuntimeEvidence({directory}), fresh=createRuntimeEvidence({directory});
+  try {
+    fresh.event({type:'selected',playInstanceId:'new'}); fresh.flush();
+    old.close();
+    const current=readRuntimeEvidence(directory).components.core;
+    assert.equal(current.runId,fresh.report().runId);
+    assert.equal(current.closed,false);
+    assert.equal(current.events[0].playInstanceId,'new');
+  } finally {fresh.close();rmSync(directory,{recursive:true,force:true});}
+});

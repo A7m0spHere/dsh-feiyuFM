@@ -349,7 +349,6 @@ export function createCoreHost({
           const snapshot = core.dispatch({ ...message.command, commandId: message.command?.commandId ?? randomUUID() });
           platformsFacade?.setDiscoveryEnabled(snapshot.settings.discovery && snapshot.settings.discoveryRate > 0);
           platformsFacade?.tickDiscovery();
-          await core.waitForIdle();
           send({ type: 'result', id, ok: true, snapshot: core.snapshot(), accepted: snapshot.revision });
           return;
         }
@@ -569,7 +568,9 @@ export function createCoreHost({
     clearInterval(timer);
     if (maintenance) clearInterval(maintenance);
     platformsFacade?.closeDiscovery();
+    core?._invalidate();
     try { await disposePlayback(); } catch (error) { onLog({ type: 'playback-dispose-failed', message: error.message }); }
+    try { await core?.waitForIdle(); } catch { /* late tasks cannot publish after invalidation */ }
     try { if (!givenStore) store.close(); } catch { /* already closed */ }
   }
 
@@ -630,7 +631,7 @@ export function createCoreHost({
       }
       playback.onEvent((event) => {
         const accepted = core.onPlaybackEvent(event);
-        onLog({ type: 'playback', event: event.type, playInstanceId: event.playInstanceId, positionMs: event.positionMs, accepted });
+        onLog({ type: 'playback', event: event.type, playInstanceId: event.playInstanceId, positionMs: event.positionMs, effectiveDeltaMs: event.effectiveDeltaMs, code: event.code, accepted });
         if (accepted) publishIfChanged();
         return accepted;
       });
@@ -642,7 +643,10 @@ export function createCoreHost({
       timer.unref?.();
       return core;
     },
-    handle: (message) => enqueue(() => handle(message)),
+    // Dispatch/reads are synchronous until their first await. Keep them out of
+    // long account/import work so a slow media request cannot hold up pause.
+    handle: (message) => ['command','snapshot','platforms','library','account','environment','sessions','discovery','shutdown','wait','autonomous','session-event','setQueue'].includes(message.type)
+      ? handle(message) : enqueue(() => handle(message)),
     close,
     get core() { return core; },
     get playback() { return playback; },
@@ -656,20 +660,25 @@ export async function runCoreHost(options = {}) {
   const host = createCoreHost(options);
   await host.start();
   const rl = createInterface({ input: options.input ?? process.stdin, crlfDelay: Infinity });
+  const running = new Set();
   for await (const line of rl) {
     const text = line.trim();
     if (!text) continue;
     let message;
     try {
       message = JSON.parse(text);
+      if (!message || typeof message !== 'object' || Array.isArray(message)) throw new Error('Invalid message shape');
     } catch {
-      options.output?.write?.(`${JSON.stringify({ v: CORE_HOST_PROTOCOL, type: 'error', id: null, error: { code: 'invalid_command', message: 'Line is not JSON' } })}\n`);
+      (options.output ?? process.stdout).write(`${JSON.stringify({ v: CORE_HOST_PROTOCOL, type: 'error', id: null, error: { code: 'invalid_command', message: 'Line must be a JSON Host message object' } })}\n`);
       continue;
     }
-    await host.handle(message);
-    if (message.type === 'shutdown') break;
+    const work = host.handle(message);
+    running.add(work);
+    work.finally(() => running.delete(work)).catch(() => {});
+    if (message.type === 'shutdown') { await work; break; }
   }
   rl.close();
   await host.close();
+  await Promise.allSettled([...running]);
   return host;
 }

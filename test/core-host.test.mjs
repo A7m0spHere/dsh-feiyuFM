@@ -71,6 +71,48 @@ test('reports command failures as named errors without dropping the session', as
   }
 });
 
+test('an accepted slow media command cannot hold up a pause, snapshot or shutdown', async () => {
+  const provider=new FakeProvider(); provider.defer(track);
+  const out=collector();
+  const host=createCoreHost({provider,playbackMode:'fake',output:out.stream});
+  try {
+    await host.start();
+    const at=Date.now();
+    await host.handle({type:'command',id:'slow',command:{type:'requestTrack',track,commandId:'slow'}});
+    assert.ok(Date.now()-at<1000,'acceptance must not wait for the 5s provider timeout');
+    assert.equal(out.messages.at(-1).snapshot.status,'resolving');
+    await host.handle({type:'command',id:'pause',command:{type:'pause',commandId:'pause-slow'}});
+    await host.core.waitForIdle();
+    assert.equal(host.snapshot().paused,true);
+    assert.equal(host.playback.playing,false);
+    await host.handle({type:'snapshot',id:'read-after-pause'});
+    assert.equal(out.messages.at(-1).snapshot.paused,true);
+  } finally {await host.close();}
+});
+
+test('stdio keeps processing pause while the previous track is still resolving', async () => {
+  const hostUrl=new URL('../src/core-host.mjs',import.meta.url).href;
+  const fakesUrl=new URL('../src/fakes.mjs',import.meta.url).href;
+  const script=`import {runCoreHost} from ${JSON.stringify(hostUrl)}; import {FakeProvider} from ${JSON.stringify(fakesUrl)}; const p=new FakeProvider(); p.defer(${JSON.stringify(track)}); await runCoreHost({provider:p,playbackMode:'fake'});`;
+  const child=spawn(process.execPath,['--input-type=module','--eval',script],{stdio:['pipe','pipe','pipe'],windowsHide:true});
+  const messages=[]; let buffer='';
+  child.stdout.setEncoding('utf8');
+  child.stdout.on('data',text=>{buffer+=text; for(let i;(i=buffer.indexOf('\n'))>=0;){const line=buffer.slice(0,i);buffer=buffer.slice(i+1);if(line)messages.push(JSON.parse(line));}});
+  const until=async predicate=>{const stop=Date.now()+2500;while(!predicate()){if(Date.now()>stop)throw new Error('stdio response timed out');await delay(10);}};
+  const send=message=>child.stdin.write(`${JSON.stringify(message)}\n`);
+  try {
+    await until(()=>messages.some(m=>m.type==='ready'));
+    send({type:'command',id:'slow',command:{type:'requestTrack',track,commandId:'stdio-slow'}});
+    await until(()=>messages.some(m=>m.id==='slow'));
+    send({type:'command',id:'pause',command:{type:'pause',commandId:'stdio-pause'}});
+    await until(()=>messages.some(m=>m.id==='pause'));
+    assert.equal(messages.find(m=>m.id==='pause').snapshot.paused,true);
+    send({type:'shutdown',id:'stop'});
+    await until(()=>child.exitCode!==null);
+    assert.equal(child.exitCode,0);
+  } finally {if(child.exitCode===null)child.kill();}
+});
+
 test('only turn/end may trigger autonomous selection; unknown events are ignored', () => {
   assert.equal(mapSessionEvent('turn/end').allowsAutonomy, true);
   assert.equal(mapSessionEvent('turn/end').kind, 'turn_end');

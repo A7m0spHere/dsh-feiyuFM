@@ -138,6 +138,7 @@ export class MusicCore {
       // music for good. Nothing is recorded: a track that never played is not a
       // listen, and history must not invent one (A10).
       const failed = this.state.current;
+      this.onLog({ type: 'playback-error', code: error.code ?? 'internal', playInstanceId: failed?.playInstanceId });
       const candidateFailure = ['media_unavailable', 'resource_unavailable', 'media_open_timeout', 'media_failed'].includes(error.code);
       if (failed && candidateFailure) this.store.markUnavailable(failed.track, error.code, this.clock.now()
         + (['media_open_timeout','media_failed'].includes(error.code) ? 5 : 30) * 60_000);
@@ -218,6 +219,7 @@ export class MusicCore {
     });
     current.finished = true;
     this.onLog({ type: 'history', playInstanceId: current.playInstanceId,
+      selectedBy: current.selectedBy, endReason: reason, trackKey: trackId(current.track), source: current.origin?.source,
       effectiveMs: current.effectiveMs ?? 0, agentEffectiveMs: current.agentEffectiveMs ?? 0, audibleMs: current.audibleMs ?? 0 });
     // Growth is a policy decision, so the core only reports the finished
     // listen; whether it changes anything is decided outside (src/growth.mjs).
@@ -248,6 +250,7 @@ export class MusicCore {
     const version = this.state.commandVersion;
     this.state.current = {
       track: normalizeTrack(track), playInstanceId: randomUUID(), selectedBy,
+      decisionId: selectedBy === 'agent' ? this.state.lastSelection?.decisionId ?? randomUUID() : randomUUID(),
       positionMs: 0, effectiveMs: 0, agentEffectiveMs: 0, audibleMs: 0,
       progressSource: 'audio', agentListening: false, audible: false, finished: false,
       // The session that caused this listen, if any. A user's own pick carries
@@ -263,7 +266,7 @@ export class MusicCore {
     this.state.status = keepPaused ? 'paused' : 'resolving';
     this.state.lastError = null;
     this._commit();
-    this.onLog({ type: 'selected', playInstanceId: this.state.current.playInstanceId, trackKey: trackId(track), selectedBy, decisionId: this.state.lastSelection?.decisionId, pool: selectedBy === 'agent' ? this.state.lastSelection?.pool : 'user' });
+    this.onLog({ type: 'selected', playInstanceId: this.state.current.playInstanceId, trackKey: trackId(track), selectedBy, decisionId: this.state.current.decisionId, pool: selectedBy === 'agent' ? this.state.lastSelection?.pool : 'user' });
     if (keepPaused) this._control('stop', { version });
     else this._launch(() => this._resolveAndPlay(version), version);
   }
