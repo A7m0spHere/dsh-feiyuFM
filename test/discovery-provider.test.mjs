@@ -44,3 +44,15 @@ test('a recommendation authentication rejection expires the stored reference ins
     assert.equal(f.provider.getCapabilities().recommendation.status, 'login_required');
   } finally { f.store.close(); }
 });
+
+test('multiple real seed relations are normalized and retained before account recommendations',async()=>{
+ const seen=[];
+ const f=fixture({recommend_songs:async()=>({status:200,body:{code:200,data:{dailySongs:[{id:90}]}}}),
+  simi_song:async(params)=>{seen.push(params.id);return{status:200,body:{code:200,songs:[{id:99,name:'Related',ar:[{id:10,name:'A'}],dt:60000}]}};}});
+ try{
+  const seeds=[{provider:'netease',providerTrackId:'1'},{provider:'netease',providerTrackId:'2'}];
+  const result=await f.provider.getDiscoveryTracks({seeds,limit:10});assert.equal(result[0].discovery.source,'netease_similar');
+  assert.deepEqual(result[0].discovery.seedTrackKeys,['netease:1','netease:2']);assert.deepEqual(seen,['1','2']);assert.equal(result[1].discovery.source,'netease_daily');
+  await assert.rejects(f.provider.getDiscoveryTracks({seeds,limit:201}),{code:'invalid_command'});
+ }finally{f.store.close();}
+});

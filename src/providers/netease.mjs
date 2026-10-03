@@ -100,10 +100,12 @@ const COMMUNITY_CALLS = Object.freeze({
   songDetails: { method: 'song_detail', stage: 'song_detail' },
   dailyRecommendations: { method: 'recommend_songs', stage: 'recommend_songs' },
   personalRecommendations: { method: 'personal_fm', stage: 'personal_fm' },
+  similarRecommendations: {method:'simi_song',stage:'simi_song'},
 });
 
 const STAGE_LABELS = Object.freeze({
   recommend_songs: '每日推荐', personal_fm: '私人 FM',
+  simi_song:'相似歌曲',
   login_qr_key: '生成二维码', login_qr_check: '检测扫码状态',
   login_status: '登录状态', user_record: '近期记录', likelist: '喜欢列表',
   user_playlist: '用户歌单', playlist_detail: '歌单详情', song_detail: '歌曲详情',
@@ -470,6 +472,39 @@ export function createNetEaseProvider(options = {}) {
     }
     recommendationError = failures.join('; ');
     throw new MusicError('provider_failure', `网易云推荐暂不可用（${recommendationError}）。`, { retryable: true });
+  };
+  const accountRecommendations=provider.getDiscoveryTracks.bind(provider);
+  provider.getDiscoveryTracks=async(options={})=>{
+    if(!Number.isInteger(options.limit??40)||(options.limit??40)<1||(options.limit??40)>200)throw new MusicError('invalid_command','候选数量必须为 1–200。');
+    let account=[],accountError=null;
+    try{account=await accountRecommendations(options);}catch(error){accountError=error;if(['login_required','cancelled'].includes(error.code))throw error;}
+    const seeds=Array.isArray(options.seeds)?options.seeds.filter(t=>t?.provider===NETEASE&&/^\d{1,20}$/.test(t.providerTrackId)).slice(0,3):[];
+    if(!seeds.length||typeof communityApi.simi_song!=='function'){if(accountError)throw accountError;return account;}
+    const related=new Map(),fetchedAt=(options.now??Date.now)();
+    for(const seed of seeds){
+      if(options.signal?.aborted)throw new MusicError('cancelled','Discovery was cancelled');
+      try{
+        const response=await transport.request({role:'similarRecommendations',params:{id:seed.providerTrackId,limit:12},signal:options.signal});
+        if(!Array.isArray(response.body?.songs))throw new MusicError('provider_failure','相似歌曲结构无效。');
+        for(const raw of response.body.songs.slice(0,12)){
+          const track=toTrack(NETEASE,raw);if(!track||trackId(track)===trackId(seed))continue;
+          const existing=related.get(trackId(track));
+          const keys=[...new Set([...(existing?.discovery.seedTrackKeys??[]),trackId(seed)])];
+          related.set(trackId(track),{...track,discovery:{source:'netease_similar',seedTrackKey:keys[0],seedTrackKeys:keys,
+            fetchedAt,expiresAt:fetchedAt+6*60*60_000}});
+        }
+      }catch(error){
+        if(error.code==='login_required'){
+          const ref=store?.getCredentialReference(NETEASE);if(ref)store.setCredentialReference({provider:NETEASE,accountId:ref.account_id,credentialRef:accountRef,state:'expired',updatedAt:fetchedAt});
+        }
+        if(options.signal?.aborted)throw new MusicError('cancelled','Discovery was cancelled');
+        if(error.code==='login_required')throw error;
+        options.onRelationError?.({code:error.code??'provider_failure'});
+      }
+    }
+    const merged=new Map([...related.entries(),...account.filter(t=>!related.has(trackId(t))).map(t=>[trackId(t),t])]);
+    if(!merged.size&&accountError)throw accountError;
+    return[...merged.values()].slice(0,options.limit??40);
   };
   const getSeedTracks = provider.getSeedTracks.bind(provider);
   provider.getSeedTracks = async (seedOptions = {}) => {

@@ -47,7 +47,7 @@ export function describePlatforms(registry) {
  * user which platform is missing, instead of presenting a short list as if it
  * were the whole picture.
  */
-export async function collectDiscovery({ registry, limit = 40, signal = null } = {}) {
+export async function collectDiscovery({ registry, limit = 40, signal = null, seeds=[] } = {}) {
   const attempts = [];
   const tracks = [];
   const seen = new Set();
@@ -68,7 +68,7 @@ export async function collectDiscovery({ registry, limit = 40, signal = null } =
       continue;
     }
     try {
-      const found = await registry.getDiscoveryTracks(name, { limit, signal });
+      const found = await registry.getDiscoveryTracks(name, { limit, signal, seeds:seeds.filter(t=>t.provider===name) });
       const fresh = [];
       for (const track of found ?? []) {
         if (track.provider !== name) {

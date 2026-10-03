@@ -1,6 +1,7 @@
 // A bounded background discovery cache. Selection never waits for network I/O.
 import { trackId, normalizeTrack } from './contracts.mjs';
 import { collectDiscovery } from './providers/coordinator.mjs';
+import {selectRecommendationSeeds} from './recommendation.mjs';
 export const DISCOVERY_PARAMETERS = Object.freeze({ limit: 40, capacity: 200, ttlMs: 6 * 60 * 60_000,
   lowWater: 10, intervalMs: 30 * 60_000, manualIntervalMs: 60_000, retryMs: 5 * 60_000 });
 export function createDiscoveryCache({ registry, store = null, now = () => Date.now(), onLog = () => {}, parameters = DISCOVERY_PARAMETERS } = {}) {
@@ -13,8 +14,9 @@ export function createDiscoveryCache({ registry, store = null, now = () => Date.
       const basic = normalizeTrack(track);
       const origin = track.discovery ?? {};
       return { ...basic, discovery: {
-        source: ['netease_daily','netease_personal_fm','platform_recommendation'].includes(origin.source) ? origin.source : 'platform_recommendation',
+        source: ['netease_daily','netease_personal_fm','netease_similar','platform_recommendation'].includes(origin.source) ? origin.source : 'platform_recommendation',
         seedTrackKey: typeof origin.seedTrackKey === 'string' && /^[\w:.-]{1,100}$/.test(origin.seedTrackKey) ? origin.seedTrackKey : null,
+        seedTrackKeys:Array.isArray(origin.seedTrackKeys)?[...new Set(origin.seedTrackKeys.filter(k=>typeof k==='string'&&/^[\w:.-]{1,100}$/.test(k)))].slice(0,3):[],
         fetchedAt: Number.isFinite(origin.fetchedAt) ? origin.fetchedAt : now(),
         expiresAt: Math.min(Number.isFinite(origin.expiresAt) ? origin.expiresAt : now() + parameters.ttlMs, now() + parameters.ttlMs),
       } };
@@ -65,7 +67,8 @@ export function createDiscoveryCache({ registry, store = null, now = () => Date.
     lastAttemptAt = now(); nextAttemptAt = now() + parameters.intervalMs; state = 'refreshing'; reason = null;
     persist();
     const work = Promise.resolve().then(async () => {
-      const result = await collectDiscovery({ registry, limit: parameters.limit, signal: combined });
+      const seeds=selectRecommendationSeeds({store,now:now()});
+      const result = await collectDiscovery({ registry, limit: parameters.limit, signal: combined,seeds });
       if (combined.aborted || generation !== version || accountKey() !== key || !enabled) return { tracks: [], attempts: [], reason: 'cancelled' };
       const succeeded = result.attempts.some(a => a.ok);
       if (succeeded) {

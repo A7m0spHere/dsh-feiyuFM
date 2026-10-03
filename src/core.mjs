@@ -208,6 +208,7 @@ export class MusicCore {
       progressAccounting: 'segments-v1',
       durationMs: current.track.durationMs ?? null,
       sessionTransient: current.sessionTransient ?? false,
+      startedAt:current.startedAt??null,selectionPool:current.selectionPool??null,decisionId:current.decisionId??null,
       origin: current.origin ?? null,
       agentListening: current.agentListening,
       audible: current.audible,
@@ -259,6 +260,7 @@ export class MusicCore {
       // whatever session made it; autonomous playback carries the active one.
       sessionId: this.currentSessionId ?? null,
       sessionTransient: this.currentSessionTransient ?? false,
+      selectionPool:selectedBy==='agent'?this.state.lastSelection?.pool??'queue':'user',startedAt:null,
       origin: selectedBy === 'agent' ? track.discovery ?? null : null,
     };
     this.store.upsertTrack(this.state.current.track, this.clock.now());
@@ -472,17 +474,25 @@ export class MusicCore {
         reason: decision?.reason ?? null,
         discoveryRate: decision?.discoveryRate ?? null,
         score: decision?.score ?? null,
+        detail:decision?.detail??null,
         source: next?.discovery?.source ?? null,
+        attemptedDiscovery:Boolean(decision?.attemptedDiscovery),
         considered: decision?.considered ?? null,
       };
-      this._commit();
     } else {
       next = this._takeNext();
     }
 
     this.onLog({ type: 'selection', ...this.state.lastSelection });
+    this.store.transaction(()=>{
+      if(next)this._select(next,'agent',false);else this._commit();
+      if(decision){
+        const log=this.store.getSetting('decision_history_v1',[]);
+        log.push({...this.state.lastSelection,playInstanceId:next?this.state.current.playInstanceId:null});
+        this.store.setSetting('decision_history_v1',log.slice(-200));
+      }
+    });
     if (!next) return false;
-    this._select(next, 'agent', false);
     return true;
   }
 
@@ -493,6 +503,7 @@ export class MusicCore {
     if (event.type === 'started') {
       if (this.state.paused) return false;
       this.state.status = 'playing';
+      current.startedAt??=this.clock.now();
       this._commit();
       return true;
     }

@@ -13,6 +13,8 @@
 //   - with no candidates, select nothing and wait; a caller must not spin.
 import { trackId } from './contracts.mjs';
 import { createRng, getArtistAffinity } from './taste.mjs';
+import {describeEnvironmentProfile} from './environment.mjs';
+import {artistKeys} from './recommendation.mjs';
 
 /**
  * First-pass parameters, recorded here and in docs/DECISIONS.md section 12.
@@ -78,7 +80,7 @@ export function recentPlays(store, { now, windowMs, limit }) {
  * which is what makes a seeded selection reproducible.
  */
 export function scoreCandidate({
-  track, store, now, plays, randomValue, parameters = SELECTION_PARAMETERS,
+  track, store, now, plays, randomValue, parameters = SELECTION_PARAMETERS,context=null,
 }) {
   const key = trackId(track);
   const preference = store.getPreference('track', key);
@@ -91,16 +93,24 @@ export function scoreCandidate({
 
   // The agent's own taste leads; the artist preference only nudges it.
   const taste = artistAffinity === null ? affinity : affinity * 0.75 + artistAffinity * 0.25;
-  const score = taste * parameters.affinityWeight * repeatPenalty + freshness + randomValue * parameters.randomWeight;
+  const links=track.discovery?.seedTrackKeys?.length?track.discovery.seedTrackKeys:track.discovery?.seedTrackKey?[track.discovery.seedTrackKey]:[];
+  const seedAffinity=links.length?links.reduce((sum,k)=>sum+(store.getPreference('track',k)?.affinity??0.5),0)/links.length:0;
+  const relationship=links.length?seedAffinity*0.08:0;
+  const environment=artistKeys(track).reduce((sum,k)=>sum+(context?.environment.get(k)??0),0)*0.04;
+  const concentration=Math.max(0,...artistKeys(track).map(k=>context?.recentArtists.get(k)??0));
+  const diversityPenalty=Math.min(0.12,concentration*0.03);
+  const score = taste * parameters.affinityWeight * repeatPenalty + freshness + randomValue * parameters.randomWeight + relationship + environment - diversityPenalty;
 
   return {
     score,
     affinity,
+    affinitySource:preference?.source??'neutral',
     artistAffinity,
     repeatPlays: play ? play.plays : 0,
     repeatPenalty,
     freshness,
     randomValue,
+    relationship,seedAffinity,environment,diversityPenalty,algorithm:'local-v2',
   };
 }
 
@@ -128,6 +138,11 @@ export function createSelector({
     const banned = bannedTrackKeys(store, at);
     const excluded = new Set(excludeTrackKeys);
     const plays = recentPlays(store, { now: at, windowMs: parameters.repeatWindowMs, limit: parameters.historyWindow });
+    const context={environment:new Map(describeEnvironmentProfile(store,at).artists.map(a=>[a.key,a.share])),recentArtists:new Map()};
+    for(const key of plays.keys()){
+      const split=key.indexOf(':');const played=store.getNormalizedTrack({provider:key.slice(0,split),providerTrackId:key.slice(split+1)});
+      for(const artist of artistKeys(played))context.recentArtists.set(artist,(context.recentArtists.get(artist)??0)+(plays.get(key)?.plays??0));
+    }
 
     const prepare = (tracks) => {
       const all = tracks.map((track) => ({ track, key: trackId(track) }));
@@ -152,7 +167,7 @@ export function createSelector({
       let best = null;
       for (const candidate of pool) {
         const detail = scoreCandidate({
-          track: candidate.track, store, now: at, plays,
+          track: candidate.track, store, now: at, plays,context,
           randomValue: rng(), parameters,
         });
         if (!best || detail.score > best.detail.score) best = { ...candidate, detail };
@@ -169,6 +184,7 @@ export function createSelector({
         score: best.detail.score, detail: best.detail,
         considered,
         discoveryRate: rate,
+        attemptedDiscovery:wantsDiscovery,
       };
     }
 
@@ -180,6 +196,7 @@ export function createSelector({
         score: best.detail.score, detail: best.detail,
         considered,
         discoveryRate: rate,
+        attemptedDiscovery:wantsDiscovery,
       };
     }
 
@@ -192,6 +209,7 @@ export function createSelector({
       reason: offered > 0 ? 'every candidate was filtered out' : 'no candidates',
       considered,
       discoveryRate: rate,
+      attemptedDiscovery:wantsDiscovery,
     };
   };
 
