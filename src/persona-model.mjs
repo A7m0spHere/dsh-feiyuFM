@@ -19,12 +19,12 @@ export function createPersonaModelService({llm,bridge,onLog=()=>{}}){
    catalog=routes;catalogAt=Date.now();return routes;
   })().finally(()=>{catalogPending=null;});return catalogPending;
  }
- async function summarize(route,{signal}={}){
+ async function summarize(route,{signal,maxOutputTokens=null,automatic=false}={}){
   if(disposed||signal?.aborted)throw Object.assign(new Error('总结已取消。'),{code:'cancelled'});
   const available=await models();
   if(disposed||signal?.aborted)throw Object.assign(new Error('总结已取消。'),{code:'cancelled'});
   if(!available.some(r=>r.provider===route?.provider&&r.model===route?.model))throw Object.assign(new Error('请选择 DSH 已配置的模型。'),{code:'invalid_model'});
-  const answer=await bridge.request({type:'persona-reserve',provider:route.provider,model:route.model});
+  const answer=await bridge.request({type:'persona-reserve',provider:route.provider,model:route.model,automatic:automatic===true});
   const plan=answer.plan;if(plan.cached)return{cached:true};
   const abort=new AbortController();active.add(abort);const combined=signal?AbortSignal.any([abort.signal,signal]):abort.signal;
   if(disposed)abort.abort();
@@ -35,7 +35,8 @@ export function createPersonaModelService({llm,bridge,onLog=()=>{}}){
    combined.throwIfAborted();
    const ack=await bridge.request({type:'persona-start',callId:plan.callId});
    if(!ack.started)throw new Error('Summary reservation was lost');started=true;
-   const options={provider:plan.provider,model:plan.model,maxTokens:plan.maxTokens,reasoningEffort:'off',tools:[],signal:combined,
+   const cap=Number.isSafeInteger(maxOutputTokens)?Math.min(maxOutputTokens,plan.maxTokens):plan.maxTokens;
+   const options={provider:plan.provider,model:plan.model,maxTokens:cap,reasoningEffort:'off',tools:[],signal:combined,
     messages:[{id:randomUUID(),role:'system',source:{kind:'system-prompt'},content:[{type:'text',text:plan.system}]},
      {id:randomUUID(),role:'user',source:{kind:'user'},content:[{type:'text',text:plan.prompt}]}]};
    ownRequests.add(options);try{onLog({type:'music-model-request',kind:'persona-summary'});}catch{/* Diagnostics never block a call. */}
@@ -53,7 +54,7 @@ export function createPersonaModelService({llm,bridge,onLog=()=>{}}){
   }catch(error){status=combined.aborted?'cancelled':'failed';code=combined.aborted?'cancelled':/^[\w-]{1,60}$/.test(error.code??'')?error.code:'model_failed';}
   finally{
    clearTimeout(timer);active.delete(abort);
-   await bridge.request({type:'persona-finish',callId:plan.callId,status,text,usage:started?usage:{inputTokens:0,outputTokens:0},code});
+   await bridge.request({type:'persona-finish',callId:plan.callId,status,text,usage:started?usage:{inputTokens:0,outputTokens:0},code,validListens:plan.validListens??null});
   }
   if(status!=='completed')throw Object.assign(new Error('总结未成功，旧总结和本地推荐仍保留；用量已记录。'),{code:code||'model_failed'});
   return{cached:false};

@@ -1,6 +1,8 @@
 import test from 'node:test';import assert from 'node:assert/strict';
-import {MusicStore} from '../src/storage.mjs';import {reserveSummary,startSummary,finishSummary,recoverSummaryCalls,personaView,setSummaryBudget} from '../src/persona.mjs';
+import {MusicStore} from '../src/storage.mjs';
+import {reserveSummary,startSummary,finishSummary,recoverSummaryCalls,personaView,setSummaryBudget,setSummaryOutputTokens,setSummaryAutomatic} from '../src/persona.mjs';
 import {createPersonaModelService} from '../src/persona-model.mjs';
+import {createPersonaScheduler} from '../src/persona-scheduler.mjs';
 const snapshot={settings:{discoveryRate:.7,discovery:true,strategy:'normal'},current:null};
 const route={provider:'deepseek',model:'configured-model'};
 test('summary cache reuses actual usage and never modifies independent preferences or paused playback',()=>{
@@ -25,20 +27,20 @@ test('concurrent reservations, budget zero and restart recovery cannot bypass co
  }finally{store.close();}
 });
 function modelFixture({chunks,hold}={}){
- const store=new MusicStore();let calls=0;
+ const store=new MusicStore();let calls=0,lastMax=null;
  const bridge={async request(m){
   if(m.type==='persona-reserve')return{plan:reserveSummary({store,snapshot,...m})};
   if(m.type==='persona-start')return{started:startSummary(store,m.callId)};
   if(m.type==='persona-finish')return{result:finishSummary({store,...m})};
  }};
  const llm={listProviders:()=>[{id:route.provider,name:'Configured'}],listModels:async()=>[{id:route.model,name:'Existing model'}],
-  stream(options){calls++;assert.equal(options.maxTokens,256);assert.deepEqual(options.tools,[]);assert.equal(options.messages.length,2);
+  stream(options){calls++;lastMax=options.maxTokens;assert.deepEqual(options.tools,[]);assert.equal(options.messages.length,2);
    return(async function*(){if(hold)await hold;yield*(chunks??[{type:'text-delta',text:'只总结本地事实。'},{type:'usage',usage:{inputTokens:123,outputTokens:20}},{type:'finish',reason:{kind:'stop'}}]);})();}};
- return{store,service:createPersonaModelService({llm,bridge}),calls:()=>calls};
+ return{store,service:createPersonaModelService({llm,bridge}),calls:()=>calls,maxTokens:()=>lastMax};
 }
 test('manual one-generation summaries record reported usage while identical repeated requests use cache',async()=>{
  const f=modelFixture();try{await f.service.summarize(route);await f.service.summarize(route);
-  assert.equal(f.calls(),1);assert.equal(personaView(f.store,snapshot).ledger.total.knownTokens,143);
+  assert.equal(f.calls(),1);assert.equal(f.maxTokens(),256);assert.equal(personaView(f.store,snapshot).ledger.total.knownTokens,143);
  }finally{f.service.dispose();f.store.close();}
 });
 test('provider failure retains old facts, charges missing usage as unknown and creates no fabricated summary',async()=>{
@@ -63,4 +65,93 @@ test('a billed known failure permits bounded manual retries while preserving eve
   assert.throws(()=>reserveSummary({store,snapshot,...route,now:1010}),e=>e.code==='summary_retry_limit');
   assert.equal(personaView(store,snapshot,1010).ledger.total.knownTokens,75);
  }finally{store.close();}
+});
+test('an automatic caller cannot switch itself on, and the switch does not block manual runs',()=>{
+ const store=new MusicStore();try{
+  store.setPreference({targetType:'artist',targetKey:'A',affinity:.8,source:'listen',updatedAt:1});
+  assert.equal(personaView(store,snapshot,1000).policy.automatic,false);
+  assert.equal(personaView(store,snapshot,1000).policy.automaticBlockedBy,'disabled');
+  assert.throws(()=>reserveSummary({store,snapshot,...route,now:1000,automatic:true}),e=>e.code==='automatic_disabled');
+  assert.equal(reserveSummary({store,snapshot,...route,now:1000}).cached,false,'a manual run is still allowed while the switch is off');
+ }finally{store.close();}
+});
+test('an enabled automatic summary still waits for enough new evidence and rechecks the bounds',()=>{
+ const store=new MusicStore();try{
+  store.setPreference({targetType:'artist',targetKey:'A',affinity:.8,source:'listen',updatedAt:1});
+  setSummaryAutomatic(store,true);
+  assert.equal(personaView(store,snapshot,1000).policy.automaticDue,true,'with no summary at all a first run is due');
+  const plan=reserveSummary({store,snapshot,...route,now:1000,automatic:true});assert.equal(plan.cached,false);
+  assert.equal(personaView(store,snapshot,1001).policy.automaticBlockedBy,'busy');
+  startSummary(store,plan.callId);
+  finishSummary({store,callId:plan.callId,status:'completed',text:'事实总结',usage:{inputTokens:10,outputTokens:5},now:1100,validListens:0});
+  // Move the profile without adding evidence, so the summary is stale but not due.
+  const changed={...snapshot,settings:{...snapshot.settings,discoveryRate:.5}};
+  const later=1100+3_600_001; // past the cooldown, so the evidence gate is the one that answers
+  const after=personaView(store,changed,later);
+  assert.equal(after.summary.trigger,'automatic');assert.equal(after.summary.validListens,0);
+  assert.equal(after.summaryStale,true,'the profile moved but the summary did not');
+  assert.equal(after.policy.automaticBlockedBy,'not_enough_new_listens','fewer than the required new listens must block, not run');
+  assert.equal(after.policy.automaticNewListens,0,'the baseline comes from the stored summary, not from the lifetime count');
+  assert.throws(()=>reserveSummary({store,snapshot:changed,...route,now:later,automatic:true}),e=>e.code==='not_enough_new_listens','the reservation re-checks the same gate');
+  // A manual run is not subject to the evidence gate; it only waits out the cooldown.
+  assert.throws(()=>reserveSummary({store,snapshot:changed,...route,now:1300}),e=>e.code==='summary_cooldown');
+  assert.equal(personaView(store,changed,1300).policy.automaticBlockedBy,'cooldown','the cooldown is reported before the evidence gate');
+ }finally{store.close();}
+});
+test('a summary stored before baselines existed cannot trigger an automatic run on the next check',()=>{
+ const store=new MusicStore();try{
+  store.setPreference({targetType:'artist',targetKey:'A',affinity:.8,source:'listen',updatedAt:1});
+  store.setSetting('persona_summary_v1',{factHash:'stale',provider:'p',model:'m',text:'旧总结',generatedAt:1,usage:null,source:'llm_summary'});
+  setSummaryAutomatic(store,true);
+  const view=personaView(store,snapshot,5000);
+  assert.equal(view.summaryStale,true);
+  assert.equal(view.policy.automaticDue,false);assert.equal(view.policy.automaticBlockedBy,'not_enough_new_listens');
+ }finally{store.close();}
+});
+test('the saved output cap is bounded, reaches the plan and never rewrites the policy default',async()=>{
+ const store=new MusicStore();try{
+  assert.throws(()=>setSummaryOutputTokens(store,32),e=>e.code==='invalid_output');
+  assert.throws(()=>setSummaryOutputTokens(store,512),e=>e.code==='invalid_output');
+  assert.throws(()=>setSummaryBudget(store,1.5),e=>e.code==='invalid_budget');
+  assert.throws(()=>setSummaryAutomatic(store,'yes'),e=>e.code==='invalid_automatic');
+  setSummaryOutputTokens(store,64);
+  assert.equal(reserveSummary({store,snapshot,...route,now:1000}).maxTokens,64,'the plan asks for no more than the saved cap');
+  assert.equal(personaView(store,snapshot,1000).policy.maxOutputTokens,64);
+  assert.equal(personaView(store,snapshot,1000).policy.minOutputTokens,64);
+ }finally{store.close();}
+});
+test('a per-call cap lowers the model request without changing the stored setting',async()=>{
+ const f=modelFixture();try{
+  await f.service.summarize(route,{maxOutputTokens:64});
+  assert.equal(f.maxTokens(),64);assert.equal(personaView(f.store,snapshot).policy.maxOutputTokens,256,'the per-call cap is not a policy rewrite');
+  await f.service.summarize(route,{maxOutputTokens:4096});
+  assert.equal(f.calls(),1,'the cached profile is reused, so no second request is sent');
+ }finally{f.service.dispose();f.store.close();}
+});
+function schedulerFixture(persona,summarize){
+ const logged=[];
+ const scheduler=createPersonaScheduler({bridge:{request:async()=>({persona})},service:{available:true,summarize},onLog:entry=>logged.push(entry)});
+ return{scheduler,logged};
+}
+test('the scheduler asks the Core and never calls a model when nothing is due',async()=>{
+ let calls=0;
+ const {scheduler}=schedulerFixture({policy:{automatic:true,automaticDue:false,automaticBlockedBy:'cooldown'},summary:null},async()=>{calls++;});
+ const result=await scheduler.check();
+ assert.equal(calls,0);assert.equal(result.skipped,'cooldown');assert.equal(scheduler.running,false,'a check must not start a timer on its own');
+});
+test('the scheduler stays silent while the switch is off and reuses the last successful route',async()=>{
+ let calls=0,seen=null;
+ const off=schedulerFixture({policy:{automatic:false,automaticDue:false,automaticBlockedBy:'disabled'},summary:null},async()=>{calls++;});
+ assert.equal((await off.scheduler.check()).skipped,'disabled');assert.equal(calls,0);
+ const on=schedulerFixture({policy:{automatic:true,automaticDue:true},summary:{provider:'p',model:'m'}},async(route)=>{seen=route;calls++;});
+ const result=await on.scheduler.check();
+ assert.equal(calls,1);assert.deepEqual(seen,{provider:'p',model:'m'});assert.equal(result.ran,true);
+ assert.equal(on.logged.filter(e=>e.type==='persona-auto-summary').length,1);
+});
+test('a refused automatic run is logged and never escalates inside the same check',async()=>{
+ let calls=0;
+ const {scheduler,logged}=schedulerFixture({policy:{automatic:true,automaticDue:true},summary:{provider:'p',model:'m'}},
+  async()=>{calls++;throw Object.assign(new Error('x'),{code:'summary_busy'});});
+ await scheduler.check();await scheduler.check();
+ assert.equal(calls,2);assert.equal(logged.filter(e=>e.type==='persona-auto-skipped'&&e.code==='summary_busy').length,2);
 });

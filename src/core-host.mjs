@@ -24,7 +24,7 @@ import { createQQProvider } from './providers/qq.mjs';
 import { describePlatforms, collectDiscovery, resolveOnOwnPlatform, summarizeSeedRuns } from './providers/coordinator.mjs';
 import { createDiscoveryCache } from './discovery.mjs';
 import {describeMusicInsights} from './insights.mjs';
-import {personaView,reserveSummary,startSummary,finishSummary,recoverSummaryCalls,setSummaryBudget} from './persona.mjs';
+import {personaView,reserveSummary,startSummary,finishSummary,recoverSummaryCalls,setSummaryBudget,setSummaryOutputTokens,setSummaryAutomatic} from './persona.mjs';
 
 /** Bump when the host/owner message shapes change in a way an older peer cannot read. */
 export const CORE_HOST_PROTOCOL = 1;
@@ -441,6 +441,8 @@ export function createCoreHost({
         }
         case 'persona':send({type:'result',id,ok:true,persona:personaView(store,core.snapshot(),now())});return;
         case 'persona-budget':setSummaryBudget(store,message.value);send({type:'result',id,ok:true});return;
+        case 'persona-output':setSummaryOutputTokens(store,message.value);send({type:'result',id,ok:true});return;
+        case 'persona-automatic':setSummaryAutomatic(store,message.value);send({type:'result',id,ok:true});return;
         case 'persona-reserve':send({type:'result',id,ok:true,plan:reserveSummary({store,snapshot:core.snapshot(),provider:message.provider,model:message.model,now:now()})});return;
         case 'persona-start':send({type:'result',id,ok:true,started:startSummary(store,message.callId)});return;
         case 'persona-finish':send({type:'result',id,ok:true,result:finishSummary({store,...message,now:now()})});return;
@@ -658,7 +660,7 @@ export function createCoreHost({
     },
     // Dispatch/reads are synchronous until their first await. Keep them out of
     // long account/import work so a slow media request cannot hold up pause.
-    handle: (message) => ['command','snapshot','platforms','library','account','environment','insights','persona','persona-budget','persona-reserve','persona-start','persona-finish','sessions','discovery','shutdown','wait','autonomous','session-event','setQueue'].includes(message.type)
+    handle: (message) => ['command','snapshot','platforms','library','account','environment','insights','persona','persona-budget','persona-output','persona-automatic','persona-reserve','persona-start','persona-finish','sessions','discovery','shutdown','wait','autonomous','session-event','setQueue'].includes(message.type)
       ? handle(message) : enqueue(() => handle(message)),
     close,
     get core() { return core; },

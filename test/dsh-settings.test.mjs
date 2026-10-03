@@ -92,7 +92,7 @@ test('desktop exact routes coexist with the Gateway and validate RPC envelopes b
       } },
     },
   }, bridge);
-  assert.equal(routes.size, 10);
+  assert.equal(routes.size, 12);
   assert.equal(routes.has('/api/session/create'), false);
   const path = '/api/fishfm/command';
   const request = body => new Request(`http://localhost${path}`, {
@@ -111,6 +111,51 @@ test('desktop exact routes coexist with the Gateway and validate RPC envelopes b
   assert.equal((await routes.get(path).fetch(new Request(`http://localhost${path}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{' }))).status, 400);
   dispose();
   assert.equal(routes.size, 0);
+});
+
+test('persona endpoints validate their values and the summary honours the stored output cap', async () => {
+  const sent = [];
+  const persona = { policy: { maxOutputTokens: 96 } };
+  const bridge = {
+    async start() {},
+    async request(message) {
+      sent.push(message);
+      if (message.type === 'persona') return { persona };
+      if (message.type === 'persona-budget' || message.type === 'persona-output' || message.type === 'persona-automatic') return {};
+      if (message.type === 'snapshot') return { snapshot: { paused: true } };
+      if (message.type === 'platforms') return { platforms: {} };
+      if (message.type === 'library') return { library: { total: 0 } };
+      if (message.type === 'insights') return { insights: null };
+      assert.fail(`unexpected core request ${message.type}`);
+    },
+  };
+  const summarized = [];
+  const service = { current: { summarize: async (route, options) => { summarized.push({ route, options }); return { cached: false }; } } };
+  const api = createSettingsHandler(bridge, service);
+
+  assert.equal((await api('fishfm/persona-budget', { value: 1.5 })).error.code, 'invalid_budget');
+  assert.equal((await api('fishfm/persona-output', { value: 32 })).error.code, 'invalid_output');
+  assert.equal((await api('fishfm/persona-output', { value: 4096 })).error.code, 'invalid_output');
+  assert.equal((await api('fishfm/persona-automatic', { value: 'on' })).error.code, 'invalid_automatic');
+  assert.deepEqual(sent, [], 'a rejected value never reaches Core');
+
+  // Every write is followed by a full read, so assert on the writes only.
+  const writes = () => sent.filter(m => ['persona-budget', 'persona-output', 'persona-automatic'].includes(m.type));
+  assert.equal((await api('fishfm/persona-automatic', { value: true })).ok, true);
+  assert.deepEqual(writes(), [{ type: 'persona-automatic', value: true }]);
+  assert.equal((await api('fishfm/persona-output', { value: 96 })).ok, true);
+  assert.deepEqual(writes(), [{ type: 'persona-automatic', value: true }, { type: 'persona-output', value: 96 }]);
+
+  // The cap is read from Core, not accepted from the browser.
+  assert.equal((await api('fishfm/persona-summary', { provider: 'p', model: 'm', maxOutputTokens: 4096 })).ok, true);
+  assert.deepEqual(summarized, [{ route: { provider: 'p', model: 'm' }, options: { signal: undefined, maxOutputTokens: 96 } }]);
+});
+
+test('a persona endpoint with no model service refuses before Core reserves anything', async () => {
+  const sent = [];
+  const api = createSettingsHandler({ async start() {}, async request(message) { sent.push(message); return { persona: { policy: {} } }; } }, { current: null });
+  assert.equal((await api('fishfm/persona-summary', { provider: 'p', model: 'm' })).error.code, 'model_unavailable');
+  assert.deepEqual(sent, [], 'a missing model service is refused before Core is even asked for the profile');
 });
 
 test('import errors retain source and stage details while removing session material', async () => {

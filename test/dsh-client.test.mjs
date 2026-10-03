@@ -187,6 +187,34 @@ test('a pending model summary does not block pause and its stale response cannot
   assert.equal(f.controller.getSnapshot().snapshot.paused,true);assert.equal(f.controller.getSnapshot().summaryBusy,false);
  }finally{off();f.dispose();}
 });
+test('the automatic toggle and the output cap are separate actions with their own endpoints and notices', async () => {
+  const calls = [];
+  const persona = { generatedAt: 5, facts: { artists: [], validListens: 0, exploration: 70, discoveryEnabled: true },
+    summary: null, summaryStale: true, policy: { automatic: false, automaticDue: false, automaticBlockedBy: 'disabled',
+      dailyTokens: 4000, maxOutputTokens: 256, minOutputTokens: 64, autoMinNewListens: 50, maxPromptBytes: 1500, factsBytes: 400 },
+    ledger: { today: { attempts: 0, knownTokens: 0, unknownCalls: 0, chargedTokens: 0 }, total: { attempts: 0, knownTokens: 0, unknownCalls: 0, chargedTokens: 0 },
+      remainingTokens: 4000, localDecisionRequests: 0, recent: [] } };
+  // The refresh returns a newer projection, every write returns the stale one.
+  const f = fixture(async (_channel, endpoint, payload) => {
+    calls.push({ endpoint, payload });
+    if (endpoint.startsWith('fishfm/persona')) return { ok: true, value: { persona, summaryModels: [], summaryResult: null } };
+    return { ok: true, value: { snapshot: snapshot(1), persona: { ...persona, generatedAt: 9 } } };
+  });
+  const off = f.controller.subscribe(() => {});
+  try {
+    await tick();
+    assert.equal(f.controller.getSnapshot().persona.generatedAt, 9, 'the refresh publishes the newer projection');
+    await f.controller.personaAction('automatic', { value: true });
+    assert.deepEqual(calls.at(-1), { endpoint: 'fishfm/persona-automatic', payload: { value: true } });
+    assert.equal(f.controller.getSnapshot().summaryNotice, '自动总结已开启，只在画像更新且预算允许时运行。');
+    assert.equal(f.controller.getSnapshot().persona.generatedAt, 9, 'the stale write response cannot roll the profile back');
+    await f.controller.personaAction('output', { value: 64 });
+    assert.deepEqual(calls.at(-1), { endpoint: 'fishfm/persona-output', payload: { value: 64 } });
+    assert.equal(f.controller.getSnapshot().summaryNotice, '单次输出上限已保存。');
+    assert.equal(f.controller.getSnapshot().summaryBusy, false);
+  } finally { off(); f.dispose(); }
+});
+
 test('failed writes are visible and block further changes until a successful refresh', async () => {
   const f = fixture(async (_channel, endpoint) => endpoint === 'fishfm/command'
     ? { ok: false, error: { code: 'core_unavailable', message: '服务离线' } } : state(snapshot(1)));

@@ -8,7 +8,8 @@ const ALLOWED = new Set(['pause', 'resume', 'next', 'setListening', 'setHumanPla
   'setDiscovery', 'setDiscoveryRate', 'setMode', 'stopForToday', 'requestTrack']);
 const QUICK_LOGIN_PROVIDER = 'netease';
 const STATE_ENDPOINT = 'fishfm/state';
-const PERSONA_ENDPOINTS=new Set(['fishfm/persona-summary','fishfm/persona-budget']);
+const PERSONA_ENDPOINTS=new Set(['fishfm/persona-summary','fishfm/persona-budget','fishfm/persona-output','fishfm/persona-automatic']);
+const OUTPUT_RANGE={min:64,max:256};
 const PLATFORM_ENDPOINTS = new Set(['fishfm/login-start', 'fishfm/login-poll', 'fishfm/import', 'fishfm/logout', 'fishfm/discovery-refresh','fishfm/playlists']);
 const SAFE_STAGES = new Set(['login_qr_key', 'login_qr_check', 'login_status', 'user_record', 'likelist', 'user_playlist', 'playlist_detail', 'song_detail',
   'accountInfo', 'recentTracks', 'likedTracks', 'playlists', 'playlistTracks', 'songDetails']);
@@ -71,9 +72,18 @@ export function createSettingsHandler(bridge,summaryService={current:null}) {
         await bridge.start();
         if(endpoint==='fishfm/persona-budget'){
           await bridge.request({type:'persona-budget',value:payload.value});
+        }else if(endpoint==='fishfm/persona-output'){
+          if(!Number.isSafeInteger(payload?.value)||payload.value<OUTPUT_RANGE.min||payload.value>OUTPUT_RANGE.max)throw Object.assign(new Error('单次输出上限需在 64–256 tokens 之间。'),{code:'invalid_output'});
+          await bridge.request({type:'persona-output',value:payload.value});
+        }else if(endpoint==='fishfm/persona-automatic'){
+          if(typeof payload?.value!=='boolean')throw Object.assign(new Error('自动总结只能是开启或关闭。'),{code:'invalid_automatic'});
+          await bridge.request({type:'persona-automatic',value:payload.value});
         }else{
           if(!summaryService.current)throw Object.assign(new Error('DSH 模型服务尚不可用。'),{code:'model_unavailable'});
-          summaryResult=await summaryService.current.summarize({provider:payload?.provider,model:payload?.model},{signal});
+          const persona=await bridge.request({type:'persona'},{signal,abortable:true});
+          const maxOutput=persona?.persona?.policy?.maxOutputTokens;
+          if(!Number.isSafeInteger(maxOutput)||maxOutput<OUTPUT_RANGE.min||maxOutput>OUTPUT_RANGE.max)throw Object.assign(new Error('总结输出上限未就绪。'),{code:'invalid_output'});
+          summaryResult=await summaryService.current.summarize({provider:payload?.provider,model:payload?.model},{signal,maxOutputTokens:maxOutput});
         }
         return{ok:true,value:{...await readSettingsState(bridge,signal),summaryResult}};
       }

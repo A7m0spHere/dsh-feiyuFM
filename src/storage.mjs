@@ -115,7 +115,7 @@ export class MusicStore {
 
   migrate() {
     const version = this.db.prepare('PRAGMA user_version').get().user_version;
-    if (version > 6) throw new Error(`Unsupported schema version ${version}`);
+    if (version > 7) throw new Error(`Unsupported schema version ${version}`);
     if (version === 0) {
       this.transaction(() => {
         this.db.exec(MIGRATION_1);
@@ -167,6 +167,17 @@ export class MusicStore {
           CREATE INDEX music_model_calls_day ON music_model_calls(day);`);
         this.db.prepare('INSERT INTO schema_migrations VALUES (?, ?)').run(6,new Date().toISOString());
         this.db.exec('PRAGMA user_version = 6');
+      });
+    }
+    if(this.db.prepare('PRAGMA user_version').get().user_version===6){
+      this.transaction(()=>{
+        // The summary ledger records what triggered each call and which profile
+        // revision it was built from, so an automatic run can compare against
+        // the last one without inventing a second source of truth.
+        this.db.exec(`ALTER TABLE music_model_calls ADD COLUMN trigger TEXT NOT NULL DEFAULT 'manual';
+          ALTER TABLE music_model_calls ADD COLUMN valid_listens INTEGER;`);
+        this.db.prepare('INSERT INTO schema_migrations VALUES (?, ?)').run(7,new Date().toISOString());
+        this.db.exec('PRAGMA user_version = 7');
       });
     }
   }

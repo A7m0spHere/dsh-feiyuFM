@@ -21,6 +21,7 @@ import { registerSettingsApi } from './src/ui/dsh-settings.mjs';
 import { createRuntimeEvidence } from './src/runtime/evidence.mjs';
 import {createHostCollector} from './src/runtime/host-collector.mjs';
 import {createPersonaModelService} from './src/persona-model.mjs';
+import {createPersonaScheduler} from './src/persona-scheduler.mjs';
 
 export const name = 'fishfm';
 
@@ -139,7 +140,11 @@ export function apply(ctx, config = {}) {
     const service=createPersonaModelService({llm:modelCtx.llm,bridge,onLog:entry=>evidence.event(entry)});
     summaryService.current=service;
     modelCtx.on('llm/stream',(options,next)=>{service.observe(options);return next();});
-    modelCtx.effect(()=>()=>{service.dispose();if(summaryService.current===service)summaryService.current=null;},'fishfm: optional summaries');
+    // The schedule is off until the user turns it on; the Core still re-checks
+    // every gate when it reserves, so a stale check cannot force a call.
+    const scheduler=createPersonaScheduler({bridge,service,onLog:entry=>evidence.event(entry)});
+    scheduler.start();
+    modelCtx.effect(()=>()=>{scheduler.stop();service.dispose();if(summaryService.current===service)summaryService.current=null;},'fishfm: optional summaries');
   });
   // Optional in headless profiles; the browser uses the host's authenticated RPC.
   if (typeof ctx.inject === 'function') {
