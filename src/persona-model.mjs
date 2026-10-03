@@ -20,6 +20,7 @@ export function createPersonaModelService({llm,bridge,onLog=()=>{}}){
   })().finally(()=>{catalogPending=null;});return catalogPending;
  }
  async function summarize(route,{signal,maxOutputTokens=null,automatic=false}={}){
+  if(maxOutputTokens!==null&&(!Number.isSafeInteger(maxOutputTokens)||maxOutputTokens<64))throw Object.assign(new Error('单次输出上限至少为 64 tokens。'),{code:'invalid_output'});
   if(disposed||signal?.aborted)throw Object.assign(new Error('总结已取消。'),{code:'cancelled'});
   const available=await models();
   if(disposed||signal?.aborted)throw Object.assign(new Error('总结已取消。'),{code:'cancelled'});

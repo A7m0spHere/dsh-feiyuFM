@@ -79,8 +79,9 @@ test('an enabled automatic summary still waits for enough new evidence and reche
  const store=new MusicStore();try{
   store.setPreference({targetType:'artist',targetKey:'A',affinity:.8,source:'listen',updatedAt:1});
   setSummaryAutomatic(store,true);
-  assert.equal(personaView(store,snapshot,1000).policy.automaticDue,true,'with no summary at all a first run is due');
-  const plan=reserveSummary({store,snapshot,...route,now:1000,automatic:true});assert.equal(plan.cached,false);
+  assert.equal(personaView(store,snapshot,1000).policy.automaticBlockedBy,'no_model','automatic mode needs a successful manual baseline and route');
+  assert.throws(()=>reserveSummary({store,snapshot,...route,now:1000,automatic:true}),e=>e.code==='automatic_no_model');
+  const plan=reserveSummary({store,snapshot,...route,now:1000});assert.equal(plan.cached,false);
   assert.equal(personaView(store,snapshot,1001).policy.automaticBlockedBy,'busy');
   startSummary(store,plan.callId);
   finishSummary({store,callId:plan.callId,status:'completed',text:'事实总结',usage:{inputTokens:10,outputTokens:5},now:1100,validListens:0});
@@ -88,7 +89,7 @@ test('an enabled automatic summary still waits for enough new evidence and reche
   const changed={...snapshot,settings:{...snapshot.settings,discoveryRate:.5}};
   const later=1100+3_600_001; // past the cooldown, so the evidence gate is the one that answers
   const after=personaView(store,changed,later);
-  assert.equal(after.summary.trigger,'automatic');assert.equal(after.summary.validListens,0);
+  assert.equal(after.summary.trigger,'manual');assert.equal(after.summary.validListens,0);
   assert.equal(after.summaryStale,true,'the profile moved but the summary did not');
   assert.equal(after.policy.automaticBlockedBy,'not_enough_new_listens','fewer than the required new listens must block, not run');
   assert.equal(after.policy.automaticNewListens,0,'the baseline comes from the stored summary, not from the lifetime count');
@@ -154,4 +155,75 @@ test('a refused automatic run is logged and never escalates inside the same chec
   async()=>{calls++;throw Object.assign(new Error('x'),{code:'summary_busy'});});
  await scheduler.check();await scheduler.check();
  assert.equal(calls,2);assert.equal(logged.filter(e=>e.type==='persona-auto-skipped'&&e.code==='summary_busy').length,2);
+});
+
+function evidenceJobs(store,count,endedAt,overrides={}){
+ const insert=store.db.prepare('INSERT INTO growth_jobs (play_instance_id,entry_json,processed_at) VALUES (?,?,?)');
+ const offset=store.db.prepare('SELECT count(*) count FROM growth_jobs').get().count;
+ for(let i=0;i<count;i++)insert.run(`evidence-${offset+i}`,JSON.stringify({selectedBy:'agent',agentListening:true,agentEffectiveMs:30000,durationMs:100000,endReason:'ended',endedAt,...overrides}),endedAt);
+}
+function successfulBaseline(store,oldCount=0){
+ store.setPreference({targetType:'artist',targetKey:'A',affinity:.8,source:'listen',updatedAt:1});
+ evidenceJobs(store,oldCount,900);
+ const p=reserveSummary({store,snapshot,...route,now:1000});startSummary(store,p.callId);
+ finishSummary({store,callId:p.callId,status:'completed',text:'事实总结',usage:{inputTokens:10,outputTokens:5},now:1100});
+ setSummaryAutomatic(store,true);return p;
+}
+const changedSnapshot={...snapshot,settings:{...snapshot.settings,discoveryRate:.5}};
+test('automatic fresh evidence is independent of the 200-decision UI window and excludes manual, failed and short plays',()=>{
+ const store=new MusicStore();try{
+  successfulBaseline(store,220);evidenceJobs(store,49,2000);
+  evidenceJobs(store,1,2000,{selectedBy:'user'});evidenceJobs(store,1,2000,{endReason:'error'});evidenceJobs(store,1,2000,{agentEffectiveMs:1000});
+  const now=1100+86400001;
+  let view=personaView(store,changedSnapshot,now);assert.equal(view.facts.validListens,0,'these jobs are outside the bounded UI decision window');
+  assert.equal(view.policy.automaticNewListens,49);assert.equal(view.policy.automaticDue,false);
+  evidenceJobs(store,1,2100);view=personaView(store,changedSnapshot,now);assert.equal(view.policy.automaticDue,true);
+  const plan=reserveSummary({store,snapshot:changedSnapshot,...route,now,automatic:true});assert.equal(plan.validListens,270);
+  assert.equal(store.db.prepare('SELECT baseline_growth_rowid FROM music_model_calls WHERE call_id=?').get(plan.callId).baseline_growth_rowid,273);
+ }finally{store.close();}
+});
+test('the 24-hour interval and actual prompt reservation budget are both rechecked atomically',()=>{
+ const store=new MusicStore();try{
+  successfulBaseline(store);evidenceJobs(store,50,2000);
+  const early=1100+7200000;
+  assert.equal(personaView(store,changedSnapshot,early).policy.automaticBlockedBy,'interval');
+  assert.throws(()=>reserveSummary({store,snapshot:changedSnapshot,...route,now:early,automatic:true}),e=>e.code==='summary_interval');
+  const late=1100+86400001;assert.equal(personaView(store,changedSnapshot,late).policy.automaticDue,true);
+  setSummaryBudget(store,0);assert.equal(personaView(store,changedSnapshot,late).policy.automaticBlockedBy,'budget');
+  assert.throws(()=>reserveSummary({store,snapshot:changedSnapshot,...route,now:late,automatic:true}),e=>e.code==='budget_exhausted');
+  setSummaryBudget(store,4000);setSummaryAutomatic(store,false);
+  assert.throws(()=>reserveSummary({store,snapshot:changedSnapshot,...route,now:late,automatic:true}),e=>e.code==='automatic_disabled');
+  assert.equal(personaView(store,changedSnapshot,late).ledger.total.attempts,1,'rejected stale checks leave no new reservation');
+ }finally{store.close();}
+});
+test('legacy summaries count only qualified listens ending after their generation time',()=>{
+ const store=new MusicStore();try{
+  store.setPreference({targetType:'artist',targetKey:'A',affinity:.8,source:'listen',updatedAt:1});
+  evidenceJobs(store,120,1000);
+  store.setSetting('persona_summary_v1',{factHash:'legacy',...route,generatedAt:2000,validListens:0});setSummaryAutomatic(store,true);
+  evidenceJobs(store,49,3000);const now=2000+86400001;
+  assert.equal(personaView(store,snapshot,now).policy.automaticNewListens,49);
+  evidenceJobs(store,1,3100);assert.equal(personaView(store,snapshot,now).policy.automaticDue,true);
+ }finally{store.close();}
+});
+test('an automatic cache hit is not logged as a generated summary',async()=>{
+ const {scheduler,logged}=schedulerFixture({policy:{automatic:true,automaticDue:true},summary:route},async()=>({cached:true}));
+ const result=await scheduler.check();assert.equal(result.cached,true);assert.equal(result.skipped,'current');assert.equal(logged.length,0);
+});
+test('stopping a scheduler during the Core check prevents a late model dispatch',async()=>{
+ const ready=Promise.withResolvers();let calls=0;
+ const scheduler=createPersonaScheduler({bridge:{request:()=>ready.promise},service:{available:true,summarize:async()=>{calls++;}}});
+ const pending=scheduler.check();scheduler.stop();ready.resolve({persona:{policy:{automatic:true,automaticDue:true},summary:route}});
+ assert.equal((await pending).skipped,'stopped');assert.equal(calls,0);
+});
+test('scheduler diagnostic failures cannot turn a completed generation into a failure',async()=>{
+ const scheduler=createPersonaScheduler({bridge:{request:async()=>({persona:{policy:{automatic:true,automaticDue:true},summary:route}})},
+  service:{available:true,summarize:async()=>({cached:false})},onLog(){throw new Error('diagnostic fault');}});
+ assert.equal((await scheduler.check()).ran,true);
+});
+test('invalid internal output caps fail before a reservation or model request',async()=>{
+ const f=modelFixture();try{
+  await assert.rejects(()=>f.service.summarize(route,{maxOutputTokens:-1}),e=>e.code==='invalid_output');
+  assert.equal(f.calls(),0);assert.equal(personaView(f.store,snapshot).ledger.total.attempts,0);
+ }finally{f.service.dispose();f.store.close();}
 });
