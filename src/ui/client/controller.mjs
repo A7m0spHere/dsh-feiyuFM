@@ -34,7 +34,12 @@ export function createController(connection) {
       const result = await connection.rpc.call('/api', 'fishfm/state', {}, controller.signal);
       if (version !== epoch) return;
       if (!result.ok) throw result.error;
-      emit({ ...result.value, connected: true, error: '' });
+      const discovery = result.value.snapshot?.discovery;
+      const finishedDiscovery = state.notice === '正在后台刷新推荐候选…' && discovery && !discovery.refreshing;
+      emit({ ...result.value, connected: true, error: '', ...(finishedDiscovery ? {
+        notice: discovery.state === 'disabled' ? '探索已关闭。' : discovery.reason && discovery.reason !== 'no-unfamiliar-candidates'
+          ? '刷新未成功，请查看候选状态。' : '推荐候选已更新。',
+      } : {}) });
     } catch (error) {
       if (version === epoch) emit({ connected: false, error: failure(error) });
     } finally {

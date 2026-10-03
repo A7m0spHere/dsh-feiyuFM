@@ -54,7 +54,8 @@ window.__ModuleLoader__.load({
       :is(.fishfm,.fm-float) :focus-visible { outline:2px solid var(--fm-accent); outline-offset:3px; }
       .fishfm { container-type:inline-size; container-name:fishfm; width:100%;
         max-width:1120px; margin:auto; padding:24px; background:var(--fm-canvas);
-        min-height:100%; animation:fm-page-in var(--fm-page) var(--fm-ease) both; }
+        height:100%; min-height:0; overflow:auto; overscroll-behavior:contain;
+        animation:fm-page-in var(--fm-page) var(--fm-ease) both; }
       .fishfm h1,.fishfm h2,.fishfm p { margin:0; }
       .fm-top { display:flex; align-items:flex-start; flex-wrap:wrap; gap:12px;
         margin-bottom:20px; }
@@ -341,7 +342,12 @@ window.__ModuleLoader__.load({
           const result = await connection.rpc.call('/api', 'fishfm/state', {}, controller.signal);
           if (version !== epoch) return;
           if (!result.ok) throw result.error;
-          emit({ ...result.value, connected: true, error: '' });
+          const discovery = result.value.snapshot?.discovery;
+          const finishedDiscovery = state.notice === '正在后台刷新推荐候选…' && discovery && !discovery.refreshing;
+          emit({ ...result.value, connected: true, error: '', ...(finishedDiscovery ? {
+            notice: discovery.state === 'disabled' ? '探索已关闭。' : discovery.reason && discovery.reason !== 'no-unfamiliar-candidates'
+              ? '刷新未成功，请查看候选状态。' : '推荐候选已更新。',
+          } : {}) });
         } catch (error) {
           if (version === epoch) emit({ connected: false, error: failure(error) });
         } finally {

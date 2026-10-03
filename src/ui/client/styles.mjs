@@ -48,7 +48,8 @@ export const css = `
   :is(.fishfm,.fm-float) :focus-visible { outline:2px solid var(--fm-accent); outline-offset:3px; }
   .fishfm { container-type:inline-size; container-name:fishfm; width:100%;
     max-width:1120px; margin:auto; padding:24px; background:var(--fm-canvas);
-    min-height:100%; animation:fm-page-in var(--fm-page) var(--fm-ease) both; }
+    height:100%; min-height:0; overflow:auto; overscroll-behavior:contain;
+    animation:fm-page-in var(--fm-page) var(--fm-ease) both; }
   .fishfm h1,.fishfm h2,.fishfm p { margin:0; }
   .fm-top { display:flex; align-items:flex-start; flex-wrap:wrap; gap:12px;
     margin-bottom:20px; }
