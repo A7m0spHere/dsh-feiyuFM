@@ -5,6 +5,13 @@ import {importSeedTracks,describeEnvironmentProfile,environmentWeight} from '../
 import {initializeAgentPreferences,getArtistAffinity} from '../src/taste.mjs';
 import {applyListenGrowth} from '../src/growth.mjs';
 const t=(id,artistId,name)=>({provider:'netease',providerTrackId:String(id),title:`T${id}`,artist:name,artists:[{id:String(artistId),name}],metadataSource:'netease_track',durationMs:100_000});
+test('a complete repeated source import is not misreported as a short platform response',()=>{
+ const store=new MusicStore();try{
+  const tracks=[t(1,10,'A'),t(2,10,'A')];importSeedTracks({store,provider:'netease',source:'liked',tracks,requested:2});
+  const repeated=importSeedTracks({store,provider:'netease',source:'liked',tracks,requested:2});
+  assert.equal(repeated.imported,0);assert.equal(repeated.duplicates,2);assert.equal(repeated.received,2);assert.equal(repeated.degraded,false);assert.equal(repeated.reason,null);
+ }finally{store.close();}
+});
 test('repeated imports preserve multiple source facts without relabelling first source or overwriting earned taste',()=>{
  const s=new MusicStore();try{
  const track=t(1,10,'Artist');importSeedTracks({store:s,provider:'netease',source:'recent',tracks:[{...track,playCount:12}],requested:1,now:1000});

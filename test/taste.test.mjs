@@ -36,7 +36,7 @@ test('an import records its real source, the requested and the imported counts',
     assert.equal(result.imported, 3);
     assert.equal(result.total, 3);
     assert.equal(result.degraded, true, 'a short import must be flagged, not padded');
-    assert.match(result.reason, /Requested 300, imported 3/);
+    assert.match(result.reason, /请求 300 首，来源实际返回 3 首/);
     assert.equal(result.sufficient, false, `3 tracks is below ${COMFORTABLE_IMPORT_MINIMUM}`);
 
     const batch = store.getImportBatch(result.batchId);

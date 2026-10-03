@@ -91,10 +91,13 @@ export function importSeedTracks({
       imported += 1;
     }
 
+    const received=seen.size;
+    const incomplete=received<requested;
+    const explanation=reason??(incomplete?`请求 ${requested} 首，来源实际返回 ${received} 首；其中新增 ${imported} 首。`:null);
     store.recordImportBatch({
       batchId, provider, source, requested, imported, duplicates,
-      degraded: degraded || imported < requested,
-      reason: reason ?? (imported < requested ? `Requested ${requested}, imported ${imported}` : null),
+      degraded: degraded || incomplete,
+      reason: explanation,
       createdAt: now,
     });
 
@@ -106,8 +109,9 @@ export function importSeedTracks({
       requested,
       imported,
       duplicates,
-      degraded: Boolean(degraded || imported < requested),
-      reason: reason ?? (imported < requested ? `Requested ${requested}, imported ${imported}` : null),
+      received,
+      degraded: Boolean(degraded || incomplete),
+      reason: explanation,
       total,
       sufficient: total >= COMFORTABLE_IMPORT_MINIMUM,
     };
