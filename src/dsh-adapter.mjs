@@ -300,7 +300,7 @@ export function registerAdapter(ctx, { bridge, onLog = () => {}, hostCollector =
     // bridge is told what it can, and the core reports "no session id" rather
     // than guessing which session was active.
     disposers.push(ctx.on('session/event', (session, event) => {
-      hostCollector?.observeSession(sessionIdOf(session),event);
+      try{hostCollector?.observeSession(sessionIdOf(session),event);}catch{onLog({type:'host-evidence-error',kind:'session'});}
       const translated = translateSessionEvent(event);
       if (!translated) return;
       const sessionId = sessionIdOf(session);

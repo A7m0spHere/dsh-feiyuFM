@@ -19,3 +19,9 @@ test('synchronous throws and stream throws propagate unchanged and clear the liv
  await assert.rejects(async()=>{for await(const _ of c.stream({},()=> (async function*(){throw error;})())){}},e=>e===error);
  assert.equal(c.report().calls,2);assert.equal(c.report().failed,2);assert.equal(c.report().inFlight,0);
 });
+test('an unserializable diagnostic tool and invalid usage cannot break a valid host stream or invent reported usage',async()=>{
+ const c=createHostCollector(),tool={name:'fishfm_status'};tool.self=tool;
+ const chunk={type:'usage',usage:{inputTokens:-1,outputTokens:2}};const out=[];
+ for await(const x of c.stream({tools:[null,tool]},()=> (async function*(){yield chunk;})()))out.push(x);
+ assert.equal(out[0],chunk);assert.equal(c.report().musicTools.bytes,null);assert.equal(c.report().usageReportedCalls,0);assert.equal(c.report().missingUsageCalls,1);
+});

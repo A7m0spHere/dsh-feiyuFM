@@ -3,7 +3,7 @@ import {createHash} from 'node:crypto';
 const hash=value=>createHash('sha256').update(JSON.stringify(value)).digest('hex');
 const usageKeys=['inputTokens','outputTokens','cacheReadTokens','cacheWriteTokens'];
 function safeUsage(usage){
- if(!usage||!Number.isFinite(usage.inputTokens)||!Number.isFinite(usage.outputTokens))return null;
+ if(!usage||!Number.isFinite(usage.inputTokens)||usage.inputTokens<0||!Number.isFinite(usage.outputTokens)||usage.outputTokens<0)return null;
  return Object.fromEntries(usageKeys.filter(k=>Number.isFinite(usage[k])&&usage[k]>=0).map(k=>[k,usage[k]]));
 }
 export function createHostCollector({onLog=()=>{},now=()=>Date.now()}={}){
@@ -27,14 +27,16 @@ export function createHostCollector({onLog=()=>{},now=()=>Date.now()}={}){
  function stream(options,next){
   // Count the actual LLM service entry, never request/header or UI events.
   stats.calls++;stats.inFlight++;
-  const tools=(options?.tools??[]).filter(t=>/^fishfm_(status|control|request_track)$/.test(t.name));
-  stats.musicTools={count:tools.length,bytes:Buffer.byteLength(JSON.stringify(tools)),fingerprint:hash(tools)};
+  try{
+   const tools=(Array.isArray(options?.tools)?options.tools:[]).filter(t=>/^fishfm_(status|control|request_track)$/.test(t?.name));
+   stats.musicTools={count:tools.length,bytes:Buffer.byteLength(JSON.stringify(tools)),fingerprint:hash(tools)};
+  }catch{stats.musicTools={count:null,bytes:null,fingerprint:null};emit({type:'host-evidence-error',kind:'tools'});}
   emit({type:'dsh-model-call',count:stats.calls});
   let source;
   try{source=next();}catch(error){stats.inFlight--;stats.failed++;stats.missingUsageCalls++;throw error;}
   return (async function*(){
    let usage=null,failed=false;
-   try{for await(const chunk of source){if(chunk?.type==='usage')usage=safeUsage(chunk.usage);if(chunk?.type==='finish'&&['error','aborted'].includes(chunk.reason?.kind))failed=true;yield chunk;}}
+   try{for await(const chunk of source){try{if(chunk?.type==='usage')usage=safeUsage(chunk.usage);if(chunk?.type==='finish'&&['error','aborted'].includes(chunk.reason?.kind))failed=true;}catch{emit({type:'host-evidence-error',kind:'chunk'});}yield chunk;}}
    catch(error){failed=true;throw error;}
    finally{
     stats.inFlight--;stats.completed++;if(failed)stats.failed++;
