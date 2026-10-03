@@ -1,0 +1,56 @@
+# N9 透明人格、选歌回复与 token 账本
+
+2026-10-03：用户明确提前结束 N7 后要求直接进入 N9。本轮实现、生产迁移与一次真实总结调用已核对；完整宿主键盘、自动总结与并发预算仍保留未验。设计见 [透明人格 feat](../FEAT_TRANSPARENT_PERSONA.md)。
+
+## 本轮交付
+
+主面板输入曲库改为默认收起的 `<details>`（`输入曲库 · N 首（展开查看）`），设置席位保留 `输入音乐 · 查看和点播` 折叠入口；收起只是界面层，不删除曲目、不改初始化/禁播/点播权限，也不影响用户环境与 Agent 偏好的独立保存。
+
+事实画像、本地策略与模型总结分开呈现：`insights.reply` 给出与当前 `decisionId` 绑定的短回复（用户点播、种子相似、熟悉回退各有不同措辞），可展开查看来源、评分、关系项、重复次数与艺人集中惩罚；这些文案由确定性规则生成，逐曲不调用模型。
+
+可选低频总结走 DSH 既有 `llm.stream`：只发送有来源的聚合事实（前 3 位艺人权重与来源、有效收听数、探索率、策略、流派/情绪固定为 unknown），不带工具、不写主会话；默认手动触发，`automatic:false`，冷却 1 小时、每日最多 3 次尝试、输入上限 1500 字节、输出上限 256 token、日预算默认 4000。
+
+## 账本与预算
+
+新增 schema v6 表 `music_model_calls`（`call_id`、`day`、`provider`、`model`、`fact_hash`、`status`、`reserved_tokens`、`started_at`、`finished_at`、`usage_json`、`error_code`）。写入路径为 `reserved → running → completed/failed/cancelled`，并发用原子预留/核销，`recoverSummaryCalls` 在 Core 启动时把遗留的 `reserved/running` 标为 `interrupted`，避免跨重启漏记或重复。
+
+只有平台真实返回的 `inputTokens/outputTokens/cacheReadTokens/cacheWriteTokens/reasoningTokens` 才写入 `usage_json`；缺失单独计为 unknown，并按其保守预留值计费，不用字符数冒充 token。同一 `factHash` + provider + model 命中缓存时直接复用，不新增调用。本地选歌与逐曲回复的模型请求数在账本中单独标为 0。
+
+## 生产证据
+
+生产库 `~/.dsh/fishfm/music.sqlite` 只读核对（2026-10-03）：
+
+- `schema_migrations` 含 v6，`applied_at` 2026-10-03T09:57:51.985Z；v5→v6 在真实文件库完成，未丢既有数据。
+- `music_model_calls` 共 2 行，均为 `persona-summary`，与 129 条收听历史、120 次成长作业相比，逐曲零模型请求成立：
+
+| call_id | provider / model | 状态 | reserved | 实际 usage | error_code |
+|---|---|---|---|---|---|
+| bc052852… | cz / deepseek-v4.1-flash | failed | 1916 | input 191, output 256 | `empty_summary` |
+| 1e614442… | deepseek-account / deepseek-flash | completed | 1916 | input 166, output 83, cacheRead 0, cacheWrite 0 | — |
+
+- 第一条是真实失败路径：模型返回空文本，账本按实测 usage 计费、保留旧总结、不伪造内容。第二条成功后写入 `settings.persona_summary_v1`（`source:"llm_summary"`、`factHash`、`generatedAt`、`usage`）。
+- 生成文本与要求一致：列出三位艺人权重 0.74 并注明来源为收听、42 条有效记录、范围是近期已追踪决策，明确"流派与情绪未知，不作推断，也不推断人格或音频理解"，并区分"初始化权重不等于亲身喜欢"，同时说明探索值 70、发现开启、策略 normal。
+- 生产 `core_state` 为暂停、`login_required` 且网易云会话失效；总结调用发生在会话失效前，不据此宣称当前可播放。
+
+## 离线验证
+
+新增 7 项 persona 测试：缓存复用且不改独立偏好与暂停、并发预留/预算为 0/重启恢复都按保守 unknown 计费、手动总结记录实际 usage 且重复请求走缓存、provider 失败保留旧事实且不编造总结、模型目录加载中 dispose 不再派发、完整 text block 无 delta 时不重复、已计费失败允许有界手动重试且每笔费用保留。
+
+新增客户端回归：挂起的总结不阻塞暂停，且晚到的总结响应不能覆盖播放状态；设置席位保留折叠的输入曲库且默认不展开。迁移相关断言更新到 v6。
+
+本轮实跑：`npm test` **299 项全过**、`npm run check` 107 模块、`npm run build` 构建与调试冒烟通过、`npm run audit:acceptance` 10/10 证据齐备且 0 处失效链接。`npm run build:client` 重新生成 `src/ui/dsh-client.js`，与 `src/ui/client/` 源码一致（生成物无额外差异）。
+
+## 完成标准对照
+
+| 标准 | 状态 | 依据 |
+|---|---|---|
+| 1 主界面默认收起输入曲库，设置可查看 | 通过（离线/客户端回归） | `panel.mjs` 折叠入口与客户端断言 |
+| 2 事实画像与 LLM 总结有标识、时间、依据、覆盖 | 通过（生产） | `persona_summary_v1` 含 source/factHash/generatedAt/usage，文本自述覆盖 |
+| 3 短回复对应同一 decisionId，手动不伪装自主 | 通过（离线） | `insights.reply` 绑定 `current.decisionId`，用户点播单独措辞 |
+| 4 逐曲不新增模型请求，总结仅授权触发 | 通过（生产） | 2 次调用均为手动总结；`automatic:false` |
+| 5 实际 usage 可对照，缓存/失败/重试/并发/重启不漏记 | 部分 | 离线 7 项覆盖；生产已有成功与失败各 1 条，重启中中断与并发多窗口未现场复核 |
+| 6 约束/暂停/设置/长期偏好不被总结覆盖 | 通过（离线） | 总结只写 `persona_summary_v1`，不触碰环境、偏好、约束与播放状态 |
+
+## 未验与边界
+
+真实 DSH 主面板中新人格区块的完整键盘组合与窄窗口未逐项走查；自动总结仍默认关闭，未实现定时调度；生产未做"总结进行中重启宿主"与多窗口并发总结的现场复核，只有离线回归；`maxPromptBytes` 按 UTF-8 字节估算，不是精确 tokenizer 计数，界面已标注 `utf8_bytes_not_exact_tokens`。这些不改变 N9 的代码与账本结论，但 N9 不因此获得 A01–A10 中任何一条的通过。
