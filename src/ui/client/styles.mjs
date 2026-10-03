@@ -143,7 +143,7 @@ export const css = `
   .fm-badge { padding:2px 6px; border:1px solid var(--fm-line); border-radius:5px;
     color:var(--fm-muted); font-size:10px; white-space:nowrap; }
   .fm-badge[data-ok=true] { color:var(--fm-ok); background:color-mix(in srgb,var(--fm-ok) 8%,var(--fm-surface)); }
-  .fm-platform-note,.fm-note { margin:10px 0!important; color:var(--fm-muted); font-size:11px; line-height:1.65; }
+  .fm-platform-note,.fm-note { margin:10px 0!important; color:var(--fm-muted); font-size:11px; line-height:1.65; overflow-wrap:anywhere; }
   .fm-notice,.fm-import { padding:10px 12px; margin:10px 0; background:var(--fm-accent-soft);
     color:var(--fm-accent-ink); border:1px solid var(--fm-line); border-radius:7px; font-size:11px;
     overflow-wrap:anywhere; animation:fm-swap var(--fm-fast) var(--fm-ease); }

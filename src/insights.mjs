@@ -13,8 +13,9 @@ export function explainSelection(snapshot) {
 }
 export function describeMusicInsights(store,snapshot,now=Date.now()) {
  const log=store.getSetting('decision_history_v1',[]);
- const names=new Map();
- for(const row of store.db.prepare('SELECT provider,artists_json FROM tracks').all()){
+ const names=new Map(),titles=new Map();
+ for(const row of store.db.prepare('SELECT track_key,title,provider,artists_json FROM tracks').all()){
+  titles.set(row.track_key,row.title||row.track_key);
   let artists=[];try{artists=JSON.parse(row.artists_json);}catch{}
   artists.forEach(a=>names.set(`${row.provider}:${a.id}`,a.name));
  }
@@ -23,17 +24,25 @@ export function describeMusicInsights(store,snapshot,now=Date.now()) {
  const artists=artistRows.sort((a,b)=>b.affinity-a.affinity||(a.target_key<b.target_key?-1:1)).slice(0,10)
   .map(p=>({key:p.target_key,name:p.target_type==='artist_id'?(names.get(p.target_key)||'未命名艺人'):p.target_key,
    affinity:p.affinity,source:p.source,updatedAt:p.updated_at}));
+ const tracks=all.filter(p=>p.target_type==='track').sort((a,b)=>b.affinity-a.affinity||(a.target_key<b.target_key?-1:1)).slice(0,5)
+  .map(p=>({key:p.target_key,title:titles.get(p.target_key)||p.target_key,affinity:p.affinity,source:p.source,updatedAt:p.updated_at}));
  const ids=new Set(log.map(d=>d.playInstanceId).filter(Boolean));
- const recorded=store.db.prepare('SELECT play_instance_id,entry_json,result_json FROM growth_jobs ORDER BY rowid DESC LIMIT 2000').all()
-  .filter(row=>ids.has(row.play_instance_id)).map(row=>({entry:JSON.parse(row.entry_json),growth:row.result_json?JSON.parse(row.result_json):null}));
+ const recorded=store.db.prepare('SELECT play_instance_id,entry_json,result_json,processed_at FROM growth_jobs ORDER BY rowid DESC LIMIT 2000').all()
+  .filter(row=>ids.has(row.play_instance_id)).map(row=>({entry:JSON.parse(row.entry_json),growth:row.result_json?JSON.parse(row.result_json):null,processedAt:row.processed_at}));
  const valid=recorded.filter(r=>qualifiesAsListen({entry:r.entry,durationMs:r.entry.durationMs}).qualifies);
- const started=recorded.filter(r=>Number.isFinite(r.entry.startedAt)).length + (Number.isFinite(snapshot?.current?.startedAt)&&ids.has(snapshot.current.playInstanceId)?1:0);
+ const startedIds=new Set(recorded.filter(r=>Number.isFinite(r.entry.startedAt)).map(r=>r.entry.playInstanceId));
+ if(Number.isFinite(snapshot?.current?.startedAt)&&ids.has(snapshot.current.playInstanceId))startedIds.add(snapshot.current.playInstanceId);
+ const started=startedIds.size;
  return {version:1,generatedAt:now,explanation:explainSelection(snapshot),
-  profile:{kind:'agent_preferences',artists,coverage:{genres:0,moods:0},modelSummary:false},
-  decisions:log.slice(-10).reverse(),
+  profile:{kind:'agent_preferences',artists,tracks,coverage:{genres:0,moods:0},modelSummary:false},
+  decisions:log.slice(-10).reverse().map(d=>({...d,trackTitle:titles.get(d.trackKey)||d.trackKey||'未选中歌曲'})),
+  recentChanges:recorded.filter(r=>r.growth?.updated&&Number.isFinite(r.growth.before)&&Number.isFinite(r.growth.after)).slice(0,5)
+   .map(r=>({playInstanceId:r.entry.playInstanceId,title:r.entry.track.title||r.entry.track.providerTrackId,
+    before:r.growth.before,after:r.growth.after,at:r.processedAt,audible:r.growth.audible===true})),
   statistics:{windowStart:log[0]?.at??null,retainedDecisions:log.length,autonomousDecisions:log.length,
    explorationAttempts:log.filter(d=>d.attemptedDiscovery).length,unfamiliarSelections:log.filter(d=>d.pool==='discovery'&&d.trackKey).length,
    observedStarts:started,validAgentListens:valid.length,validUnfamiliarListens:valid.filter(r=>r.entry.selectionPool==='discovery').length,
+   repeatedSelections:log.filter(d=>(d.detail?.repeatPlays??0)>0).length,
    historyCoverage:'tracked_decision_instances',completeLifetime:false},
   limitations:['no_genre_or_mood_features','local_rules_not_llm_summary']};
 }

@@ -19,6 +19,10 @@ test('decision-scoped stats separate target attempts, actual starts and valid un
   let stats=describeMusicInsights(store,core.snapshot()).statistics;assert.equal(stats.observedStarts,1);assert.equal(stats.explorationAttempts,1);
   playback.emit({type:'progress',playInstanceId:instance,positionMs:50000});core.dispatch({type:'pause',commandId:'hold'});
   core._finishCurrent('ended');stats=describeMusicInsights(store,{...core.snapshot(),current:null}).statistics;
+  assert.equal(describeMusicInsights(store,core.snapshot()).statistics.observedStarts,1,'a recovered/current instance also present in finished history is still one start');
   assert.equal(stats.validUnfamiliarListens,1);assert.equal(stats.observedStarts,1);assert.equal(store.countEnvironment(),0);
+  const view=describeMusicInsights(store,{...core.snapshot(),current:null});
+  assert.equal(view.recentChanges.length,1);assert.equal(view.recentChanges[0].before,0.5);assert.ok(view.recentChanges[0].after>0.5);
+  assert.equal(view.profile.tracks[0].title,'Related');assert.equal(view.decisions[0].trackTitle,'Related');
  }finally{await core.waitForIdle();store.close();}
 });
