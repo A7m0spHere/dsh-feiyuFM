@@ -83,9 +83,10 @@ window.__ModuleLoader__.load({
       .fm-hero { display:grid; grid-template-columns:minmax(0,1fr) 120px; align-items:center; gap:16px;
         padding:22px; margin-bottom:16px; background:var(--fm-surface); border:1px solid var(--fm-line);
         border-radius:12px; box-shadow:var(--fm-shadow); animation:fm-rise var(--fm-page) var(--fm-ease) both; }
-      .fm-art { grid-column:2; grid-row:1; display:grid; place-items:center; align-self:stretch;
-        background:var(--fm-accent-soft); border-radius:10px; overflow:hidden; }
-      .fm-art img { width:120px; height:145px; object-fit:contain; animation:fm-swap var(--fm-base) var(--fm-ease); }
+      .fm-art { grid-column:2; grid-row:1; display:grid; place-items:center;
+        background:transparent; }
+      .fm-art picture { display:block; width:100%; }
+      .fm-art img { display:block; width:120px; height:150px; object-fit:contain; }
       .fm-hero-copy { grid-column:1; grid-row:1; min-width:0; }
       .fm-live,.fm-float-status { display:flex; align-items:center; gap:7px; color:var(--fm-muted); font-size:11px; }
       .fm-dot,.fm-float-dot { display:inline-block; width:6px; height:6px; flex:none;
@@ -567,6 +568,16 @@ window.__ModuleLoader__.load({
         : h('i', { className: 'fm-dot', 'data-off': true, 'aria-hidden': true });
     }
 
+    function CharacterArt({ art, active, motion }) {
+      const still = art === 'whale-dj' ? 'whale-dj.png' : 'whale-loop-still.png';
+      const animated = active && (motion || 'full') === 'full';
+      const base = '/fishfm/assets/';
+      return h('picture', null,
+        h('source', { media: '(prefers-reduced-motion: reduce)', srcSet: base + still }),
+        h('img', { src: base + (animated ? 'whale-listening-loop.gif' : still),
+          width: 256, height: 320, alt: '鲸鱼娘音乐状态' }));
+    }
+
     function usePresence(open, level) {
       const [retained, setRetained] = React.useState(open);
       React.useEffect(() => {
@@ -922,7 +933,7 @@ window.__ModuleLoader__.load({
             'aria-pressed': state.widgetVisible, 'aria-label': '显示或隐藏悬浮条', onClick: () => controller.setWidgetVisible(!state.widgetVisible) }, state.widgetVisible ? '悬浮条已显示' : '显示悬浮条'),
           h('button', { type: 'button', className: 'fm-button', onClick: close || back }, close ? '关闭设置' : '返回对话'))),
         h('section', { className: 'fm-hero', 'aria-label': '当前播放' },
-          h('div', { className: 'fm-art' }, h('img', { key: art, src: `/fishfm/assets/${art}.png`, alt: '鲸鱼娘音乐状态' })),
+          h('div', { className: 'fm-art' }, h(CharacterArt, { art, active: presentation.active, motion: state.motion })),
           h('div', { className: 'fm-hero-copy' },
             h('div', { className: 'fm-live', role: 'status' }, h(StatusMark, { active: presentation.active }), presentation.label),
             h('div', { className: 'fm-track-swap', key: current?.playInstanceId || 'empty' },

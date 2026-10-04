@@ -1,5 +1,9 @@
 # Third-party notices
 
+## FishFM generated animation artwork
+
+2026-10-04 `docs/art/whale-motion-v1.png` was generated with the built-in image tool using FishFM's existing `src/ui/assets/whale-idle.png` as the identity reference. `src/ui/assets/whale-loop-still.png` and `whale-listening-loop.gif` are cropped/registered/exported derivatives assembled by `scripts/build-whale-animation.py`. No third-party character sheet was copied. Prompt, input scope, transparency and verification are recorded in [U9](docs/spikes/U9-transparent-character.md). Pillow is used only by the optional asset-build script and is not a runtime dependency.
+
 ## PHL design tokens and motion reference — MIT
 
 FishFM's `src/ui/client/styles.mjs` adapts the light/dark neutral and azure values and timing vocabulary from the user's local `dsh-phl` project, inspected on 2026-10-02 at base commit `3ec73011d20d9b44c797bde302a4576b8671b1b3`: `src/index.css` and `src/lib/motion.ts`. `src/components/ui/Card.tsx`, `Button.tsx`, `Menu.tsx` and `src/components/layout/Page.tsx` were read as visual/interaction references. FishFM's components and CSS animation/presence implementation are maintained here; no PHL logo, launcher assets, Tauri code or motion library was copied or added as a runtime dependency. The local project declares MIT and includes this license:

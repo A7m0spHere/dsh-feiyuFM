@@ -54,6 +54,8 @@ const CLIENT_ASSETS = Object.freeze({
   '/fishfm/assets/whale-idle.png': join(here, 'src', 'ui', 'assets', 'whale-idle.png'),
   '/fishfm/assets/whale-listening.png': join(here, 'src', 'ui', 'assets', 'whale-listening.png'),
   '/fishfm/assets/whale-dj.png': join(here, 'src', 'ui', 'assets', 'whale-dj.png'),
+  '/fishfm/assets/whale-loop-still.png': join(here, 'src', 'ui', 'assets', 'whale-loop-still.png'),
+  '/fishfm/assets/whale-listening-loop.gif': join(here, 'src', 'ui', 'assets', 'whale-listening-loop.gif'),
 });
 
 export function registerClientAssets(ctx) {
@@ -69,7 +71,7 @@ export function registerClientAssets(ctx) {
             return;
           }
           res.writeHead(200, {
-            'content-type': 'image/png',
+            'content-type': file.endsWith('.gif') ? 'image/gif' : 'image/png',
             'content-length': body.length,
             'cache-control': 'public, max-age=3600',
             'x-content-type-options': 'nosniff',
