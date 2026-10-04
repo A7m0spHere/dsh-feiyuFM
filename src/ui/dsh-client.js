@@ -86,6 +86,7 @@ window.__ModuleLoader__.load({
       .fm-art { grid-column:2; grid-row:1; display:grid; place-items:center;
         background:transparent; }
       .fm-art img { width:120px; height:145px; object-fit:contain; animation:fm-swap var(--fm-base) var(--fm-ease); }
+      .fm-art picture,.fm-float-art picture { display:block; width:100%; }
       .fm-hero-copy { grid-column:1; grid-row:1; min-width:0; }
       .fm-live,.fm-float-status { display:flex; align-items:center; gap:7px; color:var(--fm-muted); font-size:11px; }
       .fm-dot,.fm-float-dot { display:inline-block; width:6px; height:6px; flex:none;
@@ -567,6 +568,15 @@ window.__ModuleLoader__.load({
         : h('i', { className: 'fm-dot', 'data-off': true, 'aria-hidden': true });
     }
 
+    function PlaybackArtwork({ art, active, motion, alt = '' }) {
+      const base = '/fishfm/assets/';
+      const still = active ? 'whale-pot-still.png' : `${art}.png`;
+      const animated = active && (motion || 'full') === 'full';
+      return h('picture', null,
+        h('source', { media: '(prefers-reduced-motion: reduce)', srcSet: base + still }),
+        h('img', { src: base + (animated ? 'whale-pot-dance.gif' : still), alt }));
+    }
+
     function usePresence(open, level) {
       const [retained, setRetained] = React.useState(open);
       React.useEffect(() => {
@@ -922,7 +932,7 @@ window.__ModuleLoader__.load({
             'aria-pressed': state.widgetVisible, 'aria-label': '显示或隐藏悬浮条', onClick: () => controller.setWidgetVisible(!state.widgetVisible) }, state.widgetVisible ? '悬浮条已显示' : '显示悬浮条'),
           h('button', { type: 'button', className: 'fm-button', onClick: close || back }, close ? '关闭设置' : '返回对话'))),
         h('section', { className: 'fm-hero', 'aria-label': '当前播放' },
-          h('div', { className: 'fm-art' }, h('img', { key: art, src: `/fishfm/assets/${art}.png`, alt: '鲸鱼娘音乐状态' })),
+          h('div', { className: 'fm-art' }, h(PlaybackArtwork, { art, active: presentation.active, motion: state.motion, alt: '鲸鱼娘音乐状态' })),
           h('div', { className: 'fm-hero-copy' },
             h('div', { className: 'fm-live', role: 'status' }, h(StatusMark, { active: presentation.active }), presentation.label),
             h('div', { className: 'fm-track-swap', key: current?.playInstanceId || 'empty' },
@@ -1129,7 +1139,7 @@ window.__ModuleLoader__.load({
             onPointerDown: dragStart, onPointerMove: dragMove, onPointerUp: dragEnd, onPointerCancel: dragEnd, onKeyDown: nudge }, h(Svg, { type: 'grip' })),
           h('button', { ref: triggerRef, type: 'button', className: 'fm-float-trigger', 'aria-expanded': expanded, 'aria-controls': 'fishfm-quick-controls',
             onClick: () => expanded ? closeOverlay() : openDrawer() },
-            h('span', { className: 'fm-float-art', 'aria-hidden': true }, h('img', { key: image, src: `/fishfm/assets/${image}.png`, alt: '' })),
+            h('span', { className: 'fm-float-art', 'aria-hidden': true }, h(PlaybackArtwork, { art: image, active: presentation.active, motion: state.motion })),
             h('span', { className: 'fm-float-copy' }, h('span', { className: 'fm-float-title' }, current?.track?.title || '肥鱼电台 · 待命'),
               h('span', { className: 'fm-float-artist' }, current?.track?.artist || (state.connected ? '点击展开快捷控制' : '连接本地音乐服务中')),
               h('span', { className: 'fm-float-status' }, h(StatusMark, { active: presentation.active }), presentation.label))),

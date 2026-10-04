@@ -1,7 +1,7 @@
 import { playbackPresentation, popupPlacement } from './presentation.mjs';
 import React from 'react';
 import { h, minutes, progressPercent, modes } from './shared.mjs';
-import { Svg, SwipeHandle, usePresence, StatusMark } from './components.mjs';
+import { Svg, SwipeHandle, usePresence, StatusMark, PlaybackArtwork } from './components.mjs';
 export function FloatingPlayer({ controller, layout, usePanelInfo }) {
   const state = React.useSyncExternalStore(controller.subscribe, controller.getSnapshot);
   const activePanelId = typeof usePanelInfo === 'function' ? usePanelInfo(info => info.activePanelId) : null;
@@ -174,7 +174,7 @@ export function FloatingPlayer({ controller, layout, usePanelInfo }) {
         onPointerDown: dragStart, onPointerMove: dragMove, onPointerUp: dragEnd, onPointerCancel: dragEnd, onKeyDown: nudge }, h(Svg, { type: 'grip' })),
       h('button', { ref: triggerRef, type: 'button', className: 'fm-float-trigger', 'aria-expanded': expanded, 'aria-controls': 'fishfm-quick-controls',
         onClick: () => expanded ? closeOverlay() : openDrawer() },
-        h('span', { className: 'fm-float-art', 'aria-hidden': true }, h('img', { key: image, src: `/fishfm/assets/${image}.png`, alt: '' })),
+        h('span', { className: 'fm-float-art', 'aria-hidden': true }, h(PlaybackArtwork, { art: image, active: presentation.active, motion: state.motion })),
         h('span', { className: 'fm-float-copy' }, h('span', { className: 'fm-float-title' }, current?.track?.title || '肥鱼电台 · 待命'),
           h('span', { className: 'fm-float-artist' }, current?.track?.artist || (state.connected ? '点击展开快捷控制' : '连接本地音乐服务中')),
           h('span', { className: 'fm-float-status' }, h(StatusMark, { active: presentation.active }), presentation.label))),

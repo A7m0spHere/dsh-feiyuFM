@@ -17,6 +17,15 @@ export function StatusMark({ active }) {
     : h('i', { className: 'fm-dot', 'data-off': true, 'aria-hidden': true });
 }
 
+export function PlaybackArtwork({ art, active, motion, alt = '' }) {
+  const base = '/fishfm/assets/';
+  const still = active ? 'whale-pot-still.png' : `${art}.png`;
+  const animated = active && (motion || 'full') === 'full';
+  return h('picture', null,
+    h('source', { media: '(prefers-reduced-motion: reduce)', srcSet: base + still }),
+    h('img', { src: base + (animated ? 'whale-pot-dance.gif' : still), alt }));
+}
+
 export function usePresence(open, level) {
   const [retained, setRetained] = React.useState(open);
   React.useEffect(() => {

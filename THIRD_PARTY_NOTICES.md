@@ -1,5 +1,9 @@
 # Third-party notices
 
+## User-provided pot whale GIF
+
+The user supplied `c01865c11357bb0e2bcc82666f35b399.png` on 2026-10-04 and requested background removal and playback UI integration. Its actual format is GIF89a, with 50 frames. `src/ui/assets/whale-pot-dance.gif` and `whale-pot-still.png` are foreground-only derivatives created from the original pixels with the locally authorized `scripts/cutout-whale-pot.py`; no generated replacement frames are used. The creator and license were not supplied, and the original attachment is not checked in. Source hash, processing scope and evidence are recorded in [U10](docs/spikes/U10-user-gif-cutout.md). OpenCV/Pillow are asset-build tools only, not plugin runtime dependencies.
+
 ## PHL design tokens and motion reference — MIT
 
 FishFM's `src/ui/client/styles.mjs` adapts the light/dark neutral and azure values and timing vocabulary from the user's local `dsh-phl` project, inspected on 2026-10-02 at base commit `3ec73011d20d9b44c797bde302a4576b8671b1b3`: `src/index.css` and `src/lib/motion.ts`. `src/components/ui/Card.tsx`, `Button.tsx`, `Menu.tsx` and `src/components/layout/Page.tsx` were read as visual/interaction references. FishFM's components and CSS animation/presence implementation are maintained here; no PHL logo, launcher assets, Tauri code or motion library was copied or added as a runtime dependency. The local project declares MIT and includes this license:

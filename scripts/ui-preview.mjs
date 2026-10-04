@@ -16,7 +16,8 @@ const routes = new Map([
   ['/react-dom.js', [join(reactRoot, 'react-dom', 'umd', 'react-dom.development.js'), 'text/javascript']],
   ['/client.js', [join(root, 'src', 'ui', 'dsh-client.js'), 'text/javascript']],
 ]);
-for (const name of ['whale-idle', 'whale-dj', 'whale-listening']) routes.set(`/fishfm/assets/${name}.png`, [join(root, 'src', 'ui', 'assets', `${name}.png`), 'image/png']);
+for (const name of ['whale-idle', 'whale-dj', 'whale-listening', 'whale-pot-still']) routes.set(`/fishfm/assets/${name}.png`, [join(root, 'src', 'ui', 'assets', `${name}.png`), 'image/png']);
+routes.set('/fishfm/assets/whale-pot-dance.gif', [join(root, 'src', 'ui', 'assets', 'whale-pot-dance.gif'), 'image/gif']);
 const server = createServer((req, res) => {
   const route = routes.get(new URL(req.url, 'http://localhost').pathname);
   if (!route || !['GET', 'HEAD'].includes(req.method)) { res.writeHead(404); res.end(); return; }
