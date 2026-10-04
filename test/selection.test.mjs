@@ -248,7 +248,8 @@ test('the core waits instead of looping when the selector has nothing', async ()
   };
   const core = new MusicCore({ store, provider, playback, selector, clock: new FakeClock(1000) });
   try {
-    core.dispatch({ commandId: 'c1', type: 'chooseSelf' });
+    // 用户主动要求开始听歌却没有候选：一次尝试后如实报错，不进入重试循环。
+    assert.throws(() => core.dispatch({ commandId: 'c1', type: 'chooseSelf' }), { code: 'no_candidates' });
     await core.waitForIdle();
     assert.equal(core.snapshot().current, null);
     assert.equal(playback.playing, false);

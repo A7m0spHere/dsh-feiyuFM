@@ -232,9 +232,11 @@ test('mode and switch combinations preserve explicit mute and pause', async () =
   h.send('setListening', { value: true });
   assert.deepEqual([h.core.snapshot().settings.listening, h.core.snapshot().settings.humanPlayback], [true, false]);
   assert.equal(h.core.snapshot().paused, true);
-  h.send('setMode', { value: 'focus' });
+  // 模式按钮是开始听歌的快捷操作：日常/专注必须恢复声音；
+  // 空曲库时启动失败也要报 no_candidates，而不是静默无操作。
+  assert.throws(() => h.send('setMode', { value: 'focus' }), { code: 'no_candidates' });
   assert.equal(h.core.snapshot().settings.strategy, 'focus');
-  assert.equal(h.core.snapshot().settings.humanPlayback, false);
+  assert.equal(h.core.snapshot().settings.humanPlayback, true);
   assert.equal(h.core.snapshot().paused, false);
   h.send('setHumanPlayback', { value: true });
   h.send('setListening', { value: false });
@@ -242,6 +244,44 @@ test('mode and switch combinations preserve explicit mute and pause', async () =
   h.send('requestTrack', { track: a });
   await h.core.waitForIdle();
   assert.equal(h.playback.playing, true);
+  h.store.close();
+});
+
+test('audible modes restore sound output after silent or off', async () => {
+  const h = harness();
+  h.core.setQueue([a, b]);
+  h.send('setMode', { value: 'silent' });
+  await h.core.waitForIdle();
+  assert.equal(h.core.snapshot().settings.humanPlayback, false);
+  assert.equal(h.playback.muted, true);
+  h.send('setMode', { value: 'normal' });
+  await h.core.waitForIdle();
+  assert.equal(h.core.snapshot().settings.humanPlayback, true, '日常必须恢复声音设置');
+  assert.equal(h.playback.muted, false, '播放中的静音必须被解除');
+  h.send('setMode', { value: 'off' });
+  await h.core.waitForIdle();
+  assert.equal(h.core.snapshot().paused, true);
+  h.send('setMode', { value: 'focus' });
+  await h.core.waitForIdle();
+  assert.equal(h.core.snapshot().settings.humanPlayback, true, '从关闭切回专注同样恢复声音');
+  assert.equal(h.core.snapshot().paused, false);
+  assert.equal(h.playback.playing, true);
+  assert.equal(h.playback.muted, false);
+  h.store.close();
+});
+
+test('blocked autonomy start reports autonomy_blocked and chooseSelf restores it', async () => {
+  const h = harness();
+  h.send('stopForToday');
+  await h.core.waitForIdle();
+  assert.throws(() => h.send('resume'), { code: 'autonomy_blocked' });
+  assert.throws(() => h.send('setMode', { value: 'normal' }), { code: 'autonomy_blocked' });
+  h.core.setQueue([a]);
+  h.send('chooseSelf');
+  assert.equal(h.core.snapshot().blockUntil, null);
+  assert.equal(h.store.activeConstraints(h.clock.now()).some((row) => row.id === 'stop-today'), false);
+  await h.core.waitForIdle();
+  assert.equal(h.core.snapshot().current.track.provider, 'netease', '恢复后立即从队列开始自主播放');
   h.store.close();
 });
 

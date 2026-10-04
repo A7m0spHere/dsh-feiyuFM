@@ -30,13 +30,16 @@ test('settings RPC persists changes through Core restart and preserves pause', a
   try {
     const api = createSettingsHandler(bridge);
     assert.equal((await api('fishfm/state')).value.snapshot.paused, true);
+    // 模式是开始听歌的快捷操作：空曲库时启动失败必须如实报 no_candidates，
+    // 但模式设置本身已经保存（listening/strategy/恢复声音）。
+    const modeResult = await api('fishfm/command', { type: 'setMode', value: 'focus' });
+    assert.equal(modeResult.ok, false);
+    assert.equal(modeResult.error.code, 'no_candidates');
     for (const [type, value] of [['setHumanPlayback', false], ['setDiscoveryRate', .37]]) {
       const result = await api('fishfm/command', { type, value });
       assert.equal(result.ok, true);
-      assert.equal(result.value.snapshot.paused, true);
     }
-    // Modes explicitly start listening; pause remains a separate user action.
-    assert.equal((await api('fishfm/command', { type: 'setMode', value: 'focus' })).ok, true);
+    // Pause remains a separate user action.
     assert.equal((await api('fishfm/command', { type: 'pause' })).value.snapshot.paused, true);
     await bridge.stop();
     bridge = makeBridge();

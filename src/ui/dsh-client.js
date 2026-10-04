@@ -469,7 +469,7 @@ window.__ModuleLoader__.load({
               :type==='resetTaste'?'已重置成长偏好，输入曲库保留':type==='resetLibrary'?'已清空输入曲库并重建偏好，可撤销':type==='undoTasteReset'?'已恢复最近一次重置前的数据':type==='setRecommendationMode'?'推荐来源已更新':null;
             emit({ ...result.value,...(['resetTaste','resetLibrary','undoTasteReset','setRecommendationMode'].includes(type)?{summaryNotice:'',summaryError:''}:{}),...(type==='resetLibrary'?{imported:null,importAttempts:[]}:{}), notice: feedbackNotice || (['pause', 'resume', 'next', 'requestTrack'].includes(type) ? '播放控制已更新' : '已保存到本机') });
           } catch (error) {
-            const actionError = ['no_candidates', 'constraint_conflict', 'invalid_command', 'media_unavailable','stale_track','summary_busy','no_reset_backup','invalid_track'].includes(error?.code);
+            const actionError = ['no_candidates', 'autonomy_blocked', 'constraint_conflict', 'invalid_command', 'media_unavailable','stale_track','summary_busy','no_reset_backup','invalid_track'].includes(error?.code);
             emit({ connected: actionError ? state.connected : false, error: failure(error), errorCode:error?.code??null, notice: actionError ? '请调整曲目或设置后重试' : '未确认操作，请刷新核对' });
           }
           finally { clearTimeout(timeout); write = null; emit({ busy: false }); }
@@ -964,7 +964,9 @@ window.__ModuleLoader__.load({
             onClick: state.errorCode==='no_candidates'&&state.insights?.recommendationMode==='llm'?()=>controller.platformAction('discovery','netease'):controller.refresh },
             state.errorCode==='no_candidates'&&state.insights?.recommendationMode==='llm'?'重新核对歌单':state.connected?'刷新状态':'重新连接')),
         snapshot?.lastError && h('div', { className: 'fm-notice', role: 'status' }, `播放尚未成功：${snapshot.lastError.code || 'playback_failed'}。请核对平台连接和曲目权限。`),
-        snapshot?.blockUntil > Date.now() && h('div', { className: 'fm-notice' }, '今天已停止自主听歌。到期后仍会保持暂停，直到你主动恢复。'),
+        snapshot?.blockUntil > Date.now() && h('div', { className: 'fm-notice' }, '今天已停止自主听歌。到期后仍会保持暂停，直到你主动恢复。',
+          h('button', { className: 'fm-button', type: 'button', disabled: state.busy || !state.connected,
+            onClick: () => controller.command('chooseSelf') }, '恢复自主听歌')),
         grid,
         h('footer', { className: 'fm-foot' }, h('span', null, '设置和登录材料保存在本机 · 关闭面板不会结束音乐服务'), h('span', null, '逐曲回复由本地规则生成 · 模型总结按需调用'))));
     }

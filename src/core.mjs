@@ -416,6 +416,15 @@ export class MusicCore {
             this.state.settings.humanPlayback = false;
           } else {
             this.state.settings.strategy = command.value;
+            // 日常/专注承诺保留声音：从静音状态切回来必须恢复输出，
+            // 否则按钮看起来没有生效，声音也回不来。
+            if (!this.state.settings.humanPlayback) {
+              this.state.settings.humanPlayback = true;
+              if (wasPlaying) {
+                this._invalidate();
+                this._control('setMuted', { muted: false, version: this.state.commandVersion }, true);
+              }
+            }
           }
           this.state.paused = false;
           if (this.state.current && !wasPlaying) this._restartCurrent();
@@ -472,9 +481,27 @@ export class MusicCore {
     this._commit();
     if ((command.type === 'resume' || command.type === 'chooseSelf' ||
       (command.type === 'setMode' && command.value !== 'off')) && !this.state.current) {
-      this.selectAutonomously();
+      // 用户主动要求开始听歌却没有任何候选时必须说出原因：静默返回会让
+      // 「开始听歌」「恢复自主听歌」看起来像坏了的按钮。
+      if (!this.selectAutonomously()) {
+        if (this._blockedUntil()) {
+          throw new MusicError('autonomy_blocked', '今天已停止自主听歌。点击提示条里的「恢复自主听歌」即可重新开启。');
+        }
+        throw new MusicError('no_candidates', this._noCandidatesReason());
+      }
     }
     return this.snapshot();
+  }
+
+  /** 为什么现在没有可自动播放的歌曲，按推荐来源给出可操作的原因。 */
+  _noCandidatesReason() {
+    if (this.store.getSetting('recommendation_mode_v1') === 'llm') {
+      const playlist = modelRecommendations(this.store);
+      if (!playlist) return '还没有模型歌单，请先根据歌曲推荐一批。';
+      if (!playlist.verified.length) return '模型歌单尚无通过核对的歌曲，请查看各首核对状态并重新核对。';
+      return '模型歌曲均为当前曲目、处于 30 分钟重复冷却或被播放规则排除，请稍后重试或更新歌单。';
+    }
+    return '现在没有可自动播放的歌曲：曲库为空或候选都在冷却、被过滤。';
   }
 
   selectAutonomously() {

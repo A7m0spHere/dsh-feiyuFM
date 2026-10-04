@@ -114,10 +114,9 @@ test('the product path reports a missing platform adapter instead of inventing a
   const bridge = new CoreBridge({ spawnCore: () => spawnRealCore() });
   await bridge.start();
   try {
-    // An empty environment means there is nothing to select: wait, do not spin.
-    const empty = await bridge.command({ type: 'chooseSelf' });
-    assert.equal(empty.snapshot.current, null);
-    assert.equal(empty.snapshot.status, 'idle');
+    // An empty environment means there is nothing to select: the attempt is
+    // reported to the user instead of pretending the command succeeded.
+    await assert.rejects(bridge.command({ type: 'chooseSelf' }), (error) => error.code === 'no_candidates');
 
     // Fill the environment the way a real import will, then let the agent pick.
     await bridge.request({

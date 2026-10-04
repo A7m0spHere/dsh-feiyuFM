@@ -182,7 +182,9 @@ export function Panel({ controller, back, close }) {
         onClick: state.errorCode==='no_candidates'&&state.insights?.recommendationMode==='llm'?()=>controller.platformAction('discovery','netease'):controller.refresh },
         state.errorCode==='no_candidates'&&state.insights?.recommendationMode==='llm'?'重新核对歌单':state.connected?'刷新状态':'重新连接')),
     snapshot?.lastError && h('div', { className: 'fm-notice', role: 'status' }, `播放尚未成功：${snapshot.lastError.code || 'playback_failed'}。请核对平台连接和曲目权限。`),
-    snapshot?.blockUntil > Date.now() && h('div', { className: 'fm-notice' }, '今天已停止自主听歌。到期后仍会保持暂停，直到你主动恢复。'),
+    snapshot?.blockUntil > Date.now() && h('div', { className: 'fm-notice' }, '今天已停止自主听歌。到期后仍会保持暂停，直到你主动恢复。',
+      h('button', { className: 'fm-button', type: 'button', disabled: state.busy || !state.connected,
+        onClick: () => controller.command('chooseSelf') }, '恢复自主听歌')),
     grid,
     h('footer', { className: 'fm-foot' }, h('span', null, '设置和登录材料保存在本机 · 关闭面板不会结束音乐服务'), h('span', null, '逐曲回复由本地规则生成 · 模型总结按需调用'))));
 }
