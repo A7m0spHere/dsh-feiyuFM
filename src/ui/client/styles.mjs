@@ -79,8 +79,7 @@ export const css = `
     border-radius:12px; box-shadow:var(--fm-shadow); animation:fm-rise var(--fm-page) var(--fm-ease) both; }
   .fm-art { grid-column:2; grid-row:1; display:grid; place-items:center;
     background:transparent; }
-  .fm-art picture { display:block; width:100%; }
-  .fm-art img { display:block; width:120px; height:150px; object-fit:contain; }
+  .fm-art img { width:120px; height:145px; object-fit:contain; animation:fm-swap var(--fm-base) var(--fm-ease); }
   .fm-hero-copy { grid-column:1; grid-row:1; min-width:0; }
   .fm-live,.fm-float-status { display:flex; align-items:center; gap:7px; color:var(--fm-muted); font-size:11px; }
   .fm-dot,.fm-float-dot { display:inline-block; width:6px; height:6px; flex:none;

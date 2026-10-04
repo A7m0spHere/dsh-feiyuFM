@@ -1,7 +1,7 @@
 import { playbackPresentation, discoveryPresentation } from './presentation.mjs';
 import React from 'react';
 import { h, minutes, progressPercent, modes, sourceNames, stageNames } from './shared.mjs';
-import { Svg, StatusMark, CharacterArt } from './components.mjs';
+import { Svg, StatusMark } from './components.mjs';
 import { Library } from './library.mjs';
 import {Persona} from './persona.mjs';
 import {FeedbackSettings} from './feedback.mjs';
@@ -151,7 +151,7 @@ export function Panel({ controller, back, close }) {
         'aria-pressed': state.widgetVisible, 'aria-label': '显示或隐藏悬浮条', onClick: () => controller.setWidgetVisible(!state.widgetVisible) }, state.widgetVisible ? '悬浮条已显示' : '显示悬浮条'),
       h('button', { type: 'button', className: 'fm-button', onClick: close || back }, close ? '关闭设置' : '返回对话'))),
     h('section', { className: 'fm-hero', 'aria-label': '当前播放' },
-      h('div', { className: 'fm-art' }, h(CharacterArt, { art, active: presentation.active, motion: state.motion })),
+      h('div', { className: 'fm-art' }, h('img', { key: art, src: `/fishfm/assets/${art}.png`, alt: '鲸鱼娘音乐状态' })),
       h('div', { className: 'fm-hero-copy' },
         h('div', { className: 'fm-live', role: 'status' }, h(StatusMark, { active: presentation.active }), presentation.label),
         h('div', { className: 'fm-track-swap', key: current?.playInstanceId || 'empty' },
