@@ -89,6 +89,8 @@ test('an expired platform handle is resolved again instead of failing the track'
     assert.equal(h.core.snapshot().current.playInstanceId, instance, 'and it is the same listen');
     assert.equal(h.core.snapshot().status, 'playing', 'playback recovered');
     assert.equal(h.provider.calls.length >= 2, true, 'the provider was asked again');
+    // 播放恢复后不得残留 resource_expired：否则 UI 会在正常播放时显示「播放未成功」。
+    assert.equal(h.core.snapshot().lastError, null, 'a recovered start clears the stale resolve error');
 
     // Only once: a second failure on a re-resolved handle is a real failure.
     h.playback.emit({ type: 'error', playInstanceId: instance, code: 'media_failed', message: 'still broken' });

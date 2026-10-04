@@ -557,6 +557,9 @@ export class MusicCore {
       if (this.state.paused) return false;
       this.state.status = 'playing';
       current.startedAt??=this.clock.now();
+      // 播放真正开始即证明解析层错误已过时：过期句柄重解析成功后若保留
+      // lastError，界面会在音乐正常播放时继续显示「播放未成功」。
+      this.state.lastError = null;
       this._commit();
       return true;
     }
