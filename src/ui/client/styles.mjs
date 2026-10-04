@@ -252,8 +252,8 @@ export const css = `
   .fm-float-pill { display:flex; align-items:center; gap:7px; padding:8px;
     border:1px solid var(--fm-line); border-radius:11px; background:var(--fm-raised); box-shadow:var(--fm-popup-shadow); }
   .fm-float-art { display:grid; place-items:center; width:40px; height:42px; flex:none;
-    border-radius:7px; background:var(--fm-accent-soft); overflow:hidden; }
-  .fm-float-art img { width:49px; height:49px; object-fit:contain; animation:fm-swap var(--fm-fast) var(--fm-ease); }
+    background:transparent; }
+  .fm-float-art img { display:block; width:40px; height:42px; object-fit:contain; animation:fm-swap var(--fm-fast) var(--fm-ease); }
   .fm-float-trigger { display:flex; align-items:center; gap:8px; min-width:0; flex:1; padding:0;
     border:0; background:transparent; color:inherit; text-align:left; }
   .fm-float-copy { display:block; min-width:0; flex:1; }
