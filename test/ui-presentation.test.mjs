@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { filterLibrary, playbackPresentation, popupPlacement, discoveryPresentation } from '../src/ui/client/presentation.mjs';
+import {interpolatedPosition} from '../src/ui/client/presentation.mjs';
 
 test('playback preparation, mute, pause and disconnection have distinct visual states', () => {
   const snapshot = { status: 'playing', paused: false, settings: { humanPlayback: true } };
@@ -37,4 +38,15 @@ test('popovers flip below a top-docked bar and constrain their height to availab
   assert.deepEqual(popupPlacement(frame, { top: 64, bottom: 138 }, 440), { side: 'below', maxHeight: 440 });
   assert.deepEqual(popupPlacement(frame, { top: 670, bottom: 744 }, 440), { side: 'above', maxHeight: 440 });
   assert.deepEqual(popupPlacement({ top: 0, bottom: 200 }, { top: 60, bottom: 135 }, 440), { side: 'below', maxHeight: 53 });
+});
+
+test('progress interpolates from the last server anchor while playing and never overruns the track', () => {
+  const anchor = { id: 'inst-1', at: 1_000_000, ms: 40_000 };
+  const base = { anchor, playInstanceId: 'inst-1', positionMs: 40_000, durationMs: 200_000, now: 1_003_000, active: true };
+  assert.equal(interpolatedPosition(base), 43_000, '播放中按本地时钟推进，界面不再每 2.2 秒跳格');
+  assert.equal(interpolatedPosition({ ...base, active: false }), 40_000, '暂停时回到服务端锚点，不虚增进度');
+  assert.equal(interpolatedPosition({ ...base, playInstanceId: 'inst-2' }), 40_000, '切歌后不沿用上一首的锚点');
+  assert.equal(interpolatedPosition({ ...base, now: 1_900_000 }), 200_000, '插值不会超过曲目时长');
+  assert.equal(interpolatedPosition({ ...base, anchor: null }), 40_000, '没有锚点时返回服务端原值');
+  assert.equal(interpolatedPosition({ ...base, durationMs: null, now: 1_005_000 }), 45_000, '时长未知时按本地时钟推进且不设上限');
 });

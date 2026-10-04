@@ -1,7 +1,7 @@
 import { playbackPresentation, popupPlacement } from './presentation.mjs';
 import React from 'react';
 import { h, minutes, progressPercent, modes } from './shared.mjs';
-import { Svg, SwipeHandle, usePresence, StatusMark, PlaybackArtwork } from './components.mjs';
+import { Svg, SwipeHandle, usePresence, StatusMark, PlaybackArtwork, useSmoothProgress } from './components.mjs';
 export function FloatingPlayer({ controller, layout, usePanelInfo }) {
   const state = React.useSyncExternalStore(controller.subscribe, controller.getSnapshot);
   const activePanelId = typeof usePanelInfo === 'function' ? usePanelInfo(info => info.activePanelId) : null;
@@ -28,6 +28,7 @@ export function FloatingPlayer({ controller, layout, usePanelInfo }) {
   const settings = snapshot?.settings || {};
   const mode = !settings.listening ? (settings.humanPlayback ? 'manual' : 'off') : !settings.humanPlayback ? 'silent' : settings.strategy === 'focus' ? 'focus' : 'normal';
   const presentation = playbackPresentation(snapshot, state.connected);
+  const positionMs = useSmoothProgress(current, presentation.active);
   const image = presentation.art;
   const blocked = !state.connected || state.busy;
   function openDrawer() { priorFocus.current = document.activeElement; setMenuOpen(false); setExpanded(true); }
@@ -143,9 +144,9 @@ export function FloatingPlayer({ controller, layout, usePanelInfo }) {
       h('div', { className: 'fm-float-drawer-body' },
         current ? h(React.Fragment, null,
           h('div', { className: 'fm-float-track' }, h('strong', null, current.track?.title || '正在播放'), h('span', null, current.track?.artist || '未知艺人')),
-          h('div', { className: 'fm-progress' }, h('span', { style: { width: `${progressPercent(current)}%` } })),
+          h('div', { className: 'fm-progress' }, h('span', { style: { width: `${progressPercent({ ...current, positionMs })}%` } })),
           h('div', { className: 'fm-time' }, h('span', null, playing ? '正在播放' : paused ? '已暂停' : '等待音乐'),
-            h('span', null, `${minutes(current.positionMs)} / ${current.track?.durationMs ? minutes(current.track.durationMs) : '--:--'}`)))
+            h('span', null, `${minutes(positionMs)} / ${current.track?.durationMs ? minutes(current.track.durationMs) : '--:--'}`)))
           : h('div', { className: 'fm-float-empty' }, snapshot ? '当前没有播放曲目。可以打开电台设置或导入音乐。' : state.connected ? '正在读取播放状态…' : '本地音乐服务暂时无法连接。'),
         state.error && h('div', { className: 'fm-notice', 'data-error': true, role: 'alert' }, state.error,
           ' ', h('button', { className: 'fm-button', type: 'button', disabled: state.busy,

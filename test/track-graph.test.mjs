@@ -5,6 +5,8 @@ import {importSeedTracks} from '../src/environment.mjs';
 import {buildTrackGraph,createTrackGraphCache} from '../src/track-graph.mjs';
 import {selectRecommendationSeeds} from '../src/recommendation.mjs';
 import {createSelector} from '../src/selection.mjs';
+import {factBundle} from '../src/persona.mjs';
+import {STRATEGY_PURPOSE} from '../src/model-recommendations.mjs';
 
 const t=(id,title='Song '+id,artist='Artist '+id)=>({provider:'netease',providerTrackId:String(id),title,artist,durationMs:100000});
 
@@ -69,4 +71,22 @@ test('graph cache rebuilds only after invalidation',()=>{
     cache.invalidate();
     assert.notEqual(cache.get(),first,'失效后惰性重建');
   }finally{store.close();}
+});
+
+test('the playlist-generation facts carry structural relations, not just song names', () => {
+  const store = graphStore();
+  try {
+    const graph = buildTrackGraph(store, {});
+    const snapshot = { settings: { listening: true, humanPlayback: true, discovery: true, discoveryRate: 0.2, strategy: 'normal' }, current: null, paused: true };
+    const withGraph = factBundle(store, snapshot, STRATEGY_PURPOSE, null, graph);
+    assert.ok(Array.isArray(withGraph.facts.relations) && withGraph.facts.relations.length > 0, '关系事实随图进入事实包');
+    const [seed, ...neighbors] = withGraph.facts.relations[0];
+    assert.match(seed, / - /, '关系事实是「歌 - 艺人」形式');
+    assert.ok(neighbors.length >= 1, '每首种子至少带一首相关歌曲');
+    // 只发歌名/艺人，绝不泄露平台 ID。
+    assert.equal(JSON.stringify(withGraph.facts).includes('netease:'), false);
+    // 超出字节上限时先丢最近播放与关系，最后才减参考歌曲。
+    const withoutGraph = factBundle(store, snapshot, STRATEGY_PURPOSE, null, null);
+    assert.equal(withoutGraph.facts.relations, undefined, '没有图时不编造关系事实');
+  } finally { store.close(); }
 });

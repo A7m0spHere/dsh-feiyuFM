@@ -1,5 +1,6 @@
 import React from 'react';
 import { h } from './shared.mjs';
+import { interpolatedPosition } from './presentation.mjs';
 export function Svg({ type }) {
   const common = { width: 18, height: 18, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 1.8, strokeLinecap: 'round', strokeLinejoin: 'round', 'aria-hidden': true };
   if (type === 'headphones') return h('svg', common, h('path', { d: 'M4 13v-1a8 8 0 0 1 16 0v1' }), h('path', { d: 'M4 13h3v7H5a1 1 0 0 1-1-1v-6Zm16 0h-3v7h2a1 1 0 0 0 1-1v-6Z' }));
@@ -24,6 +25,28 @@ export function PlaybackArtwork({ art, active, motion, alt = '' }) {
   return h('picture', null,
     h('source', { media: '(prefers-reduced-motion: reduce)', srcSet: base + still }),
     h('img', { src: base + (animated ? 'whale-pot-dance.gif' : still), alt }));
+}
+
+/**
+ * 播放进度平滑显示：状态每 ~2.2 秒轮询一次，直接渲染会在界面上"跳格"。
+ * 以最近一次服务端进度为锚点，播放中按本地时钟插值推进；暂停、切歌或
+ * 收到新快照时重新锚定。首次渲染与无锚点时返回服务端原值。
+ */
+export function useSmoothProgress(current, active) {
+  const anchor = React.useRef(null);
+  const [, tick] = React.useState(0);
+  const id = current?.playInstanceId ?? null;
+  const positionMs = current?.positionMs ?? 0;
+  React.useEffect(() => {
+    anchor.current = { id, at: Date.now(), ms: positionMs };
+    if (!active || !id) return undefined;
+    const timer = setInterval(() => tick(value => value + 1), 500);
+    return () => clearInterval(timer);
+  }, [id, positionMs, active]);
+  return interpolatedPosition({
+    anchor: anchor.current, playInstanceId: id, positionMs,
+    durationMs: current?.track?.durationMs, now: Date.now(), active,
+  });
 }
 
 export function usePresence(open, level) {

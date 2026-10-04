@@ -327,13 +327,15 @@ export function createCoreHost({
    * 成长回调、导入、实际生效的衰减、模型调用收尾。
    */
   const trackGraph=createTrackGraphCache({store});
-  const profileCache={valid:false,insightsFacts:null,bundle:null,strategyBundle:null,growthRows:null,callRows:null};
+  const profileCache={valid:false,insightsFacts:null,bundle:null,strategyBundle:null,growthRows:null,callRows:null,graph:null};
   const invalidateProfile=()=>{trackGraph.invalidate();profileCache.valid=false;};
   const profileInputs=()=>{
     if(profileCache.valid)return profileCache;
     profileCache.insightsFacts=describeMusicFacts(store);
+    // 相似图与画像同源失效；歌单生成的事实包也带关系事实（P2）。
+    profileCache.graph=trackGraph.get();
     profileCache.bundle=factBundle(store,core.snapshot());
-    profileCache.strategyBundle=factBundle(store,core.snapshot(),STRATEGY_PURPOSE);
+    profileCache.strategyBundle=factBundle(store,core.snapshot(),STRATEGY_PURPOSE,null,profileCache.graph);
     profileCache.growthRows=store.db.prepare('SELECT rowid,entry_json FROM growth_jobs ORDER BY rowid').all()
       .map(row=>{try{return{rowid:row.rowid,entry:JSON.parse(row.entry_json)};}catch{return null;}}).filter(Boolean);
     profileCache.callRows=store.db.prepare('SELECT * FROM music_model_calls ORDER BY started_at DESC').all();
@@ -487,7 +489,7 @@ export function createCoreHost({
         case 'persona':{
           const cachedProfile=profileInputs();
           send({type:'result',id,ok:true,persona:personaView(store,core.snapshot(),now(),
-            {bundle:cachedProfile.bundle,strategyBundle:cachedProfile.strategyBundle,growthRows:cachedProfile.growthRows,callRows:cachedProfile.callRows})});return;
+            {bundle:cachedProfile.bundle,strategyBundle:cachedProfile.strategyBundle,growthRows:cachedProfile.growthRows,callRows:cachedProfile.callRows,graph:cachedProfile.graph})});return;
         }
         case 'persona-budget':setSummaryBudget(store,message.value);invalidateProfile();send({type:'result',id,ok:true});return;
         case 'persona-output':setSummaryOutputTokens(store,message.value);invalidateProfile();send({type:'result',id,ok:true});return;
@@ -508,7 +510,7 @@ export function createCoreHost({
               return {...track,discovery:{...track.discovery,seedTitle}};
             })
             : null;
-          send({type:'result',id,ok:true,plan:reserveSummary({store,snapshot:core.snapshot(),provider:message.provider,model:message.model,now:now(),automatic:message.automatic===true,purpose:reservePurpose,candidates})});
+          send({type:'result',id,ok:true,plan:reserveSummary({store,snapshot:core.snapshot(),provider:message.provider,model:message.model,now:now(),automatic:message.automatic===true,purpose:reservePurpose,candidates,graph:profileInputs().graph})});
           return;
         }
         case 'persona-start':send({type:'result',id,ok:true,started:startSummary(store,message.callId)});return;

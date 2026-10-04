@@ -191,7 +191,7 @@ Phase 0 关键结论
 | R3 安装与跨设备 | ⚠️ 部分 | ✅ 生命周期 14/14 + 离线命令实测 | ❌ | 干净系统与第二台设备未验 |
 | R4 v0.1 交付 | ⚠️ 部分 | — | ❌ | 交付说明已写；v0.1 前提（R2/R3、A01–A10）不满足 |
 
-当前测试基线：**370 项全量通过**（含 N12 艺人名单核对、搜索错误分类与真实核对入口，[U11](spikes/U11-mode-autonomy-restore.md) 的模式恢复声音/今天停止恢复入口修复，[N13](spikes/N13-crash-recovery-and-verification-bound.md) 的 Core 崩溃自愈与核对预算修复，[N14](spikes/N14-user-next-library-fallback.md) 的用户下一首输入曲库回退，及 [N15](spikes/N15-llm-discovery-filter.md) 的平台候选召回+LLM 筛选探索池，[N16](spikes/N16-p0-cache-track-graph.md) 的画像缓存与个人相似图，及 [N17](spikes/N17-p1-retention-a09.md) 的数据保留/A09 口径/悬浮条错误可见性，Node 24.14.0）；115 模块检查、生成一致性与构建/调试冒烟通过。[N12](spikes/N12-playlist-verification-fix.md) 以当前生产歌单的内存副本和真实公开搜索验证 0/6→3/6，无新增模型调用或生产写入；宿主访问受阻，生产未重载。[N11](spikes/N11-model-playlist.md) 保留此前隔离浏览器与真实模型/静音音频证据，完整键盘与长期自动继续保留覆盖。
+当前测试基线：**372 项全量通过**（含 N12 艺人名单核对、搜索错误分类与真实核对入口，[U11](spikes/U11-mode-autonomy-restore.md) 的模式恢复声音/今天停止恢复入口修复，[N13](spikes/N13-crash-recovery-and-verification-bound.md) 的 Core 崩溃自愈与核对预算修复，[N14](spikes/N14-user-next-library-fallback.md) 的用户下一首输入曲库回退，及 [N15](spikes/N15-llm-discovery-filter.md) 的平台候选召回+LLM 筛选探索池，[N16](spikes/N16-p0-cache-track-graph.md) 的画像缓存与个人相似图，[N17](spikes/N17-p1-retention-a09.md) 的数据保留/A09 口径/悬浮条错误可见性，及 [N18](spikes/N18-p2-progress-and-relations.md) 的进度平滑与歌单生成关系事实，Node 24.14.0）；115 模块检查、生成一致性与构建/调试冒烟通过。[N12](spikes/N12-playlist-verification-fix.md) 以当前生产歌单的内存副本和真实公开搜索验证 0/6→3/6，无新增模型调用或生产写入；宿主访问受阻，生产未重载。[N11](spikes/N11-model-playlist.md) 保留此前隔离浏览器与真实模型/静音音频证据，完整键盘与长期自动继续保留覆盖。
 
 ## 验收清单状态（A01–A10，对应 [MVP 第 6 节](MVP.md)）
 

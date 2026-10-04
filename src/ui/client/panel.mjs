@@ -1,7 +1,7 @@
 import { playbackPresentation, discoveryPresentation } from './presentation.mjs';
 import React from 'react';
 import { h, minutes, progressPercent, modes, sourceNames, stageNames } from './shared.mjs';
-import { Svg, StatusMark, PlaybackArtwork } from './components.mjs';
+import { Svg, StatusMark, PlaybackArtwork, useSmoothProgress } from './components.mjs';
 import { Library } from './library.mjs';
 import {Persona} from './persona.mjs';
 import {FeedbackSettings} from './feedback.mjs';
@@ -24,6 +24,7 @@ export function Panel({ controller, back, close }) {
   const current = snapshot?.current;
   const playing = snapshot?.status === 'playing';
   const presentation = playbackPresentation(snapshot, state.connected);
+  const positionMs = useSmoothProgress(current, presentation.active);
   const insights=state.insights;
   const art = presentation.art;
   const accountHint = !state.connected ? '连接中断' : ({authorized:'网易云已登录',expired:'登录已过期',signed_out:'未登录',login_required:'等待登录'}[state.platforms?.netease?.account?.status] || '查看连接');
@@ -159,8 +160,8 @@ export function Panel({ controller, back, close }) {
           h('p', { className: 'fm-artist' }, current?.track?.artist || (state.library?.total ? '从音乐库点播，或让电台为你选一首。' : '连接网易云，导入常听的音乐。'))),
         current&&h('p',{className:'fm-note'},current.selectionTrigger==='legacy-unknown'?'旧版选曲 · 来源未区分':current.selectedBy==='user'?'你点播的歌曲':current.selectionTrigger==='user-next'?'你触发换曲 · 大肥鱼推荐':'大肥鱼自主选择'),
         current && h(React.Fragment, null,
-          h('div', { className: 'fm-progress', 'aria-label': '播放进度' }, h('span', { style: { width: `${progressPercent(current)}%` } })),
-          h('div', { className: 'fm-time' }, h('span', null, minutes(current.positionMs)), h('span', null, current.track.durationMs ? minutes(current.track.durationMs) : '--:--'))),
+          h('div', { className: 'fm-progress', 'aria-label': '播放进度' }, h('span', { style: { width: `${progressPercent({ ...current, positionMs })}%` } })),
+          h('div', { className: 'fm-time' }, h('span', null, minutes(positionMs)), h('span', null, current.track.durationMs ? minutes(current.track.durationMs) : '--:--'))),
         h('div', { className: 'fm-controls' }, button(!current ? '开始听歌' : snapshot?.paused ? '继续播放' : '暂停', 'resume', !current && !state.library?.total && !snapshot?.queue?.length && !state.persona?.recommendations?.verified?.length,
           { className: 'fm-button fm-primary', onClick: () => controller.playOrPause() }),
           button('下一首', 'next', !current && !snapshot?.queue?.length && !state.library?.total && !state.persona?.recommendations?.verified?.length), button('今天停止', 'stopForToday'))),

@@ -1,3 +1,12 @@
+// 播放进度平滑显示：状态每 ~2.2 秒轮询一次，直接渲染会在界面上"跳格"。
+// 以最近一次服务端进度为锚点，播放中按本地时钟插值推进；暂停、切歌或
+// 收到新快照时重新锚定。首次渲染与无锚点时返回服务端原值。
+export function interpolatedPosition({ anchor, playInstanceId, positionMs, durationMs, now, active }) {
+  if (!active || !anchor || anchor.id !== playInstanceId) return positionMs;
+  const advanced = anchor.ms + Math.max(0, now - anchor.at);
+  return Number.isFinite(durationMs) && durationMs > 0 ? Math.min(advanced, durationMs) : advanced;
+}
+
 export function playbackPresentation(snapshot, connected) {
   if (!connected) return { label: snapshot ? '连接中断 · 保留上次状态' : '正在连接电台', art: 'whale-idle', active: false };
   if (snapshot?.status === 'resolving' || snapshot?.status === 'selecting') return { label: '正在准备音乐', art: 'whale-dj', active: false };

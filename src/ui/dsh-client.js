@@ -335,6 +335,15 @@ window.__ModuleLoader__.load({
     const stageNames = { login_status: '读取登录状态', user_record: '请求近期记录', likelist: '读取喜欢列表', user_playlist: '读取用户歌单', playlist_detail: '读取歌单详情', song_detail: '读取歌曲详情', accountInfo: '读取登录状态', recentTracks: '请求近期记录', likedTracks: '读取喜欢列表', playlists: '读取用户歌单', playlistTracks: '读取歌单详情', songDetails: '读取歌曲详情' };
 
     // src/ui/client/presentation.mjs
+    // 播放进度平滑显示：状态每 ~2.2 秒轮询一次，直接渲染会在界面上"跳格"。
+    // 以最近一次服务端进度为锚点，播放中按本地时钟插值推进；暂停、切歌或
+    // 收到新快照时重新锚定。首次渲染与无锚点时返回服务端原值。
+    function interpolatedPosition({ anchor, playInstanceId, positionMs, durationMs, now, active }) {
+      if (!active || !anchor || anchor.id !== playInstanceId) return positionMs;
+      const advanced = anchor.ms + Math.max(0, now - anchor.at);
+      return Number.isFinite(durationMs) && durationMs > 0 ? Math.min(advanced, durationMs) : advanced;
+    }
+
     function playbackPresentation(snapshot, connected) {
       if (!connected) return { label: snapshot ? '连接中断 · 保留上次状态' : '正在连接电台', art: 'whale-idle', active: false };
       if (snapshot?.status === 'resolving' || snapshot?.status === 'selecting') return { label: '正在准备音乐', art: 'whale-dj', active: false };
@@ -578,6 +587,28 @@ window.__ModuleLoader__.load({
         h('img', { src: base + (animated ? 'whale-pot-dance.gif' : still), alt }));
     }
 
+    /**
+     * 播放进度平滑显示：状态每 ~2.2 秒轮询一次，直接渲染会在界面上"跳格"。
+     * 以最近一次服务端进度为锚点，播放中按本地时钟插值推进；暂停、切歌或
+     * 收到新快照时重新锚定。首次渲染与无锚点时返回服务端原值。
+     */
+    function useSmoothProgress(current, active) {
+      const anchor = React.useRef(null);
+      const [, tick] = React.useState(0);
+      const id = current?.playInstanceId ?? null;
+      const positionMs = current?.positionMs ?? 0;
+      React.useEffect(() => {
+        anchor.current = { id, at: Date.now(), ms: positionMs };
+        if (!active || !id) return undefined;
+        const timer = setInterval(() => tick(value => value + 1), 500);
+        return () => clearInterval(timer);
+      }, [id, positionMs, active]);
+      return interpolatedPosition({
+        anchor: anchor.current, playInstanceId: id, positionMs,
+        durationMs: current?.track?.durationMs, now: Date.now(), active,
+      });
+    }
+
     function usePresence(open, level) {
       const [retained, setRetained] = React.useState(open);
       React.useEffect(() => {
@@ -806,6 +837,7 @@ window.__ModuleLoader__.load({
       const current = snapshot?.current;
       const playing = snapshot?.status === 'playing';
       const presentation = playbackPresentation(snapshot, state.connected);
+      const positionMs = useSmoothProgress(current, presentation.active);
       const insights=state.insights;
       const art = presentation.art;
       const accountHint = !state.connected ? '连接中断' : ({authorized:'网易云已登录',expired:'登录已过期',signed_out:'未登录',login_required:'等待登录'}[state.platforms?.netease?.account?.status] || '查看连接');
@@ -941,8 +973,8 @@ window.__ModuleLoader__.load({
               h('p', { className: 'fm-artist' }, current?.track?.artist || (state.library?.total ? '从音乐库点播，或让电台为你选一首。' : '连接网易云，导入常听的音乐。'))),
             current&&h('p',{className:'fm-note'},current.selectionTrigger==='legacy-unknown'?'旧版选曲 · 来源未区分':current.selectedBy==='user'?'你点播的歌曲':current.selectionTrigger==='user-next'?'你触发换曲 · 大肥鱼推荐':'大肥鱼自主选择'),
             current && h(React.Fragment, null,
-              h('div', { className: 'fm-progress', 'aria-label': '播放进度' }, h('span', { style: { width: `${progressPercent(current)}%` } })),
-              h('div', { className: 'fm-time' }, h('span', null, minutes(current.positionMs)), h('span', null, current.track.durationMs ? minutes(current.track.durationMs) : '--:--'))),
+              h('div', { className: 'fm-progress', 'aria-label': '播放进度' }, h('span', { style: { width: `${progressPercent({ ...current, positionMs })}%` } })),
+              h('div', { className: 'fm-time' }, h('span', null, minutes(positionMs)), h('span', null, current.track.durationMs ? minutes(current.track.durationMs) : '--:--'))),
             h('div', { className: 'fm-controls' }, button(!current ? '开始听歌' : snapshot?.paused ? '继续播放' : '暂停', 'resume', !current && !state.library?.total && !snapshot?.queue?.length && !state.persona?.recommendations?.verified?.length,
               { className: 'fm-button fm-primary', onClick: () => controller.playOrPause() }),
               button('下一首', 'next', !current && !snapshot?.queue?.length && !state.library?.total && !state.persona?.recommendations?.verified?.length), button('今天停止', 'stopForToday'))),
@@ -1000,6 +1032,7 @@ window.__ModuleLoader__.load({
       const settings = snapshot?.settings || {};
       const mode = !settings.listening ? (settings.humanPlayback ? 'manual' : 'off') : !settings.humanPlayback ? 'silent' : settings.strategy === 'focus' ? 'focus' : 'normal';
       const presentation = playbackPresentation(snapshot, state.connected);
+      const positionMs = useSmoothProgress(current, presentation.active);
       const image = presentation.art;
       const blocked = !state.connected || state.busy;
       function openDrawer() { priorFocus.current = document.activeElement; setMenuOpen(false); setExpanded(true); }
@@ -1115,9 +1148,9 @@ window.__ModuleLoader__.load({
           h('div', { className: 'fm-float-drawer-body' },
             current ? h(React.Fragment, null,
               h('div', { className: 'fm-float-track' }, h('strong', null, current.track?.title || '正在播放'), h('span', null, current.track?.artist || '未知艺人')),
-              h('div', { className: 'fm-progress' }, h('span', { style: { width: `${progressPercent(current)}%` } })),
+              h('div', { className: 'fm-progress' }, h('span', { style: { width: `${progressPercent({ ...current, positionMs })}%` } })),
               h('div', { className: 'fm-time' }, h('span', null, playing ? '正在播放' : paused ? '已暂停' : '等待音乐'),
-                h('span', null, `${minutes(current.positionMs)} / ${current.track?.durationMs ? minutes(current.track.durationMs) : '--:--'}`)))
+                h('span', null, `${minutes(positionMs)} / ${current.track?.durationMs ? minutes(current.track.durationMs) : '--:--'}`)))
               : h('div', { className: 'fm-float-empty' }, snapshot ? '当前没有播放曲目。可以打开电台设置或导入音乐。' : state.connected ? '正在读取播放状态…' : '本地音乐服务暂时无法连接。'),
             state.error && h('div', { className: 'fm-notice', 'data-error': true, role: 'alert' }, state.error,
               ' ', h('button', { className: 'fm-button', type: 'button', disabled: state.busy,
