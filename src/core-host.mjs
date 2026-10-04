@@ -141,9 +141,16 @@ export function buildSelector({ store, now = () => Date.now(), rng = null, listD
       });
       return stored;
     }),
-    listDiscovery: (options = {}) => recommendationMode(store)==='llm'&&!options.libraryFallback
-      ? modelRecommendationTracks(store).filter(t=>!store.getEnvironmentEntry(t)&&!store.hasEffectiveListen(t)&&!store.listLikedTracks().some(r=>r.track_key===`${t.provider}:${t.providerTrackId}`))
-      : (listDiscovery?.()??[]),
+    listDiscovery: (options = {}) => {
+      // LLM 模式探索池：模型歌单中未听过的歌 + 平台发现候选（后续由 LLM 筛选排序）。
+      if (recommendationMode(store) === 'llm' && !options.libraryFallback) {
+        const playlist = modelRecommendationTracks(store).filter(t=>!store.getEnvironmentEntry(t)&&!store.hasEffectiveListen(t)&&!store.listLikedTracks().some(r=>r.track_key===`${t.provider}:${t.providerTrackId}`));
+        const seen = new Set(playlist.map(t=>`${t.provider}:${t.providerTrackId}`));
+        const platform = (listDiscovery?.() ?? []).filter(t => !seen.has(`${t.provider}:${t.providerTrackId}`));
+        return [...playlist, ...platform];
+      }
+      return (listDiscovery?.()??[]);
+    },
     now,
   });
 }
@@ -210,13 +217,19 @@ export function createProviderFacade({ registry, store = null, now = () => Date.
 
     /** Synchronous, cache-only: the selector must not perform network I/O. */
     discoveryTracks: () => discovery.tracks(),
-    discoveryStatus: () => recommendationMode(store)==='llm'?{state:modelRecommendations(store)?.verification??'empty',count:modelRecommendationTracks(store).filter(t=>!store.getEnvironmentEntry(t)&&!store.hasEffectiveListen(t)).length,verified:modelRecommendations(store)?.verified.length??0,sources:['llm_recommendation'],reason:modelRecommendations(store)?null:'model-playlist-needed',refreshing:modelResolver.busy}:discovery.status(),
-    setDiscoveryEnabled: value => discovery.setEnabled(value&&recommendationMode(store)!=='llm'),
-    tickDiscovery: () => recommendationMode(store)==='llm'?modelResolver.tick():discovery.tick(),
+    // LLM 模式下平台候选同样进入缓存，供 LLM 筛选（探索池）；歌单核对信息单列。
+    discoveryStatus: () => {
+      const status = discovery.status();
+      if (recommendationMode(store) !== 'llm') return status;
+      const record = modelRecommendations(store);
+      return { ...status, playlist: record ? { verification: record.verification, verified: record.verified.length, total: record.songs.length } : null };
+    },
+    setDiscoveryEnabled: value => discovery.setEnabled(Boolean(value)),
+    tickDiscovery: () => { discovery.tick(); if (recommendationMode(store) === 'llm') modelResolver.tick(); },
     onDiscoveryChange: fn => {listeners.add(fn);const off=discovery.onChange(fn);return()=>{listeners.delete(fn);off();};},
     closeDiscovery: () => {modelResolver.close();discovery.close();listeners.clear();},
 
-    refreshDiscovery: options => recommendationMode(store)==='llm'?modelResolver.refresh({manual:true}):discovery.refresh(options),
+    refreshDiscovery: options => discovery.refresh(options),
     verifyModelRecommendations:()=>modelResolver.tick(),
 
     clearDiscovery() { modelResolver.cancel();discovery.clear(); },
@@ -452,7 +465,25 @@ export function createCoreHost({
         case 'persona-budget':setSummaryBudget(store,message.value);send({type:'result',id,ok:true});return;
         case 'persona-output':setSummaryOutputTokens(store,message.value);send({type:'result',id,ok:true});return;
         case 'persona-automatic':setSummaryAutomatic(store,message.value);send({type:'result',id,ok:true});return;
-        case 'persona-reserve':send({type:'result',id,ok:true,plan:reserveSummary({store,snapshot:core.snapshot(),provider:message.provider,model:message.model,now:now(),automatic:message.automatic===true,purpose:message.purpose??'persona-summary'})});return;
+        case 'persona-reserve':{
+          // 发现候选筛选：预留时把缓存里的候选（带来源线索）交给事实组装。
+          const reservePurpose=message.purpose??'persona-summary';
+          const candidates=reservePurpose==='discovery-filter'&&platformsFacade
+            ? platformsFacade.discoveryTracks().map(track=>{
+              let seedTitle;
+              try {
+                const seedKey=track.discovery?.seedTrackKey;
+                if (typeof seedKey === 'string' && seedKey.includes(':')) {
+                  const split=seedKey.indexOf(':');
+                  seedTitle=store.getNormalizedTrack({provider:seedKey.slice(0,split),providerTrackId:seedKey.slice(split+1)})?.title||undefined;
+                }
+              } catch { /* 来源线索缺失只是提示变弱，不影响筛选 */ }
+              return {...track,discovery:{...track.discovery,seedTitle}};
+            })
+            : null;
+          send({type:'result',id,ok:true,plan:reserveSummary({store,snapshot:core.snapshot(),provider:message.provider,model:message.model,now:now(),automatic:message.automatic===true,purpose:reservePurpose,candidates})});
+          return;
+        }
         case 'persona-start':send({type:'result',id,ok:true,started:startSummary(store,message.callId)});return;
         case 'persona-finish':{const result=finishSummary({store,...message,now:now()});send({type:'result',id,ok:true,result});platformsFacade?.setDiscoveryEnabled(core.snapshot().settings.discovery&&core.snapshot().settings.discoveryRate>0);platformsFacade?.verifyModelRecommendations();return;}
         case 'platforms': {
@@ -537,6 +568,23 @@ export function createCoreHost({
             type: 'result', id, ok: true,
             discovery: status,
           });
+          return;
+        }
+        case 'discovery-filter-status': {
+          // 调度器/设置页据此决定是否跑一次发现候选筛选；判定保持诚实：
+          // 没有候选、有调用进行中、筛选结果仍新于最近一次成功刷新，都不算 due。
+          const llmMode = store.getSetting('recommendation_mode_v1', null) === 'llm';
+          const status = platformsFacade?.discoveryStatus?.() ?? null;
+          const filter = store.getSetting('discovery_filter_v1', null);
+          const stale = !filter
+            || !Number.isSafeInteger(status?.picked) || status.picked === 0
+            || (Number.isFinite(status?.lastSuccessAt) && Number.isFinite(filter.generatedAt) && filter.generatedAt < status.lastSuccessAt);
+          const due = Boolean(llmMode && status && status.count > 0 && !status.refreshing && !status.filtering && stale);
+          send({ type: 'result', id, ok: true, filter: {
+            due, count: status?.count ?? 0, picked: status?.picked ?? 0,
+            filtering: status?.filtering === true, refreshing: status?.refreshing === true,
+            hasFilter: Boolean(filter), llmMode,
+          } });
           return;
         }
         case 'search': {
@@ -670,7 +718,7 @@ export function createCoreHost({
     },
     // Dispatch/reads are synchronous until their first await. Keep them out of
     // long account/import work so a slow media request cannot hold up pause.
-    handle: (message) => ['command','snapshot','platforms','library','account','environment','insights','persona','persona-budget','persona-output','persona-automatic','persona-reserve','persona-start','persona-finish','sessions','discovery','shutdown','wait','autonomous','session-event','setQueue'].includes(message.type)
+    handle: (message) => ['command','snapshot','platforms','library','account','environment','insights','persona','persona-budget','persona-output','persona-automatic','persona-reserve','persona-start','persona-finish','sessions','discovery','discovery-filter-status','shutdown','wait','autonomous','session-event','setQueue'].includes(message.type)
       ? handle(message) : enqueue(() => handle(message)),
     close,
     get core() { return core; },

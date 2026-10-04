@@ -146,7 +146,9 @@ export function apply(ctx, config = {}) {
     // every gate when it reserves, so a stale check cannot force a call.
     const scheduler=createPersonaScheduler({bridge,service,onLog:entry=>evidence.event(entry)});
     scheduler.start();
-    modelCtx.effect(()=>()=>{scheduler.stop();service.dispose();if(summaryService.current===service)summaryService.current=null;},'fishfm: optional summaries');
+    // 设置页"刷新新歌"后手动补跑发现候选筛选；Core 侧仍会重验每个门控。
+    summaryService.discoveryFilterRun=()=>scheduler.checkDiscoveryFilter();
+    modelCtx.effect(()=>()=>{scheduler.stop();service.dispose();if(summaryService.current===service)summaryService.current=null;delete summaryService.discoveryFilterRun;},'fishfm: optional summaries');
   });
   // Optional in headless profiles; the browser uses the host's authenticated RPC.
   if (typeof ctx.inject === 'function') {

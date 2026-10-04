@@ -101,7 +101,11 @@ export function scoreCandidate({
   const concentration=Math.max(0,...artistKeys(track).map(k=>context?.recentArtists.get(k)??0));
   const diversityPenalty=Math.min(0.12,concentration*0.03);
   const userFeedback = trackFeedback(store, track), feedback = feedbackScore(store, track);
-  const score = taste * parameters.affinityWeight * repeatPenalty + freshness + randomValue * parameters.randomWeight + relationship + environment - diversityPenalty + feedback;
+  // LLM 筛选的排序加成有界：Top1 ≈ +0.24（与"喜欢"反馈同量级），随名次线性衰减；
+  // 未入选的候选不扣分，筛选永远不会把池子排空。
+  const llmRank = Number.isSafeInteger(track.discovery?.llmRank) && track.discovery.llmRank > 0 ? track.discovery.llmRank : null;
+  const llmBoost = llmRank ? Math.max(0, 0.24 * (1 - (llmRank - 1) / 12)) : 0;
+  const score = taste * parameters.affinityWeight * repeatPenalty + freshness + randomValue * parameters.randomWeight + relationship + environment - diversityPenalty + feedback + llmBoost;
 
   return {
     score,
@@ -112,7 +116,7 @@ export function scoreCandidate({
     repeatPenalty,
     freshness,
     randomValue,
-    relationship,seedAffinity,environment,diversityPenalty,userFeedback,feedback,algorithm:'local-v3',
+    relationship,seedAffinity,environment,diversityPenalty,userFeedback,feedback,llmRank,llmBoost,algorithm:'local-v4',
   };
 }
 

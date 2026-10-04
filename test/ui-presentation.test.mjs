@@ -13,9 +13,12 @@ test('playback preparation, mute, pause and disconnection have distinct visual s
 
 test('discovery display distinguishes target settings from available candidates and honest fallback', () => {
   const snapshot = { settings: { discovery: true, discoveryRate: 1 }, discovery: { state: 'empty', count: 0 } };
-  assert.match(discoveryPresentation(snapshot), /回退熟悉歌曲/);
-  assert.match(discoveryPresentation({ ...snapshot, discovery: { state: 'ready', count: 34, sources: ['netease_daily'] } }), /34.*网易云每日推荐/);
-  assert.match(discoveryPresentation({ ...snapshot, discovery: { state: 'refreshing', refreshing: true, count: 3 } }), /后台刷新/);
+  assert.match(discoveryPresentation(snapshot), /先播常听的歌曲/);
+  assert.match(discoveryPresentation({ ...snapshot, discovery: { state: 'ready', count: 34, sources: ['netease_daily'] } }), /34 首新歌/);
+  assert.match(discoveryPresentation({ ...snapshot, discovery: { state: 'ready', count: 30, picked: 12, filtering: true } }), /正在试听挑选/);
+  assert.match(discoveryPresentation({ ...snapshot, discovery: { state: 'ready', count: 30, picked: 12 } }), /挑了 12 首合口味/);
+  assert.match(discoveryPresentation({ ...snapshot, discovery: { state: 'refreshing', refreshing: true, count: 3 } }), /正在找新歌/);
+  assert.match(discoveryPresentation({ ...snapshot, discovery: { state: 'login_required', reason: 'login-required', count: 0 } }), /需要先登录网易云/);
   assert.match(discoveryPresentation({ ...snapshot, settings: { discovery: true, discoveryRate: 0 } }), /探索已关闭/);
 });
 

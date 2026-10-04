@@ -35,10 +35,10 @@ export function createController(connection) {
       if (version !== epoch) return;
       if (!result.ok) throw result.error;
       const discovery = result.value.snapshot?.discovery;
-      const finishedDiscovery = state.notice === '正在后台刷新推荐候选…' && discovery && !discovery.refreshing;
+      const finishedDiscovery = state.notice === '正在找新歌…' && discovery && !discovery.refreshing;
       emit({ ...result.value, connected: true, error: '', ...(finishedDiscovery ? {
         notice: discovery.state === 'disabled' ? '探索已关闭。' : discovery.reason && discovery.reason !== 'no-unfamiliar-candidates'
-          ? '刷新未成功，请查看候选状态。' : '推荐候选已更新。',
+          ? '新歌没找成功，请查看状态。' : '新歌列表已更新。',
       } : {}) });
     } catch (error) {
       if (version === epoch) emit({ connected: false, error: failure(error) });
@@ -124,7 +124,7 @@ export function createController(connection) {
           importAttempts: action === 'import' ? value.attempts ?? [] : state.importAttempts,
           connected: true, error: '',
           notice: action === 'playlists' ? `已读取 ${value.playlists?.length??0} 个歌单，请选择后导入。`
-            : action === 'discovery' ? (value.discovery?.refreshing ? '正在后台刷新推荐候选…' : '候选状态已更新；刷新间隔限制仍有效。')
+            : action === 'discovery' ? (value.discovery?.refreshing ? '正在找新歌…' : '新歌状态已更新。')
             : action === 'logout' ? '已退出网易云账号，本机凭据已删除。'
             : action === 'import'
               ? `已读取${sourceNames[value.imported?.source] || '平台音乐'}：本次新增 ${value.imported?.imported ?? 0} 首，当前共 ${value.imported?.total ?? 0} 首${value.imported?.source !== 'recent' && !options.source ? '，使用备用来源' : ''}${value.imported?.total < value.imported?.requested ? '，返回数量不足目标，仍可播放' : ''}`

@@ -2,7 +2,7 @@
 // This scheduler never decides on its own that a run is allowed: it asks the
 // Core, and the Core re-checks every gate inside the reservation transaction.
 export function createPersonaScheduler({bridge,service,onLog=()=>{},intervalMs=600000}){
- let timer=null,checking=false,stopped=false,last=null;
+ let timer=null,checking=false,checkingFilter=false,stopped=false,last=null;
  const emit=entry=>{try{onLog(entry);}catch{/* Diagnostics do not decide whether a call succeeded. */}};
  async function check(){
   if(stopped||checking)return last;
@@ -30,9 +30,37 @@ export function createPersonaScheduler({bridge,service,onLog=()=>{},intervalMs=6
    return last={skipped:code};
   }finally{checking=false;}
  }
+ // 发现候选筛选：Core 判定 due 后沿用最近一次成功调用的模型路由。
+ // 刷新刚触发时缓存仍在拉取，最多等 30 秒让它结束再判定。
+ async function checkDiscoveryFilter(){
+  if(stopped||checkingFilter)return last;
+  if(!service?.available)return last={filterSkipped:'model_unavailable'};
+  checkingFilter=true;
+  try{
+   let status=null;
+   for(let waited=0;waited<=30000;waited+=1000){
+    const answer=await bridge.request({type:'discovery-filter-status'});
+    status=answer?.filter??null;
+    if(!status?.refreshing)break;
+    await new Promise(resolve=>setTimeout(resolve,1000));
+   }
+   if(!status?.due)return last={filterSkipped:'not_due'};
+   const answer=await bridge.request({type:'persona'});
+   const route=answer?.persona?.lastModelRoute;
+   if(!route?.provider||!route?.model)return last={filterSkipped:'no_model'};
+   const result=await service.summarize(route,{automatic:true,purpose:'discovery-filter'});
+   if(result?.cached)return last={filterSkipped:'current',cached:true};
+   emit({type:'discovery-filter-run',provider:route.provider,model:route.model});
+   return last={filterRan:true};
+  }catch(error){
+   const code=error?.code??'failed';
+   emit({type:'discovery-filter-skipped',code});
+   return last={filterSkipped:code};
+  }finally{checkingFilter=false;}
+ }
  return{
-  check,
-  start(){if(timer||stopped)return false;timer=setInterval(()=>{void check();},intervalMs);timer.unref?.();return true;},
+  check,checkDiscoveryFilter,
+  start(){if(timer||stopped)return false;timer=setInterval(()=>{void check();void checkDiscoveryFilter();},intervalMs);timer.unref?.();return true;},
   stop(){stopped=true;if(timer)clearInterval(timer);timer=null;},
   get last(){return last;},
   get running(){return Boolean(timer);},

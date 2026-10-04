@@ -98,6 +98,11 @@ export function createSettingsHandler(bridge,summaryService={current:null}) {
         }
         if (endpoint === 'fishfm/discovery-refresh') {
           const refreshed = await bridge.request({ type: 'discovery' }, { signal, abortable: true });
+          // 刷新后后台补跑一次 LLM 筛选；Core 侧的 due 判定与预算门控仍然生效，
+          // 失败只影响本次筛选，绝不阻塞本响应（状态经轮询可见）。
+          if (typeof summaryService.discoveryFilterRun === 'function') {
+            setTimeout(() => { try { void Promise.resolve(summaryService.discoveryFilterRun()).catch(() => {}); } catch { /* 筛选失败不影响刷新结果 */ } }, 0);
+          }
           return { ok: true, value: { discovery: refreshed.discovery, ...(await readSettingsState(bridge, signal)) } };
         }
         if (endpoint === 'fishfm/login-start') {

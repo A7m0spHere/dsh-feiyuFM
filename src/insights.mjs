@@ -9,6 +9,7 @@ export function explainSelection(snapshot) {
  if(current.selectedBy==='user')return{kind:'user',text:'这首由你点播，按手动播放处理。'};
  if(current.origin?.source==='llm_recommendation')return{kind:'model-recommended',text:`${current.selectionTrigger==='user-next'?'你请求了下一首，':''}这首来自模型生成的缓存歌单，平台已核对歌名和艺人。本地规则只负责播放顺序、反馈与重复限制。`};
  if(current.selectionTrigger==='user-next')return{kind:'recommended-next',text:choice?.fallbackReason?.includes('输入曲库')?'你请求了下一首；模型歌单暂时没有可播的曲目，这首从你的输入曲库按偏好和重复限制选择。':choice?.pool==='queue'?'你请求了下一首，我按既定队列继续。':'你请求了下一首，这首由推荐器按偏好、候选来源和重复限制选择。'};
+ if(current.origin?.llmReason)return{kind:'llm-picked',text:`我在候选新歌里挑了它：${String(current.origin.llmReason).trim().slice(0,40)}。之后按冷却和重复限制安排播放。`};
  if(choice?.fellBack)return{kind:'fallback',text:'陌生候选暂不可用，这次回到熟悉歌曲。'};
  if(current.origin?.source==='netease_similar')return{kind:'related',text:'这首与已有种子存在平台相似关系，本地偏好和重复限制共同选中了它。'};
  if(current.origin?.source==='netease_daily')return{kind:'account',text:'这次探索网易云每日推荐中的陌生歌，再由本地偏好排序。'};
@@ -40,7 +41,8 @@ export function describeMusicInsights(store,snapshot,now=Date.now()) {
  const started=startedIds.size;
  const current=snapshot?.current,seed=current?.origin?.seedTrackKey;
  const reply=current?{decisionId:current.decisionId,kind:current.selectedBy==='user'?'user':'agent',
-  text:current.selectionTrigger==='legacy-unknown'||current.origin?.source==='llm_recommendation'?explainSelection(snapshot).text:current.selectedBy==='user'?'这是你点的，我按你的选择播放。':current.selectionTrigger==='user-next'?explainSelection(snapshot).text:current.origin?.source==='netease_similar'
+  text:current.selectionTrigger==='legacy-unknown'||current.origin?.source==='llm_recommendation'?explainSelection(snapshot).text:current.selectedBy==='user'?'这是你点的，我按你的选择播放。':current.selectionTrigger==='user-next'?explainSelection(snapshot).text:current.origin?.llmReason
+   ?explainSelection(snapshot).text:current.origin?.source==='netease_similar'
    ?`这次想试一首相近的新歌。网易云把它与《${titles.get(seed)||'已有歌曲'}》关联，我再按本地偏好与重复限制选中了它。`
    :explainSelection(snapshot).text}:null;
  const reset=store.getSetting('preference_reset_v1',null);

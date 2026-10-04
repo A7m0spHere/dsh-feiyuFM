@@ -33,6 +33,7 @@ export function createDiscoveryCache({ registry, store = null, now = () => Date.
     if (key === owner) return;
     owner = key; generation++; controller?.abort(); entries = []; lastSuccessAt = null;
     lastAttemptAt = null; nextAttemptAt = 0; reason = null; state = enabled ? 'idle' : 'disabled';
+    try { store?.removeSetting?.('discovery_filter_v1'); } catch { /* a lost filter result is the safe direction */ }
     persist(); notify();
   };
   owner = accountKey();
@@ -49,12 +50,28 @@ export function createDiscoveryCache({ registry, store = null, now = () => Date.
       && !store?.getEnvironmentEntry(track) && !store?.hasEffectiveListen(track) && (!store || trackFeedback(store,track)!==1)
       && (!store || store.isTrackAvailable(track, now()));
   });
+  /** LLM 筛选结果按 trackKey 戳到候选上；结果随缓存清理一并失效。 */
+  const stamped = (tracks) => {
+    if (!store) return tracks;
+    let picks;
+    try { picks = store.getSetting('discovery_filter_v1', null)?.picks; } catch { return tracks; }
+    if (!Array.isArray(picks) || !picks.length) return tracks;
+    const ranked = new Map(picks.filter(p => p && typeof p.trackKey === 'string').map(p => [p.trackKey, p]));
+    if (!ranked.size) return tracks;
+    return tracks.map(track => {
+      const pick = ranked.get(trackId(track));
+      if (!pick) return track;
+      return { ...track, discovery: { ...track.discovery, llmRank: Number.isSafeInteger(pick.rank) ? pick.rank : null, llmReason: typeof pick.reason === 'string' ? pick.reason : '' } };
+    });
+  };
   const status = () => {
     synchronizeAccount();
     const tracks = usable();
+    const picked = tracks.filter(track => Number.isSafeInteger(track.discovery?.llmRank)).length;
     return { state: !enabled ? 'disabled' : inflight ? 'refreshing' : state === 'ready' && !tracks.length ? 'empty' : state,
       count: enabled ? tracks.length : 0, cached: tracks.length, lastAttemptAt, lastSuccessAt, nextAttemptAt,
-      reason, sources: [...new Set(tracks.map(t => t.discovery?.source).filter(Boolean))], refreshing: Boolean(inflight) };
+      reason, sources: [...new Set(tracks.map(t => t.discovery?.source).filter(Boolean))], refreshing: Boolean(inflight),
+      picked, filtering: Boolean(store?.db.prepare("SELECT 1 FROM music_model_calls WHERE status IN ('reserved','running') AND purpose='discovery-filter'").get()) };
   };
   const refresh = ({ manual = false, signal = null } = {}) => {
     synchronizeAccount();
@@ -89,7 +106,7 @@ export function createDiscoveryCache({ registry, store = null, now = () => Date.
         persist();
       }
       onLog({ type: 'discovery', count: usable().length, status: state });
-      return { ...result, tracks: usable() };
+      return { ...result, tracks: stamped(usable()) };
     }).catch(error => {
       if (generation === version && enabled) { state = usable().length ? 'ready' : 'error'; reason = 'refresh-failed'; nextAttemptAt = now() + parameters.retryMs; persist(); }
       onLog({ type: 'discovery-error', code: error.code ?? 'provider_failure' });
@@ -99,7 +116,7 @@ export function createDiscoveryCache({ registry, store = null, now = () => Date.
     return work;
   };
   return {
-    tracks() { synchronizeAccount(); return enabled ? usable() : []; }, status, refresh,
+    tracks() { synchronizeAccount(); return enabled ? stamped(usable()) : []; }, status, refresh,
     setEnabled(value) {
       if (enabled === Boolean(value)) return;
       enabled = Boolean(value); generation++;
@@ -111,7 +128,9 @@ export function createDiscoveryCache({ registry, store = null, now = () => Date.
       synchronizeAccount();
       if (enabled && !inflight && now() >= nextAttemptAt && (usable().length < parameters.lowWater || entries.some(t => t.discovery.expiresAt <= now()))) void refresh();
     },
-    clear() { generation++; controller?.abort(); entries = []; lastSuccessAt = null; nextAttemptAt = 0; state = enabled ? 'idle' : 'disabled'; persist(); notify(); },
+    clear() { generation++; controller?.abort(); entries = []; lastSuccessAt = null; nextAttemptAt = 0; state = enabled ? 'idle' : 'disabled';
+      try { store?.removeSetting?.('discovery_filter_v1'); } catch { /* nothing to keep */ }
+      persist(); notify(); },
     onChange(fn) { listeners.add(fn); return () => listeners.delete(fn); },
     close() { generation++; enabled = false; controller?.abort(); listeners.clear(); },
   };

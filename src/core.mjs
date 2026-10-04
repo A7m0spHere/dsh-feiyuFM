@@ -509,12 +509,12 @@ export class MusicCore {
     if (this.store.getSetting('recommendation_mode_v1') === 'llm') {
       const playlist = modelRecommendations(this.store);
       if (!playlist) return '还没有模型歌单，请先根据歌曲推荐一批。';
-      if (!playlist.verified.length) return '模型歌单尚无通过核对的歌曲，请查看各首核对状态并重新核对。';
+      if (!playlist.verified.length) return '推荐歌单还没有确认可播放的歌曲，请查看各首状态后重新确认。';
       return fallbackAttempted
-        ? '模型歌单和输入曲库都没有可播的歌曲：候选均为当前曲目、处于 30 分钟冷却或被播放规则排除，请稍后重试或更新歌单。'
-        : '模型歌曲均为当前曲目、处于 30 分钟重复冷却或被播放规则排除，请稍后重试或更新歌单。';
+        ? '模型歌单和输入曲库都没有可播的歌曲：候选是正在播的这首、刚播过（30 分钟内不重复）或被播放规则排除了，请稍后再试或更新歌单。'
+        : '模型歌曲都是正在播的这首、刚播过（30 分钟内不重复）或被播放规则排除了，请稍后再试或更新歌单。';
     }
-    return '现在没有可自动播放的歌曲：曲库为空或候选都在冷却、被过滤。';
+    return '现在没有可自动播放的歌曲：曲库为空或候选刚播过、被规则排除。';
   }
 
   selectAutonomously() {

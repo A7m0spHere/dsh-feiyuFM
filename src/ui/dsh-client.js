@@ -351,20 +351,16 @@ window.__ModuleLoader__.load({
 
     function discoveryPresentation(snapshot) {
       const data = snapshot?.discovery;
-      const model=data?.sources?.includes('llm_recommendation');
-      if (!snapshot?.settings?.discovery || snapshot.settings.discoveryRate === 0) return model?'探索已关闭；续播只使用模型歌单中的已知歌曲。':'探索已关闭；自主选择使用熟悉歌曲。';
-      if (!data) return '推荐候选状态尚未读取。';
-      const names = {llm_recommendation:'模型推荐歌单', netease_daily: '网易云每日推荐', netease_personal_fm: '网易云私人 FM', netease_similar:'种子相似歌曲', platform_recommendation: '平台推荐' };
-      const sources = (data.sources ?? []).map(source => names[source] || '平台推荐').join('、');
-      if (data.refreshing) return `正在后台刷新；现有陌生候选 ${data.count ?? 0} 首。`;
-      if(data.reason==='model-playlist-needed')return '等待模型生成推荐歌单；网易云只用于搜歌与播放。';
-      if(model&&data.state==='login-required')return '模型已给出歌单，需要登录网易云后核对歌曲。';
-      if(model&&!data.count)return data.verified?'模型歌单暂无陌生曲目，按已核对的已知歌曲与冷却规则选择。':'暂无通过核对的模型歌曲，请生成或重新核对歌单。';
-      if (data.count > 0) return `陌生候选 ${data.count} 首${sources ? ` · ${sources}` : ''}${data.reason ? '；刷新暂未成功，保留有效缓存。' : ''}`;
-      if (data.state === 'idle') return '等待后台获取推荐候选。';
-      if (data.reason === 'login-required') return '推荐需要有效登录；暂从熟悉歌曲选择。';
-      if (data.state === 'empty') return '暂时没有可用陌生候选；自主选择会回退熟悉歌曲。';
-      return '推荐暂不可用；自主选择会回退熟悉歌曲。';
+      if (!snapshot?.settings?.discovery || snapshot.settings.discoveryRate === 0) return '探索已关闭：只从你常听和喜欢的歌里选。';
+      if (!data) return '正在了解你的音乐库。';
+      if (data.refreshing) return '正在找新歌…';
+      if (data.filtering) return `找到 ${data.count ?? 0} 首候选新歌，大肥鱼正在试听挑选…`;
+      if (data.picked > 0) return `大肥鱼从 ${data.count} 首候选里挑了 ${data.picked} 首合口味的。`;
+      if (data.count > 0) return data.playlist ? `有 ${data.count} 首新歌可以播；大肥鱼稍后再挑一轮。` : `找到 ${data.count} 首新歌。`;
+      if (data.reason === 'login-required' || data.state === 'login_required') return '需要先登录网易云才能找新歌；暂时只播常听的歌曲。';
+      if (data.state === 'idle') return '稍后会自动找新歌。';
+      if (data.state === 'empty') return '暂时没找到合适的新歌；先播常听的歌曲。';
+      return '新歌推荐暂时不可用；先播常听的歌曲。';
     }
 
     function popupPlacement(frame, bar, requestedHeight = 340) {
@@ -411,10 +407,10 @@ window.__ModuleLoader__.load({
           if (version !== epoch) return;
           if (!result.ok) throw result.error;
           const discovery = result.value.snapshot?.discovery;
-          const finishedDiscovery = state.notice === '正在后台刷新推荐候选…' && discovery && !discovery.refreshing;
+          const finishedDiscovery = state.notice === '正在找新歌…' && discovery && !discovery.refreshing;
           emit({ ...result.value, connected: true, error: '', ...(finishedDiscovery ? {
             notice: discovery.state === 'disabled' ? '探索已关闭。' : discovery.reason && discovery.reason !== 'no-unfamiliar-candidates'
-              ? '刷新未成功，请查看候选状态。' : '推荐候选已更新。',
+              ? '新歌没找成功，请查看状态。' : '新歌列表已更新。',
           } : {}) });
         } catch (error) {
           if (version === epoch) emit({ connected: false, error: failure(error) });
@@ -500,7 +496,7 @@ window.__ModuleLoader__.load({
               importAttempts: action === 'import' ? value.attempts ?? [] : state.importAttempts,
               connected: true, error: '',
               notice: action === 'playlists' ? `已读取 ${value.playlists?.length??0} 个歌单，请选择后导入。`
-                : action === 'discovery' ? (value.discovery?.refreshing ? '正在后台刷新推荐候选…' : '候选状态已更新；刷新间隔限制仍有效。')
+                : action === 'discovery' ? (value.discovery?.refreshing ? '正在找新歌…' : '新歌状态已更新。')
                 : action === 'logout' ? '已退出网易云账号，本机凭据已删除。'
                 : action === 'import'
                   ? `已读取${sourceNames[value.imported?.source] || '平台音乐'}：本次新增 ${value.imported?.imported ?? 0} 首，当前共 ${value.imported?.total ?? 0} 首${value.imported?.source !== 'recent' && !options.source ? '，使用备用来源' : ''}${value.imported?.total < value.imported?.requested ? '，返回数量不足目标，仍可播放' : ''}`
@@ -707,10 +703,10 @@ window.__ModuleLoader__.load({
           !facts.artists.length && h('p', { className: 'fm-note' }, '尚未形成足够的艺人偏好，先导入或积累收听经历。'),
           h('p', { className: 'fm-note' }, state.insights?.recommendationMode==='llm'?'模型决定推荐哪些歌，本地只执行顺序、手动反馈与重复限制。以下画像是已追踪的本地记录；流派和情绪未知。':'兼容模式按本地偏好与平台候选选歌。以下画像只覆盖已追踪窗口；流派和情绪未知。'),
           h('div', { className: 'fm-summary' },
-            h('div', { className: 'fm-section-head' }, h('p', { className: 'fm-label' }, 'LLM 推荐歌单'), h('span', { className: 'fm-badge' }, recommendations ? `已核对 ${recommendations.verified.length} / ${recommendations.songs.length} 首${view.recommendationsStale?' · 参考已变化':''}` : '未生成')),
-            h('div',{className:'fm-motion-row'},h('label',null,'推荐来源'),h('select',{'aria-label':'推荐来源',value:state.insights?.recommendationMode??'platform',disabled:disabled||!view.recommendationsSupported,onChange:e=>controller.command('setRecommendationMode',e.target.value)},h('option',{value:'llm'},'LLM 歌单'),h('option',{value:'platform'},'网易云推荐（兼容模式）'))),
+            h('div', { className: 'fm-section-head' }, h('p', { className: 'fm-label' }, '大肥鱼推荐歌单'), h('span', { className: 'fm-badge' }, recommendations ? `可播放 ${recommendations.verified.length} / ${recommendations.songs.length} 首${view.recommendationsStale?' · 参考已变化':''}` : '未生成')),
+            h('div',{className:'fm-motion-row'},h('label',null,'推荐来源'),h('select',{'aria-label':'推荐来源',value:state.insights?.recommendationMode??'platform',disabled:disabled||!view.recommendationsSupported,onChange:e=>controller.command('setRecommendationMode',e.target.value)},h('option',{value:'llm'},'模型歌单'),h('option',{value:'platform'},'平台推荐（兼容模式）'))),
             recommendations&&h('p',{className:'fm-summary-text'},recommendations.text),
-            recommendations&&h('div',{className:'fm-model-playlist'},...recommendations.songs.map((song,index)=>{const match=recommendations.verified.find(v=>v.index===index);return h('div',{key:index,className:'fm-model-song'},h('div',null,h('strong',null,song.title),h('span',null,song.artist),match&&(match.versions>1||match.track.title!==song.title||match.track.artist!==song.artist)&&h('span',null,`平台音源：${match.track.title} · ${match.track.artist}${match.versions>1?'（默认匹配版本）':''}`)),h('span',{className:'fm-badge'},({matched:'已核对',ambiguous:'艺人/版本不明确','not-found':'未找到','login-required':'需要登录','lookup-failed':'核对失败'})[recommendations.attempts.find(a=>a.index===index)?.status]??'待核对'));})),
+            recommendations&&h('div',{className:'fm-model-playlist'},...recommendations.songs.map((song,index)=>{const match=recommendations.verified.find(v=>v.index===index);return h('div',{key:index,className:'fm-model-song'},h('div',null,h('strong',null,song.title),h('span',null,song.artist),match&&(match.versions>1||match.track.title!==song.title||match.track.artist!==song.artist)&&h('span',null,`实际播放版本：${match.track.title} · ${match.track.artist}${match.versions>1?'（默认匹配版本）':''}`)),h('span',{className:'fm-badge'},({matched:'可播放',ambiguous:'同名歌太多，拿不准','not-found':'网易云没有这首歌','login-required':'需要登录网易云','lookup-failed':'确认失败，稍后再试'})[recommendations.attempts.find(a=>a.index===index)?.status]??'待确认'));})),
             h('p',{className:'fm-note'},`模型参考 ${view.referenceCoverage?.sampled??0} / ${view.referenceCoverage?.total??state.library?.total??0} 首代表输入歌曲及手动反馈，低频给出具体歌单；网易云负责搜索核对与播放。`),
             h('div',{className:'fm-summary-actions'},
               h('select',{'aria-label':'推荐模型',value:chosen,disabled:disabled||!routes.length,onChange:e=>setSelected(e.target.value)},...(routes.length?routes.map(r=>h('option',{key:key(r),value:key(r)},r.label)):[h('option',{value:''},'DSH 模型列表尚不可用')])),
@@ -891,7 +887,7 @@ window.__ModuleLoader__.load({
                 ...(insights.recentChanges?.length?insights.recentChanges.slice(0,3).map(c=>h('p',{className:'fm-note',key:c.playInstanceId},`${c.title} · ${c.before.toFixed(3)} → ${c.after.toFixed(3)} · ${c.audible?'有声':'静音'}经历`)):[h('p',{className:'fm-note'},'此决策窗口还没有有效偏好更新。')])),
               h('details',null,h('summary',null,'查看选歌统计'),h('p',{className:'fm-note'},`最近保留 ${insights.statistics?.retainedDecisions??0} 次自主决策；探索尝试 ${insights.statistics?.explorationAttempts??0} 次，选中陌生候选 ${insights.statistics?.unfamiliarSelections??0} 次，已观测开始 ${insights.statistics?.observedStarts??0} 次，有效陌生经历 ${insights.statistics?.validUnfamiliarListens??0} 次。`),
                 Number.isFinite(insights.statistics?.repeatedSelections)&&h('p',{className:'fm-note'},`其中 ${insights.statistics.repeatedSelections} 次选中歌曲在近期已有播放历史。`),
-                ...(insights.decisions??[]).slice(0,3).map(d=>h('p',{className:'fm-note',key:d.decisionId},`${d.trackTitle??d.trackKey??'未选中歌曲'} · ${d.pool==='discovery'?'陌生池':d.fellBack?'熟悉池回退':'熟悉池'}${d.trackKey?'':' · 本次未开始播放'}`)),
+                ...(insights.decisions??[]).slice(0,3).map(d=>h('p',{className:'fm-note',key:d.decisionId},`${d.trackTitle??d.trackKey??'未选中歌曲'} · ${d.pool==='queue'?'队列':d.pool==='discovery'?'新歌':'常听歌曲'}${d.fellBack?'（回退）':''}${d.trackKey?'':' · 本次未开始播放'}`)),
                 h('p',{className:'fm-note'},`${Number.isFinite(insights.statistics?.windowStart)?`窗口始于 ${new Date(insights.statistics.windowStart).toLocaleString()}。`:''}按已追踪的决策实例统计，历史覆盖不足时不视作全期比例。`)))));
       const controlsColumn = h('aside', {className:'fm-controls-column','aria-label':'电台设置'},
             h('section', null, h('h2', null, '听歌方式', h('small', null, 'MODES')), h('div', { className: 'fm-modes' }, modes.map(([id, title, desc]) =>
@@ -903,9 +899,9 @@ window.__ModuleLoader__.load({
               toggle('电脑输出声音', '关闭后仍记录播放进度，但不会让电脑发声。', 'humanPlayback', 'setHumanPlayback'),
               toggle('探索新音乐', '有可用候选时尝试发现陌生歌曲。', 'discovery', 'setDiscovery'),
               h('p', { className: 'fm-note', role: 'status', 'aria-live': 'polite' }, discoveryPresentation(snapshot)),
-              snapshot?.lastSelection?.fellBack && h('p', { className: 'fm-note' }, '最近一次自主选择：发现池无可用候选，已回退熟悉歌曲。'),
+              snapshot?.lastSelection?.fellBack && h('p', { className: 'fm-note' }, '最近一次自主选择：没有合适的新歌，先播了常听歌曲。'),
               state.features?.discoveryRefresh && h('button', { type: 'button', className: 'fm-button', disabled: disabled || !settings.discovery || settings.discoveryRate === 0 || state.platforms?.netease?.account?.status !== 'authorized',
-                onClick: () => controller.platformAction('discovery', 'netease') }, '刷新推荐候选'),
+                onClick: () => controller.platformAction('discovery', 'netease') }, '刷新新歌推荐'),
               h('div', { className: 'fm-rate' }, h('div', { className: 'fm-rate-head' }, h('label', { htmlFor: rateId }, '新歌探索率'), h('output', { htmlFor: rateId }, `${rate}%`)),
                 h('input', { id: rateId, 'aria-label': '新歌探索率', type: 'range', min: 0, max: 100, step: 1, value: rate, disabled: disabled || !settings.discovery,
                   onChange: e => setRate(Number(e.target.value)) }),
@@ -955,9 +951,10 @@ window.__ModuleLoader__.load({
                 :insights.feedback.current===-1?'已少推荐：降低权重，不再作为相似推荐种子。再次点击可撤销。'
                 :'仅影响肥鱼电台推荐；重复点击可撤销。')),
             insights?.explanation&&h('div',{className:'fm-reply',role:'status',key:insights.reply?.decisionId},h('p',{className:'fm-label'},'大肥鱼说'),h('p',{className:'fm-reply-text'},insights.reply?.text||insights.explanation.text),
-              h('details',null,h('summary',null,'展开选歌依据'),h('p',null,`来源：${({llm_recommendation:'LLM 生成的推荐歌单',netease_similar:'种子相似关系',netease_daily:'网易云每日推荐',netease_personal_fm:'网易云私人 FM'})[current?.origin?.source]??(current?.selectedBy==='user'?'用户指定':'熟悉歌曲')}`),
-                current?.selectedBy==='agent'&&snapshot?.lastSelection?.detail&&h('p',null,`本地评分 ${snapshot.lastSelection.score?.toFixed(3)}；关系项 ${(snapshot.lastSelection.detail.relationship??0).toFixed(3)}；重复次数 ${snapshot.lastSelection.detail.repeatPlays??0}；艺人集中惩罚 ${(snapshot.lastSelection.detail.diversityPenalty??0).toFixed(3)}。`),
-                Number.isFinite(snapshot?.lastSelection?.detail?.feedback)&&h('p',null,`本次决策的手动反馈评分项：${snapshot.lastSelection.detail.feedback>0?'+':''}${snapshot.lastSelection.detail.feedback.toFixed(2)}。之后的反馈从下一次决策生效。`),
+              h('details',null,h('summary',null,'展开选歌依据'),h('p',null,`来源：${({llm_recommendation:'大肥鱼推荐歌单',netease_similar:'与你常听的歌相似',netease_daily:'网易云每日推荐',netease_personal_fm:'网易云私人 FM',platform_recommendation:'平台推荐'})[current?.origin?.source]??(current?.selectedBy==='user'?'你点播':'常听歌曲')}`),
+                current?.selectedBy==='agent'&&snapshot?.lastSelection?.detail&&h('p',null,`排序得分 ${snapshot.lastSelection.score?.toFixed(3)}；与常听歌曲的关联 ${(snapshot.lastSelection.detail.relationship??0).toFixed(3)}；近期已播 ${snapshot.lastSelection.detail.repeatPlays??0} 次；避免连续同一艺人的调整 -${(snapshot.lastSelection.detail.diversityPenalty??0).toFixed(3)}。`),
+                Number.isFinite(snapshot?.lastSelection?.detail?.llmBoost)&&snapshot.lastSelection.detail.llmBoost>0&&h('p',null,`大肥鱼试听挑选的加分 +${snapshot.lastSelection.detail.llmBoost.toFixed(2)}（第 ${snapshot.lastSelection.detail.llmRank} 名）。`),
+                Number.isFinite(snapshot?.lastSelection?.detail?.feedback)&&h('p',null,`你的反馈对这次排序的影响：${snapshot.lastSelection.detail.feedback>0?'+':''}${snapshot.lastSelection.detail.feedback.toFixed(2)}。之后的反馈从下一次决策生效。`),
                 h('p',null,'解释由实际决策记录生成，逐曲不新增模型请求。')))),
         state.error && h('div', { className: 'fm-notice', 'data-error': true, role: 'alert' }, state.error,
           ' ', h('button', { className: 'fm-button', type: 'button', disabled: state.busy,
