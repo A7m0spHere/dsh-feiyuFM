@@ -6,12 +6,63 @@ import {parseModelRecommendations,createModelRecommendationResolver,modelRecomme
 import {buildSelector,createProviderFacade,createCoreHost} from '../src/core-host.mjs';
 import {MusicCore} from '../src/core.mjs';import {FakeProvider,FakePlayback,FakeClock} from '../src/fakes.mjs';
 import {resetRecommendationTaste,undoRecommendationReset,setTrackFeedback} from '../src/feedback.mjs';
+import {MusicError} from '../src/contracts.mjs';
 const t=(id,title='Song '+id,artist='Artist '+id)=>({provider:'netease',providerTrackId:String(id),title,artist,durationMs:100000});
 const snapshot={settings:{listening:true,humanPlayback:false,discovery:true,discoveryRate:1,strategy:'normal'},current:null,paused:true};
 const route={provider:'configured',model:'configured'};
 const text=JSON.stringify({summary:'按输入歌曲的艺人线索探索，这是模型推测。',songs:[['New 1','Singer 1'],['New 2','Singer 2']]});
 function fixture(){const store=new MusicStore();importSeedTracks({store,provider:'netease',source:'recent',tracks:[t(1),t(2)],requested:2,now:1000});return store;}
 function generate(store,at=2000,body=text){const p=reserveSummary({store,snapshot,...route,purpose:STRATEGY_PURPOSE,now:at});startSummary(store,p.callId);const result=finishSummary({store,callId:p.callId,status:'completed',text:body,usage:{inputTokens:100,outputTokens:50},now:at+1});return{p,result};}
+
+test('an existing empty playlist recovers a reversed collaborator list from local metadata without another model request',async()=>{
+ const store=fixture();try{
+  const track={...t(429460239,'世末歌者','乐正绫 / COP'),artists:[{id:'1102240',name:'乐正绫'},{id:'12002071',name:'COP'}]};
+  store.upsertTrack(track,2000);generate(store,2000,JSON.stringify({summary:'参考输入推荐',songs:[['世末歌者','COP / 乐正绫']]}));
+  store.setSetting(STRATEGY_KEY,{...modelRecommendations(store),verification:'empty',attempts:[{index:0,status:'not-found'}]});
+  let searches=0;const resolver=createModelRecommendationResolver({store,registry:{async search(){searches++;throw Error('unexpected search');}},now:()=>3000});
+  await resolver.refresh();assert.equal(searches,0);assert.equal(modelRecommendations(store).verification,'ready');
+  assert.equal(modelRecommendations(store).verified[0].track.providerTrackId,'429460239');
+  const selector=buildSelector({store,now:()=>3000,rng:()=>0});assert.equal(selector.decide({discoveryRate:1}).track.providerTrackId,'429460239');
+  assert.equal(store.db.prepare('SELECT count(*) n FROM music_model_calls').get().n,1);resolver.close();
+ }finally{store.close();}
+});
+
+test('explicit catalogue aliases match collaborators but missing artists and invented Official aliases remain rejected',async()=>{
+ const store=fixture();try{
+  generate(store,2000,JSON.stringify({summary:'参考输入推荐',songs:[['九九八十一','乐正绫 / 洛天依'],['霜雪千年','COP / 洛天依'],['Other','Singer']]}));
+  const resolver=createModelRecommendationResolver({store,now:()=>3000,registry:{async search(_p,q){return{tracks:q.includes('九九')?[{...t(10,'九九八十一','洛天依Official / 乐正绫'),artists:[{id:'906118',name:'洛天依Official'},{id:'1102240',name:'乐正绫'}]}]:q.includes('霜雪')?[{...t(11,'霜雪千年','洛天依Official'),artists:[{id:'906118',name:'洛天依Official'}]}]:[t(12,'Other','SingerOfficial')]};}}});
+  await resolver.refresh();assert.deepEqual(modelRecommendations(store).verified.map(v=>v.index),[0]);
+  assert.deepEqual(modelRecommendations(store).attempts.map(a=>a.status),['matched','not-found','not-found']);resolver.close();
+ }finally{store.close();}
+});
+
+test('collaborator recording identity is order independent and different artist IDs remain ambiguous',async()=>{
+ const store=fixture();try{
+  generate(store,2000,JSON.stringify({summary:'参考输入推荐',songs:[['Work','B / A'],['Other','A / B']]}));
+  const artists=[{id:'1',name:'A'},{id:'2',name:'B'}];
+  const resolver=createModelRecommendationResolver({store,now:()=>3000,registry:{async search(_p,q){return{tracks:q.includes('Work')?[{...t(10,'Work (Remastered)','A / B'),artists},{...t(11,'Work','B / A'),artists:[...artists].reverse()}]:[{...t(12,'Other','A / B'),artists},{...t(13,'Other','A / B'),artists:[artists[0],{id:'3',name:'B'}]}]};}}});
+  await resolver.refresh();assert.equal(modelRecommendations(store).verified[0].track.providerTrackId,'11');assert.equal(modelRecommendations(store).verified[0].versions,2);
+  assert.equal(modelRecommendations(store).attempts[1].status,'ambiguous');resolver.close();
+ }finally{store.close();}
+});
+
+test('literal slash artist names stay intact and artist display strings can supply unordered collaborators',async()=>{
+ const store=fixture();try{
+  generate(store,2000,JSON.stringify({summary:'参考输入推荐',songs:[['Rock','AC/DC'],['Duet','A / B']]}));
+  const resolver=createModelRecommendationResolver({store,now:()=>3000,registry:{async search(_p,q){return{tracks:q.includes('Rock')?[{...t(10,'Rock','AC/DC'),artists:[{id:'1',name:'AC/DC'}]}]:[t(11,'Duet','B / A')]};}}});
+  await resolver.refresh();assert.equal(modelRecommendations(store).verified.length,2);resolver.close();
+ }finally{store.close();}
+});
+
+test('search business failures retain their code and cannot be reported as missing songs',async()=>{
+ const store=fixture();try{
+  generate(store);const resolver=createModelRecommendationResolver({store,now:()=>3000,registry:{async search(){throw new MusicError('provider_failure','search failed',{details:{platformCode:406}});}}});
+  await resolver.refresh();assert.equal(modelRecommendations(store).verified.length,0);
+  assert.deepEqual(modelRecommendations(store).attempts,[{index:0,status:'lookup-failed',platformCode:406},{index:1,status:'lookup-failed',platformCode:406}]);resolver.close();
+  const core=new MusicCore({store,selector:buildSelector({store,now:()=>3000}),provider:new FakeProvider(),playback:new FakePlayback(),clock:new FakeClock(3000)});
+  assert.throws(()=>core.dispatch({type:'next',commandId:'empty-playlist'}),e=>e.code==='no_candidates'&&e.message.includes('核对')&&!e.message.includes('冷却'));
+ }finally{store.close();}
+});
 
 test('a model generation sends song references and saves concrete suggestions with separate usage, cache and no taste writes',()=>{
  const store=fixture();try{

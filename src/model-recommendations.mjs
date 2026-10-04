@@ -26,22 +26,35 @@ export function modelRecommendationTracks(store){
 }
 export function recommendationMode(store){return store?.getSetting('recommendation_mode_v1','platform')==='llm'?'llm':'platform';}
 const workTitle=value=>normalizeSongText(value).replace(/\([^)]*\)/g,'');
+// Explicit catalogue aliases only; arbitrary "Official" suffixes are not proof of identity.
+const artistAliases=new Map([['洛天依official','洛天依']]);
+const artistName=value=>{const name=normalizeSongText(value);return artistAliases.get(name)??name;};
+const splitArtists=value=>String(value??'').split(/\s*\/\s*/).filter(s=>s.trim());
 function artistMatches(query,candidate){
- const a=normalizeSongText(query),b=normalizeSongText(candidate);
+ const a=artistName(query),b=artistName(candidate);
  if(a===b)return true;
  // Public catalogues sometimes prefix a Chinese stage name with its Latin alias.
  return /^[\p{Script=Han}·]{2,30}$/u.test(a)&&b.endsWith(a)&&/^[a-z0-9._()\-]+$/i.test(b.slice(0,-a.length));
 }
+function matchedArtists(song,track){
+ if(!track.artists?.length&&artistMatches(song.artist,track.artist))return[{name:track.artist}];
+ const artists=track.artists?.length?track.artists:splitArtists(track.artist).map(name=>({name}));
+ // Try a literal artist first, so names containing '/' (e.g. AC/DC) stay intact.
+ const literal=artists.filter(a=>artistMatches(song.artist,a.name));
+ if(literal.length)return literal;
+ const requested=[...new Set(splitArtists(song.artist).map(artistName))];
+ if(!requested.length||!requested.every(name=>artists.some(a=>artistMatches(name,a.name))))return[];
+ return artists.filter(a=>requested.some(name=>artistMatches(name,a.name)));
+}
 function matches(song,track){
  const exact=normalizeSongText(song.title)===normalizeSongText(track.title);
  return (exact||(!/\([^)]*\)/.test(normalizeSongText(song.title))&&workTitle(song.title)===workTitle(track.title)))&&
-  (artistMatches(song.artist,track.artist)||(track.artists??[]).some(a=>artistMatches(song.artist,a.name)));
+  matchedArtists(song,track).length>0;
 }
 function selectMatchedVersion(song,found){
  if(found.length===1)return found[0];
  const identities=found.map(t=>{
-  const matched=(t.artists??[]).filter(a=>artistMatches(song.artist,a.name));
-  const artists=matched.length?matched:t.artists;
+  const artists=matchedArtists(song,t);
   return artists?.length&&artists.every(a=>/^[\w-]{1,80}$/.test(String(a.id??''))&&String(a.id)!=='0')?artists.map(a=>String(a.id)).sort().join('|'):null;
  });
  if(!identities.length||!identities[0]||!identities.every(id=>id===identities[0]))return null;
@@ -73,7 +86,7 @@ export function createModelRecommendationResolver({store,registry,now=()=>Date.n
      const selected=selectMatchedVersion(song,found);
      if(!selected){attempts.push({index,status:found.length?'ambiguous':'not-found'});continue;}
      const track=normalizeTrack(selected);verified.push({index,track,versions:found.length});attempts.push({index,status:'matched',versions:found.length});
-    }catch(error){attempts.push({index,status:error.code==='login_required'?'login-required':'lookup-failed'});if(error.code==='login_required')loginUnavailable=true;}
+    }catch(error){attempts.push({index,status:error.code==='login_required'?'login-required':'lookup-failed',...(Number.isInteger(error.details?.platformCode)?{platformCode:error.details.platformCode}:{})});if(error.code==='login_required')loginUnavailable=true;}
    }
    if(signal.aborted||stopped||modelRecommendations(store)?.callId!==id)return{reason:'cancelled'};
    store.transaction(()=>{

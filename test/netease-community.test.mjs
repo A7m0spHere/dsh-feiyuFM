@@ -18,6 +18,32 @@ function fixture(api, { accountId = null } = {}) {
   return { store, credentials, provider, close: () => store.close() };
 }
 
+test('direct search distinguishes platform business failures, malformed replies and genuine empty results', async () => {
+  const context = fixture({});
+  let body;
+  const provider = createNetEaseProvider({
+    transport: { request: async () => ({ status: 200, body }), useSecret() {} },
+    communityApi: {}, credentials: context.credentials, store: context.store,
+  });
+  try {
+    for (const code of [406, 502]) {
+      body = { code };
+      await assert.rejects(() => provider.search('Song'), error => error.code === 'provider_failure' && error.details.stage === 'search' && error.details.platformCode === code);
+    }
+    for (const reply of [{ code: 200 }, { code: 200, result: { songs: 'bad' } }, '<html>not a search response</html>']) {
+      body = reply;
+      await assert.rejects(() => provider.search('Song'), error => error.code === 'provider_failure');
+    }
+    body = { code: 200, result: { songCount: 0 } };
+    assert.deepEqual((await provider.search('Song')).tracks, []);
+    body = { code: 200, result: { songs: [song('1')], songCount: 1 } };
+    assert.equal((await provider.search('Song')).tracks[0].providerTrackId, '1');
+    body = { code: 301 };
+    await assert.rejects(() => provider.search('Song'), error => error.code === 'login_required');
+    assert.equal(context.store.getCredentialReference('netease').state, 'expired');
+  } finally { context.close(); }
+});
+
 test('an old authorized account recovers profile.userId before recent-history import and passes it to the community API', async () => {
   const calls = [];
   const context = fixture({

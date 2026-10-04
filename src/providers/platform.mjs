@@ -101,7 +101,9 @@ export function createPlatformProvider({
       if (response?.status && response.status >= 400) {
         throw Object.assign(new Error(`transport status ${response.status}`), { status: response.status });
       }
-      return response?.body ?? response;
+      const body = response?.body ?? response;
+      parse.validateResponse?.(body, role);
+      return body;
     } catch (error) {
       const mapped = mapTransportError(error, { provider: providerName });
       // A platform answer of "not authorised" means the stored sign-in is no

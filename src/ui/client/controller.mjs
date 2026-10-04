@@ -22,7 +22,7 @@ export function createController(connection) {
   };
   let epoch = 0, timer, read, write,summaryWrite, disposed = false;
   const listeners = new Set();
-  const emit = (patch) => { if (!disposed) {if(patch.persona?.generatedAt<state.persona?.generatedAt){patch={...patch};delete patch.persona;} state = { ...state, ...patch }; listeners.forEach(fn => fn()); } };
+  const emit = (patch) => { if (!disposed) {if(patch.persona?.generatedAt<state.persona?.generatedAt){patch={...patch};delete patch.persona;} if(patch.error==='')patch={...patch,errorCode:null};state = { ...state, ...patch }; listeners.forEach(fn => fn()); } };
   const failure = error => `${error?.message || '音乐服务连接失败，请刷新重试。'}${error?.code ? ` (${error.code})` : ''}`;
   async function refresh() {
     if (disposed || state.busy || read) return;
@@ -94,7 +94,7 @@ export function createController(connection) {
         emit({ ...result.value,...(['resetTaste','resetLibrary','undoTasteReset','setRecommendationMode'].includes(type)?{summaryNotice:'',summaryError:''}:{}),...(type==='resetLibrary'?{imported:null,importAttempts:[]}:{}), notice: feedbackNotice || (['pause', 'resume', 'next', 'requestTrack'].includes(type) ? '播放控制已更新' : '已保存到本机') });
       } catch (error) {
         const actionError = ['no_candidates', 'constraint_conflict', 'invalid_command', 'media_unavailable','stale_track','summary_busy','no_reset_backup','invalid_track'].includes(error?.code);
-        emit({ connected: actionError ? state.connected : false, error: failure(error), notice: actionError ? '请调整曲目或设置后重试' : '未确认操作，请刷新核对' });
+        emit({ connected: actionError ? state.connected : false, error: failure(error), errorCode:error?.code??null, notice: actionError ? '请调整曲目或设置后重试' : '未确认操作，请刷新核对' });
       }
       finally { clearTimeout(timeout); write = null; emit({ busy: false }); }
     },
@@ -118,6 +118,7 @@ export function createController(connection) {
         if (action === 'poll' && login) login.qrImage = state.login?.qrImage;
         emit({ snapshot: value.snapshot, platforms: value.platforms ?? state.platforms, library: value.library ?? state.library, login,
           insights:value.insights??state.insights,
+          persona:value.persona??state.persona,
           playlists: value.playlists??state.playlists,
           imported: action === 'logout' ? null : Object.hasOwn(value, 'imported') ? value.imported : state.imported,
           importAttempts: action === 'import' ? value.attempts ?? [] : state.importAttempts,

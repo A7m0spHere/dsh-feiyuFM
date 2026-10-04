@@ -104,6 +104,7 @@ const COMMUNITY_CALLS = Object.freeze({
 });
 
 const STAGE_LABELS = Object.freeze({
+  search: '搜索',
   recommend_songs: '每日推荐', personal_fm: '私人 FM',
   simi_song:'相似歌曲',
   login_qr_key: '生成二维码', login_qr_check: '检测扫码状态',
@@ -349,7 +350,21 @@ export function createNetEaseProvider(options = {}) {
       },
       // CONFIRMED shape when signed out: {"code":200,"account":null,"profile":null}.
       accountId: (body) => body?.data?.profile?.userId ?? body?.profile?.userId ?? body?.data?.account?.id ?? body?.account?.id ?? body?.accountId ?? body?.userId ?? null,
-      search: (body) => body?.songs ?? body?.result?.songs ?? [],
+      validateResponse: (body, role) => {
+        if (role === 'search' && body?.code !== undefined && body.code !== 200) {
+          throw communityFailure('search', { response: { status: 200, body } });
+        }
+      },
+      search: (body) => {
+        const songs = body?.songs ?? body?.result?.songs;
+        if (songs !== undefined && !Array.isArray(songs)) {
+          throw new MusicError('provider_failure', '网易云搜索返回格式异常。', { details: { stage: 'search' } });
+        }
+        if (!Array.isArray(songs) && body?.result?.songCount !== 0) {
+          throw new MusicError('provider_failure', '网易云搜索未返回有效结果。', { details: { stage: 'search' } });
+        }
+        return songs ?? [];
+      },
       playUrl: (body) => {
         const entry = Array.isArray(body?.data) ? body.data[0] : (body?.data ?? body);
         return {

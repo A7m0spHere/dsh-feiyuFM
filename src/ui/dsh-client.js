@@ -398,7 +398,7 @@ window.__ModuleLoader__.load({
       };
       let epoch = 0, timer, read, write,summaryWrite, disposed = false;
       const listeners = new Set();
-      const emit = (patch) => { if (!disposed) {if(patch.persona?.generatedAt<state.persona?.generatedAt){patch={...patch};delete patch.persona;} state = { ...state, ...patch }; listeners.forEach(fn => fn()); } };
+      const emit = (patch) => { if (!disposed) {if(patch.persona?.generatedAt<state.persona?.generatedAt){patch={...patch};delete patch.persona;} if(patch.error==='')patch={...patch,errorCode:null};state = { ...state, ...patch }; listeners.forEach(fn => fn()); } };
       const failure = error => `${error?.message || '音乐服务连接失败，请刷新重试。'}${error?.code ? ` (${error.code})` : ''}`;
       async function refresh() {
         if (disposed || state.busy || read) return;
@@ -470,7 +470,7 @@ window.__ModuleLoader__.load({
             emit({ ...result.value,...(['resetTaste','resetLibrary','undoTasteReset','setRecommendationMode'].includes(type)?{summaryNotice:'',summaryError:''}:{}),...(type==='resetLibrary'?{imported:null,importAttempts:[]}:{}), notice: feedbackNotice || (['pause', 'resume', 'next', 'requestTrack'].includes(type) ? '播放控制已更新' : '已保存到本机') });
           } catch (error) {
             const actionError = ['no_candidates', 'constraint_conflict', 'invalid_command', 'media_unavailable','stale_track','summary_busy','no_reset_backup','invalid_track'].includes(error?.code);
-            emit({ connected: actionError ? state.connected : false, error: failure(error), notice: actionError ? '请调整曲目或设置后重试' : '未确认操作，请刷新核对' });
+            emit({ connected: actionError ? state.connected : false, error: failure(error), errorCode:error?.code??null, notice: actionError ? '请调整曲目或设置后重试' : '未确认操作，请刷新核对' });
           }
           finally { clearTimeout(timeout); write = null; emit({ busy: false }); }
         },
@@ -494,6 +494,7 @@ window.__ModuleLoader__.load({
             if (action === 'poll' && login) login.qrImage = state.login?.qrImage;
             emit({ snapshot: value.snapshot, platforms: value.platforms ?? state.platforms, library: value.library ?? state.library, login,
               insights:value.insights??state.insights,
+              persona:value.persona??state.persona,
               playlists: value.playlists??state.playlists,
               imported: action === 'logout' ? null : Object.hasOwn(value, 'imported') ? value.imported : state.imported,
               importAttempts: action === 'import' ? value.attempts ?? [] : state.importAttempts,
@@ -959,7 +960,9 @@ window.__ModuleLoader__.load({
                 Number.isFinite(snapshot?.lastSelection?.detail?.feedback)&&h('p',null,`本次决策的手动反馈评分项：${snapshot.lastSelection.detail.feedback>0?'+':''}${snapshot.lastSelection.detail.feedback.toFixed(2)}。之后的反馈从下一次决策生效。`),
                 h('p',null,'解释由实际决策记录生成，逐曲不新增模型请求。')))),
         state.error && h('div', { className: 'fm-notice', 'data-error': true, role: 'alert' }, state.error,
-          ' ', h('button', { className: 'fm-button', type: 'button', disabled: state.busy, onClick: controller.refresh }, '重新连接')),
+          ' ', h('button', { className: 'fm-button', type: 'button', disabled: state.busy,
+            onClick: state.errorCode==='no_candidates'&&state.insights?.recommendationMode==='llm'?()=>controller.platformAction('discovery','netease'):controller.refresh },
+            state.errorCode==='no_candidates'&&state.insights?.recommendationMode==='llm'?'重新核对歌单':state.connected?'刷新状态':'重新连接')),
         snapshot?.lastError && h('div', { className: 'fm-notice', role: 'status' }, `播放尚未成功：${snapshot.lastError.code || 'playback_failed'}。请核对平台连接和曲目权限。`),
         snapshot?.blockUntil > Date.now() && h('div', { className: 'fm-notice' }, '今天已停止自主听歌。到期后仍会保持暂停，直到你主动恢复。'),
         grid,

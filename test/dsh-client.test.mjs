@@ -66,6 +66,23 @@ const state = value => ({ ok: true, value: { snapshot: value, platforms: {} } })
 const tick = () => new Promise(resolve => setImmediate(resolve));
 function all(tree) { return !tree || typeof tree !== 'object' ? [] : [tree, ...tree.children.flatMap(all)]; }
 
+test('an empty LLM playlist offers real verification instead of reconnecting and refreshes the playlist projection',async()=>{
+ const calls=[],playlist={songs:[{title:'Song',artist:'Artist'}],verified:[],attempts:[]};
+ const f=fixture(async(_channel,endpoint,payload)=>{
+  calls.push({endpoint,payload});
+  if(endpoint==='fishfm/command')return{ok:false,error:{code:'no_candidates',message:'模型歌单尚无通过核对的歌曲'}};
+  if(endpoint==='fishfm/discovery-refresh')return{ok:true,value:{snapshot:snapshot(1),insights:{recommendationMode:'llm'},persona:{generatedAt:2,recommendations:{...playlist,verified:[{index:0,track:{title:'Song',artist:'Artist'}}]}},discovery:{refreshing:false},platforms:{}}};
+  return{ok:true,value:{snapshot:snapshot(1),insights:{recommendationMode:'llm'},persona:null,platforms:{}}};
+ });
+ const off=f.controller.subscribe(()=>{});try{
+  await tick();await f.controller.command('next');assert.equal(f.controller.getSnapshot().connected,true);
+  const nodes=all(f.render());assert.equal(nodes.some(n=>n.children.includes('重新连接')),false);
+  await nodes.find(n=>n.children.includes('重新核对歌单')).props.onClick();
+  assert.equal(calls.at(-1).endpoint,'fishfm/discovery-refresh');assert.equal(calls.at(-1).payload.provider,'netease');
+  assert.equal(f.controller.getSnapshot().persona.recommendations.verified.length,1);assert.equal(f.controller.getSnapshot().errorCode,null);
+ }finally{off();f.dispose();}
+});
+
 test('song feedback follows the captured playback instance and reset requires an explicit in-panel confirmation',async()=>{
  const current={playInstanceId:'client-play',track:{provider:'netease',providerTrackId:'1',title:'Song'}};
  let feedback={version:1,current:0,liked:0,reduced:0,canUndoReset:false};const calls=[];

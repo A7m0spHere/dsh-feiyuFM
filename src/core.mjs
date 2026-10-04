@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { assertCommand, MusicError, normalizeTrack, trackId } from './contracts.mjs';
 import {setTrackFeedback,resetRecommendationTaste,undoRecommendationReset} from './feedback.mjs';
+import {modelRecommendations} from './model-recommendations.mjs';
 
 async function resolveWithTimeout(provider, track, signal, version, timeoutMs) {
   const attempt = new AbortController();
@@ -364,7 +365,14 @@ export class MusicCore {
           at: now,
           excludeTrackKeys: this.state.current ? [trackId(this.state.current.track)] : [],
         });
-        if (!decision?.track) throw new MusicError('no_candidates',this.store.getSetting('recommendation_mode_v1')==='llm'?'模型歌单暂时没有可用歌曲，请先生成或核对歌单，或等待冷却。':'No queued track is available');
+        if (!decision?.track) {
+          const playlist=modelRecommendations(this.store);
+          throw new MusicError('no_candidates',this.store.getSetting('recommendation_mode_v1')==='llm'
+            ?!playlist?'还没有模型歌单，请先根据歌曲推荐一批。'
+              :!playlist.verified.length?'模型歌单尚无通过核对的歌曲，请查看各首核对状态并重新核对。'
+                :'模型歌曲均为当前曲目、处于 30 分钟重复冷却或被播放规则排除，请稍后重试或更新歌单。'
+            :'No queued track is available');
+        }
         this._applyRecommendation(decision,{trigger:'user-next',keepPaused:this.state.paused});
         break;
       }
