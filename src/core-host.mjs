@@ -23,9 +23,10 @@ import { createNetEaseProvider } from './providers/netease.mjs';
 import { createQQProvider } from './providers/qq.mjs';
 import { describePlatforms, collectDiscovery, resolveOnOwnPlatform, summarizeSeedRuns } from './providers/coordinator.mjs';
 import { createDiscoveryCache } from './discovery.mjs';
-import {describeMusicInsights} from './insights.mjs';
-import {personaView,reserveSummary,startSummary,finishSummary,recoverSummaryCalls,setSummaryBudget,setSummaryOutputTokens,setSummaryAutomatic} from './persona.mjs';
-import {modelRecommendations,modelRecommendationTracks,recommendationMode,createModelRecommendationResolver} from './model-recommendations.mjs';
+import {describeMusicFacts,describeMusicInsights} from './insights.mjs';
+import {createTrackGraphCache} from './track-graph.mjs';
+import {personaView,reserveSummary,startSummary,finishSummary,recoverSummaryCalls,setSummaryBudget,setSummaryOutputTokens,setSummaryAutomatic,factBundle} from './persona.mjs';
+import {modelRecommendations,modelRecommendationTracks,recommendationMode,createModelRecommendationResolver,STRATEGY_PURPOSE} from './model-recommendations.mjs';
 
 /** Bump when the host/owner message shapes change in a way an older peer cannot read. */
 export const CORE_HOST_PROTOCOL = 1;
@@ -119,10 +120,11 @@ export class ProviderRegistry {
  * QQ adapters land (P2/P4); an empty pool is a real state, and the selector then
  * records that no exploration happened while keeping the user's rate setting.
  */
-export function buildSelector({ store, now = () => Date.now(), rng = null, listDiscovery = null }) {
+export function buildSelector({ store, now = () => Date.now(), rng = null, listDiscovery = null, graphCache = null }) {
   const seed = readAgentSeed(store);
   return createSelector({
     store,
+    graphCache,
     // A stored seed keeps selection reproducible across restarts; without one
     // the session still works, it just is not reproducible.
     rng: rng ?? createRng(store.getCoreState()?.selectionRngState ?? (Number.isSafeInteger(seed) ? seed : 1)),
@@ -319,6 +321,25 @@ export function createCoreHost({
   let core = null;
   let playback = null;
   let disposePlayback = async () => {};
+  /**
+   * 画像计算缓存：UI 每 ~2 秒轮询 persona/insights，重块（全部曲目/偏好/
+   * 成长任务解析）只在失效事件后重算一次。失效是显式白名单——任何命令、
+   * 成长回调、导入、实际生效的衰减、模型调用收尾。
+   */
+  const trackGraph=createTrackGraphCache({store});
+  const profileCache={valid:false,insightsFacts:null,bundle:null,strategyBundle:null,growthRows:null,callRows:null};
+  const invalidateProfile=()=>{trackGraph.invalidate();profileCache.valid=false;};
+  const profileInputs=()=>{
+    if(profileCache.valid)return profileCache;
+    profileCache.insightsFacts=describeMusicFacts(store);
+    profileCache.bundle=factBundle(store,core.snapshot());
+    profileCache.strategyBundle=factBundle(store,core.snapshot(),STRATEGY_PURPOSE);
+    profileCache.growthRows=store.db.prepare('SELECT rowid,entry_json FROM growth_jobs ORDER BY rowid').all()
+      .map(row=>{try{return{rowid:row.rowid,entry:JSON.parse(row.entry_json)};}catch{return null;}}).filter(Boolean);
+    profileCache.callRows=store.db.prepare('SELECT * FROM music_model_calls ORDER BY started_at DESC').all();
+    profileCache.valid=true;
+    return profileCache;
+  };
   /** Periodic maintenance handle (preference decay); cleared on close. */
   let maintenance = null;
   // Which DSH session is active, and therefore who may start music.
@@ -364,6 +385,7 @@ export function createCoreHost({
         case 'command': {
           onLog({ type: 'command', kind: message.command?.type });
           const snapshot = core.dispatch({ ...message.command, commandId: message.command?.commandId ?? randomUUID() });
+          invalidateProfile();
           if(['resetLibrary','resetTaste','undoTasteReset','setRecommendationMode'].includes(message.command?.type))platformsFacade?.clearDiscovery();
           platformsFacade?.setDiscoveryEnabled(snapshot.settings.discovery && snapshot.settings.discoveryRate > 0);
           platformsFacade?.tickDiscovery();
@@ -436,6 +458,7 @@ export function createCoreHost({
             now: now(),
           });
           const taste = initializeAgentPreferences({ store, seed: message.seed ?? null, now: now() });
+          invalidateProfile();
           send({ type: 'result', id, ok: true, import: result, taste, snapshot: core.snapshot() });
           return;
         }
@@ -459,12 +482,16 @@ export function createCoreHost({
           return;
         }
         case 'insights': {
-          send({type:'result',id,ok:true,insights:describeMusicInsights(store,core.snapshot(),now())});return;
+          send({type:'result',id,ok:true,insights:describeMusicInsights(store,core.snapshot(),now(),profileInputs().insightsFacts)});return;
         }
-        case 'persona':send({type:'result',id,ok:true,persona:personaView(store,core.snapshot(),now())});return;
-        case 'persona-budget':setSummaryBudget(store,message.value);send({type:'result',id,ok:true});return;
-        case 'persona-output':setSummaryOutputTokens(store,message.value);send({type:'result',id,ok:true});return;
-        case 'persona-automatic':setSummaryAutomatic(store,message.value);send({type:'result',id,ok:true});return;
+        case 'persona':{
+          const cachedProfile=profileInputs();
+          send({type:'result',id,ok:true,persona:personaView(store,core.snapshot(),now(),
+            {bundle:cachedProfile.bundle,strategyBundle:cachedProfile.strategyBundle,growthRows:cachedProfile.growthRows,callRows:cachedProfile.callRows})});return;
+        }
+        case 'persona-budget':setSummaryBudget(store,message.value);invalidateProfile();send({type:'result',id,ok:true});return;
+        case 'persona-output':setSummaryOutputTokens(store,message.value);invalidateProfile();send({type:'result',id,ok:true});return;
+        case 'persona-automatic':setSummaryAutomatic(store,message.value);invalidateProfile();send({type:'result',id,ok:true});return;
         case 'persona-reserve':{
           // 发现候选筛选：预留时把缓存里的候选（带来源线索）交给事实组装。
           const reservePurpose=message.purpose??'persona-summary';
@@ -485,7 +512,7 @@ export function createCoreHost({
           return;
         }
         case 'persona-start':send({type:'result',id,ok:true,started:startSummary(store,message.callId)});return;
-        case 'persona-finish':{const result=finishSummary({store,...message,now:now()});send({type:'result',id,ok:true,result});platformsFacade?.setDiscoveryEnabled(core.snapshot().settings.discovery&&core.snapshot().settings.discoveryRate>0);platformsFacade?.verifyModelRecommendations();return;}
+        case 'persona-finish':{const result=finishSummary({store,...message,now:now()});invalidateProfile();send({type:'result',id,ok:true,result});platformsFacade?.setDiscoveryEnabled(core.snapshot().settings.discovery&&core.snapshot().settings.discoveryRate>0);platformsFacade?.verifyModelRecommendations();return;}
         case 'platforms': {
           if (!platformsFacade) {
             send({ type: 'result', id, ok: true, platforms: { platforms: {}, usable: [], reason: 'no platform adapters are configured in this build' } });
@@ -544,6 +571,7 @@ export function createCoreHost({
               requested: seed.requested, degraded: seed.degraded, reason: seed.reason, sourceRef:seed.sourceRef??'', now: now(),
             });
             const taste = initializeAgentPreferences({ store, seed: message.seed ?? null, now: now() });
+            invalidateProfile();
             platformsFacade.tickDiscovery();
             publishIfChanged();
             send({ type: 'result', id, ok: true, provider: message.provider, source: seed.source, import: imported, attempts: seed.attempts, taste, snapshot: core.snapshot() });
@@ -659,7 +687,7 @@ export function createCoreHost({
       maintenance = setInterval(() => {
         try {
           const result = decayPreferences({ store, now: now() });
-          if (result.changed) onLog({ type: 'maintenance', decayed: result.changed });
+          if (result.changed) { invalidateProfile(); onLog({ type: 'maintenance', decayed: result.changed }); }
         } catch (error) {
           onLog({ type: 'maintenance_error', message: error.message });
         }
@@ -676,6 +704,7 @@ export function createCoreHost({
             store,
             now,
                             listDiscovery: platformsFacade ? () => platformsFacade.discoveryTracks() : null,
+            graphCache: trackGraph,
           })
           : null,
         // A finished listen is reported here; growth policy decides what, if
@@ -688,6 +717,7 @@ export function createCoreHost({
             // into long-term preferences, and its total influence is capped.
             session: sessionId ? { sessionId, transient: entry.sessionTransient ?? sessions.isTransient(sessionId, now()) } : null,
           });
+          invalidateProfile();
           onLog({
             type: 'growth', updated: report.updated, reason: report.reason, delta: report.delta ?? 0,
             playInstanceId: entry.playInstanceId, effectiveMs: entry.effectiveMs, before: report.before, after: report.after,
@@ -710,7 +740,7 @@ export function createCoreHost({
       });
       platformsFacade?.setDiscoveryEnabled(core.snapshot().settings.discovery && core.snapshot().settings.discoveryRate > 0);
       send({ type: 'ready', protocol: CORE_HOST_PROTOCOL, snapshot: core.snapshot() });
-      platformsFacade?.onDiscoveryChange(() => { core._commit(); publishIfChanged(); });
+      platformsFacade?.onDiscoveryChange(() => { invalidateProfile(); core._commit(); publishIfChanged(); });
       platformsFacade?.tickDiscovery();
       timer = setInterval(() => { platformsFacade?.tickDiscovery(); publishIfChanged(); }, stateIntervalMs);
       timer.unref?.();

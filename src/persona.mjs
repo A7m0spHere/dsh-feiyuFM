@@ -33,7 +33,7 @@ export function measuredUsage(value){
 const tokens=u=>['inputTokens','outputTokens','cacheReadTokens','cacheWriteTokens'].reduce((s,k)=>s+(u[k]??0),0);
 const parseUsage=json=>{try{return json?measuredUsage(JSON.parse(json)):null;}catch{return null;}};
 
-function factBundle(store,snapshot,purpose='persona-summary',candidates=null){
+export function factBundle(store,snapshot,purpose='persona-summary',candidates=null){
  const view=describeMusicInsights(store,snapshot);
  let facts={artists:view.profile.artists.slice(0,3).map(a=>({name:a.name.slice(0,24),weight:Number(a.affinity.toFixed(2)),source:a.source})),
   validListens:view.statistics.validAgentListens,historyScope:'recent_tracked_decisions',exploration:Math.round(snapshot.settings.discoveryRate*100),
@@ -89,12 +89,14 @@ function aggregate(rows){
 
 // A bounded UI window is not an evidence counter. Anchor the actual growth-job
 // sequence at reservation time; legacy summaries use the real listen end time.
-function listenEvidence(store,summary){
- const rows=store.db.prepare('SELECT rowid,entry_json FROM growth_jobs ORDER BY rowid').all();
+// growthRows 允许宿主传入已解析的成长任务（缓存），避免每次轮询全量解析。
+function listenEvidence(store,summary,growthRows=null){
+ const rows=growthRows??store.db.prepare('SELECT rowid,entry_json FROM growth_jobs ORDER BY rowid').all()
+  .map(row=>{try{return{rowid:row.rowid,entry:JSON.parse(row.entry_json)};}catch{return null;}}).filter(Boolean);
  let total=0,fresh=0;
  const anchored=Number.isSafeInteger(summary?.growthWatermark)&&summary.growthWatermark>=0;
  for(const row of rows){
-  let entry;try{entry=JSON.parse(row.entry_json);}catch{continue;}
+  const entry=row.entry;
   if(!entry||typeof entry!=='object'||!qualifiesAsListen({entry,durationMs:entry.durationMs}).qualifies)continue;
   total++;
   if(summary&&(anchored?row.rowid>summary.growthWatermark:Number.isFinite(entry.endedAt)&&entry.endedAt>summary.generatedAt))fresh++;
@@ -123,17 +125,19 @@ function automaticStatus({store,now,summary,bundle,ledger,policy,evidence}){
  return{due:true,reason:null,newListens};
 }
 
-export function personaView(store,snapshot,now=Date.now()){
- const bundle=factBundle(store,snapshot),rows=store.db.prepare('SELECT * FROM music_model_calls ORDER BY started_at DESC').all();
+// cached 允许宿主传入预取的重块（事实包/调用表/成长任务），轮询时零重算；
+// 这些块只依赖库内容与设置，宿主在命令/成长/导入等失效事件后重建。
+export function personaView(store,snapshot,now=Date.now(),cached=null){
+ const bundle=cached?.bundle??factBundle(store,snapshot),rows=cached?.callRows??store.db.prepare('SELECT * FROM music_model_calls ORDER BY started_at DESC').all();
  const today=aggregate(rows.filter(r=>r.day===dayOf(now))),policy=readPolicy(store);
  const summary=store.getSetting('persona_summary_v1',null);
- const strategy=modelRecommendations(store),strategyBundle=factBundle(store,snapshot,STRATEGY_PURPOSE);
+ const strategy=modelRecommendations(store),strategyBundle=cached?.strategyBundle??factBundle(store,snapshot,STRATEGY_PURPOSE);
  const automaticPurpose=store.getSetting('summary_automatic_purpose','persona-summary')===STRATEGY_PURPOSE?STRATEGY_PURPOSE:'persona-summary';
  const baseline=automaticPurpose===STRATEGY_PURPOSE?strategy:summary;
  const ledger={today,total:aggregate(rows),remainingTokens:Math.max(0,policy.dailyTokens-today.chargedTokens),localDecisionRequests:0,
   sharedContextCost:'unattributed',recent:rows.slice(0,5).map(r=>({callId:r.call_id,provider:r.provider,model:r.model,status:r.status,startedAt:r.started_at,
    usage:parseUsage(r.usage_json),errorCode:r.error_code,purpose:r.purpose}))};
- const automatic=automaticStatus({store,now,summary:baseline,bundle:automaticPurpose===STRATEGY_PURPOSE?strategyBundle:bundle,ledger,policy,evidence:listenEvidence(store,baseline)});
+ const automatic=automaticStatus({store,now,summary:baseline,bundle:automaticPurpose===STRATEGY_PURPOSE?strategyBundle:bundle,ledger,policy,evidence:listenEvidence(store,baseline,cached?.growthRows)});
  const lastSuccessful=rows.find(r=>r.status==='completed');
  return{generatedAt:now,facts:bundle.facts,summary,summaryStale:summary?.factHash!==bundle.factHash,recommendations:strategy,recommendationsStale:strategy?.factHash!==strategyBundle.factHash,recommendationsSupported:true,referenceCoverage:strategyBundle.facts.inputCoverage,lastModelRoute:lastSuccessful?{provider:lastSuccessful.provider,model:lastSuccessful.model}:null,
   policy:{...SUMMARY_POLICY,...policy,automaticPurpose,outputMaximumTokens:OUTPUT_RANGE.max,automaticDue:automatic.due,automaticBlockedBy:automatic.reason,automaticNewListens:automatic.newListens??0,

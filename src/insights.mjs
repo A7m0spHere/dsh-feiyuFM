@@ -17,7 +17,11 @@ export function explainSelection(snapshot) {
  if(choice?.detail?.affinitySource==='listen'||choice?.detail?.affinitySource==='listen_silent')return{kind:'earned',text:'它有自主收听形成的偏好记录，这次也通过了重复过滤。'};
  return{kind:'familiar',text:'这次从熟悉歌曲中按已有偏好和有界随机项选择。'};
 }
-export function describeMusicInsights(store,snapshot,now=Date.now()) {
+/**
+ * 重 DB 块：标题/艺人映射、偏好榜、成长任务解析与统计。只依赖库内容，
+ * 供宿主缓存并在失效事件后重建；快照相关的轻量投影在 describeMusicInsights。
+ */
+export function describeMusicFacts(store){
  const log=store.getSetting('decision_history_v1',[]);
  const names=new Map(),titles=new Map();
  for(const row of store.db.prepare('SELECT track_key,title,provider,artists_json FROM tracks').all()){
@@ -37,26 +41,36 @@ export function describeMusicInsights(store,snapshot,now=Date.now()) {
   .filter(row=>ids.has(row.play_instance_id)).map(row=>({entry:JSON.parse(row.entry_json),growth:row.result_json?JSON.parse(row.result_json):null,processedAt:row.processed_at}));
  const valid=recorded.filter(r=>qualifiesAsListen({entry:r.entry,durationMs:r.entry.durationMs}).qualifies);
  const startedIds=new Set(recorded.filter(r=>Number.isFinite(r.entry.startedAt)).map(r=>r.entry.playInstanceId));
- if(Number.isFinite(snapshot?.current?.startedAt)&&ids.has(snapshot.current.playInstanceId))startedIds.add(snapshot.current.playInstanceId);
- const started=startedIds.size;
- const current=snapshot?.current,seed=current?.origin?.seedTrackKey;
- const reply=current?{decisionId:current.decisionId,kind:current.selectedBy==='user'?'user':'agent',
-  text:current.selectionTrigger==='legacy-unknown'||current.origin?.source==='llm_recommendation'?explainSelection(snapshot).text:current.selectedBy==='user'?'这是你点的，我按你的选择播放。':current.selectionTrigger==='user-next'?explainSelection(snapshot).text:current.origin?.llmReason
-   ?explainSelection(snapshot).text:current.origin?.source==='netease_similar'
-   ?`这次想试一首相近的新歌。网易云把它与《${titles.get(seed)||'已有歌曲'}》关联，我再按本地偏好与重复限制选中了它。`
-   :explainSelection(snapshot).text}:null;
  const reset=store.getSetting('preference_reset_v1',null);
- return {version:1,generatedAt:now,explanation:explainSelection(snapshot),feedback:feedbackView(store,snapshot),recommendationMode:recommendationMode(store),libraryResetSupported:true,
-  reply,
-  profile:{kind:'agent_preferences',artists,tracks,coverage:{genres:0,moods:0},modelSummary:false},
+ return{log,titles,startedIds,reset,
+  profileArtists:artists,profileTracks:tracks,
   decisions:log.slice(-10).reverse().map(d=>({...d,trackTitle:titles.get(d.trackKey)||d.trackKey||'未选中歌曲'})),
   recentChanges:recorded.filter(r=>(!reset||r.processedAt>=reset.at)&&r.growth?.updated&&Number.isFinite(r.growth.before)&&Number.isFinite(r.growth.after)).slice(0,5)
    .map(r=>({playInstanceId:r.entry.playInstanceId,title:r.entry.track.title||r.entry.track.providerTrackId,
     before:r.growth.before,after:r.growth.after,at:r.processedAt,audible:r.growth.audible===true})),
   statistics:{windowStart:log[0]?.at??null,retainedDecisions:log.length,autonomousDecisions:log.length,
    explorationAttempts:log.filter(d=>d.attemptedDiscovery).length,unfamiliarSelections:log.filter(d=>d.pool==='discovery'&&d.trackKey).length,
-   observedStarts:started,validAgentListens:valid.length,validUnfamiliarListens:valid.filter(r=>r.entry.selectionPool==='discovery').length,
+   observedStarts:startedIds.size,validAgentListens:valid.length,validUnfamiliarListens:valid.filter(r=>r.entry.selectionPool==='discovery').length,
    repeatedSelections:log.filter(d=>(d.detail?.repeatPlays??0)>0).length,
-   historyCoverage:'tracked_decision_instances',completeLifetime:false},
+   historyCoverage:'tracked_decision_instances',completeLifetime:false}};
+}
+export function describeMusicInsights(store,snapshot,now=Date.now(),facts=null) {
+ const f=facts??describeMusicFacts(store);
+ const feedback=feedbackView(store,snapshot);
+ const current=snapshot?.current,seed=current?.origin?.seedTrackKey;
+ const reply=current?{decisionId:current.decisionId,kind:current.selectedBy==='user'?'user':'agent',
+  text:current.selectionTrigger==='legacy-unknown'||current.origin?.source==='llm_recommendation'?explainSelection(snapshot).text:current.selectedBy==='user'?'这是你点的，我按你的选择播放。':current.selectionTrigger==='user-next'?explainSelection(snapshot).text:current.origin?.llmReason
+   ?explainSelection(snapshot).text:current.origin?.source==='netease_similar'
+   ?`这次想试一首相近的新歌。网易云把它与《${f.titles.get(seed)||'已有歌曲'}》关联，我再按本地偏好与重复限制选中了它。`
+   :explainSelection(snapshot).text}:null;
+ // 当前曲的已观测开始不在 facts 里（依赖快照），按原逻辑去重后并入。
+ let observedStarts=f.statistics.observedStarts;
+ const currentId=current?.playInstanceId;
+ if(Number.isFinite(current?.startedAt)&&currentId&&!f.startedIds.has(currentId)&&f.log.some(d=>d.playInstanceId===currentId))observedStarts+=1;
+ return {version:1,generatedAt:now,explanation:explainSelection(snapshot),feedback,recommendationMode:recommendationMode(store),libraryResetSupported:true,
+  reply,
+  profile:{kind:'agent_preferences',artists:f.profileArtists,tracks:f.profileTracks,coverage:{genres:0,moods:0},modelSummary:false},
+  decisions:f.decisions,recentChanges:f.recentChanges,
+  statistics:{...f.statistics,observedStarts},
   limitations:['no_genre_or_mood_features','local_rules_not_llm_summary']};
 }

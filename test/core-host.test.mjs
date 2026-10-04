@@ -502,3 +502,38 @@ test('spawned as a process it serves the plugin path and exits cleanly on shutdo
     rmSync(directory, { recursive: true, force: true });
   }
 });
+
+test('persona and insights polls reuse cached profile facts until invalidation', async () => {
+  const out = collector();
+  const store = new MusicStore();
+  const host = createCoreHost({ output: out.stream, playbackMode: 'fake', store });
+  await host.start();
+  const heavy = /FROM (listen_history|agent_preferences|tracks|growth_jobs|music_model_calls)/i;
+  let heavyQueries = 0;
+  const original = store.db.prepare.bind(store.db);
+  store.db.prepare = sql => { if (heavy.test(sql)) heavyQueries += 1; return original(sql); };
+  const readLast = () => out.messages.filter(m => m.type === 'result').at(-1);
+  try {
+    await host.handle({ id: 'p1', type: 'persona' });
+    await host.handle({ id: 'i1', type: 'insights' });
+    const first = heavyQueries;
+    // UI 每 ~2 秒轮询一次：重复请求必须命中缓存，而不是重算画像。
+    await host.handle({ id: 'p2', type: 'persona' });
+    await host.handle({ id: 'i2', type: 'insights' });
+    assert.ok(heavyQueries - first <= 4, `轮询不应重算画像（多了 ${heavyQueries - first} 次重查询）`);
+    // 命令使缓存失效：新的探索率立即进入事实包。
+    await host.handle({ id: 'cmd', type: 'command', command: { type: 'setDiscoveryRate', value: 0.5, commandId: 'c1' } });
+    await host.handle({ id: 'p3', type: 'persona' });
+    assert.equal(readLast().persona.facts.exploration, 50, '命令后缓存失效，新设置立即反映');
+    // 导入使缓存失效：画像立即包含新偏好。
+    await host.handle({ id: 'i3', type: 'insights' });
+    const before = readLast().insights.profile.tracks.length;
+    await host.handle({ id: 'imp', type: 'import', provider: 'netease', source: 'recent', requested: 1, tracks: [track] });
+    await host.handle({ id: 'i4', type: 'insights' });
+    assert.ok(readLast().insights.profile.tracks.length > before, '导入后画像立即反映新偏好');
+  } finally {
+    store.db.prepare = original;
+    await host.close();
+    store.close();
+  }
+});

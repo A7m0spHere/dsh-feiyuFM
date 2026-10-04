@@ -101,11 +101,15 @@ export function scoreCandidate({
   const concentration=Math.max(0,...artistKeys(track).map(k=>context?.recentArtists.get(k)??0));
   const diversityPenalty=Math.min(0.12,concentration*0.03);
   const userFeedback = trackFeedback(store, track), feedback = feedbackScore(store, track);
-  // LLM 筛选的排序加成有界：Top1 ≈ +0.24（与"喜欢"反馈同量级），随名次线性衰减；
-  // 未入选的候选不扣分，筛选永远不会把池子排空。
+  // 与最近自然听完歌曲的相似图关联：同歌单/同艺人/相邻播放的弱牵引，
+  // 与多样性惩罚（防同艺人连续）方向互补；权重有界，缺图时为 0。
+  const graph=context?.graph??null,recentPositive=context?.recentPositive??[];
+  const graphAffinity=graph&&recentPositive.length
+    ?recentPositive.reduce((sum,recentKey)=>sum+graph.similarity(key,recentKey),0)/recentPositive.length*0.06
+    :0;
   const llmRank = Number.isSafeInteger(track.discovery?.llmRank) && track.discovery.llmRank > 0 ? track.discovery.llmRank : null;
   const llmBoost = llmRank ? Math.max(0, 0.24 * (1 - (llmRank - 1) / 12)) : 0;
-  const score = taste * parameters.affinityWeight * repeatPenalty + freshness + randomValue * parameters.randomWeight + relationship + environment - diversityPenalty + feedback + llmBoost;
+  const score = taste * parameters.affinityWeight * repeatPenalty + freshness + randomValue * parameters.randomWeight + relationship + environment - diversityPenalty + feedback + llmBoost + graphAffinity;
 
   return {
     score,
@@ -116,7 +120,7 @@ export function scoreCandidate({
     repeatPenalty,
     freshness,
     randomValue,
-    relationship,seedAffinity,environment,diversityPenalty,userFeedback,feedback,llmRank,llmBoost,algorithm:'local-v4',
+    relationship,seedAffinity,environment,diversityPenalty,userFeedback,feedback,llmRank,llmBoost,graphAffinity,algorithm:'local-v5',
   };
 }
 
@@ -136,6 +140,7 @@ export function createSelector({
   parameters = SELECTION_PARAMETERS,
   onDecision = () => {},
   now = () => Date.now(),
+  graphCache = null,
 } = {}) {
   if (!store) throw new Error('store is required');
 
@@ -146,7 +151,10 @@ export function createSelector({
     const banned = bannedTrackKeys(store, at);
     const excluded = new Set(excludeTrackKeys);
     const plays = recentPlays(store, { now: at, windowMs: parameters.repeatWindowMs, limit: parameters.historyWindow });
-    const context={environment:new Map(describeEnvironmentProfile(store,at).artists.map(a=>[a.key,a.share])),recentArtists:new Map()};
+    // 最近自然听完的歌驱动相似图关联项；与 plays（含跳过）不同源。
+    const recentPositive=store.db.prepare("SELECT track_key FROM listen_history WHERE end_reason='ended' ORDER BY ended_at DESC LIMIT 5").all().map(r=>r.track_key);
+    const context={environment:new Map(describeEnvironmentProfile(store,at).artists.map(a=>[a.key,a.share])),recentArtists:new Map(),
+      graph:graphCache?.get?.()??null,recentPositive};
     for(const key of plays.keys()){
       const split=key.indexOf(':');const played=store.getNormalizedTrack({provider:key.slice(0,split),providerTrackId:key.slice(split+1)});
       for(const artist of artistKeys(played))context.recentArtists.set(artist,(context.recentArtists.get(artist)??0)+(plays.get(key)?.plays??0));
