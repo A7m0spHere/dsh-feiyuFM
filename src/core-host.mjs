@@ -527,7 +527,8 @@ export function createCoreHost({
         }
         case 'discovery': {
           requireFacade();
-          void platformsFacade.refreshDiscovery({ manual: true });
+          // 解析器的工作 promise 可能拒绝（如存储层故障），不能变成未处理拒绝。
+          Promise.resolve(platformsFacade.refreshDiscovery({ manual: true })).catch(() => {});
           const status = platformsFacade.discoveryStatus();
           send({
             type: 'result', id, ok: true,

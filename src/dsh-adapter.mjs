@@ -72,7 +72,13 @@ export class CoreBridge {
   }
 
   start() {
-    if (this.ready) return this.ready;
+    // A settled ready promise with a live child is reusable. After a crash the
+    // child is gone: reusing the old ready would make every later request fail
+    // forever, so the core is spawned again instead.
+    if (this.ready && this.child && this.child.exitCode === null && this.child.signalCode === null) {
+      return this.ready;
+    }
+    this.child = null;
     this.ready = new Promise((resolve, reject) => {
       const child = this.spawnCore();
       this.child = child;

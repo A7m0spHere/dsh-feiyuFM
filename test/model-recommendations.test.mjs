@@ -2,7 +2,7 @@ import test from 'node:test';import assert from 'node:assert/strict';
 import {MusicStore} from '../src/storage.mjs';import {importSeedTracks} from '../src/environment.mjs';
 import {reserveSummary,startSummary,finishSummary,personaView,setSummaryOutputTokens} from '../src/persona.mjs';
 import {createPersonaModelService} from '../src/persona-model.mjs';
-import {parseModelRecommendations,createModelRecommendationResolver,modelRecommendations,STRATEGY_KEY,STRATEGY_PURPOSE} from '../src/model-recommendations.mjs';
+import {parseModelRecommendations,createModelRecommendationResolver,modelRecommendations,STRATEGY_KEY,STRATEGY_PURPOSE,MAX_AUTO_VERIFICATION_ATTEMPTS} from '../src/model-recommendations.mjs';
 import {buildSelector,createProviderFacade,createCoreHost} from '../src/core-host.mjs';
 import {MusicCore} from '../src/core.mjs';import {FakeProvider,FakePlayback,FakeClock} from '../src/fakes.mjs';
 import {resetRecommendationTaste,undoRecommendationReset,setTrackFeedback} from '../src/feedback.mjs';
@@ -61,6 +61,39 @@ test('search business failures retain their code and cannot be reported as missi
   assert.deepEqual(modelRecommendations(store).attempts,[{index:0,status:'lookup-failed',platformCode:406},{index:1,status:'lookup-failed',platformCode:406}]);resolver.close();
   const core=new MusicCore({store,selector:buildSelector({store,now:()=>3000}),provider:new FakeProvider(),playback:new FakePlayback(),clock:new FakeClock(3000)});
   assert.throws(()=>core.dispatch({type:'next',commandId:'empty-playlist'}),e=>e.code==='no_candidates'&&e.message.includes('核对')&&!e.message.includes('冷却'));
+ }finally{store.close();}
+});
+
+test('auto verification is bounded per playlist while manual re-verification still searches',async()=>{
+ const store=fixture();try{
+  // Song 1/Artist 1 在本地命中（不搜索），Ghost 必须搜索且永远不会命中。
+  generate(store,2000,JSON.stringify({summary:'参考输入推荐',songs:[['Song 1','Artist 1'],['Ghost','Nobody']]}));
+  let searches=0,clock=3000;
+  const resolver=createModelRecommendationResolver({store,now:()=>clock,registry:{async search(){searches++;return{tracks:[]};}}});
+  await resolver.refresh();
+  assert.equal(searches,1);assert.equal(modelRecommendations(store).verification,'partial');
+  for(let i=0;i<15;i++){clock+=60001;await resolver.refresh();}
+  assert.equal(searches,MAX_AUTO_VERIFICATION_ATTEMPTS,'自动核对到达上限后停止重搜');
+  clock+=60001;
+  await resolver.refresh({manual:true});
+  assert.equal(searches,MAX_AUTO_VERIFICATION_ATTEMPTS+1,'手动重新核对不受自动预算限制');
+  resolver.close();
+ }finally{store.close();}
+});
+
+test('a new playlist restarts the bounded auto verification budget',async()=>{
+ const store=fixture();try{
+  generate(store,2000,JSON.stringify({summary:'参考输入推荐',songs:[['Ghost A','Nobody']]}));
+  let searches=0,clock=3000;
+  const resolver=createModelRecommendationResolver({store,now:()=>clock,registry:{async search(){searches++;return{tracks:[]};}}});
+  for(let i=0;i<12;i++){clock+=60001;await resolver.refresh();}
+  assert.equal(searches,MAX_AUTO_VERIFICATION_ATTEMPTS);
+  clock+=3_600_001;
+  store.removeSetting(STRATEGY_KEY);
+  generate(store,clock,JSON.stringify({summary:'参考输入推荐',songs:[['Ghost B','Nobody']]}));
+  clock+=60001;await resolver.refresh();
+  assert.equal(searches,MAX_AUTO_VERIFICATION_ATTEMPTS+1,'新歌单（新 callId）重新计数');
+  resolver.close();
  }finally{store.close();}
 });
 

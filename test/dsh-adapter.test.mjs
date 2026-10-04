@@ -143,6 +143,25 @@ test('the product path reports a missing platform adapter instead of inventing a
   }
 });
 
+test('a crashed core is replaced on the next start instead of failing forever', async () => {
+  const bridge = new CoreBridge({ spawnCore: () => spawnRealCore() });
+  await bridge.start();
+  try {
+    const first = bridge.child.pid;
+    bridge.child.kill();
+    await delay(300);
+    // 崩溃后的请求必须如实失败，而不是永远挂起。
+    await assert.rejects(bridge.request({ type: 'snapshot' }, { timeoutMs: 2000 }));
+    // 再次 start 必须重新拉起新的 Core，恢复可服务状态。
+    await bridge.start();
+    assert.notEqual(bridge.child.pid, first);
+    const answer = await bridge.request({ type: 'snapshot' }, { timeoutMs: 5000 });
+    assert.equal(answer.snapshot.paused, true);
+  } finally {
+    await bridge.stop();
+  }
+});
+
 test('a session identity is read from whichever shape the host provides', async () => {
   const { sessionIdOf } = await import('../src/dsh-adapter.mjs');
   // The real shape was not recorded, so several plausible ones are accepted and

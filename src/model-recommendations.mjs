@@ -25,6 +25,10 @@ export function modelRecommendationTracks(store){
  return value.verified.map(row=>({...normalizeTrack(row.track),discovery:{source:'llm_recommendation',modelCallId:value.callId,reason:value.text}}));
 }
 export function recommendationMode(store){return store?.getSetting('recommendation_mode_v1','platform')==='llm'?'llm':'platform';}
+// 自动核对必须有界：无法核对的歌单（歌曲确实不存在/持续失败）不能按 60 秒预算
+// 永久重搜平台。每个歌单在一个 Core 进程内最多自动尝试这么多次；手动
+// 「重新核对歌单」不受此限。新歌单（新 callId）重新计数。
+export const MAX_AUTO_VERIFICATION_ATTEMPTS=10;
 const workTitle=value=>normalizeSongText(value).replace(/\([^)]*\)/g,'');
 // Explicit catalogue aliases only; arbitrary "Official" suffixes are not proof of identity.
 const artistAliases=new Map([['洛天依official','洛天依']]);
@@ -63,13 +67,19 @@ function selectMatchedVersion(song,found){
  return found.find(t=>normalizeSongText(t.title)===normalizeSongText(song.title))??found[0];
 }
 export function createModelRecommendationResolver({store,registry,now=()=>Date.now(),onChange=()=>{}}){
- let stopped=false,pending=null,controller=null,lastAttempt=null;
+ let stopped=false,pending=null,controller=null,lastAttempt=null,autoCallId=null,autoAttempts=0;
  const notify=()=>{try{onChange();}catch{/* UI does not control matching. */}};
  async function refresh({manual=false}={}){
   const record=modelRecommendations(store);if(stopped||!record)return{reason:'no-model-playlist'};
   if(pending)return pending;
   if(record.verification==='ready')return record;
-  if(lastAttempt!==null&&now()-lastAttempt<60000)return manual?{reason:'lookup-budget'}:record;
+  if(manual){
+   if(lastAttempt!==null&&now()-lastAttempt<60000)return{reason:'lookup-budget'};
+  }else{
+   if(record.callId!==autoCallId){autoCallId=record.callId;autoAttempts=0;}
+   if(autoAttempts>=MAX_AUTO_VERIFICATION_ATTEMPTS)return record;
+   if(lastAttempt!==null&&now()-lastAttempt<60000)return record;
+  }
   lastAttempt=now();controller=new AbortController();const signal=controller.signal,id=record.callId;
   const work=(async()=>{
    const verified=[],attempts=[];let loginUnavailable=false;
@@ -89,6 +99,8 @@ export function createModelRecommendationResolver({store,registry,now=()=>Date.n
     }catch(error){attempts.push({index,status:error.code==='login_required'?'login-required':'lookup-failed',...(Number.isInteger(error.details?.platformCode)?{platformCode:error.details.platformCode}:{})});if(error.code==='login_required')loginUnavailable=true;}
    }
    if(signal.aborted||stopped||modelRecommendations(store)?.callId!==id)return{reason:'cancelled'};
+   // 登录缺失的尝试没有真正搜索平台，不消耗自动预算。
+   if(!manual&&!loginUnavailable)autoAttempts++;
    store.transaction(()=>{
     for(const row of verified)store.upsertTrack(row.track,now());
     store.setSetting(STRATEGY_KEY,{...record,verified,attempts,verification:verified.length===record.songs.length?'ready':verified.length?'partial':attempts.some(a=>a.status==='login-required')?'login-required':'empty',verifiedAt:now()});
