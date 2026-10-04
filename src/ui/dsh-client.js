@@ -569,12 +569,12 @@ window.__ModuleLoader__.load({
     }
 
     function CharacterArt({ art, active, motion }) {
-      const still = art === 'whale-dj' ? 'whale-dj.png' : 'whale-loop-still.png';
+      const still = art === 'whale-dj' ? 'whale-dj.png' : 'whale-loop-still-v2.png';
       const animated = active && (motion || 'full') === 'full';
       const base = '/fishfm/assets/';
       return h('picture', null,
         h('source', { media: '(prefers-reduced-motion: reduce)', srcSet: base + still }),
-        h('img', { src: base + (animated ? 'whale-listening-loop.gif' : still),
+        h('img', { src: base + (animated ? 'whale-listening-loop-v2.gif' : still),
           width: 256, height: 320, alt: '鲸鱼娘音乐状态' }));
     }
 

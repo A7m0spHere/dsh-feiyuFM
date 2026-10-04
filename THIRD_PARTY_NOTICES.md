@@ -2,6 +2,8 @@
 
 ## FishFM generated animation artwork
 
+The subsequent `docs/art/whale-motion-v2.png` was generated from FishFM's first static frame with the built-in image tool. It contains 32 actual poses, assembled into `whale-loop-still-v2.png` and `whale-listening-loop-v2.gif` by the same build script. The exact prompt and actual-frame/hash verification are recorded in U9; the original version is retained.
+
 2026-10-04 `docs/art/whale-motion-v1.png` was generated with the built-in image tool using FishFM's existing `src/ui/assets/whale-idle.png` as the identity reference. `src/ui/assets/whale-loop-still.png` and `whale-listening-loop.gif` are cropped/registered/exported derivatives assembled by `scripts/build-whale-animation.py`. No third-party character sheet was copied. Prompt, input scope, transparency and verification are recorded in [U9](docs/spikes/U9-transparent-character.md). Pillow is used only by the optional asset-build script and is not a runtime dependency.
 
 ## PHL design tokens and motion reference — MIT

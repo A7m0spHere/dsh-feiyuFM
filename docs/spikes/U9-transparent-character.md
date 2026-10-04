@@ -2,7 +2,21 @@
 
 2026-10-04，用户要求移除播放器中鲸鱼娘的独立蓝色底块，并用 image 生成更多图片制作 GIF。
 
-## 实现
+## 当前版本：32 帧
+
+2026-10-04 用户要求至少 30 帧。重新使用内置 `image_gen` 生成更多动作：最终选中的 `docs/art/whale-motion-v2.png` 实际为 6+6+7+6+7，共 32 个姿势（提示词请求 36，按实际输出计数）。第一次 28 格输出未采用。
+
+`scripts/build-whale-animation.py` 根据选中图集的透明行间隙裁切；输出 `src/ui/assets/whale-listening-loop-v2.gif` 与 `whale-loop-still-v2.png`。GIF 256×320、32 帧，首帧 600ms、末帧 250ms、中间 30 帧各 70ms，合计 2950ms。逐帧解码后 32 个 RGBA SHA-256 均不同，脚本会在少于 32 个实际/不同帧时失败。保持同一脚底基线、共用调色板和透明清除。使用版本化 URL 避免浏览器缓存旧动画，原版仍留存。
+
+32 帧版相关 23 项测试、113 模块检查与构建通过；生产宿主仍未重载，真实宿主显示未验。以下初版的隔离浏览器结果不冒充新版宿主验证。
+
+当前版本完整生成提示词（内置工具，`transparent_background=true`，参考初版 `whale-loop-still.png`）：
+
+```text
+Use case: identity-preserve. Generate a SQUARE transparent RGBA sprite sheet of EXACTLY 36 distinct consecutive frames, SIX columns and SIX rows. This is a strict grid of 6x6=36, not 7x4 or any other arrangement. Prefer square 3072x3072. Reference is the exact blue-haired chibi whale maid identity. Every cell must contain a complete full-body character, at identical small size and feet baseline, with transparent gaps between cells. No labels, grid lines, colored backing or shadows. Preserve face, blue eyes, indigo/blue long hair and whale fin locks, small blue gold-heart bows, white maid headband, curled antenna, navy white gold-trim dress, whale apron emblem and shoes. Anime crisp cel-shaded style faithful to reference. Keep face/head/body size, costume detail and pose consistent. Animate a gentle listening idle cycle: tiny continuous deformation of antenna and long hair tips, gradually drifting left in frames 1-9, returning center 10-18, drifting right 19-27, returning center 28-36. Natural smooth blink in frames 10-16: open, slightly lowered, half closed, almost closed, closed, partly open, open. All other frames have relaxed open eyes and same tiny smile. Each of the 36 poses changes by a small amount from the previous, primarily the antenna and hair-tip curvature. Keep body and shoes stationary. Frame 36 almost matches frame 1. Do not rotate or translate the whole character, do not change costume or perspective. PRIORITY: exactly 6 rows and 6 columns, all 36 cells filled with one complete character. Background must be truly alpha transparent everywhere outside the character, no checkerboard painted in, no glowing background, no vignette, no watermark.
+```
+
+## 初版实现（历史）
 
 - `.fm-art` 去掉底色、圆角和拉伸背景，角色直接露出当前卡片背景，保持冷灰/azure 界面。
 - 内置 `image_gen` 参考项目原有 `src/ui/assets/whale-idle.png` 生成六姿势透明图集，原始图集保存在 `docs/art/whale-motion-v1.png`；原有三张状态素材保留。
