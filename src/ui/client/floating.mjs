@@ -147,6 +147,10 @@ export function FloatingPlayer({ controller, layout, usePanelInfo }) {
           h('div', { className: 'fm-time' }, h('span', null, playing ? '正在播放' : paused ? '已暂停' : '等待音乐'),
             h('span', null, `${minutes(current.positionMs)} / ${current.track?.durationMs ? minutes(current.track.durationMs) : '--:--'}`)))
           : h('div', { className: 'fm-float-empty' }, snapshot ? '当前没有播放曲目。可以打开电台设置或导入音乐。' : state.connected ? '正在读取播放状态…' : '本地音乐服务暂时无法连接。'),
+        state.error && h('div', { className: 'fm-notice', 'data-error': true, role: 'alert' }, state.error,
+          ' ', h('button', { className: 'fm-button', type: 'button', disabled: state.busy,
+            onClick: state.errorCode === 'no_candidates' && state.insights?.recommendationMode === 'llm' ? () => controller.platformAction('discovery', 'netease') : controller.refresh },
+            state.errorCode === 'no_candidates' && state.insights?.recommendationMode === 'llm' ? '重新核对歌单' : state.connected ? '刷新状态' : '重新连接')),
         h('div', { className: 'fm-float-controls' },
           h('button', { type: 'button', className: 'fm-button fm-primary', disabled: blocked || (!current && !state.library?.total && !snapshot?.queue?.length),
             'aria-label': !current ? '开始听歌' : paused ? '继续播放' : '暂停', onClick: () => controller.playOrPause() }, h(Svg, { type: !current || paused ? 'play' : 'pause' }), !current ? '开始听歌' : paused ? '继续播放' : '暂停'),

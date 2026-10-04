@@ -466,7 +466,11 @@ window.__ModuleLoader__.load({
             emit({ ...result.value,...(['resetTaste','resetLibrary','undoTasteReset','setRecommendationMode'].includes(type)?{summaryNotice:'',summaryError:''}:{}),...(type==='resetLibrary'?{imported:null,importAttempts:[]}:{}), notice: feedbackNotice || (['pause', 'resume', 'next', 'requestTrack'].includes(type) ? '播放控制已更新' : '已保存到本机') });
           } catch (error) {
             const actionError = ['no_candidates', 'autonomy_blocked', 'constraint_conflict', 'invalid_command', 'media_unavailable','stale_track','summary_busy','no_reset_backup','invalid_track'].includes(error?.code);
-            emit({ connected: actionError ? state.connected : false, error: failure(error), errorCode:error?.code??null, notice: actionError ? '请调整曲目或设置后重试' : '未确认操作，请刷新核对' });
+            // 连接语义只看"Core 是否可达"：RPC 有应答（带 code 的业务/内部错误）
+            // 说明服务在线，不得把未知错误码误报成连接中断；仅传输层失败或
+            // core_unavailable 才断开。
+            const coreUnreachable = !error?.code || error.code === 'core_unavailable';
+            emit({ connected: coreUnreachable ? false : true, error: failure(error), errorCode:error?.code??null, notice: actionError ? '请调整曲目或设置后重试' : coreUnreachable ? '未确认操作，请刷新核对' : '操作没有生效，请重试或展开详情' });
           }
           finally { clearTimeout(timeout); write = null; emit({ busy: false }); }
         },
@@ -1115,6 +1119,10 @@ window.__ModuleLoader__.load({
               h('div', { className: 'fm-time' }, h('span', null, playing ? '正在播放' : paused ? '已暂停' : '等待音乐'),
                 h('span', null, `${minutes(current.positionMs)} / ${current.track?.durationMs ? minutes(current.track.durationMs) : '--:--'}`)))
               : h('div', { className: 'fm-float-empty' }, snapshot ? '当前没有播放曲目。可以打开电台设置或导入音乐。' : state.connected ? '正在读取播放状态…' : '本地音乐服务暂时无法连接。'),
+            state.error && h('div', { className: 'fm-notice', 'data-error': true, role: 'alert' }, state.error,
+              ' ', h('button', { className: 'fm-button', type: 'button', disabled: state.busy,
+                onClick: state.errorCode === 'no_candidates' && state.insights?.recommendationMode === 'llm' ? () => controller.platformAction('discovery', 'netease') : controller.refresh },
+                state.errorCode === 'no_candidates' && state.insights?.recommendationMode === 'llm' ? '重新核对歌单' : state.connected ? '刷新状态' : '重新连接')),
             h('div', { className: 'fm-float-controls' },
               h('button', { type: 'button', className: 'fm-button fm-primary', disabled: blocked || (!current && !state.library?.total && !snapshot?.queue?.length),
                 'aria-label': !current ? '开始听歌' : paused ? '继续播放' : '暂停', onClick: () => controller.playOrPause() }, h(Svg, { type: !current || paused ? 'play' : 'pause' }), !current ? '开始听歌' : paused ? '继续播放' : '暂停'),

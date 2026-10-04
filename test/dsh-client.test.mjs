@@ -444,3 +444,40 @@ test('dragging docks the floating bar to an edge and arrow keys move it accessib
     assert.equal(f.controller.getSnapshot().widgetPosition.top, 301);
   } finally { f.dispose(); }
 });
+
+test('unknown core errors keep the service online while only core loss marks it offline', async () => {
+  let code = 'internal';
+  const f = fixture(async (_channel, endpoint) => endpoint === 'fishfm/command'
+    ? { ok: false, error: { code, message: '内部错误' } } : state(snapshot(1)));
+  const off = f.controller.subscribe(() => {});
+  try {
+    await tick(); await f.controller.command('pause');
+    assert.equal(f.controller.getSnapshot().connected, true, 'Core 应答过的内部错误不等于连接中断');
+    code = 'core_unavailable';
+    await f.controller.command('pause');
+    assert.equal(f.controller.getSnapshot().connected, false, 'Core 不可达才标记连接中断');
+    assert.match(f.controller.getSnapshot().error, /core_unavailable/);
+  } finally { off(); f.dispose(); }
+});
+
+test('the floating drawer shows operation errors with the same recovery actions as the panel', async () => {
+  const f = fixture(async (_channel, endpoint) => endpoint === 'fishfm/command'
+    ? { ok: false, error: { code: 'no_candidates', message: '现在没有可自动播放的歌曲。' } }
+    : { ok: true, value: { snapshot: snapshot(1), platforms: {}, insights: { recommendationMode: 'llm', feedback: { version: 1 } } } });
+  const overlayRegistration = f.registrations.find(r => r.options.name === 'shell.overlay');
+  overlayRegistration.options.inject = () => ({ controller: f.controller, layout: { selectPanel() {} } });
+  const off = f.controller.subscribe(() => {});
+  try {
+    await tick();
+    let nodes = all(f.renderOverlay());
+    nodes.find(n => n.props['aria-expanded'] === false && n.props['aria-controls'] === 'fishfm-quick-controls').props.onClick();
+    nodes = all(f.renderOverlay());
+    const next = nodes.find(n => n.props['aria-label'] === '播放下一首');
+    await next.props.onClick();
+    await tick();
+    nodes = all(f.renderOverlay());
+    const alerts = nodes.filter(n => n.props.role === 'alert');
+    assert.ok(alerts.some(n => JSON.stringify(n.children).includes('没有可自动播放')), '操作错误在悬浮抽屉内可见');
+    assert.ok(alerts.some(n => JSON.stringify(n.children).includes('重新核对歌单')), 'LLM 无候选时提供与主面板一致的核对入口');
+  } finally { off(); f.dispose(); }
+});

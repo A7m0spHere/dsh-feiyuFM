@@ -115,7 +115,7 @@ export class MusicStore {
 
   migrate() {
     const version = this.db.prepare('PRAGMA user_version').get().user_version;
-    if (version > 10) throw new Error(`Unsupported schema version ${version}`);
+    if (version > 11) throw new Error(`Unsupported schema version ${version}`);
     if (version === 0) {
       this.transaction(() => {
         this.db.exec(MIGRATION_1);
@@ -202,6 +202,15 @@ export class MusicStore {
         this.db.exec('PRAGMA user_version = 10');
       });
     }
+    if(this.db.prepare('PRAGMA user_version').get().user_version===10){
+      // N16/P1：命令去重表与成长任务按时间清理，补两条时间列索引让维护删除不扫全表。
+      this.transaction(()=>{
+        this.db.exec(`CREATE INDEX IF NOT EXISTS processed_commands_processed_at ON processed_commands(processed_at);
+          CREATE INDEX IF NOT EXISTS growth_jobs_processed_at ON growth_jobs(processed_at);`);
+        this.db.prepare('INSERT INTO schema_migrations VALUES (?, ?)').run(11,new Date().toISOString());
+        this.db.exec('PRAGMA user_version = 11');
+      });
+    }
   }
 
   transaction(fn) {
@@ -285,6 +294,19 @@ export class MusicStore {
 
   recordCommand(commandId, now) {
     this.db.prepare('INSERT INTO processed_commands VALUES (?, ?)').run(commandId, now);
+  }
+
+  /** 去重只需近期命令：超龄行清理，防止命令表无限增长（P1 数据保留）。 */
+  pruneProcessedCommands({ now = Date.now(), maxAgeMs = 30 * 24 * 60 * 60 * 1000 } = {}) {
+    return this.db.prepare('DELETE FROM processed_commands WHERE processed_at < ?').run(now - maxAgeMs).changes;
+  }
+
+  /**
+   * 已完成的成长任务只服务幂等与画像统计，超龄清理；未完成的（崩溃后待重放）
+   * 一律保留。listen_history 是听歌正史，不在清理范围。
+   */
+  pruneCompletedGrowthJobs({ now = Date.now(), maxAgeMs = 30 * 24 * 60 * 60 * 1000 } = {}) {
+    return this.db.prepare('DELETE FROM growth_jobs WHERE processed_at IS NOT NULL AND processed_at < ?').run(now - maxAgeMs).changes;
   }
 
   recordHistory(entry) {

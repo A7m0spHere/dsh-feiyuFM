@@ -54,7 +54,7 @@ test('an existing version 1 database upgrades to the current version without los
 
     const store = new MusicStore(path);
     try {
-      assert.equal(store.db.prepare('PRAGMA user_version').get().user_version, 10, 'all migrations applied');
+      assert.equal(store.db.prepare('PRAGMA user_version').get().user_version, 11, 'all migrations applied');
       // Old data is intact.
       assert.deepEqual(store.getSetting('window'), { x: 10, y: 20 });
       assert.equal(store.getHistory('inst-1').effective_ms, 4200);
@@ -65,7 +65,7 @@ test('an existing version 1 database upgrades to the current version without los
       assert.equal(store.countPreferences(), 0);
       assert.deepEqual(
         store.db.prepare('SELECT version FROM schema_migrations ORDER BY version').all().map((row) => row.version),
-        [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+        [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
       );
     } finally {
       store.close();
@@ -74,10 +74,10 @@ test('an existing version 1 database upgrades to the current version without los
     // Reopening is idempotent: no second migration, no error.
     const again = new MusicStore(path);
     try {
-      assert.equal(again.db.prepare('PRAGMA user_version').get().user_version, 10);
+      assert.equal(again.db.prepare('PRAGMA user_version').get().user_version, 11);
       assert.deepEqual(
         again.db.prepare('SELECT version FROM schema_migrations ORDER BY version').all().map((row) => row.version),
-        [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+        [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
       );
     } finally {
       again.close();
@@ -115,7 +115,7 @@ test('a version 2 database gains session attribution without losing history', ()
 
     const store = new MusicStore(path);
     try {
-      assert.equal(store.db.prepare('PRAGMA user_version').get().user_version, 10);
+      assert.equal(store.db.prepare('PRAGMA user_version').get().user_version, 11);
       // The pre-existing listen survived, with no session attached.
       const row = store.getHistory('old-1');
       assert.equal(row.effective_ms, 5000);
@@ -149,4 +149,33 @@ test('an unknown newer schema version is refused instead of being run blindly', 
   } finally {
     rmSync(directory, { recursive: true, force: true });
   }
+});
+
+test('retention pruning removes only aged command rows and completed growth jobs', () => {
+  const store = new MusicStore();
+  try {
+    const now = 1_800_000_000_000;
+    const day = 24 * 60 * 60 * 1000;
+    store.recordCommand('fresh', now);
+    store.recordCommand('stale', now - 31 * day);
+    store.recordHistory({ playInstanceId: 'old-done', track: { provider: 'netease', providerTrackId: '1' },
+      selectedBy: 'agent', progressSource: 'audio', effectiveMs: 40000, agentListening: true, audible: true,
+      endReason: 'ended', endedAt: now - 40 * day });
+    store.completeGrowth({ playInstanceId: 'old-done' }, { updated: true }, now - 40 * day);
+    store.db.prepare('INSERT INTO growth_jobs (play_instance_id, entry_json) VALUES (?, ?)')
+      .run('old-pending', JSON.stringify({ playInstanceId: 'old-pending' }));
+    store.db.prepare('INSERT INTO growth_jobs (play_instance_id, entry_json, processed_at) VALUES (?, ?, ?)')
+      .run('fresh-done', '{}', now - 1 * day);
+
+    assert.equal(store.pruneProcessedCommands({ now }), 1);
+    assert.equal(store.hasCommand('fresh'), true, '新命令保留用于去重');
+    assert.equal(store.hasCommand('stale'), false);
+
+    assert.equal(store.pruneCompletedGrowthJobs({ now }), 1);
+    assert.equal(store.db.prepare('SELECT 1 FROM growth_jobs WHERE play_instance_id=?').get('old-pending') !== undefined, true, '未完成任务保留待重放');
+    assert.equal(store.db.prepare('SELECT 1 FROM growth_jobs WHERE play_instance_id=?').get('fresh-done') !== undefined, true, '新完成任务保留');
+    assert.equal(store.db.prepare('SELECT 1 FROM growth_jobs WHERE play_instance_id=?').get('old-done'), undefined);
+    // listen_history 是听歌正史，不参与清理。
+    assert.equal(store.db.prepare('SELECT count(*) n FROM listen_history').get().n, 1);
+  } finally { store.close(); }
 });

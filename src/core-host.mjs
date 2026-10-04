@@ -684,8 +684,27 @@ export function createCoreHost({
       // Maintenance: preferences decay toward neutral as time passes. Growth is
       // non-negative by rule, so without a scheduled decay pass a preference
       // could only ever ratchet upward. This is a requirement, not housekeeping.
+      // 数据保留（P1）：命令去重表与已完成成长任务只留 30 天，至多每小时清一次。
+      let lastPruneAt = 0;
+      const pruneStore = () => {
+        const at = now();
+        if (at - lastPruneAt < 3_600_000) return;
+        lastPruneAt = at;
+        try {
+          const removedCommands = store.pruneProcessedCommands({ now: at });
+          const removedJobs = store.pruneCompletedGrowthJobs({ now: at });
+          if (removedCommands || removedJobs) {
+            invalidateProfile();
+            onLog({ type: 'maintenance-prune', removedCommands, removedJobs });
+          }
+        } catch (error) {
+          onLog({ type: 'maintenance_error', message: error.message });
+        }
+      };
+      pruneStore();
       maintenance = setInterval(() => {
         try {
+          pruneStore();
           const result = decayPreferences({ store, now: now() });
           if (result.changed) { invalidateProfile(); onLog({ type: 'maintenance', decayed: result.changed }); }
         } catch (error) {
