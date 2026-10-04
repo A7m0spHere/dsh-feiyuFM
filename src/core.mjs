@@ -360,18 +360,29 @@ export class MusicCore {
         break;
       case 'next': {
         const queued = this._takeNext();
-        const decision = queued ? {track:queued,pool:'queue',attemptedDiscovery:false} : this.selector?.next({
-          discoveryRate: this.state.settings.discovery ? this.state.settings.discoveryRate : 0,
+        const exclude = this.state.current ? [trackId(this.state.current.track)] : [];
+        const rate = this.state.settings.discovery ? this.state.settings.discoveryRate : 0;
+        let decision = queued ? {track:queued,pool:'queue',attemptedDiscovery:false} : this.selector?.next({
+          discoveryRate: rate,
           at: now,
-          excludeTrackKeys: this.state.current ? [trackId(this.state.current.track)] : [],
+          excludeTrackKeys: exclude,
         });
+        // 用户明确要求换曲：模型歌单没有可播曲目（未核对/冷却/不可用）时
+        // 回退到输入曲库，而不是报错收场；自主续播不受此影响。
+        if (!queued && !decision?.track) {
+          decision = this.selector?.next({
+            discoveryRate: rate,
+            at: now,
+            excludeTrackKeys: exclude,
+            libraryFallback: true,
+          });
+          if (decision?.track) {
+            decision = { ...decision, fellBack: true,
+              fallbackReason: '模型歌单暂时没有可播的曲目，已回退你的输入曲库' };
+          }
+        }
         if (!decision?.track) {
-          const playlist=modelRecommendations(this.store);
-          throw new MusicError('no_candidates',this.store.getSetting('recommendation_mode_v1')==='llm'
-            ?!playlist?'还没有模型歌单，请先根据歌曲推荐一批。'
-              :!playlist.verified.length?'模型歌单尚无通过核对的歌曲，请查看各首核对状态并重新核对。'
-                :'模型歌曲均为当前曲目、处于 30 分钟重复冷却或被播放规则排除，请稍后重试或更新歌单。'
-            :'No queued track is available');
+          throw new MusicError('no_candidates', this._noCandidatesReason(true));
         }
         this._applyRecommendation(decision,{trigger:'user-next',keepPaused:this.state.paused});
         break;
@@ -494,12 +505,14 @@ export class MusicCore {
   }
 
   /** 为什么现在没有可自动播放的歌曲，按推荐来源给出可操作的原因。 */
-  _noCandidatesReason() {
+  _noCandidatesReason(fallbackAttempted = false) {
     if (this.store.getSetting('recommendation_mode_v1') === 'llm') {
       const playlist = modelRecommendations(this.store);
       if (!playlist) return '还没有模型歌单，请先根据歌曲推荐一批。';
       if (!playlist.verified.length) return '模型歌单尚无通过核对的歌曲，请查看各首核对状态并重新核对。';
-      return '模型歌曲均为当前曲目、处于 30 分钟重复冷却或被播放规则排除，请稍后重试或更新歌单。';
+      return fallbackAttempted
+        ? '模型歌单和输入曲库都没有可播的歌曲：候选均为当前曲目、处于 30 分钟冷却或被播放规则排除，请稍后重试或更新歌单。'
+        : '模型歌曲均为当前曲目、处于 30 分钟重复冷却或被播放规则排除，请稍后重试或更新歌单。';
     }
     return '现在没有可自动播放的歌曲：曲库为空或候选都在冷却、被过滤。';
   }

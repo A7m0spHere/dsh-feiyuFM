@@ -135,7 +135,9 @@ export function createSelector({
 } = {}) {
   if (!store) throw new Error('store is required');
 
-  const decide = ({ discoveryRate, at = now(), excludeTrackKeys = [] } = {}) => {
+  const decide = (options = {}) => {
+    const { discoveryRate, excludeTrackKeys = [] } = options;
+    const at = options.at ?? now();
     const rate = clampRate(discoveryRate);
     const banned = bannedTrackKeys(store, at);
     const excluded = new Set(excludeTrackKeys);
@@ -158,8 +160,8 @@ export function createSelector({
       return { all, usable };
     };
 
-    const familiarPool = prepare(listFamiliar());
-    const discoveryPool = prepare(listDiscovery());
+    const familiarPool = prepare(listFamiliar(options));
+    const discoveryPool = prepare(listDiscovery(options));
     const familiar = familiarPool.usable;
     const discovery = discoveryPool.usable;
     const offered = familiarPool.all.length + discoveryPool.all.length;

@@ -127,7 +127,11 @@ export function buildSelector({ store, now = () => Date.now(), rng = null, listD
     // the session still works, it just is not reproducible.
     rng: rng ?? createRng(store.getCoreState()?.selectionRngState ?? (Number.isSafeInteger(seed) ? seed : 1)),
     isPlayable: track => store.isTrackAvailable(track, now()),
-    listFamiliar: () => recommendationMode(store)==='llm'?modelRecommendationTracks(store).filter(t=>store.getEnvironmentEntry(t)||store.hasEffectiveListen(t)||store.listLikedTracks().some(r=>r.track_key===`${t.provider}:${t.providerTrackId}`)):[...new Map([...store.listEnvironment({ limit: 100000 }), ...store.listAgentKnownTracks(), ...store.listLikedTracks()].map(row => [row.track_key, row])).values()].map((row) => {
+    // LLM 模式的默认池只来自模型歌单。options.libraryFallback 是用户主动
+    // 下一首的回退通道：歌单没有可播曲目时改用输入曲库，自主续播不用它。
+    listFamiliar: (options = {}) => recommendationMode(store)==='llm'&&!options.libraryFallback
+      ? modelRecommendationTracks(store).filter(t=>store.getEnvironmentEntry(t)||store.hasEffectiveListen(t)||store.listLikedTracks().some(r=>r.track_key===`${t.provider}:${t.providerTrackId}`))
+      : [...new Map([...store.listEnvironment({ limit: 100000 }), ...store.listAgentKnownTracks(), ...store.listLikedTracks()].map(row => [row.track_key, row])).values()].map((row) => {
       // Restore the stored metadata, not just the key: the effective-progress
       // threshold needs the real duration, and a title is needed to tell the
       // user what is playing.
@@ -137,10 +141,9 @@ export function buildSelector({ store, now = () => Date.now(), rng = null, listD
       });
       return stored;
     }),
-    // Platform recommendations feed the discovery pool. They are read from a cache
-// because the selector runs synchronously and must never perform network I/O;
-// an empty pool is a real state and is recorded as such.
-    listDiscovery: () => recommendationMode(store)==='llm'?modelRecommendationTracks(store).filter(t=>!store.getEnvironmentEntry(t)&&!store.hasEffectiveListen(t)&&!store.listLikedTracks().some(r=>r.track_key===`${t.provider}:${t.providerTrackId}`)):(listDiscovery?.()??[]),
+    listDiscovery: (options = {}) => recommendationMode(store)==='llm'&&!options.libraryFallback
+      ? modelRecommendationTracks(store).filter(t=>!store.getEnvironmentEntry(t)&&!store.hasEffectiveListen(t)&&!store.listLikedTracks().some(r=>r.track_key===`${t.provider}:${t.providerTrackId}`))
+      : (listDiscovery?.()??[]),
     now,
   });
 }

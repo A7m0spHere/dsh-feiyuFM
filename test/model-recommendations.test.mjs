@@ -60,7 +60,39 @@ test('search business failures retain their code and cannot be reported as missi
   await resolver.refresh();assert.equal(modelRecommendations(store).verified.length,0);
   assert.deepEqual(modelRecommendations(store).attempts,[{index:0,status:'lookup-failed',platformCode:406},{index:1,status:'lookup-failed',platformCode:406}]);resolver.close();
   const core=new MusicCore({store,selector:buildSelector({store,now:()=>3000}),provider:new FakeProvider(),playback:new FakePlayback(),clock:new FakeClock(3000)});
-  assert.throws(()=>core.dispatch({type:'next',commandId:'empty-playlist'}),e=>e.code==='no_candidates'&&e.message.includes('核对')&&!e.message.includes('冷却'));
+  // 歌单没有任何核对通过的歌曲：用户主动下一首回退输入曲库，而不是报错。
+  core.dispatch({type:'next',commandId:'empty-playlist'});
+  assert.equal(core.snapshot().current.selectedBy,'agent');
+  assert.equal(core.snapshot().current.selectionTrigger,'user-next');
+  assert.ok(core.state.lastSelection.fallbackReason.includes('输入曲库'));
+  assert.ok(['1','2'].includes(core.snapshot().current.track.providerTrackId),'回退到导入的输入曲库');
+ }finally{store.close();}
+});
+
+test('a user next falls back to the library when playlist songs are exhausted, autonomy does not',async()=>{
+ const store=fixture();try{
+  generate(store,2000,JSON.stringify({summary:'参考输入推荐',songs:[['Song 1','Artist 1']]}));
+  const resolver=createModelRecommendationResolver({store,now:()=>3000,registry:{async search(){throw new Error('unexpected search');}}});
+  await resolver.refresh();assert.equal(modelRecommendations(store).verified.length,1);
+  const playback=new FakePlayback();
+  const core=new MusicCore({store,selector:buildSelector({store,now:()=>3000}),provider:new FakeProvider(),playback,clock:new FakeClock(3000)});
+  playback.onEvent(e=>core.onPlaybackEvent(e));
+  // 第一首：歌单中的已知歌曲（输入曲目本身）。
+  core.dispatch({type:'next',commandId:'n1'});await core.waitForIdle();
+  assert.equal(core.snapshot().current.track.providerTrackId,'1');
+  core.dispatch({type:'resume',commandId:'r0'});await core.waitForIdle();
+  playback.emit({type:'ended',playInstanceId:core.snapshot().current.playInstanceId});await core.waitForIdle();
+  // 曲终自主续播：LLM 池没有可用曲目，保持等待而不是回退。
+  assert.equal(core.snapshot().current,null);
+  // 用户再点下一首：回退输入曲库选另一首。
+  core.dispatch({type:'next',commandId:'n2'});await core.waitForIdle();
+  assert.equal(core.snapshot().current.track.providerTrackId,'2','冷却中的歌单歌曲不重复，回退曲库选下一首');
+  assert.ok(core.state.lastSelection.fallbackReason.includes('输入曲库'));
+  // 自主启动（resume）仍不回退：全部冷却时如实报错。
+  playback.emit({type:'ended',playInstanceId:core.snapshot().current.playInstanceId});await core.waitForIdle();
+  assert.throws(()=>core.dispatch({type:'resume',commandId:'r1'}),e=>e.code==='no_candidates');
+  // 用户下一首在两个来源都耗尽后才报错，且消息如实说明两个来源。
+  assert.throws(()=>core.dispatch({type:'next',commandId:'n3'}),e=>e.code==='no_candidates'&&e.message.includes('输入曲库'));
  }finally{store.close();}
 });
 

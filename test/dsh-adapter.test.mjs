@@ -95,7 +95,7 @@ test('the bridge drives a real core process', async () => {
     assert.equal(paused.snapshot.current.track.providerTrackId, 'a1');
     assert.equal(paused.snapshot.paused, true, 'next while paused keeps the pause');
 
-    await assert.rejects(() => bridge.command({ type: 'next' }), /no_candidates|queue/i);
+    await assert.rejects(() => bridge.command({ type: 'next' }), /no_candidates|曲库|冷却/);
   } finally {
     await bridge.stop();
   }

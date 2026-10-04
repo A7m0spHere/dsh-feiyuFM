@@ -8,7 +8,7 @@ export function explainSelection(snapshot) {
  if(current.selectionTrigger==='legacy-unknown')return{kind:'legacy',text:'这首来自旧版选曲，旧数据没有区分点播和请求下一首。'};
  if(current.selectedBy==='user')return{kind:'user',text:'这首由你点播，按手动播放处理。'};
  if(current.origin?.source==='llm_recommendation')return{kind:'model-recommended',text:`${current.selectionTrigger==='user-next'?'你请求了下一首，':''}这首来自模型生成的缓存歌单，平台已核对歌名和艺人。本地规则只负责播放顺序、反馈与重复限制。`};
- if(current.selectionTrigger==='user-next')return{kind:'recommended-next',text:choice?.pool==='queue'?'你请求了下一首，我按既定队列继续。':'你请求了下一首，这首由推荐器按偏好、候选来源和重复限制选择。'};
+ if(current.selectionTrigger==='user-next')return{kind:'recommended-next',text:choice?.fallbackReason?.includes('输入曲库')?'你请求了下一首；模型歌单暂时没有可播的曲目，这首从你的输入曲库按偏好和重复限制选择。':choice?.pool==='queue'?'你请求了下一首，我按既定队列继续。':'你请求了下一首，这首由推荐器按偏好、候选来源和重复限制选择。'};
  if(choice?.fellBack)return{kind:'fallback',text:'陌生候选暂不可用，这次回到熟悉歌曲。'};
  if(current.origin?.source==='netease_similar')return{kind:'related',text:'这首与已有种子存在平台相似关系，本地偏好和重复限制共同选中了它。'};
  if(current.origin?.source==='netease_daily')return{kind:'account',text:'这次探索网易云每日推荐中的陌生歌，再由本地偏好排序。'};
