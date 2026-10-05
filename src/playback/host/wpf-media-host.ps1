@@ -21,7 +21,16 @@ param(
   [Parameter(Mandatory = $true)][string]$PipeName,
   [int]$OwnerPid = 0,
   [int]$ProtocolVersion = 1,
-  [double]$Volume = 0.35
+  [double]$Volume = 0.35,
+  # How many silent resources to hold open, so the audio engine stays warm.
+  # 0 disables warming. Measured on 2026-10-05 (see
+  # docs/spikes/N19-wpf-audio-warmup.md): a cold Open costs 4.6-10.2 s, while an
+  # Open with four resources already held costs 0.35-0.43 s.
+  [int]$WarmHolders = 4,
+  # Overrides the silent resource the warm holders keep open. Left empty, the host
+  # writes its own into the temp directory: audio must never be committed to this
+  # repository (AGENTS.md), so the resource is generated rather than shipped.
+  [string]$WarmResource = ''
 )
 
 $ErrorActionPreference = 'Stop'
@@ -39,6 +48,20 @@ $script:player = [System.Windows.Media.MediaPlayer]::new()
 $script:player.Volume = $script:volume
 $script:pendingOpen = $null
 
+# Warm-up state. WPF's media stack is only fast once enough resources are open
+# in the process: the first Open after idle costs 4.6-10.2 s, while an Open with
+# four resources already held costs 0.35-0.43 s. Warming therefore fills a pool of
+# muted, never-played holder players, one at a time, and only while a track is
+# playing: a load issued while a holder Open is in flight pays 6.5-8.5 s instead
+# of 4.6 s, so warming yields to real work and starts only after the first track
+# has been served.
+$script:warmTarget = [Math]::Max(0, [Math]::Min(8, $WarmHolders))
+$script:warmPool = @()
+$script:warmPath = $null
+$script:warmArmed = $false
+$script:warmPending = $null
+$script:warmFailures = 0
+$script:warmGenerated = $null
 
 # Playback facts. Status is host-owned; the core has its own richer state.
 $script:status = 'idle'
@@ -161,6 +184,137 @@ function Resolve-Resource([string]$value) {
     throw "Resource is not a readable local file or URL"
   }
   return [System.Uri]::new((Resolve-Path -LiteralPath $value).Path)
+}
+
+# Writes the silent WAV the warm holders keep open: 8 kHz mono 16-bit, 0.5 s, every
+# sample zero (8044 bytes). It is generated here rather than committed because audio
+# must never enter the repository (AGENTS.md), and generating it means a fresh clone
+# works with no build step. Zero samples plus Volume 0 plus IsMuted make the holders
+# inaudible even if one were ever played, which it is not.
+function Write-SilentWav([string]$path) {
+  $frames = 4000
+  $dataBytes = $frames * 2
+  $buffer = New-Object byte[] (44 + $dataBytes)
+  [System.Text.Encoding]::ASCII.GetBytes('RIFF').CopyTo($buffer, 0)
+  [BitConverter]::GetBytes([uint32](36 + $dataBytes)).CopyTo($buffer, 4)
+  [System.Text.Encoding]::ASCII.GetBytes('WAVE').CopyTo($buffer, 8)
+  [System.Text.Encoding]::ASCII.GetBytes('fmt ').CopyTo($buffer, 12)
+  [BitConverter]::GetBytes([uint32]16).CopyTo($buffer, 16)
+  [BitConverter]::GetBytes([uint16]1).CopyTo($buffer, 20)   # PCM
+  [BitConverter]::GetBytes([uint16]1).CopyTo($buffer, 22)   # mono
+  [BitConverter]::GetBytes([uint32]8000).CopyTo($buffer, 24)
+  [BitConverter]::GetBytes([uint32]16000).CopyTo($buffer, 28)
+  [BitConverter]::GetBytes([uint16]2).CopyTo($buffer, 32)
+  [BitConverter]::GetBytes([uint16]16).CopyTo($buffer, 34)
+  [System.Text.Encoding]::ASCII.GetBytes('data').CopyTo($buffer, 36)
+  [BitConverter]::GetBytes([uint32]$dataBytes).CopyTo($buffer, 40)
+  [System.IO.File]::WriteAllBytes($path, $buffer)
+  return $buffer.Length
+}
+
+# Resolves the silent resource the warm holders keep open.
+#
+# It is generated here rather than shipped as an asset for two reasons: audio must
+# never enter the repository (AGENTS.md), and a file the host makes itself works
+# identically from src/ and from a built dist/ with no build step. A per-process
+# name means concurrent hosts cannot race over one file. Anything that fails here
+# means warming is off: a cold engine is slower, never broken.
+function Resolve-WarmResource {
+  if ($script:warmTarget -le 0) { return $null }
+  $candidate = $WarmResource
+  if ([string]::IsNullOrWhiteSpace($candidate)) {
+    # Per-process name: two hosts starting at once cannot race over one file, and
+    # Stop-WarmHolders removes it. A crash leaves an 8 KB file in the temp dir.
+    $candidate = Join-Path ([System.IO.Path]::GetTempPath()) "fishfm-warm-silence-$PID.wav"
+    try { $null = Write-SilentWav $candidate } catch { return $null }
+    $script:warmGenerated = $candidate
+  }
+  if (-not (Test-Path -LiteralPath $candidate -PathType Leaf)) { return $null }
+  try { return [System.Uri]::new((Resolve-Path -LiteralPath $candidate).Path) } catch { return $null }
+}
+
+function Stop-WarmHolders {
+  foreach ($record in $script:warmPool) {
+    try { $record.player.Stop() } catch { }
+    try { $record.player.Close() } catch { }
+  }
+  $script:warmPool = @()
+  # An in-flight holder is a real player too; leaving it open would keep a resource
+  # the process is about to abandon.
+  if ($null -ne $script:warmPending) {
+    try { $script:warmPending.player.Close() } catch { }
+    $script:warmPending = $null
+  }
+  if ($null -ne $script:warmGenerated) {
+    try { Remove-Item -LiteralPath $script:warmGenerated -Force } catch { }
+    $script:warmGenerated = $null
+  }
+}
+
+# One place decides when warming gives up, so a synchronous rejection cannot retry
+# forever while the asynchronous path counts toward the same ceiling.
+function Fail-Warm([string]$reason) {
+  $script:warmFailures += 1
+  Write-Marker "WARM_FAILED reason=$reason count=$($script:warmFailures)"
+  if ($script:warmFailures -ge 3) {
+    $script:warmPath = $null
+    Write-Marker 'WARM_DISABLED reason=repeated-failure'
+  }
+}
+
+# Starts one holder. The player is muted and never played, so it holds the audio
+# engine open without producing sound or a timeline.
+function Start-WarmHolder {
+  $player = [System.Windows.Media.MediaPlayer]::new()
+  $player.Volume = 0
+  try { $player.IsMuted = $true } catch { }
+  $record = @{ player = $player; opened = $false; failed = $false; deadline = (Get-Date).AddMilliseconds(20000) }
+  # The sender is the only reliable way to tell holders apart: several share one
+  # handler shape, and a shared flag would let one holder's event settle another.
+  $player.add_MediaOpened({
+    param($sender, $eventArgs)
+    foreach ($item in $script:warmPool) { if ($item.player -eq $sender) { $item.opened = $true } }
+    if ($null -ne $script:warmPending -and $script:warmPending.player -eq $sender) { $script:warmPending.opened = $true }
+  })
+  $player.add_MediaFailed({
+    param($sender, $eventArgs)
+    foreach ($item in $script:warmPool) { if ($item.player -eq $sender) { $item.failed = $true } }
+    if ($null -ne $script:warmPending -and $script:warmPending.player -eq $sender) { $script:warmPending.failed = $true }
+  })
+  $script:warmPending = $record
+  try { $player.Open($script:warmPath) } catch {
+    $script:warmPending = $null
+    try { $player.Close() } catch { }
+    Fail-Warm 'open-rejected'
+  }
+}
+
+
+# Warming runs only while the host is idle and a track is actually playing. A
+# holder Open issued while a real load is in flight slows that load (measured:
+# ~5.8-6.2 s for the next track versus 4.6-5.1 s cold), so the pool fills in the
+# long gaps during playback instead of competing for the engine. A short track may
+# never fill it, which only means the next load is as slow as it is today.
+function Step-Warm {
+  if (-not $script:warmArmed -or $null -eq $script:warmPath) { return }
+  if ($script:status -ne 'playing') { return }
+  if ($null -ne $script:pendingOpen) { return }
+  $pending = $script:warmPending
+  if ($null -ne $pending) {
+    if ($pending.failed -or (Get-Date) -ge $pending.deadline) {
+      $script:warmPending = $null
+      try { $pending.player.Close() } catch { }
+      Fail-Warm $(if ($pending.failed) { 'media-failed' } else { 'open-timeout' })
+      return
+    }
+    if (-not $pending.opened) { return }
+    $script:warmPending = $null
+    $script:warmPool += $pending
+    Write-Marker "WARM_READY count=$($script:warmPool.Count)"
+    return
+  }
+  if ($script:warmPool.Count -ge $script:warmTarget) { return }
+  Start-WarmHolder
 }
 
 function Stop-Playback {
@@ -287,6 +441,10 @@ function Invoke-Command($command) {
         return
       }
       $script:pendingOpen = @{ id = $id; startMs = $startMs; timeoutMs = $openTimeoutMs; deadline = (Get-Date).AddMilliseconds($openTimeoutMs) }
+      # Warming starts only once a real load is in flight, so the first track of a
+      # session is served exactly as before (cold) and the pool fills during the
+      # playback that follows. Step-Warm never runs while an open is pending.
+      $script:warmArmed = $true
     }
     'play' {
       if ($null -eq $script:instance) {
@@ -376,6 +534,12 @@ function Step-Watchdog {
 }
 
 try {
+  $script:warmPath = Resolve-WarmResource
+  if ($null -ne $script:warmPath) {
+    Write-Marker "WARM_CONFIGURED holders=$($script:warmTarget)"
+  } else {
+    Write-Marker "WARM_DISABLED holders=$($script:warmTarget)"
+  }
   Write-Marker "READY protocol=$script:protocol pid=$PID"
   while ($script:running) {
     if ($null -eq $script:server) {
@@ -423,11 +587,13 @@ try {
     }
     Pump
     Step-MediaOpen
+    Step-Warm
     Step-Playback
     Step-Watchdog
     Start-Sleep -Milliseconds $script:tickMs
   }
 } finally {
+  Stop-WarmHolders
   try { $script:player.Stop() } catch { }
   try { $script:player.Close() } catch { }
   if ($null -ne $script:server) { $script:server.Dispose() }
