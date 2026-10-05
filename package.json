@@ -3,7 +3,17 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "FishFM music persona for the DeepSeek Harness: local queue, taste and playback, with NetEase and QQ as the target platforms.",
+  "description": "肥鱼电台 FishFM：面向 DeepSeek Harness 的音乐插件，支持网易云听歌、本地偏好学习与可选模型推荐。",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/A7m0spHere/dsh-feiyuFM.git"
+  },
+  "homepage": "https://github.com/A7m0spHere/dsh-feiyuFM#readme",
+  "bugs": {
+    "url": "https://github.com/A7m0spHere/dsh-feiyuFM/issues"
+  },
+  "keywords": ["fishfm", "deepseek", "deepseek-harness", "music", "netease", "dsh-plugin"],
   "engines": {
     "node": ">=24.14.0 <25"
   },

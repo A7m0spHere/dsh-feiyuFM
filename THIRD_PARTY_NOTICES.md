@@ -1,4 +1,18 @@
-# Third-party notices
+# 第三方代码与素材声明
+
+本项目原创代码和文档采用 [MIT License](LICENSE)，许可文本使用 [Open Source Initiative 的 MIT 原文](https://opensource.org/license/mit)。以下第三方内容保留各自的许可、版权与来源；本项目的 MIT 不改变其授权范围。依赖的完整版本与许可字段可在 `package-lock.json` 中核对。
+
+用户提供的锅盖鲸鱼娘 GIF、`src/ui/assets/whale-pot-dance.gif`、`src/ui/assets/whale-pot-still.png` 及 README 截图中对应的角色图像，作者与许可尚未确认，**明确排除在本项目 MIT 授权范围外**。它们的处理过程不构成新的原作授权。
+
+`assets/readme/hero.svg` 为本项目绘制的静态矢量介绍，按 MIT 提供；`panel.png` 和 `panel-dark.png` 来自 2026-10-05 当前客户端的隔离预览，展示模拟数据与暂停状态，角色使用本项目此前生成的 `whale-idle.png`，未展示上述锅盖鲸鱼娘素材。截图不构成真实账号或模型效果证据。
+
+原有 `whale-idle.png`、`whale-listening.png` 和 `whale-dj.png` 为本项目使用 Codex ImageGen 生成的状态图，来源输出名记录在 [原型素材记录](prototypes/ASSETS.md)；项目对这些自有状态图和上述截图按 MIT 提供。
+
+原有来源证据与英文许可原文保留如下。
+
+## qrcode — MIT
+
+`qrcode@1.5.4` 为二维码生成依赖，来源为 [soldair/node-qrcode](https://github.com/soldair/node-qrcode)。未复制其源文件；随 npm 安装的许可证与版权声明保留在依赖中。
 
 ## User-provided pot whale GIF
 

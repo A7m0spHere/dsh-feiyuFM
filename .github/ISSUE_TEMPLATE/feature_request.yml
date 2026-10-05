@@ -1,0 +1,23 @@
+name: 功能建议
+description: 描述你想改善的听歌体验
+title: "[建议] "
+body:
+  - type: textarea
+    id: scenario
+    attributes:
+      label: 使用场景
+      description: 现在遇到了什么问题，或者哪一步不方便？
+    validations:
+      required: true
+  - type: textarea
+    id: behavior
+    attributes:
+      label: 期望行为
+      description: 希望插件如何响应？可以举一个具体例子。
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: 补充信息
+      description: 可提供相关界面、替代方案或参考来源。

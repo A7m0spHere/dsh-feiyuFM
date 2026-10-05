@@ -1,0 +1,32 @@
+name: 问题反馈
+description: 报告肥鱼电台的播放、登录、推荐或界面问题
+title: "[问题] "
+body:
+  - type: markdown
+    attributes:
+      value: "请先查看 README 和已知限制。不要上传 Cookie、二维码、登录链接、凭据或运行数据库；截图与日志请移除私人信息。"
+  - type: textarea
+    id: environment
+    attributes:
+      label: 运行环境
+      description: Windows、Node.js、DSH 版本，以及插件提交号。
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: 复现步骤
+      description: 请说明当时的登录、自主听歌、声音和暂停状态。
+    validations:
+      required: true
+  - type: textarea
+    id: behavior
+    attributes:
+      label: 预期与实际结果
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: 错误信息或截图
+      description: 如有，请提供已移除私人信息的错误码、日志片段或截图。
