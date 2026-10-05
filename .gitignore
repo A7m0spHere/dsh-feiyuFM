@@ -43,3 +43,6 @@ login-*.txt
 Thumbs.db
 .idea/
 .vscode/
+
+# Tool state: hook reports and run history written by the local security hook.
+.mimosa/
