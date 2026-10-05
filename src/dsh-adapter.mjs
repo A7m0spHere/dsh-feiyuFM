@@ -49,11 +49,13 @@ export function translateSessionEvent(event) {
  * spawn/forwarding behaviour is testable without a Harness.
  */
 export class CoreBridge {
-  constructor({ spawnCore, onLog = () => {}, requestTimeoutMs = 15000 } = {}) {
+  constructor({ spawnCore, onLog = () => {}, requestTimeoutMs = 15000, maxPendingRequests = 256, maxBufferBytes = 4 * 1024 * 1024 } = {}) {
     if (typeof spawnCore !== 'function') throw new Error('spawnCore is required');
     this.spawnCore = spawnCore;
     this.onLog = onLog;
     this.requestTimeoutMs = requestTimeoutMs;
+    this.maxPendingRequests = maxPendingRequests;
+    this.maxBufferBytes = maxBufferBytes;
     this.child = null;
     this.seq = 0;
     this.pending = new Map();
@@ -62,6 +64,7 @@ export class CoreBridge {
     this.ready = null;
     this.lastSnapshot = null;
     this.exitInfo = null;
+    this.stopping = false;
   }
 
   get snapshot() { return this.lastSnapshot; }
@@ -72,41 +75,67 @@ export class CoreBridge {
   }
 
   start() {
+    if (this.stopping) return Promise.reject(new Error('The music core is stopping'));
     // A settled ready promise with a live child is reusable. After a crash the
     // child is gone: reusing the old ready would make every later request fail
     // forever, so the core is spawned again instead.
-    if (this.ready && this.child && this.child.exitCode === null && this.child.signalCode === null) {
+    if (this.ready && this.child && this.child.exitCode === null && this.child.signalCode === null && !this.child.stdin?.destroyed) {
       return this.ready;
     }
     this.child = null;
+    this.buffer = '';
     this.ready = new Promise((resolve, reject) => {
-      const child = this.spawnCore();
+      // A synchronous failure from spawnCore — a caller-supplied spawner that
+      // throws, or a child that emits 'error' before any listener is attached —
+      // must reject here rather than escape the executor, and must not leave the
+      // child it did manage to start running unowned.
+      let child = null;
+      try {
+        child = this.spawnCore();
+      } catch (error) {
+        try { child?.kill(); } catch { /* Never started. */ }
+        reject(error);
+        return;
+      }
       this.child = child;
       let settled = false;
+      const fail = (error) => {
+        if (this.child !== child) return;
+        if (!settled) { settled = true; clearTimeout(timer); reject(error); }
+        this.child = null;
+        this.ready = null;
+        this.buffer = '';
+        this._onReady = null;
+        this._failChild = null;
+        this._failAll(error);
+      };
+      this._failChild = fail;
       const timer = setTimeout(() => {
         if (settled) return;
-        settled = true;
-        reject(new Error('The music core did not report ready in time'));
+        fail(new Error('The music core did not report ready in time'));
+        try { child.kill(); } catch { /* Already gone. */ }
       }, this.requestTimeoutMs);
 
       child.stdout?.setEncoding('utf8');
-      child.stdout?.on('data', (chunk) => this._receive(chunk));
+      child.stdout?.on('data', (chunk) => { if (this.child === child) this._receive(chunk); });
       child.stderr?.setEncoding('utf8');
-      child.stderr?.on('data', (chunk) => this.onLog({ type: 'core-stderr', text: String(chunk).trim().slice(0, 200) }));
+      child.stderr?.on('data', (chunk) => { if (this.child === child) this._log({ type: 'core-stderr', text: String(chunk).trim().slice(0, 200) }); });
+      for (const [stream, name] of [[child.stdin, 'stdin'], [child.stdout, 'stdout'], [child.stderr, 'stderr']]) {
+        stream?.on('error', (error) => {
+          this._log({ type: 'core-pipe-error', code: error.code ?? 'pipe_closed', name });
+          fail(error);
+          try { child.kill(); } catch { /* Already gone. */ }
+        });
+      }
       child.once('error', (error) => {
-        this.onLog({ type: 'core-error', message: error.message });
-        if (!settled) { settled = true; clearTimeout(timer); reject(error); }
-        this._failAll(error);
+        this._log({ type: 'core-error', code: error.code, message: error.message });
+        fail(error);
       });
       child.once('exit', (code) => {
+        if (this.child !== child) return;
         this.exitInfo = { code };
-        this.onLog({ type: 'core-exit', code });
-        if (!settled) {
-          settled = true;
-          clearTimeout(timer);
-          reject(new Error(`The music core exited during startup with code ${String(code)}`));
-        }
-        this._failAll(new Error(`The music core exited with code ${String(code)}`));
+        this._log({ type: 'core-exit', code });
+        fail(new Error(`The music core exited ${settled ? '' : 'during startup '}with code ${String(code)}`));
       });
 
       this._onReady = (message) => {
@@ -126,13 +155,26 @@ export class CoreBridge {
       const line = this.buffer.slice(0, index).trim();
       this.buffer = this.buffer.slice(index + 1);
       if (!line) continue;
+      if (Buffer.byteLength(line) > this.maxBufferBytes) return this._protocolOverflow();
       let message;
       try { message = JSON.parse(line); } catch { continue; }
       this._dispatch(message);
     }
+    if (Buffer.byteLength(this.buffer) > this.maxBufferBytes) this._protocolOverflow();
+  }
+
+  _log(entry) { try { this.onLog(entry); } catch { /* Diagnostics cannot take down DSH. */ } }
+
+  _protocolOverflow() {
+    const child = this.child;
+    const error = Object.assign(new Error('The music core protocol buffer exceeded its limit'), { code: 'core_protocol_overflow' });
+    this._log({ type: 'core-protocol-error', code: error.code });
+    this._failChild?.(error);
+    try { child?.kill(); } catch { /* Already gone. */ }
   }
 
   _dispatch(message) {
+    if (!message || typeof message !== 'object' || Array.isArray(message)) return;
     if (message.type === 'ready') {
       this._onReady?.(message);
       return;
@@ -173,9 +215,11 @@ export class CoreBridge {
 
   request(message, { timeoutMs = this.requestTimeoutMs, signal = null, abortable = false } = {}) {
     if (signal?.aborted) return Promise.reject(toolAbortError(signal));
-    if (!this.child || this.child.exitCode !== null) {
+    const child = this.child;
+    if (!child || child.exitCode !== null || child.signalCode !== null || child.stdin?.destroyed || !child.stdin?.writable) {
       return Promise.reject(new Error('The music core is not running'));
     }
+    if (this.pending.size >= this.maxPendingRequests) return Promise.reject(Object.assign(new Error('The music core has too many pending requests'), { code: 'core_busy', retryable: true }));
     const id = `req-${++this.seq}`;
     return new Promise((resolve, reject) => {
       let timer;
@@ -201,7 +245,9 @@ export class CoreBridge {
       }
       if (!this.pending.has(id)) return;
       try {
-        this.child.stdin.write(`${JSON.stringify({ ...message, id })}\n`);
+        child.stdin.write(`${JSON.stringify({ ...message, id })}\n`, (error) => {
+          if (error && this.pending.delete(id)) rejectRequest(error);
+        });
       } catch (error) {
         this.pending.delete(id);
         rejectRequest(error);
@@ -236,8 +282,9 @@ export class CoreBridge {
   }
 
   async stop({ gracefulTimeoutMs = 4000 } = {}) {
+    this.stopping = true;
     const child = this.child;
-    if (!child) return;
+    if (!child) { this.stopping = false; return; }
     try {
       await this.request({ type: 'shutdown' }, { timeoutMs: 2000 });
     } catch { /* fall through to killing it */ }
@@ -246,10 +293,11 @@ export class CoreBridge {
         const timer = setTimeout(() => { try { child.kill(); } catch { /* gone */ } resolve(false); }, gracefulTimeoutMs);
         child.once('exit', () => { clearTimeout(timer); resolve(true); });
       });
-      this.onLog({ type: 'core-stop', graceful: exited });
+      this._log({ type: 'core-stop', graceful: exited });
     }
     this.child = null;
     this.ready = null;
+    this.stopping = false;
   }
 }
 

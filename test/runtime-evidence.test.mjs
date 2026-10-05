@@ -4,6 +4,17 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createRuntimeEvidence, readRuntimeEvidence } from '../src/runtime/evidence.mjs';
+
+test('playback stage timings retain duration without credentials or media URLs', () => {
+  const evidence = createRuntimeEvidence();
+  try {
+    evidence.event({ type: 'playback-stage', phase: 'load', playInstanceId: 'p1', durationMs: 7123, handle: 'secret', cookie: 'secret' });
+    const event = evidence.report().events[0];
+    assert.equal(event.phase, 'load');
+    assert.equal(event.durationMs, 7123);
+    assert.equal(JSON.stringify(event).includes('secret'), false);
+  } finally { evidence.close(); }
+});
 test('high frequency progress retains exact counts without evicting the useful playback milestones', () => {
   const evidence = createRuntimeEvidence({ now: () => 1000, limit: 10 });
   try {

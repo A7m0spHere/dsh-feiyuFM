@@ -284,12 +284,22 @@ export class MusicCore {
     if (!current) return;
     const controller = new AbortController();
     this.abortController = controller;
-    await this.playback.stop({ version });
+    const stage = async (phase, work) => {
+      const started = performance.now();
+      try { return await work(); }
+      // Diagnostics must never replace the failure being reported: a throwing
+      // logger would otherwise turn a named playback error into "internal".
+      finally {
+        try { this.onLog({ type: 'playback-stage', phase, playInstanceId: current.playInstanceId, durationMs: Math.round(performance.now() - started) }); }
+        catch { /* A logger fault is not a playback fault. */ }
+      }
+    };
+    await stage('stop', () => this.playback.stop({ version }));
     if (!this._isCurrent(version, controller.signal)) return;
     let resource;
     for (let attempt = 0; attempt < 3; attempt += 1) {
       try {
-        resource = await resolveWithTimeout(this.provider, current.track, controller.signal, version, 5000);
+        resource = await stage('resolve', () => resolveWithTimeout(this.provider, current.track, controller.signal, version, 5000));
         break;
       } catch (error) {
         if (!this._isCurrent(version, controller.signal)) return;
@@ -302,8 +312,8 @@ export class MusicCore {
     if (!resource || typeof resource.handle !== 'string' || !resource.handle) {
       throw new MusicError('resource_unavailable', 'Provider returned no playable resource');
     }
-    const loaded = await this.playback.load({ resource, playInstanceId: current.playInstanceId,
-      startPositionMs: current.positionMs, version, signal: controller.signal });
+    const loaded = await stage('load', () => this.playback.load({ resource, playInstanceId: current.playInstanceId,
+      startPositionMs: current.positionMs, version, signal: controller.signal }));
     if (!this._isCurrent(version, controller.signal)) return;
     // A platform handle is time limited. Remembering when it expires is what
     // lets the core recover instead of failing the track when it goes stale.
@@ -325,9 +335,9 @@ export class MusicCore {
       current.progressSource = 'audio';
       this._commit();
     }
-    await this.playback.setMuted({ muted: !this.state.settings.humanPlayback, version });
+    await stage('mute', () => this.playback.setMuted({ muted: !this.state.settings.humanPlayback, version }));
     if (!this._isCurrent(version, controller.signal)) return;
-    await this.playback.play({ playInstanceId: current.playInstanceId, version });
+    await stage('play', () => this.playback.play({ playInstanceId: current.playInstanceId, version }));
   }
 
   _takeNext() {

@@ -3,7 +3,7 @@ import { mkdirSync, writeFileSync, renameSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 const TEXT = new Set(['type', 'kind', 'role', 'event', 'phase', 'code', 'endReason', 'pool', 'provider', 'playInstanceId', 'decisionId', 'trackKey', 'selectedBy', 'progressSource', 'name', 'status', 'source']);
-const NUMBERS = new Set(['positionMs', 'effectiveMs', 'effectiveDeltaMs', 'agentEffectiveMs', 'audibleMs', 'count', 'delta', 'before', 'after', 'version', 'discoveryRate', 'familiar', 'discovery', 'offered']);
+const NUMBERS = new Set(['positionMs', 'effectiveMs', 'effectiveDeltaMs', 'agentEffectiveMs', 'audibleMs', 'count', 'delta', 'before', 'after', 'version', 'discoveryRate', 'familiar', 'discovery', 'offered', 'durationMs']);
 const FLAGS = new Set(['accepted', 'updated', 'fellBack', 'paused', 'audible', 'agentListening']);
 export function safeEvidenceEvent(entry) {
   const result = {};

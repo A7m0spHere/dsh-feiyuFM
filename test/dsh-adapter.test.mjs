@@ -5,12 +5,49 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
+import { EventEmitter } from 'node:events';
+import { PassThrough } from 'node:stream';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { setTimeout as delay } from 'node:timers/promises';
 import { CoreBridge, registerAdapter, translateSessionEvent, TOOL_NAMES, COMMAND_NAMES } from '../src/dsh-adapter.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+
+test('a broken Core input pipe rejects requests without throwing into the host and can restart', async () => {
+  const children = [];
+  const bridge = new CoreBridge({ spawnCore: () => {
+    const child = new EventEmitter();
+    Object.assign(child, { exitCode: null, signalCode: null, stdin: new PassThrough(), stdout: new PassThrough(), stderr: new PassThrough(), kill() { this.signalCode = 'SIGTERM'; this.emit('exit', null); } });
+    children.push(child);
+    queueMicrotask(() => child.stdout.write(JSON.stringify({ type: 'ready', snapshot: { revision: children.length } }) + '\n'));
+    return child;
+  }, requestTimeoutMs: 200 });
+  await bridge.start();
+  const pending = assert.rejects(bridge.request({ type: 'snapshot' }), /pipe|EPIPE|broken/i);
+  try {
+    assert.doesNotThrow(() => children[0].stdin.emit('error', Object.assign(new Error('broken Core pipe'), { code: 'EPIPE' })));
+    await pending;
+    await bridge.start();
+    assert.equal(children.length, 2);
+    assert.doesNotThrow(() => children[1].stdout.write('null\n'));
+    children[0].stdout.write('null\n' + JSON.stringify({ type: 'state', snapshot: { revision: 999 } }) + '\n');
+    assert.equal(bridge.snapshot.revision, 2, 'old process output must not affect its replacement');
+  } finally { await pending.catch(() => {}); await bridge.stop({ gracefulTimeoutMs: 10 }); }
+});
+
+test('a spawn error can retry instead of reusing the failed startup promise', async () => {
+  let attempts = 0;
+  const bridge = new CoreBridge({ spawnCore: () => ++attempts === 1
+    ? spawn('fishfm-test-nonexistent-executable', [], { stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true })
+    : spawnFakeCore() });
+  try {
+    await assert.rejects(bridge.start(), error => error.code === 'ENOENT');
+    await bridge.start();
+    assert.equal((await bridge.request({ type: 'snapshot' })).type, 'result');
+    assert.equal(attempts, 2);
+  } finally { await bridge.stop(); }
+});
 const track = { provider: 'netease', providerTrackId: 'a1', title: 'Adapter track', durationMs: 600 };
 
 const spawnFakeCore = ({ dbPath = ':memory:' } = {}) => spawn(

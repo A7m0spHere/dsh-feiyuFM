@@ -52,6 +52,22 @@ async function shutdown(service) {
   try { await service.close({ gracefulTimeoutMs: 1500 }); } catch { /* already gone */ }
 }
 
+test('a superseded slow load is acknowledged and cannot overwrite the newer loaded track', async () => {
+  const h = harness({ openDelayMs: 200 });
+  try {
+    await h.supervisor.ensureHost();
+    const old = assert.rejects(h.service.load({ resource: { handle: 'fake:old' }, playInstanceId: 'old-load', version: 1 }), error => error.code === 'cancelled');
+    await delay(40);
+    await h.service.stop({ version: 2 });
+    await h.service.load({ resource: { handle: 'fake:new' }, playInstanceId: 'new-load', version: 3 });
+    await old;
+    await delay(220);
+    assert.equal(h.service.active.playInstanceId, 'new-load');
+    assert.equal((await h.service.hostSnapshot()).playInstanceId, 'new-load');
+    assert.equal(h.supervisor.transport.pending.size, 0);
+  } finally { await shutdown(h.service); }
+});
+
 test('greets, plays a resource and reports started, forward progress and one ended', async () => {
   const h = harness();
   try {

@@ -82,6 +82,7 @@ export function createHttpTransport({
     roles() { return Object.keys(endpoints); },
 
     async request({ role, params = {}, signal = null } = {}) {
+      if (signal?.aborted) throw new MusicError('cancelled', 'Platform request was cancelled');
       const descriptor = endpoints[role];
       if (!descriptor) {
         // Naming the missing role is the honest answer: it means this build was
@@ -118,44 +119,46 @@ export function createHttpTransport({
 
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), timeoutMs);
-      if (signal?.addEventListener) signal.addEventListener('abort', () => controller.abort(), { once: true });
+      const onAbort = () => controller.abort();
+      signal?.addEventListener('abort', onAbort, { once: true });
+      if (signal?.aborted) onAbort();
 
-      let response;
       try {
-        response = await fetchImpl(url, { method, headers, body: payload, signal: controller.signal, redirect: 'follow' });
+        const response = await fetchImpl(url, { method, headers, body: payload, signal: controller.signal, redirect: 'follow' });
+
+        // Capture the session before parsing, so a login response cannot be lost
+        // because its body shape was unexpected.
+        const setCookie = response.headers?.getSetCookie?.() ?? [];
+        if (setCookie.length) {
+          jar.absorb(setCookie);
+          onLog({ type: 'transport', role, cookies: setCookie.length });
+        }
+
+        // The same timeout covers headers AND the complete response body.
+        const text = await response.text();
+        let body = text;
+        const contentType = response.headers?.get?.('content-type') ?? '';
+        if (contentType.includes('json') || /^\s*[[{]/.test(text)) {
+          try { body = JSON.parse(text); } catch { /* keep the raw text */ }
+        }
+
+        // A confirmed sign-in arrives as a cookie; expose it the same way a body
+        // field would be, so the adapter's parser has one shape to handle.
+        if (typeof body === 'object' && body !== null && !body.cookie && jar.size()) {
+          body.cookie = jar.toSecret();
+        }
+
+        return { status: response.status, body, url: url.toString(), cookies: jar.toSecret() };
       } catch (error) {
-        // Surfaced as a transport-level failure; the adapter maps it to the
-        // project's error vocabulary.
+        if (signal?.aborted) throw new MusicError('cancelled', 'Platform request was cancelled', { cause: error });
         throw Object.assign(new Error(`request to ${role} failed: ${error.message}`), {
-          code: error.name === 'AbortError' ? 'ETIMEDOUT' : (error.code ?? 'ECONNRESET'),
+          code: controller.signal.aborted || error.name === 'AbortError' ? 'ETIMEDOUT' : (error.code ?? 'ECONNRESET'),
           cause: error,
         });
       } finally {
         clearTimeout(timer);
+        signal?.removeEventListener('abort', onAbort);
       }
-
-      // Capture the session before parsing, so a login response cannot be lost
-      // because its body shape was unexpected.
-      const setCookie = response.headers?.getSetCookie?.() ?? [];
-      if (setCookie.length) {
-        jar.absorb(setCookie);
-        onLog({ type: 'transport', role, cookies: setCookie.length });
-      }
-
-      const text = await response.text();
-      let body = text;
-      const contentType = response.headers?.get?.('content-type') ?? '';
-      if (contentType.includes('json') || /^\s*[[{]/.test(text)) {
-        try { body = JSON.parse(text); } catch { /* keep the raw text */ }
-      }
-
-      // A confirmed sign-in arrives as a cookie; expose it the same way a body
-      // field would be, so the adapter's parser has one shape to handle.
-      if (typeof body === 'object' && body !== null && !body.cookie && jar.size()) {
-        body.cookie = jar.toSecret();
-      }
-
-      return { status: response.status, body, url: url.toString(), cookies: jar.toSecret() };
     },
   };
 

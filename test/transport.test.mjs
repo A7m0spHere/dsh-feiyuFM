@@ -6,10 +6,24 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
+import { getEventListeners } from 'node:events';
 import { MusicError } from '../src/contracts.mjs';
 import { createHttpTransport, createCookieJar, assertEndpointMap } from '../src/providers/transport.mjs';
 import { createCoreHost, buildProviderRegistry, createProviderFacade } from '../src/core-host.mjs';
 import { FakeProvider } from '../src/fakes.mjs';
+
+test('HTTP timeout covers a stalled response body and removes the external abort listener', async () => {
+  const server = createServer((_req, res) => { res.writeHead(200, { 'content-type': 'application/json' }); res.write('{'); });
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  const controller = new AbortController();
+  const guard = setTimeout(() => controller.abort(), 1500);
+  const transport = createHttpTransport({ endpoints: { resolve: { url: `http://127.0.0.1:${server.address().port}` } }, timeoutMs: 200 });
+  try {
+    await assert.rejects(transport.request({ role: 'resolve', signal: controller.signal }), error => error.code === 'ETIMEDOUT');
+    assert.equal(controller.signal.aborted, false, 'transport timeout must fire before the test guard');
+    assert.equal(getEventListeners(controller.signal, 'abort').length, 0);
+  } finally { clearTimeout(guard); controller.abort(); server.closeAllConnections(); await new Promise(resolve => server.close(resolve)); }
+});
 
 function communityApiFor(transport) {
   const call = (role, params) => transport.request({ role, params });

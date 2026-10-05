@@ -129,6 +129,7 @@ export function apply(ctx, config = {}) {
       windowsHide: true,
     }),
     onLog: (entry) => {
+      evidence.event(entry);
       // Type-and-code only: no credentials, no resolved media URLs.
       try { ctx.logger?.('fishfm')?.debug?.(JSON.stringify(entry)); } catch { /* logging is optional */ }
     },

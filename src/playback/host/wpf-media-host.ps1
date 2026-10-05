@@ -37,6 +37,8 @@ $script:volume = [Math]::Max(0.0, [Math]::Min(1.0, $Volume))
 
 $script:player = [System.Windows.Media.MediaPlayer]::new()
 $script:player.Volume = $script:volume
+$script:pendingOpen = $null
+
 
 # Playback facts. Status is host-owned; the core has its own richer state.
 $script:status = 'idle'
@@ -132,19 +134,6 @@ function Pump {
   [System.Windows.Forms.Application]::DoEvents()
 }
 
-function Wait-ForOpen([int]$timeoutMs) {
-  $deadline = (Get-Date).AddMilliseconds($timeoutMs)
-  while ((Get-Date) -lt $deadline) {
-    if ($script:opened) { return 'opened' }
-    if ($null -ne $script:failed) { return 'failed' }
-    Pump
-    Start-Sleep -Milliseconds 20
-  }
-  if ($script:opened) { return 'opened' }
-  if ($null -ne $script:failed) { return 'failed' }
-  return 'timeout'
-}
-
 # Returns the position actually reached, or 0 when the seek did not take.
 function Set-PlaybackPosition([int]$targetMs) {
   if ($targetMs -le 0) { return 0 }
@@ -175,6 +164,11 @@ function Resolve-Resource([string]$value) {
 }
 
 function Stop-Playback {
+  if ($null -ne $script:pendingOpen) {
+    $cancelled = $script:pendingOpen
+    $script:pendingOpen = $null
+    Send-ResultError $cancelled.id 'cancelled' 'Media open was superseded by a playback control'
+  }
   try { $script:player.Stop() } catch { }
   try { $script:player.Close() } catch { }
   $script:status = 'idle'
@@ -187,6 +181,41 @@ function Stop-Playback {
   $script:startedSent = $false
   $script:positionAtPlay = 0
   $script:lastProgress = -1
+}
+
+# Media opening stays in the main event pump. Reading the pipe must continue so
+# pause/stop/next can cancel an old load instead of waiting up to 12 seconds.
+function Step-MediaOpen {
+  $pending = $script:pendingOpen
+  if ($null -eq $pending) { return }
+  if ($null -ne $script:failed -or (Get-Date) -ge $pending.deadline) {
+    $code = 'media_open_timeout'
+    $message = "Media did not open within $($pending.timeoutMs) ms"
+    if ($null -ne $script:failed) { $code = 'media_failed'; $message = $script:failedMessage }
+    $script:pendingOpen = $null
+    Stop-Playback
+    $script:status = 'error'
+    Send-ResultError $pending.id $code $message $true
+    return
+  }
+  if (-not $script:opened) { return }
+  $script:pendingOpen = $null
+  try {
+    $script:player.IsMuted = $script:muted
+    $position = 0
+    $seeked = $true
+    if ($pending.startMs -gt 0) {
+      $position = Set-PlaybackPosition $pending.startMs
+      $seeked = $position -gt 0
+      $script:seekSupported = $seeked
+    }
+    $script:status = 'ready'
+    Send-Result $pending.id @{ positionMs = $position; seek = $seeked; muted = $script:muted; durationMs = $script:durationMs }
+  } catch {
+    Stop-Playback
+    $script:status = 'error'
+    Send-ResultError $pending.id 'media_failed' 'Could not finish opening media' $true
+  }
 }
 
 $script:player.add_MediaOpened({
@@ -257,31 +286,7 @@ function Invoke-Command($command) {
         Send-ResultError $id 'media_failed' 'Open() rejected the resource'
         return
       }
-      $outcome = Wait-ForOpen $openTimeoutMs
-      if ($outcome -eq 'timeout') {
-        Stop-Playback
-        $script:status = 'error'
-        Send-ResultError $id 'media_open_timeout' "Media did not open within $openTimeoutMs ms" $true
-        return
-      }
-      if ($outcome -eq 'failed') {
-        $message = $script:failedMessage
-        Stop-Playback
-        $script:status = 'error'
-        Send-ResultError $id 'media_failed' $message
-        return
-      }
-      # Audio is open: apply the stored mute so a mute set before load survives.
-      try { $script:player.IsMuted = $script:muted } catch { }
-      $position = 0
-      $seeked = $true
-      if ($startMs -gt 0) {
-        $position = Set-PlaybackPosition $startMs
-        $seeked = $position -gt 0
-        $script:seekSupported = $seeked
-      }
-      $script:status = 'ready'
-      Send-Result $id @{ positionMs = $position; seek = $seeked; muted = $script:muted; durationMs = $script:durationMs }
+      $script:pendingOpen = @{ id = $id; startMs = $startMs; timeoutMs = $openTimeoutMs; deadline = (Get-Date).AddMilliseconds($openTimeoutMs) }
     }
     'play' {
       if ($null -eq $script:instance) {
@@ -296,6 +301,7 @@ function Invoke-Command($command) {
       Send-Result $id @{ positionMs = $script:positionAtPlay }
     }
     'pause' {
+      if ($null -ne $script:pendingOpen) { Stop-Playback }
       if ($null -ne $script:instance) { try { $script:player.Pause() } catch { } }
       if ($script:status -eq 'playing' -or $script:status -eq 'ready') { $script:status = 'paused' }
       Send-Result $id @{ positionMs = (Get-Position) }
@@ -415,6 +421,8 @@ try {
         if ($script:running) { $script:readTask = $script:reader.ReadLineAsync() }
       }
     }
+    Pump
+    Step-MediaOpen
     Step-Playback
     Step-Watchdog
     Start-Sleep -Milliseconds $script:tickMs

@@ -48,6 +48,7 @@ let connectTask = null;
 let running = true;
 let lastWatchdog = Date.now();
 let transientZeroPending = false;
+let pendingLoad = null;
 
 const send = (value) => {
   if (!writer) return;
@@ -91,6 +92,14 @@ function crash() {
   process.exit(options.crashCode ?? 3);
 }
 
+function cancelLoad() {
+  if (!pendingLoad) return;
+  const pending = pendingLoad;
+  pendingLoad = null;
+  clearTimeout(pending.timer);
+  sendError(pending.id, 'cancelled', 'Media open was superseded by a playback control');
+}
+
 function handle(command, id) {
   if (Number.isFinite(command.version)) {
     if (command.version < acceptedVersion) return void sendError(id, 'stale_version', 'Ignored an older playback command');
@@ -99,6 +108,7 @@ function handle(command, id) {
   }
   switch (command.type) {
     case 'load': {
+      cancelLoad();
       stopTimeline();
       status = 'loading';
       instance = command.playInstanceId ?? null;
@@ -110,25 +120,30 @@ function handle(command, id) {
       endedSent = false;
       transientZeroPending = false;
       if (crashOn === 'load') return void setTimeout(crash, crashDelayMs);
-      setTimeout(() => {
-        if (status !== 'loading') return;
+      const pending = { id, timer: null };
+      pendingLoad = pending;
+      pending.timer = setTimeout(() => {
+        if (pendingLoad !== pending) return;
         if (openBehavior === 'never') {
           // Mirror the real host: a bounded wait that answers with a timeout
           // error instead of leaving the client to guess.
           const timeoutMs = Number(command.openTimeoutMs ?? 1000);
-          setTimeout(() => {
-            if (status !== 'loading') return;
+          pending.timer = setTimeout(() => {
+            if (pendingLoad !== pending) return;
+            pendingLoad = null;
             status = 'error';
             sendError(id, 'media_open_timeout', `Media did not open within ${timeoutMs} ms`, true);
           }, timeoutMs);
           return;
         }
         if (openBehavior === 'fail') {
+          pendingLoad = null;
           status = 'error';
           sendError(id, 'media_failed', 'Simulated media failure');
           return;
         }
         const startMs = Number(command.startPositionMs ?? 0);
+        pendingLoad = null;
         const seeked = startMs > 0 ? supportsSeek : true;
         basePosition = seeked ? startMs : 0;
         positionMs = basePosition;
@@ -148,11 +163,13 @@ function handle(command, id) {
       return void sendResult(id, { positionMs: Math.round(currentPosition()) });
     }
     case 'pause': {
+      if (pendingLoad) { cancelLoad(); status = 'paused'; }
       stopTimeline();
       if (status === 'playing' || status === 'ready') status = 'paused';
       return void sendResult(id, { positionMs: Math.round(positionMs) });
     }
     case 'stop': {
+      cancelLoad();
       stopTimeline();
       status = 'idle';
       instance = null;
@@ -172,6 +189,7 @@ function handle(command, id) {
     case 'ping':
       return void sendResult(id);
     case 'shutdown': {
+      cancelLoad();
       stopTimeline();
       status = 'idle';
       sendResult(id);

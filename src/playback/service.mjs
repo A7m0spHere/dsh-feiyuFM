@@ -7,9 +7,9 @@ import { playbackError } from './protocol.mjs';
 
 function raceAbort(promise, signal) {
   if (!signal) return promise;
-  if (signal.aborted) return Promise.reject(new MusicError('cancelled', 'Playback command was cancelled'));
+  if (signal.aborted) { promise.catch(() => {}); return Promise.reject(new MusicError('cancelled', 'Playback command was cancelled')); }
   return new Promise((resolve, reject) => {
-    const onAbort = () => reject(new MusicError('cancelled', 'Playback command was cancelled'));
+    const onAbort = () => { signal.removeEventListener('abort', onAbort); reject(new MusicError('cancelled', 'Playback command was cancelled')); };
     signal.addEventListener('abort', onAbort, { once: true });
     const settle = (fn) => (value) => {
       signal.removeEventListener('abort', onAbort);
@@ -89,6 +89,7 @@ export class PlaybackService {
       version,
       openTimeoutMs: this.openTimeoutMs,
     }, { timeoutMs: this.openTimeoutMs + this.commandTimeoutMs }), signal);
+    if (signal?.aborted || version < this.acceptedVersion || this.closing) throw new MusicError('cancelled', 'Playback load was superseded');
     const positionMs = Number(answer.positionMs);
     if (!Number.isFinite(positionMs) || positionMs < 0) {
       throw playbackError('invalid_playback_position', 'Audio host reported an invalid loaded position');
@@ -293,6 +294,11 @@ export class PlaybackService {
   _onHostClose(error) {
     if (this.closing) return;
     const active = this.active;
+    // No active instance means there is nothing to recover — either the service
+    // is idle, or a load is in flight (`load()` clears `active` before awaiting)
+    // and that load rejects on its own. `recoveries` deliberately does not count
+    // these: it budgets the reconnect of a *playing* track, and spending it on a
+    // failed load would leave a later, recoverable drop with no retries left.
     if (!active || active.finished) return;
     this._recover(error).catch(() => {});
   }
