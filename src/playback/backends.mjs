@@ -52,9 +52,9 @@ export function powerShellCandidates({ env = process.env, exists = existsSync } 
  */
 export function warmHoldersFromEnv(env = process.env) {
   const raw = env.FISHFM_PLAYBACK_WARM_HOLDERS;
-  if (raw === undefined || raw === '') return 4;
+  if (raw === undefined || raw === '') return 5;
   const value = Number(raw);
-  if (!Number.isInteger(value) || value < 0 || value > 8) return 4;
+  if (!Number.isInteger(value) || value < 0 || value > 8) return 5;
   return value;
 }
 
@@ -62,8 +62,9 @@ export function warmHoldersFromEnv(env = process.env) {
  * Real audio backend: a hidden STA PowerShell process driving WPF MediaPlayer.
  *
  * `warmHolders` is how many silent resources the host keeps open so WPF's media
- * stack stays fast: measured on 2026-10-05, a cold Open costs 4.6-10.2 s while an
- * Open with four resources held costs 0.35-0.43 s (docs/spikes/N19-wpf-audio-warmup.md).
+ * stack stays fast. The 2026-10-06 recheck needed five holders: four stayed
+ * around 5 s, while five brought subsequent opens below 1 s. The threshold is
+ * machine dependent; see docs/spikes/N20-review-fixes.md for current evidence.
  * 0 disables it, which is slower but never broken. `warmResource` overrides the
  * silent resource; by default the host writes its own, because audio must never be
  * committed to this repository (AGENTS.md).

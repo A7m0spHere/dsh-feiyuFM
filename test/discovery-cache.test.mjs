@@ -46,6 +46,32 @@ test('single flight, budget and off/on toggles bound refreshes; late results can
     assert.equal(f.calls(),2);
   } finally { f.cache.close(); f.store.close(); }
 });
+
+test('filter status counts usable ranked candidates and stops requesting a fresh filter again', async () => {
+  const f = fixture();
+  f.store.setSetting('recommendation_mode_v1', 'llm');
+  const facade = createProviderFacade({ registry: f.registry, store: f.store, now: () => 1000 });
+  const messages = [];
+  const host = createCoreHost({ store: f.store, providerRegistry: f.registry, platformsFacade: facade,
+    playbackMode: 'fake', now: () => 1000, output: { write: line => messages.push(JSON.parse(line)) } });
+  try {
+    await host.start();
+    await facade.refreshDiscovery();
+    f.store.setSetting('discovery_filter_v1', { generatedAt: 1001, picks: [
+      { trackKey: 'netease:1', rank: 1, reason: 'matched' },
+      { trackKey: 'netease:2', rank: 2, reason: 'matched' },
+      { trackKey: 'netease:missing', rank: 3, reason: 'not cached' },
+    ] });
+    f.store.markUnavailable(t(2), 'media_unavailable', 10000);
+    assert.equal(facade.discoveryStatus().picked, 1);
+    await host.handle({ type: 'discovery-filter-status', id: 'fresh' });
+    assert.equal(messages.at(-1).filter.due, false);
+    f.store.markUnavailable(t(1), 'media_unavailable', 10000);
+    assert.equal(facade.discoveryStatus().picked, 0);
+    await host.handle({ type: 'discovery-filter-status', id: 'exhausted' });
+    assert.equal(messages.at(-1).filter.due, true, 'unranked candidates still need filtering when all picks are unavailable');
+  } finally { await host.close(); f.cache.close(); f.store.close(); }
+});
 test('temporary failures retain valid cache, expiry and account changes discard it', async () => {
   const f = fixture();
   try {

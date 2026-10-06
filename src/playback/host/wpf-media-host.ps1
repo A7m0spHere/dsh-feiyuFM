@@ -23,10 +23,10 @@ param(
   [int]$ProtocolVersion = 1,
   [double]$Volume = 0.35,
   # How many silent resources to hold open, so the audio engine stays warm.
-  # 0 disables warming. Measured on 2026-10-05 (see
-  # docs/spikes/N19-wpf-audio-warmup.md): a cold Open costs 4.6-10.2 s, while an
-  # Open with four resources already held costs 0.35-0.43 s.
-  [int]$WarmHolders = 4,
+  # 0 disables warming. The 2026-10-06 recheck needed five holders to keep
+  # subsequent loads under 1 s; four no longer reached the fast path on this
+  # machine. See docs/spikes/N20-review-fixes.md. The threshold can vary.
+  [int]$WarmHolders = 5,
   # Overrides the silent resource the warm holders keep open. Left empty, the host
   # writes its own into the temp directory: audio must never be committed to this
   # repository (AGENTS.md), so the resource is generated rather than shipped.
@@ -49,8 +49,8 @@ $script:player.Volume = $script:volume
 $script:pendingOpen = $null
 
 # Warm-up state. WPF's media stack is only fast once enough resources are open
-# in the process: the first Open after idle costs 4.6-10.2 s, while an Open with
-# four resources already held costs 0.35-0.43 s. Warming therefore fills a pool of
+# in the process: the first Open after idle costs several seconds. The current
+# default holds five open resources (N20). Warming therefore fills a pool of
 # muted, never-played holder players, one at a time, and only while a track is
 # playing: a load issued while a holder Open is in flight pays 6.5-8.5 s instead
 # of 4.6 s, so warming yields to real work and starts only after the first track

@@ -66,7 +66,7 @@ export function createDiscoveryCache({ registry, store = null, now = () => Date.
   };
   const status = () => {
     synchronizeAccount();
-    const tracks = usable();
+    const tracks = stamped(usable());
     const picked = tracks.filter(track => Number.isSafeInteger(track.discovery?.llmRank)).length;
     return { state: !enabled ? 'disabled' : inflight ? 'refreshing' : state === 'ready' && !tracks.length ? 'empty' : state,
       count: enabled ? tracks.length : 0, cached: tracks.length, lastAttemptAt, lastSuccessAt, nextAttemptAt,

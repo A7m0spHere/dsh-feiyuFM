@@ -96,15 +96,14 @@ export class PipeTransport {
     const id = typeof command.id === 'string' && command.id ? command.id : randomUUID();
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
-        this.pending.delete(id);
+        // Keep this request until _closed() rejects every waiter, including the
+        // one that timed out. Removing it here would leave its promise pending.
         this.fail(playbackError('command_timeout', `Audio host did not answer ${String(command.type)} in time`, { retryable: true }));
       }, timeoutMs);
       this.pending.set(id, { resolve, reject, timer });
       try {
         this.socket.write(encodeMessage({ ...command, id }));
       } catch (error) {
-        clearTimeout(timer);
-        this.pending.delete(id);
         this.fail(playbackError('pipe_closed', `Could not write to the audio host pipe: ${error.message}`, { retryable: true }));
       }
     });
