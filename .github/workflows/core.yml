@@ -13,7 +13,10 @@ jobs:
         with:
           node-version: '24'
           cache: npm
+          cache-dependency-path: npm-shrinkwrap.json
       - run: npm ci --ignore-scripts --no-audit --no-fund
       - run: npm run check
       - run: npm test
       - run: npm run build
+      - run: node scripts/dependency-notices.mjs
+      - run: npm run verify:package

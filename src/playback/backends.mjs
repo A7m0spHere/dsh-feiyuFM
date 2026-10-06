@@ -71,9 +71,13 @@ export function warmHoldersFromEnv(env = process.env) {
  */
 export function wpfBackend({
   env = process.env, exists = existsSync, volume = 0.35, warmHolders = null,
-  warmResource = '', candidates,
+  warmResource = '', candidates, adaptiveWarm = null,
 } = {}) {
   const holders = warmHolders ?? warmHoldersFromEnv(env);
+  const configured = Number(env.FISHFM_PLAYBACK_WARM_HOLDERS);
+  const explicitPool = warmHolders !== null || (env.FISHFM_PLAYBACK_WARM_HOLDERS !== undefined
+    && env.FISHFM_PLAYBACK_WARM_HOLDERS !== '' && Number.isInteger(configured) && configured >= 0 && configured <= 8);
+  const adaptive = adaptiveWarm ?? !explicitPool;
   return {
     name: 'wpf-mediaplayer',
     script: WPF_HOST_SCRIPT,
@@ -84,6 +88,7 @@ export function wpfBackend({
       '-ProtocolVersion', String(context.protocol),
       '-Volume', String(volume),
       '-WarmHolders', String(holders),
+      '-AdaptiveWarm', adaptive ? '1' : '0',
       ...(warmResource ? ['-WarmResource', warmResource] : []),
     ],
   };

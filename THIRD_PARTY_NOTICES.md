@@ -1,8 +1,8 @@
 # 第三方代码与素材声明
 
-本项目原创代码和文档采用 [MIT License](LICENSE)，许可文本使用 [Open Source Initiative 的 MIT 原文](https://opensource.org/license/mit)。以下第三方内容保留各自的许可、版权与来源；本项目的 MIT 不改变其授权范围。依赖的完整版本与许可字段可在 `package-lock.json` 中核对。
+本项目原创代码和文档采用 [MIT License](LICENSE)，许可文本使用 [Open Source Initiative 的 MIT 原文](https://opensource.org/license/mit)。以下第三方内容保留各自的许可、版权与来源；本项目的 MIT 不改变其授权范围。依赖版本与许可可在 `npm-shrinkwrap.json` 和 [DEPENDENCY_LICENSES](DEPENDENCY_LICENSES.md) 核对。首包封装依赖树，保留其源码与原始许可文件；LGPL/BSD 等许可不被项目 MIT 改写。
 
-用户提供的锅盖鲸鱼娘 GIF、`src/ui/assets/whale-pot-dance.gif`、`src/ui/assets/whale-pot-still.png` 及 README 截图中对应的角色图像，作者与许可尚未确认，**明确排除在本项目 MIT 授权范围外**。它们的处理过程不构成新的原作授权。
+用户提供的锅盖鲸鱼娘 GIF、`src/ui/assets/whale-pot-dance.gif`、`src/ui/assets/whale-pot-still.png` 及 README 截图中对应的角色图像，作者与许可尚未确认，**明确排除在本项目 MIT 授权范围外**。它们的处理过程不构成新的原作授权。自 `0.1.0-beta.1` 起公开 npm 包不分发上述 GIF/衍生图，界面使用自有三张状态 PNG；历史原文件保留供来源核对。
 
 `assets/readme/hero.svg` 为本项目绘制的静态矢量介绍，按 MIT 提供；`panel.png` 和 `panel-dark.png` 来自 2026-10-05 当前客户端的隔离预览，展示模拟数据与暂停状态，角色使用本项目此前生成的 `whale-idle.png`，未展示上述锅盖鲸鱼娘素材。截图不构成真实账号或模型效果证据。
 
@@ -12,7 +12,7 @@
 
 ## qrcode — MIT
 
-`qrcode@1.5.4` 为二维码生成依赖，来源为 [soldair/node-qrcode](https://github.com/soldair/node-qrcode)。未复制其源文件；随 npm 安装的许可证与版权声明保留在依赖中。
+`qrcode@1.5.4` 为二维码生成依赖，来源为 [soldair/node-qrcode](https://github.com/soldair/node-qrcode)。未修改其源文件；公开测试包封装原始运行依赖树，保留依赖中的许可证和版权声明。
 
 ## User-provided pot whale GIF
 
@@ -76,9 +76,9 @@ SOFTWARE.
 
 ## NetEase Cloud Music community Node API
 
-2026-10-01 QR repair additionally calls the pinned package's `module/login_qr_key.js`, `module/login_qr_check.js`, and `util/request.js`. FishFM's wrapper preserves a request rejection which the pinned QR module's catch otherwise masks. No package source was copied or modified; the same pinned version and MIT declaration apply. Research and validation: [U6](docs/spikes/U6-qr-login-repair.md).
+2026-10-01 QR repair additionally calls the pinned package's `module/login_qr_key.js`, `module/login_qr_check.js`, and `util/request.js`. FishFM's wrapper preserves a request rejection which the pinned QR module's catch otherwise masks. No upstream source was modified. Public beta packages bundle the original runtime tree and its license files; the same pinned version and MIT declaration apply. Research and validation: [U6](docs/spikes/U6-qr-login-repair.md).
 
-`@neteasecloudmusicapienhanced/api@4.40.1` is a direct runtime dependency, pinned in `package.json` and `package-lock.json`. Its npm metadata declares MIT. FishFM calls its Node modules in process and does not start the package's Express server. See [the package README](https://github.com/NeteaseCloudMusicApiEnhanced/api-enhanced/blob/main/README.MD) and [package manifest](https://github.com/NeteaseCloudMusicApiEnhanced/api-enhanced/blob/main/package.json). No source files from this package are copied into FishFM.
+`@neteasecloudmusicapienhanced/api@4.40.1` is a direct runtime dependency, pinned in `package.json` and `npm-shrinkwrap.json`. Its npm metadata declares MIT. FishFM calls its Node modules in process and does not start the package's Express server. See [the package README](https://github.com/NeteaseCloudMusicApiEnhanced/api-enhanced/blob/main/README.MD) and [package manifest](https://github.com/NeteaseCloudMusicApiEnhanced/api-enhanced/blob/main/package.json). The npm beta includes the original runtime package and its dependencies without changing upstream source; nested license declarations and files are inventoried in DEPENDENCY_LICENSES.md.
 
 ## DeepSeek Balance Whale Widget — reference only
 

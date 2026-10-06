@@ -1,10 +1,32 @@
 {
   "name": "dsh-feiyufm-core",
-  "version": "0.1.0",
-  "private": true,
+  "version": "0.1.0-beta.1",
   "type": "module",
   "description": "肥鱼电台 FishFM：面向 DeepSeek Harness 的音乐插件，支持网易云听歌、本地偏好学习与可选模型推荐。",
   "license": "MIT",
+  "os": ["win32"],
+  "files": [
+    "index.js",
+    "cordis.patch.yml",
+    "bin/fishfm-core.mjs",
+    "src/**/*.mjs",
+    "src/ui/dsh-client.js",
+    "src/playback/host/wpf-media-host.ps1",
+    "src/ui/assets/whale-idle.png",
+    "src/ui/assets/whale-listening.png",
+    "src/ui/assets/whale-dj.png",
+    "THIRD_PARTY_NOTICES.md",
+    "DEPENDENCY_LICENSES.md",
+    "assets/readme/",
+    "npm-shrinkwrap.json",
+    "docs/DELIVERY.md",
+    "CHANGELOG.md"
+  ],
+  "publishConfig": {
+    "registry": "https://registry.npmjs.org/",
+    "access": "public",
+    "tag": "beta"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/A7m0spHere/dsh-feiyuFM.git"
@@ -44,6 +66,9 @@
     "description": "给正在 DSH 里工作的 DeepSeek 一副耳机：本地选歌、独立的播放服务，用户始终保留控制权。"
   },
   "scripts": {
+    "prepack": "npm run build:client && node scripts/dependency-notices.mjs && npm run check",
+    "prepublishOnly": "npm test && npm run verify:package",
+    "verify:package": "node scripts/verify-package.mjs",
     "check": "node scripts/check.mjs",
     "test": "node --test --test-timeout=30000",
     "build": "node scripts/build.mjs",
@@ -61,5 +86,9 @@
   "dependencies": {
     "@neteasecloudmusicapienhanced/api": "4.40.1",
     "qrcode": "^1.5.4"
-  }
+  },
+  "overrides": {
+    "basic-ftp": "6.2.2"
+  },
+  "bundleDependencies": ["@neteasecloudmusicapienhanced/api", "qrcode"]
 }

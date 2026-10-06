@@ -66,6 +66,22 @@ const state = value => ({ ok: true, value: { snapshot: value, platforms: {} } })
 const tick = () => new Promise(resolve => setImmediate(resolve));
 function all(tree) { return !tree || typeof tree !== 'object' ? [] : [tree, ...tree.children.flatMap(all)]; }
 
+test('public playback artwork uses owned state PNGs while playing and paused', async () => {
+  let current = { ...snapshot(1), status: 'playing', paused: false,
+    current: { playInstanceId: 'public-art', track: { title: 'Song' } } };
+  const f = fixture(async () => state(current));
+  const off = f.controller.subscribe(() => {});
+  try {
+    await tick();
+    const playing = all(f.render()).filter(node => node.type === 'img');
+    assert.ok(playing.some(node => node.props.src === '/fishfm/assets/whale-listening.png'));
+    assert.ok(playing.every(node => !node.props.src?.includes('whale-pot')));
+    current = { ...current, revision: 2, paused: true, status: 'paused' };
+    await f.controller.refresh();
+    assert.ok(all(f.render()).some(node => node.type === 'img' && node.props.src === '/fishfm/assets/whale-idle.png'));
+  } finally { off(); f.dispose(); }
+});
+
 test('an empty LLM playlist offers real verification instead of reconnecting and refreshes the playlist projection',async()=>{
  const calls=[],playlist={songs:[{title:'Song',artist:'Artist'}],verified:[],attempts:[]};
  const f=fixture(async(_channel,endpoint,payload)=>{

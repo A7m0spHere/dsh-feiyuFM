@@ -20,6 +20,7 @@
 |---|---|
 | [design](design/README.md) | 自主听歌、透明人格、模型筛选、画像缓存与相似图的原始设计；最新行为看 MVP/契约，状态看 PROJECT_PLAN |
 | [spikes](spikes/README.md) | N/U/P/T/I/R/A 各轮实现与实测报告，含截图和元数据附件；不作为实时账号或部署探针 |
+| [releases](releases/README.md) | 公开包的范围、摘要、安装/界面验证与发布确认 |
 
 最近的播放/通信检查修复见 [N20](spikes/N20-review-fixes.md)。N19 的旧四持有者阈值已在 N20 修订；PHL 与早期未登录记录不代表当前官方桌面状态。
 

@@ -1,6 +1,6 @@
 # 交付与使用说明
 
-更新日期：2026-10-06。当前是 **0.1.0 开发预览，尚未发布 v0.1**；没有 npm 发布包、安装器或发布 tag。本文说明安装与使用，历史实验见 [证据索引](spikes/README.md)，完成度以 [开发路线](PROJECT_PLAN.md) 为准。
+更新日期：2026-10-06。首包为 **0.1.0-beta.1 Windows／网易云测试版**，尚未完成稳定 v0.1 验收。本文说明安装与使用，发行确认和摘要见 [首包记录](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/releases/0.1.0-beta.1.md)，整体状态见 [开发路线](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/PROJECT_PLAN.md)。
 
 ## 支持范围
 
@@ -16,20 +16,13 @@
 
 ## 安装
 
-```sh
-git clone https://github.com/A7m0spHere/dsh-feiyuFM.git
-cd dsh-feiyuFM
-npm ci --ignore-scripts --no-audit --no-fund
-npm run check
-npm test
-npm run build
-```
+在 DSH 的「插件 → 添加插件」输入 `dsh-feiyufm-core@0.1.0-beta.1` 并启用；跟随 beta 更新用 `dsh-feiyufm-core@beta`。包管理器会安装 bundle 并读取其 patch，不需要用户手改 profile 文件。
 
-在 DSH 插件管理界面添加仓库**绝对目录**并启用。插件的加载入口为 `package.json` → `cordis.patch.yml` → `index.js`；不要手工改 profile 来代替插件管理界面。`dist/` 是开发构建目录，不是独立安装包。
+支持 Windows、DSH 本机验证版本 `0.2.0-rc.2`；桌面宿主自带兼容 Node 24 时无需单独安装 Node。QQ 与其他系统不在首包已验证范围内。
 
-左侧栏点击 **肥鱼电台**，或进入 **账号菜单 → 设置 → 肥鱼电台**。在网易云卡片扫码、手机确认，再导入音乐。输入曲库位于折叠区域，也可从设置查看和点播。
+打开侧栏「肥鱼电台」或设置中的同名页，在网易云卡片扫码、手机确认，再导入歌曲。模型是可选功能，使用用户自己的 DSH 配置；没有模型可点播输入歌曲。
 
-常规离线检查不需要账号、模型或真实声音输出。Node 的 `node:sqlite` 可能输出 `ExperimentalWarning`，不代表检查失败。
+已有 workspace 安装请经插件管理器更换来源，不在同一 profile 同时启用两份 FishFM。仓库开发步骤在 [贡献指南](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/CONTRIBUTING.md)。包包含运行依赖树、源码与各自许可，安装不需重新解析这些依赖。
 
 ## 首次听歌
 
@@ -41,15 +34,9 @@ npm run build
 
 ## 更新
 
-确认仓库没有待保留的本地改动后：
+通过 DSH 插件管理器更新明确版本，或使用 `dsh-feiyufm-core@beta`。保存代码或下载成功不代表旧宿主已加载新模块；合适时机重载，必要时正常退出 DSH（含托盘）再启动。重启期间音乐会中断。
 
-```sh
-git pull --ff-only
-npm ci --ignore-scripts --no-audit --no-fund
-npm run build
-```
-
-在合适的时机重载插件。若宿主仍复用旧后端模块或客户端 bundle，可正常退出 DSH（包括托盘进程）再启动。保存代码或构建成功不等于生产插件已加载新版。重启期间音乐会中断。
+数据库与凭据位于 DSH 数据目录，不在 npm 包目录。不要手动删除数据库来完成升级；使用同一 profile 保留原数据，升级后核对歌曲、偏好与暂停状态。
 
 ## 数据与凭据
 
@@ -75,11 +62,11 @@ npm run build
 
 ## 验证与边界
 
-网易云真实链路见 [P3](spikes/P3-real-loop.md)，设置和重启恢复见 [N10](spikes/N10-feedback-reset.md)，一次模型歌单生成见 [N11](spikes/N11-model-playlist.md)。最近代码修复和基线见 [N20](spikes/N20-review-fixes.md)；本轮文档整理不改变播放代码或生产验收状态。
+网易云真实链路见 [P3](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/spikes/P3-real-loop.md)，设置和重启恢复见 [N10](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/spikes/N10-feedback-reset.md)，一次模型歌单生成见 [N11](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/spikes/N11-model-playlist.md)。最近代码修复和基线见 [N20](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/spikes/N20-review-fixes.md)；首包在隔离 DSH 页面验证了安装、图片和设置读写，未用新账号重复完整平台播放验收。
 
-当前默认预热池为 5 个持有者，本机填满后加载约 0.58–0.85 秒。首次播放仍需数秒，pwsh 填池约需 20–30 秒，填充期间切歌可能略慢；时间随环境变化。`FISHFM_PLAYBACK_WARM_HOLDERS=0..8` 可调整，0 关闭预热。这些测量不代表跨设备性能保证。
+当前默认从 5 个持有者开始，按实际 Open 耗时最多补齐到 8 个；独立实测用了 6 个，后续加载 484ms。首曲仍冷，预热/打开时间随环境变化。`FISHFM_PLAYBACK_WARM_HOLDERS=0..8` 可指定固定数量，0 关闭。
 
-截至最近记录，N12–N20 尚未重载到生产宿主；两小时、DSH 请求/上下文对照、多会话、模型筛选质量和部分故障恢复仍待验证。当前状态统一见 [开发路线](PROJECT_PLAN.md)，短跑证据见 [N7](spikes/N7-short-run.md)。模拟预览和引用审计不能替代真实验收。
+截至最近记录，N12–N20 尚未重载到生产宿主；两小时、DSH 请求/上下文对照、多会话、模型筛选质量和部分故障恢复仍待验证。当前状态统一见 [开发路线](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/PROJECT_PLAN.md)，短跑证据见 [N7](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/spikes/N7-short-run.md)。模拟预览和引用审计不能替代真实验收。
 
 ## 许可
 

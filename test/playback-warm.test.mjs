@@ -61,7 +61,7 @@ test('the default warm pool fills during playback and makes the next load fast',
   const track = join(directory, 'silent-track.wav');
   writeSilentWav(track, { seconds: 45 });
   const holders = warmHoldersFromEnv({});
-  const h = harness({ warmHolders: holders, track });
+  const h = harness({ warmHolders: null, track });
   try {
     await h.supervisor.ensureHost();
     await h.service.setMuted({ muted: true, version: 1 });
@@ -72,14 +72,14 @@ test('the default warm pool fills during playback and makes the next load fast',
 
     // The default pool needs about 25 s to fill on this machine. Wait for its
     // actual readiness, keeping the same performance limits for subsequent loads.
-    const filled = await waitFor(() => h.markers.filter((line) => line.startsWith('WARM_READY')).length >= holders, 90000);
+    const filled = await waitFor(() => h.markers.some(line => line.startsWith('WARM_COMPLETE')), 90000);
     const ready = h.markers.filter((line) => line.startsWith('WARM_READY')).length;
-    assert.ok(filled, `expected ${holders} warm holders, saw ${ready}: ${h.markers.join(' | ')}`);
+    assert.ok(filled && ready >= holders && ready <= 8, `expected a completed pool of ${holders}..8, saw ${ready}: ${h.markers.join(' | ')}`);
 
     const warmStarted = performance.now();
     await h.service.load({ resource: { handle: track }, playInstanceId: 'warm', version: 4 });
     const warmMs = performance.now() - warmStarted;
-    console.log(`WPF default pool: ${holders} holders, cold ${coldMs.toFixed(0)}ms, warm ${warmMs.toFixed(0)}ms`);
+    console.log(`WPF default pool: ${ready} holders, cold ${coldMs.toFixed(0)}ms, warm ${warmMs.toFixed(0)}ms`);
     assert.ok(warmMs < 2000, `a warm load should be well under two seconds, took ${warmMs.toFixed(0)}ms (cold was ${coldMs.toFixed(0)}ms)`);
     assert.ok(warmMs < coldMs / 2, `a warm load (${warmMs.toFixed(0)}ms) should be much faster than the cold one (${coldMs.toFixed(0)}ms)`);
     assert.equal((await h.service.hostSnapshot()).playInstanceId, 'warm');
@@ -146,9 +146,11 @@ test('the warm-holder count is configurable, and an unusable value falls back', 
   assert.equal(warmHoldersFromEnv({ FISHFM_PLAYBACK_WARM_HOLDERS: 'lots' }), 5);
   assert.equal(warmHoldersFromEnv({ FISHFM_PLAYBACK_WARM_HOLDERS: '-1' }), 5);
   const args = wpfBackend({ volume: 0.35, warmHolders: 0 }).extraArgs({ pipeName: 'p', ownerPid: 1, protocol: 1 });
-  assert.deepEqual(args, ['-PipeName', 'p', '-OwnerPid', '1', '-ProtocolVersion', '1', '-Volume', '0.35', '-WarmHolders', '0']);
+  assert.deepEqual(args, ['-PipeName', 'p', '-OwnerPid', '1', '-ProtocolVersion', '1', '-Volume', '0.35', '-WarmHolders', '0', '-AdaptiveWarm', '0']);
   const envArgs = wpfBackend({ volume: 0.35, env: { FISHFM_PLAYBACK_WARM_HOLDERS: '0' } }).extraArgs({ pipeName: 'p', ownerPid: 1, protocol: 1 });
   assert.equal(envArgs[envArgs.indexOf('-WarmHolders') + 1], '0', 'the environment switch reaches the host');
   const defaultArgs = wpfBackend({ env: {} }).extraArgs({ pipeName: 'p', ownerPid: 1, protocol: 1 });
   assert.equal(defaultArgs[defaultArgs.indexOf('-WarmHolders') + 1], '5', 'the production default reaches the host');
+  assert.equal(defaultArgs[defaultArgs.indexOf('-AdaptiveWarm') + 1], '1', 'default pool adapts to real opens');
+  assert.equal(envArgs[envArgs.indexOf('-AdaptiveWarm') + 1], '0', 'explicit environment pool sizes stay fixed');
 });

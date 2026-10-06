@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { registerClientAssets } from '../index.js';
 
-test('FishFM artwork routes whitelist PNG/GIF with matching MIME types and unload cleanly', () => {
+test('FishFM artwork routes only serve owned PNG state images and unload cleanly', () => {
   const routes = new Map();
   let effectCleanup;
   let disposed = 0;
@@ -12,7 +12,6 @@ test('FishFM artwork routes whitelist PNG/GIF with matching MIME types and unloa
   });
   assert.deepEqual([...routes.keys()].sort(), [
     '/fishfm/assets/whale-dj.png', '/fishfm/assets/whale-idle.png', '/fishfm/assets/whale-listening.png',
-    '/fishfm/assets/whale-pot-dance.gif', '/fishfm/assets/whale-pot-still.png',
   ]);
   for (const route of routes.values()) {
     const headers = {};
@@ -29,6 +28,6 @@ test('FishFM artwork routes whitelist PNG/GIF with matching MIME types and unloa
   routes.values().next().value.handler({ method: 'POST' }, { writeHead(status) { rejected = status === 405; }, end() {} });
   assert.equal(rejected, true);
   effectCleanup();
-  assert.equal(disposed, 5);
+  assert.equal(disposed, 3);
   assert.equal(routes.size, 0);
 });

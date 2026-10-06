@@ -27,6 +27,9 @@ param(
   # subsequent loads under 1 s; four no longer reached the fast path on this
   # machine. See docs/spikes/N20-review-fixes.md. The threshold can vary.
   [int]$WarmHolders = 5,
+  # Default pools may grow to eight until an actual holder opens quickly.
+  # Explicit Node/backend pool sizes disable this unless requested otherwise.
+  [int]$AdaptiveWarm = 1,
   # Overrides the silent resource the warm holders keep open. Left empty, the host
   # writes its own into the temp directory: audio must never be committed to this
   # repository (AGENTS.md), so the resource is generated rather than shipped.
@@ -62,6 +65,8 @@ $script:warmArmed = $false
 $script:warmPending = $null
 $script:warmFailures = 0
 $script:warmGenerated = $null
+$script:warmComplete = $false
+$script:warmAdaptive = $AdaptiveWarm -ne 0
 
 # Playback facts. Status is host-owned; the core has its own richer state.
 $script:status = 'idle'
@@ -268,7 +273,7 @@ function Start-WarmHolder {
   $player = [System.Windows.Media.MediaPlayer]::new()
   $player.Volume = 0
   try { $player.IsMuted = $true } catch { }
-  $record = @{ player = $player; opened = $false; failed = $false; deadline = (Get-Date).AddMilliseconds(20000) }
+  $record = @{ player = $player; opened = $false; failed = $false; deadline = (Get-Date).AddMilliseconds(20000); watch = [System.Diagnostics.Stopwatch]::StartNew() }
   # The sender is the only reliable way to tell holders apart: several share one
   # handler shape, and a shared flag would let one holder's event settle another.
   $player.add_MediaOpened({
@@ -297,6 +302,7 @@ function Start-WarmHolder {
 # never fill it, which only means the next load is as slow as it is today.
 function Step-Warm {
   if (-not $script:warmArmed -or $null -eq $script:warmPath) { return }
+  if ($script:warmComplete) { return }
   if ($script:status -ne 'playing') { return }
   if ($null -ne $script:pendingOpen) { return }
   $pending = $script:warmPending
@@ -310,10 +316,18 @@ function Step-Warm {
     if (-not $pending.opened) { return }
     $script:warmPending = $null
     $script:warmPool += $pending
-    Write-Marker "WARM_READY count=$($script:warmPool.Count)"
+    $pending.watch.Stop()
+    $openMs = [Math]::Round($pending.watch.Elapsed.TotalMilliseconds)
+    Write-Marker "WARM_READY count=$($script:warmPool.Count) openMs=$openMs"
+    if ($script:warmPool.Count -ge $script:warmTarget -and
+        (-not $script:warmAdaptive -or $openMs -lt 1500 -or $script:warmPool.Count -ge 8)) {
+      $script:warmComplete = $true
+      Write-Marker "WARM_COMPLETE count=$($script:warmPool.Count) fast=$($openMs -lt 1500)"
+    }
     return
   }
-  if ($script:warmPool.Count -ge $script:warmTarget) { return }
+  if (-not $script:warmAdaptive -and $script:warmPool.Count -ge $script:warmTarget) { return }
+  if ($script:warmPool.Count -ge 8) { return }
   Start-WarmHolder
 }
 

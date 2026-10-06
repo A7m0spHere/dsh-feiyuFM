@@ -93,7 +93,7 @@ Host `library` 返回导入总数及最多 300 首元数据，UI 不接受音频
 
 断线主动要新快照，不用 supervisor 缓存判断资源是否还在。超时/写入异常拒绝所有等待者；宿主退出、所有者消失及 `dispose` 都停止音频。
 
-默认播放中逐个预热 5 个静音、不播放的持有者；`FISHFM_PLAYBACK_WARM_HOLDERS=0..8` 可覆盖，0 关闭。首曲仍冷，资源在临时目录生成；参数不是跨机器性能保证，见 [N19](spikes/N19-wpf-audio-warmup.md)、[N20](spikes/N20-review-fixes.md)。
+默认播放中从 5 个静音、不播放的持有者开始，根据实际 Open 耗时最多补齐到 8 个；`FISHFM_PLAYBACK_WARM_HOLDERS=0..8` 可覆盖为固定数量，0 关闭。首曲仍冷，资源在临时目录生成；参数不是跨机器性能保证，见 [N19](spikes/N19-wpf-audio-warmup.md)、[N20](spikes/N20-review-fixes.md)。
 
 实例分别累计 `effectiveMs/agentEffectiveMs/audibleMs`，与位置分离。逻辑进度只接受已知时长，真实静听用音频静音。恢复起点、长缺口、seek 与睡眠不补计，未有效播放不能伪造收听。
 

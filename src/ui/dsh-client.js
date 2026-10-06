@@ -578,13 +578,10 @@ window.__ModuleLoader__.load({
         : h('i', { className: 'fm-dot', 'data-off': true, 'aria-hidden': true });
     }
 
-    function PlaybackArtwork({ art, active, motion, alt = '' }) {
+    function PlaybackArtwork({ art, alt = '' }) {
       const base = '/fishfm/assets/';
-      const still = active ? 'whale-pot-still.png' : `${art}.png`;
-      const animated = active && (motion || 'full') === 'full';
-      return h('picture', null,
-        h('source', { media: '(prefers-reduced-motion: reduce)', srcSet: base + still }),
-        h('img', { src: base + (animated ? 'whale-pot-dance.gif' : still), alt }));
+      // Public packages only ship the project's three generated state images.
+      return h('picture', null, h('img', { src: base + `${art}.png`, alt }));
     }
 
     /**
