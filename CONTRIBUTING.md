@@ -21,6 +21,8 @@ npm run build
 
 以上检查不需要音乐账号，也不会播放真实音频。`npm run smoke:playback` 会播放测试音；`npm run login` 会发起真实扫码登录，不属于常规离线检查。
 
+`npm test` 在本机 Windows 默认包含 3 项静音 WPF 媒体打开/预热回归，需要可用的音频环境。托管 CI 无法打开这些 WAV，设置 `FISHFM_TEST_REAL_AUDIO=0` 只跳过这 3 项；管道、取消控制和 fake-backend 测试仍运行。真实音频应在 Windows 工作站执行并单独记录，本机测试通过不能替代 runner 的硬件验证，反之亦然。
+
 ### 目录入口
 
 | 目录 / 文件 | 职责 |

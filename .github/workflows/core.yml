@@ -7,6 +7,10 @@ on:
 jobs:
   core:
     runs-on: windows-latest
+    env:
+      # Hosted runners cannot open the real media regression WAVs. Keep all
+      # protocol/control tests, with real audio verified on a Windows workstation.
+      FISHFM_TEST_REAL_AUDIO: '0'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

@@ -13,6 +13,10 @@ import { PlaybackSupervisor } from '../src/playback/supervisor.mjs';
 import { PlaybackService } from '../src/playback/service.mjs';
 import { wpfBackend, warmHoldersFromEnv } from '../src/playback/backends.mjs';
 
+// Media decoding requires a usable Windows audio environment. Hosted CI runs
+// the pipe/fake-backend checks; real audio regressions remain enabled locally.
+const skipRealAudio = process.platform !== 'win32' || process.env.FISHFM_TEST_REAL_AUDIO === '0';
+
 /** A silent PCM WAV: the timeline advances, the audio device stays quiet. */
 function writeSilentWav(path, { seconds = 45, sampleRate = 8000 } = {}) {
   const frames = Math.max(1, Math.round(seconds * sampleRate));
@@ -56,7 +60,7 @@ async function waitFor(condition, timeoutMs) {
   return condition();
 }
 
-test('the default warm pool fills during playback and makes the next load fast', { skip: process.platform !== 'win32', timeout: 180000 }, async () => {
+test('the default warm pool fills during playback and makes the next load fast', { skip: skipRealAudio, timeout: 180000 }, async () => {
   const directory = mkdtempSync(join(tmpdir(), 'fishfm-warm-'));
   const track = join(directory, 'silent-track.wav');
   writeSilentWav(track, { seconds: 45 });
@@ -89,7 +93,7 @@ test('the default warm pool fills during playback and makes the next load fast',
   }
 });
 
-test('warming is off when asked to be, and a cold host still serves loads', { skip: process.platform !== 'win32', timeout: 60000 }, async () => {
+test('warming is off when asked to be, and a cold host still serves loads', { skip: skipRealAudio, timeout: 60000 }, async () => {
   const directory = mkdtempSync(join(tmpdir(), 'fishfm-warmoff-'));
   const track = join(directory, 'silent-track.wav');
   writeSilentWav(track, { seconds: 45 });
@@ -109,7 +113,7 @@ test('warming is off when asked to be, and a cold host still serves loads', { sk
   }
 });
 
-test('the host writes its own silent resource rather than shipping one', { skip: process.platform !== 'win32', timeout: 60000 }, async () => {
+test('the host writes its own silent resource rather than shipping one', { skip: skipRealAudio, timeout: 60000 }, async () => {
   const directory = mkdtempSync(join(tmpdir(), 'fishfm-warmself-'));
   const track = join(directory, 'silent-track.wav');
   writeSilentWav(track, { seconds: 45 });
