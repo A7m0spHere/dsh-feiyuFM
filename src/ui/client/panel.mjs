@@ -157,10 +157,13 @@ export function Panel({ controller, back, close }) {
     h('section', { className: 'fm-hero', 'aria-label': '当前播放' },
       h('div', { className: 'fm-art' }, h(PlaybackArtwork, { art, active: presentation.active, motion: state.motion,
         effects: state.playbackEffects, available: state.features?.artwork?.gif, alt: '鲸鱼娘音乐状态' }),
-        h('button', { type: 'button', className: 'fm-button fm-effects-toggle', 'aria-label': '播放动效',
-          'aria-pressed': Boolean(state.playbackEffects && state.features?.artwork?.gif), disabled: !state.features?.artwork?.gif,
-          title: state.features?.artwork?.gif ? '播放时显示动图和飞散玩偶' : '本机没有安装动效素材',
-          onClick: () => controller.setPlaybackEffects(!state.playbackEffects) }, state.playbackEffects && state.features?.artwork?.gif ? '动效开' : '动效关')),
+        h('button', { type: 'button', className: 'fm-toggle fm-effects-toggle', role: 'switch', 'aria-label': '小开关',
+          'aria-checked': Boolean(state.playbackEffects && state.features?.artwork?.gif), disabled: !state.features?.artwork?.gif,
+          onClick: () => controller.setPlaybackEffects(!state.playbackEffects),
+          onKeyDown: event => {
+            if (!['ArrowLeft', 'ArrowRight'].includes(event.key)) return;
+            event.preventDefault(); controller.setPlaybackEffects(event.key === 'ArrowRight');
+          } }, h('span', { 'aria-hidden': true }))),
       h('div', { className: 'fm-hero-copy' },
         h('div', { className: 'fm-live', role: 'status' }, h(StatusMark, { active: presentation.active }), presentation.label),
         h('div', { className: 'fm-track-swap', key: current?.playInstanceId || 'empty' },

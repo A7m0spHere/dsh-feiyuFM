@@ -93,11 +93,18 @@ test('playback effects are opt-in, persist locally, stop with playback and never
     await tick();
     assert.ok(images(f.render()).some(node => node.props.src.endsWith('whale-listening.png')));
     const count = calls.length;
-    all(f.render()).find(node => node.props['aria-label'] === '播放动效').props.onClick();
+    const easterSwitch = () => all(f.render()).find(node => node.props['aria-label'] === '小开关');
+    easterSwitch().props.onClick();
     assert.equal(calls.length, count, 'a visual preference never calls the music service');
     assert.equal(storage.get('fishfm.playback.effects.v1'), 'true');
     assert.ok(images(f.render()).some(node => node.props.src.endsWith('.gif')));
     assert.ok(all(f.render()).some(node => node.type === 'canvas'));
+    easterSwitch().props.onKeyDown({ key: 'ArrowLeft', preventDefault() {} });
+    assert.equal(easterSwitch().props['aria-checked'], false);
+    assert.ok(images(f.render()).some(node => node.props.src.endsWith('whale-listening.png')));
+    easterSwitch().props.onKeyDown({ key: 'ArrowRight', preventDefault() {} });
+    assert.equal(easterSwitch().props['aria-checked'], true);
+    assert.equal(calls.length, count);
     f.controller.setMotion('reduced');
     assert.ok(images(f.render()).some(node => node.props.src.endsWith('whale-pot-still.png')));
     assert.equal(all(f.render()).some(node => node.type === 'canvas'), false);
@@ -124,7 +131,7 @@ test('a saved effects preference cannot request absent artwork in the public pac
     await tick();
     const tree = all(f.render());
     assert.ok(tree.filter(node => node.type === 'img').every(node => !node.props.src.includes('whale-pot')));
-    assert.equal(tree.find(node => node.props['aria-label'] === '播放动效').props.disabled, true);
+    assert.equal(tree.find(node => node.props['aria-label'] === '小开关').props.disabled, true);
     assert.equal(tree.some(node => node.type === 'canvas'), false);
   } finally { off(); f.dispose(); }
 });
