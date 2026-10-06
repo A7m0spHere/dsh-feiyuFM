@@ -1,6 +1,6 @@
 # 交付与使用说明
 
-更新日期：2026-10-06。首包为 **0.1.0-beta.1 Windows／网易云测试版**，尚未完成稳定 v0.1 验收。本文说明安装与使用，发行确认和摘要见 [首包记录](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/releases/0.1.0-beta.1.md)，整体状态见 [开发路线](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/PROJECT_PLAN.md)。
+更新日期：2026-10-07。已发布首包为 **0.1.0-beta.1 Windows／网易云测试版**，尚未完成稳定 v0.1 验收。`main` 已包含 U12/U13 彩蛋与修复，但没有发布新的 npm 版本；普通 `@beta` 安装仍取得首包。本文说明安装与使用，发行确认和摘要见 [首包记录](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/releases/0.1.0-beta.1.md)，源码/发布/实包与验收状态统一见 [开发路线](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/PROJECT_PLAN.md)。
 
 ## 支持范围
 
@@ -28,7 +28,7 @@ FishFM 以 npm 包分发，通过 DSH 安装到当前 profile。在侧栏「插�
 
 ## 首次听歌
 
-角色图下有一枚无文字的小开关，默认位于左侧，可以自行尝试另一侧。素材随包提供，无需 Wallpaper Engine 或手动提取。此改动尚未发布到 npm，已上架的 `0.1.0-beta.1` 仍为首包内容。
+当前源码的角色图下有一枚无文字的小开关，默认位于左侧，可以自行尝试另一侧。素材在当前仓库与打包清单中提供，无需 Wallpaper Engine 或手动提取；已上架首包尚无此功能。同源窗口即时同步、高窄面板适配已在 U13 隔离验证，真实生产窗口组合仍待验。
 
 导入后，可直接点播输入曲库中的歌曲。自主听歌与电脑声音是独立开关：静听保留自主听歌但关闭声音，暂停冻结进度且不会被自动事件撤销。「今天停止」还会禁止当日自主行为，可通过「恢复自主听歌」解除。
 
@@ -61,16 +61,16 @@ DSH `0.2.0-rc.2` 的插件页暂不支持自动更新。先在插件管理器卸
 - **有歌名却不能播放：** 模型推荐需平台核对，歌曲还可能受到会员、版权或地址失效影响；以实际错误为准。
 - **没有声音：** 先查看声音开关、静听模式和暂停状态，再检查系统音量及输出设备。日常 / 专注模式会恢复声音。
 - **没有候选：** 检查输入曲库、歌单核对结果与探索池状态，必要时重新核对或点播曲库歌曲。
-- **改动没有生效：** UI 修改后运行 `npm run build:client` 或 `npm run build`，再重载宿主中的插件。
+- **源码改动没有生效：** UI 修改后运行 `npm run build:client` 或 `npm run build`，再刷新界面。官方桌面版会缓存后端模块；后端或资源路由更新需从托盘完整退出 DSH 再启动，只关窗口、刷新页面或停用再启用插件不足以清除缓存。已发布 npm 安装不会自动取得尚未发布的源码改动。
 - **悬浮条显示错误：** 可从抽屉内重试或重新核对；只有 Core 不可达才标为断连。
 
 ## 验证与边界
 
-网易云真实链路见 [P3](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/spikes/P3-real-loop.md)，设置和重启恢复见 [N10](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/spikes/N10-feedback-reset.md)，一次模型歌单生成见 [N11](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/spikes/N11-model-playlist.md)。最近代码修复和基线见 [N20](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/spikes/N20-review-fixes.md)；首包在隔离 DSH 页面验证了安装、图片和设置读写，未用新账号重复完整平台播放验收。
+网易云真实链路见 [P3](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/spikes/P3-real-loop.md)，设置和重启恢复见 [N10](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/spikes/N10-feedback-reset.md)，一次模型歌单生成见 [N11](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/spikes/N11-model-playlist.md)。音频/通信复核见 [N20](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/spikes/N20-review-fixes.md)，最近源码基线见 [U13](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/spikes/U13-easter-review-fixes.md)：393 项测试、126 模块检查、构建与隔离双页面/高窄布局已验。首包和 U12 历史实包分别验证了安装与资源，不等于当前生产平台播放验收；U12 tarball也不包含后续开关样式与 U13 修复。
 
 当前默认从 5 个持有者开始，按实际 Open 耗时最多补齐到 8 个；独立实测用了 6 个，后续加载 484ms。首曲仍冷，预热/打开时间随环境变化。`FISHFM_PLAYBACK_WARM_HOLDERS=0..8` 可指定固定数量，0 关闭。
 
-截至最近记录，N12–N20 尚未重载到生产宿主；两小时、DSH 请求/上下文对照、多会话、模型筛选质量和部分故障恢复仍待验证。当前状态统一见 [开发路线](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/PROJECT_PLAN.md)，短跑证据见 [N7](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/spikes/N7-short-run.md)。模拟预览和引用审计不能替代真实验收。
+本轮没有重载生产宿主；U12/U13 完整真实窗口组合、两小时、DSH 请求/上下文对照、多会话、模型筛选质量和部分故障恢复仍待验证。N12–N20 的加载边界按各执行记录理解，不把用户可能自行重启当作已完成验收。当前状态统一见 [开发路线](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/PROJECT_PLAN.md)，短跑证据见 [N7](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/spikes/N7-short-run.md)。模拟预览和引用审计不能替代真实验收。
 
 ## 许可
 

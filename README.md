@@ -10,6 +10,8 @@
 
 **首个公开测试版 `0.1.0-beta.1` 已在 npm 发布。** 当前支持 Windows／网易云，可在 DSH 插件管理器中添加 `dsh-feiyufm-core@beta`。稳定版验收仍在进行，QQ 接入暂缓。
 
+`main` 的后续改动尚未发布到 npm：角色图下的小开关、完整素材打包及多窗口/高窄布局修复已实现，最新源码验证为 393 项测试和 126 个模块。已发布首包、当前源码和历史本地包的状态分别见 [开发路线](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/PROJECT_PLAN.md)。
+
 [开始使用](#开始使用) · [npm 包](https://www.npmjs.com/package/dsh-feiyufm-core/v/0.1.0-beta.1) · [功能介绍](#能做什么) · [文档索引](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/README.md) · [开发与贡献](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/CONTRIBUTING.md) · [发布记录](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/releases/0.1.0-beta.1.md)
 
 ## 界面预览
@@ -23,7 +25,7 @@
 
 </details>
 
-以上截图来自当前客户端的隔离预览，使用模拟歌曲和统计数据，不代表真实账号记录或模型效果。主面板、设置页和可隐藏的悬浮条共用同一个音乐服务；切换 DSH 页面或隐藏控件后仍可继续播放。
+以上截图来自 2026-10-05 客户端的隔离预览，使用模拟歌曲和统计数据，不代表真实账号记录或模型效果，也未展示后续彩蛋开关。主面板、设置页和可隐藏的悬浮条共用同一个音乐服务；切换 DSH 页面或隐藏控件后仍可继续播放。
 
 <details>
 <summary>查看 beta 包安装后的 DSH 界面</summary>
@@ -127,8 +129,10 @@ npm run build
 
 **`0.1.0-beta.1` 已发布，稳定 v0.1 验收尚未完成。** 网易云真实扫码、导入、播放、自然续播、部分偏好成长、设置持久化与停用恢复已有历史实测；本次发布额外验证了隔离安装与 DSH 页面交互。完整验收状态以 [开发路线](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/PROJECT_PLAN.md) 为准。
 
+- 2026-10-07 源码：[U12](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/spikes/U12-playback-dolls.md) 小开关与完整素材随包、[U13](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/spikes/U13-easter-review-fixes.md) 同源窗口同步与高窄视口裁切修复已完成；393/393 测试、126 模块检查、构建与隔离浏览器复验通过，真实生产窗口组合仍待验。这些改动尚未发布到 npm。
+
 - npm 下载包的 SHA-512／SHA-1 与封存包一致；从 registry 全新安装后的入口、图片、Core、WPF 和实际依赖版本检查均 `ALL-PASS`。本机 386 项测试通过；远端 CI 383 项通过，3 项依赖音频环境的回归显式跳过。详情见 [发布记录](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/releases/0.1.0-beta.1.md)。
-- 当前 `beta` 和 `latest` 都指向 `0.1.0-beta.1`；安装建议显式使用 `@beta` 或固定版本。稳定版完成后再更新 `latest`。
+- 2026-10-06 发布核验时 `beta` 和 `latest` 都指向 `0.1.0-beta.1`；安装建议显式使用 `@beta` 或固定版本。稳定版完成后再更新 `latest`。
 - 首次播放仍需数秒；默认从 5 个预热持有者开始，根据实际打开耗时最多补齐到 8 个。显式 `FISHFM_PLAYBACK_WARM_HOLDERS=0..8` 使用固定数量，0 关闭。性能与填池时间随环境变化；真实长期模型筛选质量与生产迁移仍待验证。
 - 真实两小时运行、DSH 模型请求/上下文对照与完整多会话验收尚未完成。
 - QQ 音乐保留在规划与适配代码中，接入暂缓；当前不提供可用的 QQ 登录与播放链路。其他操作系统未验证。
