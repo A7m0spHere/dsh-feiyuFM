@@ -1,6 +1,6 @@
 # N16：P0 两项优化——画像缓存与个人相似图
 
-日期：2026-10-05。设计见 [FEAT_P0_PROFILE_CACHE_TRACK_GRAPH](../FEAT_P0_PROFILE_CACHE_TRACK_GRAPH.md)。范围：`src/insights.mjs`、`src/persona.mjs`、`src/core-host.mjs`、新模块 `src/track-graph.mjs`、`src/selection.mjs`、`src/recommendation.mjs`、`src/ui/client/panel.mjs`。
+日期：2026-10-05。设计见 [FEAT_P0_PROFILE_CACHE_TRACK_GRAPH](../design/FEAT_P0_PROFILE_CACHE_TRACK_GRAPH.md)。范围：`src/insights.mjs`、`src/persona.mjs`、`src/core-host.mjs`、新模块 `src/track-graph.mjs`、`src/selection.mjs`、`src/recommendation.mjs`、`src/ui/client/panel.mjs`。
 
 ## 一、画像计算缓存
 

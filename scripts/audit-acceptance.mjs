@@ -112,7 +112,7 @@ const EVIDENCE = [
     unverified: '真实并发的 DSH 会话未验；真实会话标识字段名未确认',
   },
   {
-    id: 'A09', claim: '连续两小时自动听歌，用户未主动聊音乐，新增 LLM 请求数为 0',
+    id: 'A09', claim: '连续两小时自动听歌；逐曲零模型请求，计划内低频调用受开关、冷却、预算约束并入账',
     status: 'not-passed',
     files: ['src/runtime/recorder.mjs', 'scripts/soak.mjs', 'test/recorder.test.mjs', 'docs/spikes/R2-soak.md', 'src/runtime/evidence.mjs', 'scripts/observe-runtime.mjs', 'docs/spikes/N0-runtime-evidence.md'],
     tests: [
@@ -133,8 +133,14 @@ const EVIDENCE = [
   },
 ];
 
-/** Also verify the task-level evidence referenced by the plan's own docs. */
-const DOC_LINKS_FROM = ['README.md', 'docs/PROJECT_PLAN.md', 'docs/DELIVERY.md', 'docs/MVP.md', 'docs/ARCHITECTURE.md', 'docs/DECISIONS.md', 'docs/PHASE_0.md', 'docs/CORE_CONTRACT.md', 'docs/AUTONOMOUS_MUSIC_ROADMAP.md', 'docs/spikes/N0-runtime-evidence.md', 'docs/spikes/N1-autonomous-accounting.md', 'docs/spikes/N2-netease-discovery.md', 'docs/spikes/N3-discovery-cache.md'];
+/** Discover all docs so new design/evidence pages cannot escape link checking. */
+function documentationFiles(directory) {
+  return readdirSync(join(root, directory), { withFileTypes: true }).flatMap(entry => {
+    const path = `${directory}/${entry.name}`;
+    return entry.isDirectory() ? documentationFiles(path) : entry.name.endsWith('.md') ? [path] : [];
+  });
+}
+const DOC_LINKS_FROM = ['README.md', 'CONTRIBUTING.md', ...documentationFiles('docs')];
 
 const testNames = new Map();
 for (const file of readdirSync(join(root, 'test'))) {
@@ -198,7 +204,7 @@ for (const document of DOC_LINKS_FROM) {
 }
 
 if (asJson) {
-  console.log(JSON.stringify({ rows, problems, undocumented, invented, brokenLinks }, null, 2));
+  console.log(JSON.stringify({ rows, problems, undocumented, invented, brokenLinks, documentsChecked: DOC_LINKS_FROM.length }, null, 2));
 } else {
   console.log('Acceptance audit — does every claim still have its evidence?');
   console.log('');
@@ -215,7 +221,7 @@ if (asJson) {
   console.log(`acceptance items in the spec: ${declared.length}; audited: ${audited.length}`);
   if (undocumented.length) console.log(`  NOT audited: ${undocumented.join(', ')}`);
   if (invented.length) console.log(`  audited but not in the spec: ${invented.join(', ')}`);
-  console.log(`broken document links: ${brokenLinks.length}`);
+  console.log(`documents checked: ${DOC_LINKS_FROM.length}; broken document links: ${brokenLinks.length}`);
   for (const link of brokenLinks) console.log(`  ${link}`);
   console.log('');
   const passed = rows.filter((row) => row.ok).length;

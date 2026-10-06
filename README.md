@@ -8,7 +8,7 @@
 
 **FishFM 是 DeepSeek Harness（DSH）的社区音乐插件。** 导入你的网易云音乐，以常听歌曲为起点建立本地音乐偏好，让大肥鱼自主选歌、探索新歌；你可以随时点播、暂停、换曲或静音。
 
-[开始使用](#开始使用) · [功能介绍](#能做什么) · [开发与贡献](CONTRIBUTING.md) · [验收进度](docs/PROJECT_PLAN.md) · [MIT 许可证](LICENSE)
+[开始使用](#开始使用) · [功能介绍](#能做什么) · [文档索引](docs/README.md) · [开发与贡献](CONTRIBUTING.md) · [验收进度](docs/PROJECT_PLAN.md) · [MIT 许可证](LICENSE)
 
 ## 界面预览
 
@@ -113,6 +113,7 @@ npm run debug             # JSON 行调试入口，使用假播放，不出声
 
 | 文档 | 内容 |
 | --- | --- |
+| [文档索引](docs/README.md) | 当前规格、设计提案和历史证据的统一入口 |
 | [交付与使用说明](docs/DELIVERY.md) | 安装、更新、数据位置与常见问题 |
 | [产品规格](docs/MVP.md) | 用户操作、推荐边界与验收标准 |
 | [开发路线](docs/PROJECT_PLAN.md) | 实施进度、真实验收与跨设备交接 |

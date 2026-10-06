@@ -1,76 +1,118 @@
-# Phase 1 内部控制契约
+# 内部控制契约
 
-## N11 增量（2026-10-04）
+更新：2026-10-06，按 N20 实现整理。本文描述 FishFM 内部契约，DSH 外部接口经 Adapter 映射。职责见 [架构](ARCHITECTURE.md)，用户行为见 [MVP](MVP.md)，现场状态见 [开发路线](PROJECT_PLAN.md)；历史变化见 [决策记录](DECISIONS.md) 与 [实验记录](spikes/README.md)。
 
-- `fishfm/persona-recommendations` 走既有认证通道和 DSH 模型服务，内部 `persona-reserve` 转发 `purpose='model-recommendations'` 与 `automatic`，真实费用共用模型账本；Core 验证输出并保存歌名/艺人建议，不采信模型提供的资源/平台 ID。
-- `persona.recommendations` 返回建议、已核对条目和匹配状态；异步搜索有单飞、每分钟重试预算和代次取消，准确唯一的元数据才进入缓存。LLM 模式的熟悉/陌生池均来自这份缓存，网易云推荐入口不参与。
-- `setRecommendationMode` 只接受 `llm/platform`。`resetLibrary` 接收 `{clearFeedback:boolean}`，清空输入/来源/偏好/队列/旧模型缓存；同事务存恢复点与去重标记，响应立即更新 library，`undoTasteReset` 可恢复。账号、历史与模型账本保留。
-- schema v10 增加 `music_model_calls.purpose/facts_json`，旧记录为展示总结。新用途有独立冷却，日预算/尝试次数/并发锁共享。完整定义与验收见 [N11](spikes/N11-model-playlist.md)。
+## 1. 曲目、账号与资源
 
-2026-10-03 修正“下一首”归属：`next` 只代表用户触发换曲，歌曲仍由推荐器/既定队列选择，记录 `selectedBy='agent'`、`selectionTrigger='user-next'`，保留来源、评分与同一 decisionId 的决策记录。暂停保持、选择本身不生成有效经历；只有显式 `requestTrack` 才记录用户点播。历史记录不按新语义倒改。
+Track key 为 `(provider, providerTrackId)`，`provider` 仅为 `netease/qq`，字符串键为 `provider:providerTrackId`。标题不能替代 ID，不凭同名跨平台合并。可带 `title/artist/artists/durationMs/metadataSource`，缺失时长和特征保持未知。
 
-## N10 增量（2026-10-03）
+Provider 暴露账号和能力状态，`resolve(track, {signal, version})` 返回 `{handle, expiresAt?}`。handle 仅交 Playback，不进 SQLite、Core/UI 快照或模型输入。缺能力、过期账号、无可播资源和空候选分别报告。
 
-显式用户命令经既有认证 `fishfm/command` 白名单转发，均要求唯一 `commandId`：
+网易云导入可指定 `source/playlistId`，保留实际来源、sourceRef、数量及失败尝试。核对 `login_status` 账号 ID 后才保存 DPAPI 凭据引用；退出删除凭据及引用。QQ 真实登录/播放未验证，不显示未核实的扫码入口。
 
-- `setTrackFeedback`：`track={provider,providerTrackId}`、`playInstanceId`、`value ∈ {-1,0,1}`。Core 校验与当前歌曲/实例一致，旧实例返回 `stale_track`；仅写独立反馈，不改播放和 affinity。
-- `resetTaste`：`value={clearFeedback:boolean}`。重置积累偏好并按输入环境重新初始化，默认保留手动反馈；保留账号、历史、约束与模型账本。Core 事务保存恢复点及去重记录，清除旧展示总结；模型预留/运行中返回 `summary_busy`。
-- `undoTasteReset`：恢复最近恢复点；无恢复点返回 `no_reset_backup`。重置后新增手动反馈优先；恢复旧权重会覆盖重置之后的成长。
+## 2. 用户命令
 
-`insights.feedback={version:1,current,liked,reduced,resetAt,canUndoReset}` 是同一 Core 的只读投影。反馈/重置命令响应附新 insights/persona；歌曲评分增加 `userFeedback/feedback` 与 `algorithm='local-v3'`，逐曲仍不请求模型。schema v9、成长边界与验证见 [N10](spikes/N10-feedback-reset.md)。
+命令带非空 `commandId`，可带 `expectedRevision`。重复命令返回当前快照，旧 revision 返回 `stale_revision`；接受后递增 `decisionVersion`，影响播放时递增 `commandVersion` 并取消旧解析。
 
-更新：2026-09-27。此契约由 `src/` 的可运行实现定义，供后续 DSH Adapter、Provider 和 Playback 接入；它不是 DSH 已发布的事件或 SDK 接口。
+| 命令 | 参数 | 约定 |
+|---|---|---|
+| `pause/resume` | 无 | 暂停优先；恢复保持自主/声音设置，重新解析并尝试恢复位置 |
+| `next` | 无 | 优先队列，否则用选择器；选择器排除当前并保留约束/不可播/冷却过滤，暂停期间换曲仍暂停 |
+| `requestTrack` | `track` | 明确点播并解除暂停，不自动改声音或自主开关；禁播返回 `constraint_conflict` |
+| `setListening/setHumanPlayback/setDiscovery` | `value: boolean` | 独立开关；关闭自主会暂停当前 Agent 曲目 |
+| `setDiscoveryRate` | `value: 0..1` | 探索目标概率，不保证存在新歌 |
+| `setMode` | `normal/focus/silent/off` | normal/focus 启用自主并恢复声音；silent 静听；off 关闭两开关并暂停 |
+| `stopForToday/chooseSelf` | 无 | 禁止当日自主并暂停 / 解除当日限制、开启自主并尝试恢复 |
+| `banTrack/unbanTrack` | `track` | 独立用户约束，不暗中取消禁播 |
+| `setTrackFeedback` | `track, playInstanceId, value: -1/0/1` | 校验当前曲目与实例，旧实例返回 `stale_track`；不改 affinity 或平台收藏 |
+| `resetTaste/resetLibrary` | `value: {clearFeedback: boolean}` | 保存可撤销恢复点，与去重记录同事务；模型预留/运行中返回 `summary_busy` |
+| `undoTasteReset` | 无 | 恢复最近恢复点，缺备份返回 `no_reset_backup`，重置后新增反馈优先 |
+| `setRecommendationMode` | `value: llm/platform` | 显式切换来源，不静默包装失败 |
 
-## N0–N3 增量（2026-10-02）
+`resetTaste` 保留输入曲库；`resetLibrary` 还清空输入/来源及队列。两者保留账号、历史、约束与模型账本，不改变当前播放。重置边界前的成长不能重新写回旧偏好。
 
-- NetEase 可选 `getDiscoveryTracks({limit=40,signal})` 返回规范化 Track 数组，附 `discovery={source,seedTrackKey,fetchedAt,expiresAt}`；当前来源为账号每日推荐/私人 FM。缺方法不伪装为空结果；QQ 尚未接入真实推荐。
-- facade/Host 有界后台刷新，selector 只读缓存；`snapshot.discovery` 为只读状态投影，包含 state/count/cached/sources、最近尝试/成功及下次允许时间。Host `discovery` 消息立即返回调度状态；认证 `fishfm/discovery-refresh` 使用同一入口，宿主 features 标志决定按钮是否可用。
-- `current.origin` 保存自主选择的来源；`lastSelection` 增加 decisionId/source。已有效听过的自主曲目可以进入熟悉池，但不写成用户导入环境。
-- `current.effectiveMs/agentEffectiveMs/audibleMs` 与 `positionMs` 分开。真实 Playback 的 progress 增加 `effectiveDeltaMs`，用单调时间和连续观测限定本段推进；恢复起点、长缺口和 seek 不补算。手动/自主及声音切换保持独立计数。
-- schema v4 增加历史分段标识/有效 Agent 时长/可听时长、`growth_jobs` 和曲目临时可用性；历史与待处理成长同一事务，成长与已处理标记同一事务，实例幂等。启动重放待处理项，旧历史不批量重新成长；旧快照缺失分段字段时从 0 开始。
-- 自主明确不可播替换最多 3 个候选，排除有效期 30 分钟；网络/账号失败不惩罚偏好。选择 RNG 状态随 Core 状态保留，重启恢复仍暂停。
-- Core/Adapter 生产诊断分别保存 runtime 报告，观察入口只读、不启动 Core。DSH 模型请求及上下文覆盖仍为 unknown；不因此声称 A09 两小时通过。
-- `command` 返回命令接受后的快照，媒体可能仍是 resolving；后端异步错误通过后续快照/事件显示，不把接受当成声音已播放。控制与读取不被慢账号/导入工作排队；stdio 持续读取消息，暂停可以取消前一个慢加载。调试需要媒体就绪时显式使用 `wait`。
+用户下一首记 `selectedBy='agent'、selectionTrigger='user-next'`，保留来源、评分和 decisionId；只有 `requestTrack` 记为 `selectedBy='user'`。选择不是有效收听，旧历史不倒改归属。
 
-以下为早期契约与历史验证说明，现场状态见 [N0](spikes/N0-runtime-evidence.md)、[N1](spikes/N1-autonomous-accounting.md)、[N2](spikes/N2-netease-discovery.md)、[N3](spikes/N3-discovery-cache.md)。
+今天限制到期不自动解除暂停。无当前曲目时，要求开始自主而失败应返回 `autonomy_blocked/no_candidates`，不得静默无操作。完整控制语义见 [MVP 第 3 节](MVP.md)。
 
-## 边界
+## 3. Host、UI RPC 与快照
 
-N6 增量：`insights` 返回本地偏好、确定规则解释和按最近 200 次自主决策关联的播放统计；认证 `fishfm/state` 附带该投影。`startedAt/selectionPool/decisionId` 保留在经历中，恢复不重复计数；统计范围不是旧历史全期。没有模型总结或流派/情绪推断。
+Host 协议 v1 使用 JSON-lines：启动发 `ready`，请求返回带 `id` 的 `result/error`，状态变化发 `state`，退出发 `exiting`。快照含递增 `revision`、开关、策略、队列、当前实例、暂停和错误，不含凭据或 handle。
 
-N5 增量：Registry 的可选发现请求附 `seeds`（同平台、最多 3 首）；NetEase 关系候选使用 `netease_similar`，保留 `seedTrackKey/seedTrackKeys`，与账号推荐来源分开。缓存仍同步可读，关系请求仅在有界刷新批次中执行。`lastSelection.detail` 增加 local-v2 的关系、弱环境和多样性项，解释来自实际得分，不写未知曲目的 affinity。
+`command` 应答代表接受后的快照，可能仍是 `resolving`；异步失败经后续状态呈现。控制/读取不被慢账号或导入排队，stdio 持续接收取消命令。调试用 `wait` 等媒体任务收尾，`setQueue/autonomous` 为固定候选及调试入口。
 
-N4 增量：schema v5 增加 `tracks.artists_json/metadata_source` 和 `environment_sources`；曲目可带稳定艺人数组和来源，首次导入来源保留，重复导入追加/更新独立事实，不覆盖已有 Agent affinity。`environment.profile` 返回有界来源/艺人分布及覆盖率，流派/情绪缺失保持未知；艺人偏好在有 ID 时按平台 ID 保存/成长。`playlists` 读取账号歌单，`import-platform` 可指定 `source/playlistId` 并保留实际 sourceRef；认证 `fishfm/playlists` 与导入参数白名单对应。新客户端仅在宿主声明 importSources 时显示来源选择。
+UI 经宿主认证 `/api` 调用；完整白名单见 [dsh-settings.mjs](../src/ui/dsh-settings.mjs)，不能把全部 Core 命令自动暴露给浏览器。
 
-- 一个本地用户配置只有一个 `MusicCore` 实例和一条候选队列。Core 是状态唯一写入者；窗口和多个 DSH Session 将来都向它提交命令。
-- Track key 是 `(provider, providerTrackId)`，`provider` 仅可为 `netease` 或 `qq`。同名歌曲不能替代 ID。
-- Provider `resolve(track, { signal, version })` 返回 `{ handle, expiresAt? }`。`handle` 只在调用 Playback 时传递，不保存到 SQLite 或状态快照。Provider 同时暴露显式账号状态和能力状态；缺失能力不能伪装为空结果。
-- Playback 实现 `load({ resource, playInstanceId, startPositionMs, version, signal })`、`play`、`pause`、`stop`、`setMuted`。`load` 返回实际就绪的 `{ positionMs }`；无法 seek 时返回 0，Core 重置本次进度。Playback 必须丢弃比已接受版本旧的命令。真实 Playback 接入前，需要用同一契约检查这些要求。
-- Playback 事件为 `started`、`progress`、`ended`、`error`，均带 `playInstanceId`，并应回传 `version` 以拒绝旧事件。`progress` 带 `positionMs` 和 `progressSource` (`audio` 或 `logical`)。逻辑进度只接受已知时长的曲目。
-- 真实后端只有确认媒体打开并开始推进后才能发 `started`；调用系统 `Play()` 成功不足以证明资源可播。WPF 探针中无效资源可能延迟触发 `MediaFailed`，恢复瞬间还可能短暂报告 0 ms，适配器需要等待稳定事实并设置有限超时。
+| RPC | 返回/用途 |
+|---|---|
+| `fishfm/state` | `snapshot/platforms/library/insights/persona/features` |
+| `fishfm/command` | 白名单用户命令与更新状态 |
+| `fishfm/login-start/login-poll/logout` | 网易云扫码、账号确认、退出 |
+| `fishfm/import/playlists` | 来源导入与账号歌单，保留数量/尝试轨迹 |
+| `fishfm/discovery-refresh` | 后台刷新状态，可补跑一次有预算的筛选 |
+| `fishfm/persona-summary/persona-recommendations` | 复用 DSH 模型生成总结/具体歌单 |
+| `fishfm/persona-budget/persona-output/persona-automatic` | 预算、输出上限与自动更新设置 |
 
-## 真实 Playback 接入（P1，2026-09-27）
+Host `library` 返回导入总数及最多 300 首元数据，UI 不接受音频 URL。`insights` 统计按最近 200 次决策关联，不代表历史全期；反馈、成长与解释独立。业务错误有应答不等于 Core 断连。
 
-`src/playback/` 已按上面的契约接入真实音频：`PlaybackService` 是 Core 看到的 Playback，背后是独立进程的 WPF MediaPlayer 宿主，两者用同用户命名管道上的协议 v1 通信（[P1 证据](spikes/P1-playback.md)）。
+## 4. 推荐缓存与歌单核对
 
-- 宿主持有声音与时间线；Core 仍决定播什么。宿主不选曲、不写库、不读凭据。
-- 命令与事件都带 `playInstanceId` 与 `version`，适配器丢弃比当前实例更旧的命令与事件；`load` 对过期版本抛 `stale_version`。
-- `progress` 只向前报：恢复瞬间的 0 ms 不会被上报（P0-04 已观察该现象）；`ended` 携带最终位置。
-- 断线恢复时**主动向宿主要 `snapshot`**，不用 supervisor 缓存的状态判定曲目是否还在——缓存可能是首次握手时的旧快照。
-- 宿主进程的父进程是音乐服务；所有者进程消失时宿主自行停止，`dispose` 也会停掉它（「插件停用后停止」）。
+网易云 `getDiscoveryTracks` 在有界刷新中接收最多 3 个种子，来源包括 `netease_similar/netease_daily/netease_personal_fm`。缓存容量 200、TTL 6 小时，自动间隔 30 分钟、手动最短间隔 1 分钟、失败重试间隔 5 分钟。账号切换、关闭、清理与代次取消拒绝迟到结果。
 
-## 命令与快照
+陌生候选排除已导入、有效听过、喜欢或不可播曲目。`snapshot.discovery` 包含 `state/count/cached/sources`、刷新时刻和 `picked/filtering`；`picked` 统计仍可用且已加入模型排名的条目，不计缓存外/不可用排名。
 
-命令都带非空 `commandId`；可带 `expectedRevision` 来拒绝旧 UI 状态。Core 持久去重 `commandId`，每条接受的用户命令递增 `decisionVersion`；会改变当前播放的命令还递增 `commandVersion`，取消旧解析。`snapshot()` 返回带递增 `revision` 的状态副本，包含开关、策略、队列、当前曲目、暂停和错误；不包含凭据或播放资源。
+真实宿主默认 `llm`：熟悉池来自歌单已熟悉歌曲，探索池含歌单未听过歌曲和平台候选；`platform` 是显式兼容模式。自主选择不走输入曲库回退；用户 `next` 在默认候选耗尽后可经 `libraryFallback` 回退输入/已知/喜欢歌曲，并说明来源。
 
-支持 `pause`、`resume`、`next`、`requestTrack`、`setListening`、`setHumanPlayback`、`setDiscovery`、`setDiscoveryRate`、`setMode`、`stopForToday`、`chooseSelf`、`banTrack`、`unbanTrack`。模式值为 `normal`、`focus`、`silent`、`off`。禁播曲目的明确点播返回 `constraint_conflict`，由上层向用户呈现并获取本次例外意图；本阶段不暗中覆盖约束。
+歌单为有界歌名/艺人 JSON，平台元数据匹配后才可执行。核对单飞、最短间隔 1 分钟，每歌单每进程最多 10 次自动核对；登录缺失不计数，手动不受次数上限限制，新 callId 重置预算，替换/退出取消旧核对。
 
-`setQueue()` 和 `selectAutonomously()` 是调试与固定候选入口。`next` 优先取同一队列，队列为空时从本地选择器取候选，排除当前曲目并保留禁播/冷却过滤；用户换曲标为 `selectedBy=user`，暂停期间换曲保持暂停。到期的“今天别听”限制只失效，不自动解除暂停。
+`local-v5` 的真实评分保存在决策中，解释只读事实；筛选加入 `llmRank/llmReason` 与有界 `llmBoost`，未入选候选仍可用。默认规则含 30 分钟曲目冷却，精确参数见 [selection.mjs](../src/selection.mjs)。
 
-`library` Host 消息返回导入库总数及最多 300 首元数据；认证设置状态投影带同一库。主面板支持开始听歌、选择已导入曲目与 `requestTrack`；设置 RPC 只转发规范化的曲目字段，不接受音频 URL 或凭据。实测见 [P3](spikes/P3-real-loop.md)。
+## 5. 模型预留与账本
 
-## 存储与进程
+用途为 `persona-summary/model-recommendations/discovery-filter`，经 `persona-reserve → persona-start → persona-finish`，用预留时的事实映射和同一 token 账本。逐曲执行和解释不调用模型。
 
-首版 SQLite 迁移有 `settings`、`core_state`、`constraints`、`credential_references`、`processed_commands`、`listen_history` 和 `track_stats`。完成事件的历史插入与统计更新在一个事务中，`playInstanceId` 唯一。`selectedBy`、`agentListening`、`progressSource` 和 `audible` 分别记录，避免把点歌、逻辑进度和可听输出混作一件事。重启后保留曲目与位置，但强制暂停；不会用墙钟补算进度。数据库只保存凭据引用；Windows 的 DSH grant 加 DPAPI 方案已有合成测试，真实平台与 desktop profile 尚待验证。
+默认共享日预算 4000 tokens，可设 0–100000；输出 64–256，歌单至少 128。并发预留/运行只能一条，相同事实与模型复用缓存。未知 usage 按保守预留记账，失败不抹费用；重启把未结束调用标为 interrupted。
 
-Core 当前可由独立 Node 进程执行；[P0-01 样例](spikes/P0-01-dsh.md)已验证隔离 DSH Web profile 启动/清理子进程，[P0-04 样例](spikes/P0-04-playback.md)已验证 Windows 同用户管道控制独立播放器及重连。正式 DSH desktop 适配、播放实例/版本 IPC 和平台音频仍待验证。`node:sqlite` 在本机 Node 24.14.0 可用，但该版本仍给出实验性提示；升级或替换存储驱动前需要复测迁移与事务。
+总结/歌单遵循日尝试上限 3，当前查询覆盖当日全部音乐模型调用；筛选单独计数，每日最多 12 次。普通用途冷却 1 小时，筛选 15 分钟；已知用量的失败可有限手动重试。精确门控见 [persona.mjs](../src/persona.mjs)。
+
+自动总结默认关闭；开启需成功基线、沿用原路由、足够新增有效经历（默认 50 次）、至少 24 小时并复检预算。候选筛选属于 LLM 推荐模式，不要求自动总结开关，但仍受 due、冷却、次数与共享预算限制。
+
+歌单事实不发平台 ID，筛选事实含候选曲目键用于映射，不发凭据。A09 要求逐曲零模型请求、计划内调用门控及真实两小时对照。
+
+## 6. Playback 与有效进度
+
+`PlaybackService` 通过协议 v1 同用户命名管道控制独立 WPF 宿主：
+
+| 方法/事件 | 字段与要求 |
+|---|---|
+| `load` | `{resource, playInstanceId, startPositionMs, version, signal}`；媒体就绪返回实际 `{positionMs}`，无法 seek 返回 0 |
+| `play/pause/stop/setMuted` | 携带版本，拒绝旧命令；暂停/停止可取消 pending open |
+| `started` | 当前时间线确实推进后才发，系统 Play 返回不算证据 |
+| `progress` | 实例、版本、`positionMs/effectiveDeltaMs/progressSource`；只向前报，连续观测限定有效增量 |
+| `ended/error` | 当前实例/版本，结束带最终位置，错误保留分类 |
+
+断线主动要新快照，不用 supervisor 缓存判断资源是否还在。超时/写入异常拒绝所有等待者；宿主退出、所有者消失及 `dispose` 都停止音频。
+
+默认播放中逐个预热 5 个静音、不播放的持有者；`FISHFM_PLAYBACK_WARM_HOLDERS=0..8` 可覆盖，0 关闭。首曲仍冷，资源在临时目录生成；参数不是跨机器性能保证，见 [N19](spikes/N19-wpf-audio-warmup.md)、[N20](spikes/N20-review-fixes.md)。
+
+实例分别累计 `effectiveMs/agentEffectiveMs/audibleMs`，与位置分离。逻辑进度只接受已知时长，真实静听用音频静音。恢复起点、长缺口、seek 与睡眠不补计，未有效播放不能伪造收听。
+
+Provider 解析最多 3 次；自主不可播替换有有限预算，明确资源不可用排除 30 分钟，媒体打开超时/失败排除 5 分钟。账号/网络失败不写负面偏好，已知过期资源最多重新解析一次。见 [N1](spikes/N1-autonomous-accounting.md)、[N13](spikes/N13-crash-recovery-and-verification-bound.md)。
+
+## 7. 存储与恢复
+
+仓库 schema v11，高于支持版本时拒绝打开。主要数据域：
+
+| 数据域 | 实体 |
+|---|---|
+| 配置/控制 | `settings/core_state/constraints/processed_commands` |
+| 曲目/来源 | `tracks/seed_imports/user_environment/environment_sources/track_availability` |
+| 独立偏好 | `agent_preferences/session_influence/user_track_feedback` |
+| 播放/成长 | `listen_history/track_stats/growth_jobs` |
+| 账号/模型 | `credential_references/music_model_calls` |
+
+历史、统计与成长作业入队同事务，`playInstanceId` 幂等；成长可重放，不重复应用。RNG 随 Core 保存，重启保留曲目和位置但强制暂停，不用墙钟补进度。
+
+命令去重及已完成成长作业保留 30 天；未完成成长、历史、反馈、约束和模型账本保留。维护清理最多每小时一次，见 [N17](spikes/N17-p1-retention-a09.md)。数据位置与 DPAPI 跨设备限制见 [使用说明](DELIVERY.md)。
+
+诊断脱敏且有界，观察脚本只读，不能启动另一个 Core 或把模拟事件当生产证据。完整 DSH 请求/上下文和两小时对照仍未通过，状态统一在开发路线。

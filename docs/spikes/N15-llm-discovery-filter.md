@@ -1,6 +1,6 @@
 # N15：LLM 筛选的平台发现候选（探索池重排）
 
-日期：2026-10-05。设计见 [FEAT_LLM_DISCOVERY_FILTER](../FEAT_LLM_DISCOVERY_FILTER.md)。范围：`src/persona.mjs`（新用途与按用途预算）、`src/discovery.mjs`（排序戳记）、`src/core-host.mjs`（门控统一/候选事实/状态查询）、`src/persona-scheduler.mjs`（自动检查）、`src/selection.mjs`（llmBoost）、`src/insights.mjs`（理由回复）、`index.js` 与 `src/ui/dsh-settings.mjs`（手动触发）、`src/ui/client/*`（白话化）。
+日期：2026-10-05。设计见 [FEAT_LLM_DISCOVERY_FILTER](../design/FEAT_LLM_DISCOVERY_FILTER.md)。范围：`src/persona.mjs`（新用途与按用途预算）、`src/discovery.mjs`（排序戳记）、`src/core-host.mjs`（门控统一/候选事实/状态查询）、`src/persona-scheduler.mjs`（自动检查）、`src/selection.mjs`（llmBoost）、`src/insights.mjs`（理由回复）、`index.js` 与 `src/ui/dsh-settings.mjs`（手动触发）、`src/ui/client/*`（白话化）。
 
 ## 实现
 
