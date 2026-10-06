@@ -7,7 +7,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-test('FishFM local artwork whitelist serves GIF and extracted dolls and unloads cleanly', () => {
+test('FishFM bundled artwork whitelist serves all 11 assets and unloads cleanly', () => {
   const routes = new Map();
   let effectCleanup;
   let disposed = 0;
@@ -17,6 +17,8 @@ test('FishFM local artwork whitelist serves GIF and extracted dolls and unloads 
   });
   assert.deepEqual([...routes.keys()].sort(), [...clientArtwork().files.keys()].sort());
   assert.ok(routes.has('/fishfm/assets/whale-pot-dance.gif'));
+  assert.equal(routes.size, 11);
+  assert.deepEqual(clientArtwork().capabilities, { gif: true, dolls: ['glm', 'deepseek', 'claude', 'gemini', 'gpt', 'grok'] });
   const count = routes.size;
   for (const route of routes.values()) {
     const headers = {};
@@ -37,7 +39,7 @@ test('FishFM local artwork whitelist serves GIF and extracted dolls and unloads 
   assert.equal(routes.size, 0);
 });
 
-test('public package without optional artwork registers only three PNGs and reports no GIF or dolls', () => {
+test('an older or incomplete installation without effect artwork falls back to three PNGs', () => {
   const root = mkdtempSync(join(tmpdir(), 'fm-art-'));
   const routes = new Map();
   let cleanup;

@@ -21,6 +21,8 @@ for (const path of [
   'package.json', 'index.js', 'cordis.patch.yml', 'bin/fishfm-core.mjs',
   'src/ui/dsh-client.js', 'src/playback/host/wpf-media-host.ps1',
   'src/ui/assets/whale-idle.png', 'src/ui/assets/whale-listening.png', 'src/ui/assets/whale-dj.png',
+  'src/ui/assets/whale-pot-dance.gif', 'src/ui/assets/whale-pot-still.png',
+  ...['glm', 'deepseek', 'claude', 'gemini', 'gpt', 'grok'].map(name => `src/ui/assets/dolls/doll-${name}.png`),
   'LICENSE', 'THIRD_PARTY_NOTICES.md', 'DEPENDENCY_LICENSES.md', 'npm-shrinkwrap.json', 'docs/DELIVERY.md', 'CHANGELOG.md',
 ]) assert.ok(paths.has(path), `Missing runtime/release file: ${path}`);
 for (const path of paths) {
@@ -28,8 +30,8 @@ for (const path of paths) {
   // exclusions apply to our payload; dependency versions get installed-smoke checks.
   if (path.startsWith('node_modules/')) continue;
   assert.ok(!/^(?:test|scripts|spikes|prototypes|\.github|\.tmp|dist)\//.test(path), `Development file leaked: ${path}`);
-  assert.ok(!/(?:whale-pot|doll-.*\.png|\.dpapi|\.sqlite|\.cookie|\.secret|\.env(?:\.|$)|\.(?:wav|mp3|flac|m4a)$)/i.test(path), `Excluded asset/data leaked: ${path}`);
+  assert.ok(!/(?:\.dpapi|\.sqlite|\.cookie|\.secret|\.env(?:\.|$)|\.(?:wav|mp3|flac|m4a)$)/i.test(path), `Excluded asset/data leaked: ${path}`);
   assert.ok(path !== 'AGENTS.md', 'Agent instructions must not be shipped');
 }
-// The shared client can use optional local artwork only when the host reports it.
+// All playback artwork must be present in the payload; user data stays excluded.
 console.log(`Package verified: ${pack.filename}; ${pack.entryCount} files; ${(pack.size / 1e6).toFixed(2)} MB compressed`);

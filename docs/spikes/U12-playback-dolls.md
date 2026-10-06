@@ -7,12 +7,12 @@
 - 主面板/设置的图片下新增「动效关／动效开」按钮，默认关闭；`fishfm.playback.effects.v1` 只保存在浏览器本机，不发送 Core 命令。已有动态效果设置继续生效。
 - 开启且实际播放时主面板、设置、悬浮条共用原 `whale-pot-dance.gif`。暂停、准备、断连、关闭返回三张自有状态图；轻量/关闭动态或系统减少动态使用 `whale-pot-still.png`，不运行玩偶。
 - 只在主面板/设置显示六个玩偶，透明 Canvas 层不接收点击，不进入对话页面或桌面；视口和容器变化时重算边界，暂停/关闭/离开时取消帧循环和观察器，页面后台或图层不可见时停帧。
-- 原目录为 `D:/SteamLibrary/steamapps/workshop/content/431960/3811739493`。六张 `assets/doll-*.png` 原字节复制到忽略的 `src/ui/assets/dolls/`，保留透明度、比例和人物细节。文件 SHA-256、尺寸和来源见 [清单](U12-doll-assets.json)，可用 `node scripts/import-doll-artwork.mjs --source "D:/SteamLibrary/steamapps/workshop/content/431960/3811739493"` 复现提取。
+- 原目录为 `D:/SteamLibrary/steamapps/workshop/content/431960/3811739493`。六张 `assets/doll-*.png` 原字节复制到 `src/ui/assets/dolls/`，保留透明度、比例和人物细节。用户随后要求素材随包提供，该目录已纳入 Git/npm，普通安装不需要原目录。文件 SHA-256、尺寸和来源见 [清单](U12-doll-assets.json)，维护时可用 `node scripts/import-doll-artwork.mjs --source "D:/SteamLibrary/steamapps/workshop/content/431960/3811739493"` 复现提取。
 - 读取原 `app.js` / `physics.js` 的绘制与参数作为参考：6 个、请求大小 180px、移动速度 85px/s、旋转参数 0.45–1.35、碰撞半径比例 0.46、压扁/拉伸基幅 0.15、挤压上限 0.55、回速衰减 3 秒。面板原生实现碰壁、双体碰撞、弹性形变和有界初次飞散，不复制壁纸 JavaScript/音频/背景视频。图像大小与参考一样按容器网格自动缩小。形变使用本地周期时钟，**不是读取 WPF 音频节拍**。
 
-## 公共包边界
+## 素材随包提供（同日修订）
 
-公开 npm 的三张自有 PNG 保持必需，GIF/配套图/六张 doll PNG 不分发。宿主仅登记实际存在的固定白名单资源，并向认证 `fishfm/state` 返回 `features.artwork` 可用性；无素材的公开安装不会请求缺失图片，也不会阻止启动。第三方脚本/音乐没有加入插件。素材来源与许可边界见 [第三方声明](../../THIRD_PARTY_NOTICES.md)。原图本地提取不构成再分发许可。
+用户明确要求「素材一起打包进去，不让用户无法正常使用，然后 commit，push」，覆盖最初的本地素材排除策略。三张自有 PNG、锅盖 GIF、配套静态图和六张 doll PNG 共 11 个资源全部随仓库和 npm 包提供，打包检查将缺少任一资源视为失败；隔离安装检查必须返回 GIF 可用、六种 doll 齐备及 11 条正确 MIME/魔数的资源路由。宿主保留实际文件存在检查，用于旧版或不完整安装的降级，正常安装无需 Wallpaper Engine、原始目录或手动提取。第三方脚本/音乐没有加入插件。素材来源与许可边界见 [第三方声明](../../THIRD_PARTY_NOTICES.md)，作者许可不作新的已确认声明。
 
 ## 验证与加载状态
 
@@ -21,3 +21,5 @@
 全量 391 项测试通过（含真实 WPF 原有回归），126 模块检查、构建/调试冒烟、公开 npm payload 检查和验收引用审计 10/10（67 份文档，零断链）通过；最后对无素材开关显示/动画门控的微调又运行相关测试。原始六张素材完整 SHA-256 核对通过。隔离设置页、开关状态刷新保持、离开面板清理及控制台零 error/warn 也已验。截图作为本地交付保存在 `.tmp/U12-playback-effects.png`，不作为真实播放证据。
 
 当前本机 `desktop` profile 仍通过 `link:D:/AI项目/dsh-音乐` 使用源码；本轮没有重载生产插件，没有操作平台账号、生产曲库或播放。需要重新加载插件后使用新按钮，真实 DSH 中的播放动效验收仍待该次加载；已经发布的 npm beta 版本未更新。
+
+同日素材随包补验：两项资源路由/缺失降级测试通过；126 模块检查、构建与 debug smoke、打包必需资源检查和 67 份文档引用审计通过。六张 doll PNG 的 SHA-256 与原始清单全部一致。实际生成 `.tmp/u12-packaged-artwork/dsh-feiyufm-core-0.1.0-beta.1.tgz`（34,834,606 字节，4,870 个文件；SHA-1 `be92ba8636f1df84b5e77ab5eb39049e8ba24073`），在仓库外全新目录执行 `npm install --offline --ignore-scripts --no-audit --no-fund` 安装该 tarball，再运行 `scripts/verify-installed-package.mjs`，得到 `ALL-PASS`：GIF 可用、六种 doll 齐备、11 条正确 PNG/GIF MIME 与文件魔数资源路由、FTP 6.2.2、入口/Core/WPF 启动暂停退出通过。不需要原始 Workshop 目录；临时消费者安装目录验证后清理，本地安装包保留。包仍使用现有 beta 版本元信息作本地测试，本轮只提交/推送源码与素材，没有发布或覆盖 registry 上的旧版本。

@@ -27,16 +27,20 @@ const manifest = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
 assert.equal(manifest.version, '0.1.0-beta.1');
 assert.ok(existsSync(join(root, manifest.dsh.bundle.patch)));
 assert.ok(existsSync(join(root, manifest.exports['./client'])));
-assert.ok(!existsSync(join(root, 'src/ui/assets/whale-pot-dance.gif')));
+const { clientArtwork } = await import(pathToFileURL(join(root, 'src/ui/artwork-assets.mjs')));
+assert.deepEqual(clientArtwork().capabilities, { gif: true, dolls: ['glm', 'deepseek', 'claude', 'gemini', 'gpt', 'grok'] });
 const routes = new Map(), cleanups = [];
 plugin.registerClientAssets({ effect(work) { cleanups.push(work()); }, webServer: {
   register(route) { routes.set(route.path, route); return () => routes.delete(route.path); },
 } });
-assert.equal(routes.size, 3);
+assert.equal(routes.size, 11);
 for (const route of routes.values()) {
   route.handler({ method: 'GET' }, { writeHead(status, headers) {
-    assert.equal(status, 200); assert.equal(headers['content-type'], 'image/png');
-  }, end(body) { assert.ok(body.length > 0); } });
+    assert.equal(status, 200); assert.equal(headers['content-type'], route.path.endsWith('.gif') ? 'image/gif' : 'image/png');
+  }, end(body) {
+    assert.ok(route.path.endsWith('.gif') ? body.subarray(0, 6).toString() === 'GIF89a'
+      : body.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10])));
+  } });
 }
 for (const cleanup of cleanups) cleanup();
 

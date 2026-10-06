@@ -46,6 +46,3 @@ Thumbs.db
 
 # Tool state: hook reports and run history written by the local security hook.
 .mimosa/
-
-# User-selected local Workshop artwork; keep original source outside public Git/npm.
-src/ui/assets/dolls/

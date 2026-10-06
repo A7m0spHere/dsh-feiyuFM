@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 
 const defaultRoot = fileURLToPath(new URL('./assets/', import.meta.url));
 export const DOLL_NAMES = Object.freeze(['glm', 'deepseek', 'claude', 'gemini', 'gpt', 'grok']);
-// Optional local artwork is never required by the public npm installation.
+// Packages ship the full set. Keep graceful fallback for older/incomplete installs.
 export function clientArtwork(root = defaultRoot) {
   const files = new Map(['idle', 'listening', 'dj'].map(name =>
     [`/fishfm/assets/whale-${name}.png`, join(root, `whale-${name}.png`)]));

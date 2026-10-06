@@ -167,8 +167,8 @@ npm run debug             # JSON 行调试入口，使用假播放，不出声
 
 ## 许可与致谢
 
-项目原创代码与文档采用 [MIT License](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/LICENSE)。npm beta 包只分发自有三张角色状态 PNG；运行依赖的源码与许可随包保留，按各自许可使用，见 [第三方声明](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/THIRD_PARTY_NOTICES.md) 和 [依赖许可清单](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/DEPENDENCY_LICENSES.md)。
+项目原创代码与文档采用 [MIT License](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/LICENSE)。已发布的首个 npm beta 包使用自有三张角色状态 PNG；当前源码还将锅盖 GIF、配套静态图和六张 doll PNG 一起打包，安装后无需另行提取即可开启播放动效，该更新尚未发布到 npm。运行依赖的源码与许可随包保留，按各自许可使用，见 [第三方声明](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/THIRD_PARTY_NOTICES.md) 和 [依赖许可清单](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/DEPENDENCY_LICENSES.md)。
 
-仓库历史中的用户提供锅盖鲸鱼娘 GIF 及衍生素材作者与许可尚未确认，不分发到 npm，也不包含在本项目 MIT 授权范围内。本页界面截图使用自有状态图。
+用户提供锅盖鲸鱼娘 GIF、衍生素材及指定 Workshop 的 doll PNG 作者与许可尚未确认，不包含在本项目 MIT 授权范围内；保留各自来源和文件清单。本页界面截图使用自有状态图。
 
 感谢 DSH、网易云社区 API，以及提供 UI 风格和交互参考的 PHL、dsh-api-dashboard 与 DeepSeek Balance Whale Widget。具体版本、复用范围和声明见第三方文档。FishFM 为独立维护的社区项目。
