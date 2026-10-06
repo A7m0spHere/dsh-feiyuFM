@@ -82,6 +82,53 @@ test('public playback artwork uses owned state PNGs while playing and paused', a
   } finally { off(); f.dispose(); }
 });
 
+test('playback effects are opt-in, persist locally, stop with playback and never call Core', async () => {
+  let current = { ...snapshot(1), status: 'playing', paused: false };
+  const calls = [], storage = new Map();
+  const answer = () => ({ ok: true, value: { snapshot: current, features: { artwork: { gif: true, dolls: ['glm', 'deepseek'] } } } });
+  const f = fixture(async (...args) => { calls.push(args); return answer(); }, storage);
+  const off = f.controller.subscribe(() => {});
+  const images = tree => all(tree).filter(node => node.type === 'img');
+  try {
+    await tick();
+    assert.ok(images(f.render()).some(node => node.props.src.endsWith('whale-listening.png')));
+    const count = calls.length;
+    all(f.render()).find(node => node.props['aria-label'] === '播放动效').props.onClick();
+    assert.equal(calls.length, count, 'a visual preference never calls the music service');
+    assert.equal(storage.get('fishfm.playback.effects.v1'), 'true');
+    assert.ok(images(f.render()).some(node => node.props.src.endsWith('.gif')));
+    assert.ok(all(f.render()).some(node => node.type === 'canvas'));
+    f.controller.setMotion('reduced');
+    assert.ok(images(f.render()).some(node => node.props.src.endsWith('whale-pot-still.png')));
+    assert.equal(all(f.render()).some(node => node.type === 'canvas'), false);
+    f.controller.setMotion('full');
+    current = { ...current, paused: true, status: 'paused', revision: 2 };
+    await f.controller.refresh();
+    assert.ok(images(f.render()).some(node => node.props.src.endsWith('whale-idle.png')));
+    assert.equal(all(f.render()).some(node => node.type === 'canvas'), false);
+    const remount = fixture(async () => answer(), storage);
+    assert.equal(remount.controller.getSnapshot().playbackEffects, true);
+    remount.dispose();
+    current = { ...current, paused: false, status: 'playing', revision: 3 };
+    await f.controller.refresh();
+    f.controller.setPlaybackEffects(false);
+    assert.ok(images(f.render()).some(node => node.props.src.endsWith('whale-listening.png')));
+    assert.equal(all(f.render()).some(node => node.type === 'canvas'), false);
+  } finally { off(); f.dispose(); }
+});
+
+test('a saved effects preference cannot request absent artwork in the public package', async () => {
+  const f = fixture(async () => state({ ...snapshot(1), status: 'playing', paused: false }), new Map([['fishfm.playback.effects.v1', 'true']]));
+  const off = f.controller.subscribe(() => {});
+  try {
+    await tick();
+    const tree = all(f.render());
+    assert.ok(tree.filter(node => node.type === 'img').every(node => !node.props.src.includes('whale-pot')));
+    assert.equal(tree.find(node => node.props['aria-label'] === '播放动效').props.disabled, true);
+    assert.equal(tree.some(node => node.type === 'canvas'), false);
+  } finally { off(); f.dispose(); }
+});
+
 test('an empty LLM playlist offers real verification instead of reconnecting and refreshes the playlist projection',async()=>{
  const calls=[],playlist={songs:[{title:'Song',artist:'Artist'}],verified:[],attempts:[]};
  const f=fixture(async(_channel,endpoint,payload)=>{

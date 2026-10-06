@@ -1,0 +1,65 @@
+{
+  "source": "D:/SteamLibrary/steamapps/workshop/content/431960/3811739493/assets",
+  "files": [
+    {
+      "file": "doll-claude.png",
+      "sha256": "aeb3fa1104ebf67f759be2409fdb187ee5209e5dcb1c6b07a64f3a05887af2c8",
+      "bytes": 447424,
+      "size": [
+        560,
+        560
+      ],
+      "mode": "RGBA"
+    },
+    {
+      "file": "doll-deepseek.png",
+      "sha256": "57f8f03058b98744bbe487f38cf6e6225b6dd2c10a751361fea77c8224c7446a",
+      "bytes": 292749,
+      "size": [
+        560,
+        560
+      ],
+      "mode": "RGBA"
+    },
+    {
+      "file": "doll-gemini.png",
+      "sha256": "fce757532a844506573afe40dcfa20a966f070ef5fd12957deb10731f1a1eb59",
+      "bytes": 488321,
+      "size": [
+        560,
+        560
+      ],
+      "mode": "RGBA"
+    },
+    {
+      "file": "doll-glm.png",
+      "sha256": "c458585126945e9644b3cdc44c445eb0c3aa95a031c598d8ad1a751675025b3b",
+      "bytes": 2181070,
+      "size": [
+        1254,
+        1254
+      ],
+      "mode": "RGBA"
+    },
+    {
+      "file": "doll-gpt.png",
+      "sha256": "90d223f2ad90370a1f49ee04c0943179dcb499596f4f5e9a497305e495932e7a",
+      "bytes": 381935,
+      "size": [
+        560,
+        560
+      ],
+      "mode": "RGBA"
+    },
+    {
+      "file": "doll-grok.png",
+      "sha256": "756fbba25ffee1179e943c1b176a315427112ee8366d180c486b37112be6a0fe",
+      "bytes": 2695893,
+      "size": [
+        1254,
+        1254
+      ],
+      "mode": "RGBA"
+    }
+  ]
+}

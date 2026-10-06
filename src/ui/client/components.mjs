@@ -18,10 +18,13 @@ export function StatusMark({ active }) {
     : h('i', { className: 'fm-dot', 'data-off': true, 'aria-hidden': true });
 }
 
-export function PlaybackArtwork({ art, alt = '' }) {
+export function PlaybackArtwork({ art, active, motion, effects, available, alt = '' }) {
   const base = '/fishfm/assets/';
-  // Public packages only ship the project's three generated state images.
-  return h('picture', null, h('img', { src: base + `${art}.png`, alt }));
+  const dancing = effects && available && active;
+  const still = dancing ? 'whale-pot-still.png' : `${art}.png`;
+  return h('picture', null,
+    h('source', { media: '(prefers-reduced-motion: reduce)', srcSet: base + still }),
+    h('img', { src: base + (dancing && (motion || 'full') === 'full' ? 'whale-pot-dance.gif' : still), alt }));
 }
 
 /**

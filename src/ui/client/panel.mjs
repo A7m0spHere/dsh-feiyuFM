@@ -5,6 +5,7 @@ import { Svg, StatusMark, PlaybackArtwork, useSmoothProgress } from './component
 import { Library } from './library.mjs';
 import {Persona} from './persona.mjs';
 import {FeedbackSettings} from './feedback.mjs';
+import { DollLayer } from './dolls.mjs';
 export function Panel({ controller, back, close }) {
   const state = React.useSyncExternalStore(controller.subscribe, controller.getSnapshot);
   const snapshot = state.snapshot;
@@ -144,7 +145,9 @@ export function Panel({ controller, back, close }) {
             h('span', null, state.widgetVisible ? '离开面板后显示，可拖动吸附。' : '悬浮条已隐藏，可随时显示。')))));
   const grid = h('div', { className: 'fm-grid' }, ...(close?[controlsColumn,preferencesColumn]:[preferencesColumn,controlsColumn]));
 
-  return h('div', { className: 'fishfm', 'data-view':close?'settings':'main', 'data-motion': state.motion || 'full' }, h('div', { className: 'fm-wrap' },
+  return h('div', { className: 'fishfm', 'data-view':close?'settings':'main', 'data-motion': state.motion || 'full' },
+    h(DollLayer, { active: presentation.active && state.playbackEffects && state.features?.artwork?.gif, motion: state.motion, names: state.features?.artwork?.dolls }),
+    h('div', { className: 'fm-wrap' },
     h('header', { className: 'fm-top' },
       h('div', { className: 'fm-heading' }, h('span', { className: 'fm-brand', 'aria-hidden': true }, h(Svg, { type: 'headphones' })),
         h('div', null, h('h1', null, '肥鱼电台'), h('p', { className: 'fm-subtitle' }, '你的音乐环境，DeepSeek 的听歌偏好。'))),
@@ -152,7 +155,12 @@ export function Panel({ controller, back, close }) {
         'aria-pressed': state.widgetVisible, 'aria-label': '显示或隐藏悬浮条', onClick: () => controller.setWidgetVisible(!state.widgetVisible) }, state.widgetVisible ? '悬浮条已显示' : '显示悬浮条'),
       h('button', { type: 'button', className: 'fm-button', onClick: close || back }, close ? '关闭设置' : '返回对话'))),
     h('section', { className: 'fm-hero', 'aria-label': '当前播放' },
-      h('div', { className: 'fm-art' }, h(PlaybackArtwork, { art, active: presentation.active, motion: state.motion, alt: '鲸鱼娘音乐状态' })),
+      h('div', { className: 'fm-art' }, h(PlaybackArtwork, { art, active: presentation.active, motion: state.motion,
+        effects: state.playbackEffects, available: state.features?.artwork?.gif, alt: '鲸鱼娘音乐状态' }),
+        h('button', { type: 'button', className: 'fm-button fm-effects-toggle', 'aria-label': '播放动效',
+          'aria-pressed': Boolean(state.playbackEffects && state.features?.artwork?.gif), disabled: !state.features?.artwork?.gif,
+          title: state.features?.artwork?.gif ? '播放时显示动图和飞散玩偶' : '本机没有安装动效素材',
+          onClick: () => controller.setPlaybackEffects(!state.playbackEffects) }, state.playbackEffects && state.features?.artwork?.gif ? '动效开' : '动效关')),
       h('div', { className: 'fm-hero-copy' },
         h('div', { className: 'fm-live', role: 'status' }, h(StatusMark, { active: presentation.active }), presentation.label),
         h('div', { className: 'fm-track-swap', key: current?.playInstanceId || 'empty' },

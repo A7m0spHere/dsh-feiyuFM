@@ -57,6 +57,10 @@ window.__ModuleLoader__.load({
         height:100%; min-height:0; overflow:auto; overscroll-behavior:contain;
         animation:fm-page-in var(--fm-page) var(--fm-ease) both; }
       .fishfm h1,.fishfm h2,.fishfm p { margin:0; }
+      .fm-doll-anchor { position:sticky; top:0; height:0; z-index:5; pointer-events:none; }
+      .fm-doll-layer { display:block; position:absolute; top:0; left:0; pointer-events:none; }
+      .fm-art .fm-effects-toggle { margin-top:4px; min-height:28px; padding:3px 8px; font-size:10px; z-index:6; }
+      .fm-effects-toggle[aria-pressed=true] { color:var(--fm-accent-ink); border-color:var(--fm-accent); background:var(--fm-accent-soft); }
       .fm-top { display:flex; align-items:flex-start; flex-wrap:wrap; gap:12px;
         margin-bottom:20px; }
       .fm-heading { display:flex; align-items:center; gap:10px; min-width:0; flex:1; }
@@ -383,6 +387,7 @@ window.__ModuleLoader__.load({
     const WIDGET_VISIBLE_KEY = 'fishfm.widget.visible.v1';
     const WIDGET_POSITION_KEY = 'fishfm.widget.position.v1';
     const MOTION_KEY = 'fishfm.motion.v1';
+    const PLAYBACK_EFFECTS_KEY = 'fishfm.playback.effects.v1';
     const readPreference = (key, fallback) => {
       try {
         const value = window.localStorage.getItem(key);
@@ -399,6 +404,7 @@ window.__ModuleLoader__.load({
         login: null, imported: null, importAttempts: [], library: { total: 0, tracks: [] },
         widgetVisible: readPreference(WIDGET_VISIBLE_KEY, true) !== false,
         widgetPosition: readPreference(WIDGET_POSITION_KEY, null),
+        playbackEffects: readPreference(PLAYBACK_EFFECTS_KEY, false) === true,
         motion: ['full', 'reduced', 'off'].includes(readPreference(MOTION_KEY, 'full')) ? readPreference(MOTION_KEY, 'full') : 'full',
       };
       let epoch = 0, timer, read, write,summaryWrite, disposed = false;
@@ -430,6 +436,10 @@ window.__ModuleLoader__.load({
       }
       return {
         getSnapshot: () => state,
+        setPlaybackEffects(value) {
+          writePreference(PLAYBACK_EFFECTS_KEY, value === true);
+          emit({ playbackEffects: value === true });
+        },
         setMotion(level) {
           if (!['full', 'reduced', 'off'].includes(level)) return;
           writePreference(MOTION_KEY, level);
@@ -578,10 +588,13 @@ window.__ModuleLoader__.load({
         : h('i', { className: 'fm-dot', 'data-off': true, 'aria-hidden': true });
     }
 
-    function PlaybackArtwork({ art, alt = '' }) {
+    function PlaybackArtwork({ art, active, motion, effects, available, alt = '' }) {
       const base = '/fishfm/assets/';
-      // Public packages only ship the project's three generated state images.
-      return h('picture', null, h('img', { src: base + `${art}.png`, alt }));
+      const dancing = effects && available && active;
+      const still = dancing ? 'whale-pot-still.png' : `${art}.png`;
+      return h('picture', null,
+        h('source', { media: '(prefers-reduced-motion: reduce)', srcSet: base + still }),
+        h('img', { src: base + (dancing && (motion || 'full') === 'full' ? 'whale-pot-dance.gif' : still), alt }));
     }
 
     /**
@@ -659,6 +672,178 @@ window.__ModuleLoader__.load({
       return h('button', { type: 'button', className: 'fm-handle', 'aria-label': '向下滑动或按下收起快捷控制', title: '向下滑动收起',
         onPointerDown: down, onPointerMove: move, onPointerUp: end, onPointerCancel: end,
         onClick: (e) => { if (e.detail === 0) onClose(); } }, h('span', { className: 'fm-handle-bar' }));
+    }
+
+    // src/ui/client/doll-world.mjs
+    // Original panel simulation. Workshop parameters and image proportions are
+    // recorded in U12; no Workshop JavaScript is bundled into FishFM.
+    const dollClamp = (value, low, high) => Math.max(low, Math.min(high, value));
+    function dollShape(body) {
+      const width = body.size * Math.min(1, body.aspect) * (1 + body.squash);
+      const baseHeight = body.size / Math.max(1, body.aspect);
+      const height = baseHeight * (1 - body.squash);
+      const offset = (baseHeight - height) / 2;
+      const c = Math.abs(Math.cos(body.angle)), s = Math.abs(Math.sin(body.angle));
+      return { width, height, offset, dx: -offset * Math.sin(body.angle), dy: offset * Math.cos(body.angle),
+        hx: (width * c + height * s) / 2, hy: (width * s + height * c) / 2 };
+    }
+
+    function createDollWorld(width, height, aspects, random = Math.random) {
+      const bodies = aspects.map(aspect => ({ aspect, x: 0, y: 0, size: 1, vx: 0, vy: 0,
+        angle: random() * Math.PI * 2, spin: (random() < .5 ? -1 : 1) * (.45 + random() * .9),
+        squash: 0, spring: 0, pressure: 0 }));
+      const world = { width: 1, height: 1, bodies, elapsed: 0, resize, step };
+      function resize(w, h) {
+        const oldWidth = world.width, oldHeight = world.height;
+        world.width = Math.max(1, w); world.height = Math.max(1, h);
+        const cols = Math.max(1, Math.min(bodies.length, Math.ceil(Math.sqrt(bodies.length * world.width / world.height))));
+        const rows = Math.max(1, Math.ceil(bodies.length / cols));
+        const size = Math.min(180, world.width / cols / 1.45, world.height / rows / 1.45);
+        bodies.forEach((body, index) => {
+          body.size = size;
+          if (oldWidth === 1 && oldHeight === 1) {
+            body.x = (index % cols + .5) * world.width / cols;
+            body.y = (Math.floor(index / cols) + .5) * world.height / rows;
+            const direction = random() * Math.PI * 2;
+            // One short scatter, followed by the reference's normal 85 px/s drift.
+            body.vx = Math.cos(direction) * 255; body.vy = Math.sin(direction) * 255;
+          } else { body.x *= world.width / oldWidth; body.y *= world.height / oldHeight; }
+          walls(body);
+        });
+      }
+      function walls(body) {
+        const g = dollShape(body);
+        const left = Math.min(world.width / 2, g.hx - g.dx), right = Math.max(world.width / 2, world.width - g.hx - g.dx);
+        const top = Math.min(world.height / 2, g.hy - g.dy), bottom = Math.max(world.height / 2, world.height - g.hy - g.dy);
+        if (body.x < left || body.x > right) {
+          body.x = dollClamp(body.x, left, right);
+          if ((body.x === left && body.vx < 0) || (body.x === right && body.vx > 0)) body.vx *= -1;
+        }
+        if (body.y < top || body.y > bottom) {
+          body.y = dollClamp(body.y, top, bottom);
+          if ((body.y === top && body.vy < 0) || (body.y === bottom && body.vy > 0)) body.vy *= -1;
+        }
+      }
+      function step(seconds) {
+        const dt = dollClamp(seconds, 0, .05), steps = Math.max(1, Math.ceil(dt * 120)), h = dt / steps;
+        for (let tick = 0; tick < steps; tick++) {
+          world.elapsed += h;
+          // A local animation clock, not a measurement of WPF audio or song beats.
+          const phase = world.elapsed % 1.15;
+          const pulse = phase < .5 ? Math.cos(phase / .5 * Math.PI * 2) * .15 : 0;
+          for (const body of bodies) {
+            const speed = Math.hypot(body.vx, body.vy);
+            if (speed > .001) {
+              const next = 85 + (speed - 85) * Math.exp(-4.8 / 3 * h);
+              body.vx *= next / speed; body.vy *= next / speed;
+            }
+            body.x += body.vx * h; body.y += body.vy * h;
+            body.angle = (body.angle + body.spin * h) % (Math.PI * 2);
+            const target = body.pressure > .02 ? Math.min(.5, .14 + body.pressure * .38) : pulse;
+            body.spring += (1000 * (target - body.squash) - 52 * body.spring) * h;
+            body.squash = dollClamp(body.squash + body.spring * h, -.15, .55);
+            body.pressure *= Math.exp(-h / .18);
+            walls(body);
+          }
+          for (let i = 0; i < bodies.length; i++) for (let j = i + 1; j < bodies.length; j++) {
+            const a = bodies[i], b = bodies[j], dx = b.x - a.x, dy = b.y - a.y;
+            const distance = Math.hypot(dx, dy), reach = (a.size + b.size) * .46;
+            if (distance >= reach) continue;
+            const nx = distance > .001 ? dx / distance : 1, ny = distance > .001 ? dy / distance : 0;
+            const ia = 1 / (a.size * a.size), ib = 1 / (b.size * b.size), sum = ia + ib;
+            const overlap = reach - distance;
+            a.x -= nx * overlap * ia / sum; a.y -= ny * overlap * ia / sum;
+            b.x += nx * overlap * ib / sum; b.y += ny * overlap * ib / sum;
+            const closing = (b.vx - a.vx) * nx + (b.vy - a.vy) * ny;
+            if (closing < 0) {
+              a.vx += 2 * closing * nx * ia / sum; a.vy += 2 * closing * ny * ia / sum;
+              b.vx -= 2 * closing * nx * ib / sum; b.vy -= 2 * closing * ny * ib / sum;
+              a.pressure = b.pressure = Math.min(1, .35 + Math.abs(closing) / 600);
+            }
+            walls(a); walls(b);
+          }
+        }
+      }
+      resize(width, height);
+      return world;
+    }
+
+    // src/ui/client/dolls.mjs
+    const dollIds = ['glm', 'deepseek', 'claude', 'gemini', 'gpt', 'grok'];
+    function DollLayer({ active, motion, names = [] }) {
+      const canvasRef = React.useRef(null);
+      const [reduced, setReduced] = React.useState(() => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false);
+      React.useEffect(() => {
+        const media = window.matchMedia?.('(prefers-reduced-motion: reduce)');
+        if (!media) return undefined;
+        const change = () => setReduced(media.matches);
+        media.addEventListener?.('change', change);
+        return () => media.removeEventListener?.('change', change);
+      }, []);
+      const key = dollIds.filter(name => names.includes(name)).join(',');
+      const running = active && (motion || 'full') === 'full' && !reduced && Boolean(key);
+      React.useEffect(() => {
+        const canvas = canvasRef.current;
+        if (!running || !canvas) return undefined;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return undefined;
+        const panel = canvas.closest('.fishfm');
+        let disposed = false, frame = 0, previous = null, visible = true, world;
+        let width = 1, height = 1, ratio = 1;
+        const sprites = [];
+        const resize = () => {
+          const style = window.getComputedStyle(panel);
+          width = Math.max(1, panel.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight));
+          height = Math.max(1, Math.min(panel.clientHeight, window.innerHeight - Math.max(0, panel.getBoundingClientRect().top))
+            - parseFloat(style.paddingTop) - parseFloat(style.paddingBottom));
+          ratio = Math.min(window.devicePixelRatio || 1, 1.5);
+          canvas.width = Math.round(width * ratio); canvas.height = Math.round(height * ratio);
+          canvas.style.width = `${width}px`; canvas.style.height = `${height}px`;
+          world?.resize(width, height);
+        };
+        const draw = now => {
+          frame = 0;
+          if (disposed || document.hidden || !visible) { previous = null; return; }
+          world.step(previous === null ? 0 : (now - previous) / 1000); previous = now;
+          ctx.setTransform(ratio, 0, 0, ratio, 0, 0); ctx.clearRect(0, 0, width, height);
+          world.bodies.forEach((body, index) => {
+            const g = dollShape(body);
+            ctx.save(); ctx.translate(body.x, body.y); ctx.rotate(body.angle);
+            ctx.drawImage(sprites[index], -g.width / 2, g.offset - g.height / 2, g.width, g.height);
+            ctx.restore();
+          });
+          frame = window.requestAnimationFrame(draw);
+        };
+        const resume = () => {
+          if (!disposed && world && !document.hidden && visible && !frame) frame = window.requestAnimationFrame(draw);
+          else if ((document.hidden || !visible) && frame) { window.cancelAnimationFrame(frame); frame = 0; previous = null; }
+        };
+        const observer = new ResizeObserver(resize); observer.observe(panel);
+        const intersection = typeof IntersectionObserver === 'function' ? new IntersectionObserver(entries => {
+          visible = entries[0]?.isIntersecting === true; resume();
+        }) : null;
+        intersection?.observe(canvas);
+        document.addEventListener('visibilitychange', resume);
+        resize();
+        const requests = key.split(',').map(name => new Promise(resolve => {
+          const image = new Image(); image.onload = () => resolve(image); image.onerror = () => resolve(null);
+          image.src = `/fishfm/assets/dolls/doll-${name}.png`;
+        }));
+        Promise.all(requests).then(images => {
+          if (disposed) return;
+          sprites.push(...images.filter(Boolean));
+          if (!sprites.length) return;
+          world = createDollWorld(width, height, sprites.map(image => image.naturalWidth / image.naturalHeight));
+          canvas.dataset.dolls = String(sprites.length); resume();
+        });
+        return () => {
+          disposed = true; window.cancelAnimationFrame(frame); observer.disconnect(); intersection?.disconnect();
+          document.removeEventListener('visibilitychange', resume);
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+        };
+      }, [running, key]);
+      return running ? h('div', { className: 'fm-doll-anchor', 'aria-hidden': true },
+        h('canvas', { className: 'fm-doll-layer', ref: canvasRef })) : null;
     }
 
     // src/ui/client/library.mjs
@@ -954,7 +1139,9 @@ window.__ModuleLoader__.load({
                 h('span', null, state.widgetVisible ? '离开面板后显示，可拖动吸附。' : '悬浮条已隐藏，可随时显示。')))));
       const grid = h('div', { className: 'fm-grid' }, ...(close?[controlsColumn,preferencesColumn]:[preferencesColumn,controlsColumn]));
 
-      return h('div', { className: 'fishfm', 'data-view':close?'settings':'main', 'data-motion': state.motion || 'full' }, h('div', { className: 'fm-wrap' },
+      return h('div', { className: 'fishfm', 'data-view':close?'settings':'main', 'data-motion': state.motion || 'full' },
+        h(DollLayer, { active: presentation.active && state.playbackEffects && state.features?.artwork?.gif, motion: state.motion, names: state.features?.artwork?.dolls }),
+        h('div', { className: 'fm-wrap' },
         h('header', { className: 'fm-top' },
           h('div', { className: 'fm-heading' }, h('span', { className: 'fm-brand', 'aria-hidden': true }, h(Svg, { type: 'headphones' })),
             h('div', null, h('h1', null, '肥鱼电台'), h('p', { className: 'fm-subtitle' }, '你的音乐环境，DeepSeek 的听歌偏好。'))),
@@ -962,7 +1149,12 @@ window.__ModuleLoader__.load({
             'aria-pressed': state.widgetVisible, 'aria-label': '显示或隐藏悬浮条', onClick: () => controller.setWidgetVisible(!state.widgetVisible) }, state.widgetVisible ? '悬浮条已显示' : '显示悬浮条'),
           h('button', { type: 'button', className: 'fm-button', onClick: close || back }, close ? '关闭设置' : '返回对话'))),
         h('section', { className: 'fm-hero', 'aria-label': '当前播放' },
-          h('div', { className: 'fm-art' }, h(PlaybackArtwork, { art, active: presentation.active, motion: state.motion, alt: '鲸鱼娘音乐状态' })),
+          h('div', { className: 'fm-art' }, h(PlaybackArtwork, { art, active: presentation.active, motion: state.motion,
+            effects: state.playbackEffects, available: state.features?.artwork?.gif, alt: '鲸鱼娘音乐状态' }),
+            h('button', { type: 'button', className: 'fm-button fm-effects-toggle', 'aria-label': '播放动效',
+              'aria-pressed': Boolean(state.playbackEffects && state.features?.artwork?.gif), disabled: !state.features?.artwork?.gif,
+              title: state.features?.artwork?.gif ? '播放时显示动图和飞散玩偶' : '本机没有安装动效素材',
+              onClick: () => controller.setPlaybackEffects(!state.playbackEffects) }, state.playbackEffects && state.features?.artwork?.gif ? '动效开' : '动效关')),
           h('div', { className: 'fm-hero-copy' },
             h('div', { className: 'fm-live', role: 'status' }, h(StatusMark, { active: presentation.active }), presentation.label),
             h('div', { className: 'fm-track-swap', key: current?.playInstanceId || 'empty' },
@@ -1180,7 +1372,8 @@ window.__ModuleLoader__.load({
             onPointerDown: dragStart, onPointerMove: dragMove, onPointerUp: dragEnd, onPointerCancel: dragEnd, onKeyDown: nudge }, h(Svg, { type: 'grip' })),
           h('button', { ref: triggerRef, type: 'button', className: 'fm-float-trigger', 'aria-expanded': expanded, 'aria-controls': 'fishfm-quick-controls',
             onClick: () => expanded ? closeOverlay() : openDrawer() },
-            h('span', { className: 'fm-float-art', 'aria-hidden': true }, h(PlaybackArtwork, { art: image, active: presentation.active, motion: state.motion })),
+              h('span', { className: 'fm-float-art', 'aria-hidden': true }, h(PlaybackArtwork, { art: image, active: presentation.active, motion: state.motion,
+                effects: state.playbackEffects, available: state.features?.artwork?.gif })),
             h('span', { className: 'fm-float-copy' }, h('span', { className: 'fm-float-title' }, current?.track?.title || '肥鱼电台 · 待命'),
               h('span', { className: 'fm-float-artist' }, current?.track?.artist || (state.connected ? '点击展开快捷控制' : '连接本地音乐服务中')),
               h('span', { className: 'fm-float-status' }, h(StatusMark, { active: presentation.active }), presentation.label))),

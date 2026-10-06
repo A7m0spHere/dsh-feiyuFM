@@ -1,6 +1,7 @@
 // DSH 0.2.0-rc.1 Connection contract; no new HTTP listener or model tools.
 import { randomUUID } from 'node:crypto';
 import QRCode from 'qrcode';
+import { artworkCapabilities } from './artwork-assets.mjs';
 import { assertCommand, normalizeTrack } from '../contracts.mjs';
 import { NETEASE_QR_LOGIN_URL } from '../providers/endpoints/netease.mjs';
 
@@ -57,7 +58,7 @@ async function readSettingsState(bridge, signal) {
   ]);
   // Publish only the UI projection, never credentials or media handles.
   return { snapshot: state.snapshot, platforms: platforms.platforms, library: library.library, insights:insights?.insights,persona:persona?.persona,
-    features: { discoveryRefresh: true,importSources:true,insights:true } };
+    features: { discoveryRefresh: true,importSources:true,insights:true, artwork: artworkCapabilities } };
 }
 
 export function createSettingsHandler(bridge,summaryService={current:null}) {

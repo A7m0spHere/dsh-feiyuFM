@@ -2,7 +2,9 @@
 
 本项目原创代码和文档采用 [MIT License](LICENSE)，许可文本使用 [Open Source Initiative 的 MIT 原文](https://opensource.org/license/mit)。以下第三方内容保留各自的许可、版权与来源；本项目的 MIT 不改变其授权范围。依赖版本与许可可在 `npm-shrinkwrap.json` 和 [DEPENDENCY_LICENSES](DEPENDENCY_LICENSES.md) 核对。首包封装依赖树，保留其源码与原始许可文件；LGPL/BSD 等许可不被项目 MIT 改写。
 
-用户提供的锅盖鲸鱼娘 GIF、`src/ui/assets/whale-pot-dance.gif`、`src/ui/assets/whale-pot-still.png` 及 README 截图中对应的角色图像，作者与许可尚未确认，**明确排除在本项目 MIT 授权范围外**。它们的处理过程不构成新的原作授权。自 `0.1.0-beta.1` 起公开 npm 包不分发上述 GIF/衍生图，界面使用自有三张状态 PNG；历史原文件保留供来源核对。
+用户提供的锅盖鲸鱼娘 GIF、`src/ui/assets/whale-pot-dance.gif`、`src/ui/assets/whale-pot-still.png` 及 README 截图中对应的角色图像，作者与许可尚未确认，**明确排除在本项目 MIT 授权范围外**。它们的处理过程不构成新的原作授权。自 `0.1.0-beta.1` 起公开 npm 包不分发上述 GIF/衍生图，默认使用自有三张状态 PNG；本地素材齐备时可通过图片下的播放动效开关启用，历史原文件保留供来源核对。
+
+2026-10-07 用户指定本机 Wallpaper Engine Workshop `431960/3811739493`（项目标题/描述以当地 `project.json` 为准，描述含 `BV1AQam6dESR`）的六张 `assets/doll-{glm,deepseek,claude,gemini,gpt,grok}.png` 用于本地面板动效。PNG 原字节复制到忽略的 `src/ui/assets/dolls/`，没有重画、裁切或重采样；尺寸、SHA-256 与提取路径见 [U12 素材清单](docs/spikes/U12-doll-assets.json)。该目录未提供许可文件，作者/再分发许可未确认，不归入本项目 MIT、不进入公开 Git/npm。`scripts/import-doll-artwork.mjs` 可从用户指定的原目录重建本地素材。壁纸 `physics.js` / `app.js` 只用作运动与参数参考，没有复制其 JavaScript、音乐或视频；FishFM 的六体碰撞、旋转和形变由本项目代码实现。
 
 `assets/readme/hero.svg` 为本项目绘制的静态矢量介绍，按 MIT 提供；`panel.png` 和 `panel-dark.png` 来自 2026-10-05 当前客户端的隔离预览，展示模拟数据与暂停状态，角色使用本项目此前生成的 `whale-idle.png`，未展示上述锅盖鲸鱼娘素材。截图不构成真实账号或模型效果证据。
 

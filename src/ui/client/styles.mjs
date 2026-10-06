@@ -51,6 +51,10 @@ export const css = `
     height:100%; min-height:0; overflow:auto; overscroll-behavior:contain;
     animation:fm-page-in var(--fm-page) var(--fm-ease) both; }
   .fishfm h1,.fishfm h2,.fishfm p { margin:0; }
+  .fm-doll-anchor { position:sticky; top:0; height:0; z-index:5; pointer-events:none; }
+  .fm-doll-layer { display:block; position:absolute; top:0; left:0; pointer-events:none; }
+  .fm-art .fm-effects-toggle { margin-top:4px; min-height:28px; padding:3px 8px; font-size:10px; z-index:6; }
+  .fm-effects-toggle[aria-pressed=true] { color:var(--fm-accent-ink); border-color:var(--fm-accent); background:var(--fm-accent-soft); }
   .fm-top { display:flex; align-items:flex-start; flex-wrap:wrap; gap:12px;
     margin-bottom:20px; }
   .fm-heading { display:flex; align-items:center; gap:10px; min-width:0; flex:1; }

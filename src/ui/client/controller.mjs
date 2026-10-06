@@ -2,6 +2,7 @@ import { sourceNames } from './shared.mjs';
 const WIDGET_VISIBLE_KEY = 'fishfm.widget.visible.v1';
 const WIDGET_POSITION_KEY = 'fishfm.widget.position.v1';
 const MOTION_KEY = 'fishfm.motion.v1';
+const PLAYBACK_EFFECTS_KEY = 'fishfm.playback.effects.v1';
 const readPreference = (key, fallback) => {
   try {
     const value = window.localStorage.getItem(key);
@@ -18,6 +19,7 @@ export function createController(connection) {
     login: null, imported: null, importAttempts: [], library: { total: 0, tracks: [] },
     widgetVisible: readPreference(WIDGET_VISIBLE_KEY, true) !== false,
     widgetPosition: readPreference(WIDGET_POSITION_KEY, null),
+    playbackEffects: readPreference(PLAYBACK_EFFECTS_KEY, false) === true,
     motion: ['full', 'reduced', 'off'].includes(readPreference(MOTION_KEY, 'full')) ? readPreference(MOTION_KEY, 'full') : 'full',
   };
   let epoch = 0, timer, read, write,summaryWrite, disposed = false;
@@ -49,6 +51,10 @@ export function createController(connection) {
   }
   return {
     getSnapshot: () => state,
+    setPlaybackEffects(value) {
+      writePreference(PLAYBACK_EFFECTS_KEY, value === true);
+      emit({ playbackEffects: value === true });
+    },
     setMotion(level) {
       if (!['full', 'reduced', 'off'].includes(level)) return;
       writePreference(MOTION_KEY, level);

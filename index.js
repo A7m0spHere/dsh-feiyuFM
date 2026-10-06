@@ -13,6 +13,7 @@
 //   - `session/event` delivers `{ type, seq, time, data }`.
 import { spawn } from 'node:child_process';
 import { readFileSync } from 'node:fs';
+import { clientArtwork } from './src/ui/artwork-assets.mjs';
 import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -50,15 +51,9 @@ const DEFAULT_SETTINGS = Object.freeze({
 });
 
 const here = dirname(fileURLToPath(import.meta.url));
-const CLIENT_ASSETS = Object.freeze({
-  '/fishfm/assets/whale-idle.png': join(here, 'src', 'ui', 'assets', 'whale-idle.png'),
-  '/fishfm/assets/whale-listening.png': join(here, 'src', 'ui', 'assets', 'whale-listening.png'),
-  '/fishfm/assets/whale-dj.png': join(here, 'src', 'ui', 'assets', 'whale-dj.png'),
-});
-
-export function registerClientAssets(ctx) {
+export function registerClientAssets(ctx, { assetRoot } = {}) {
   ctx.effect(() => {
-    const routes = Object.entries(CLIENT_ASSETS).map(([path, file]) => {
+    const routes = [...clientArtwork(assetRoot).files].map(([path, file]) => {
       const body = readFileSync(file);
       return ctx.webServer.register({
         kind: 'exact', path,
