@@ -16,7 +16,9 @@
 
 ## 安装
 
-在 DSH 的「插件 → 添加插件」输入 `dsh-feiyufm-core@0.1.0-beta.1` 并启用；跟随 beta 更新用 `dsh-feiyufm-core@beta`。包管理器会安装 bundle 并读取其 patch，不需要用户手改 profile 文件。
+FishFM 以 npm 包分发，通过 DSH 安装到当前 profile。在侧栏「插件 → 添加插件」的「包名或地址」中输入 `dsh-feiyufm-core@0.1.0-beta.1`，安装完成后点击「立即启用」；跟随 beta 更新用 `dsh-feiyufm-core@beta`。下载失败可切换「安装源 → npm 官方源」。DSH 会安装 bundle、读取 patch 并登记插件，无需手改 profile；单独 `npm install` 不会完成这一步。机制见 [DSH 官方安装说明](https://deepseek-harness.github.io/deepseek-harness/en/develop/basic/publish)。
+
+已安装 DSH CLI 的用户可通过 `dsh plugin --profile web add dsh-feiyufm-core@0.1.0-beta.1 --registry https://registry.npmjs.org/` 安装到 Web profile；`web` 要对应实际启动的 profile，安装后重启该实例。桌面版使用上述应用内入口。
 
 支持 Windows、DSH 本机验证版本 `0.2.0-rc.2`；桌面宿主自带兼容 Node 24 时无需单独安装 Node。QQ 与其他系统不在首包已验证范围内。
 
@@ -34,7 +36,7 @@
 
 ## 更新
 
-通过 DSH 插件管理器更新明确版本，或使用 `dsh-feiyufm-core@beta`。保存代码或下载成功不代表旧宿主已加载新模块；合适时机重载，必要时正常退出 DSH（含托盘）再启动。重启期间音乐会中断。
+DSH `0.2.0-rc.2` 的插件页暂不支持自动更新。先在插件管理器卸载 FishFM，再添加新版固定版本或 `dsh-feiyufm-core@beta`，安装完成后点击「立即启用」。必要时正常退出 DSH（含托盘）再启动；卸载或重启期间音乐会中断。
 
 数据库与凭据位于 DSH 数据目录，不在 npm 包目录。不要手动删除数据库来完成升级；使用同一 profile 保留原数据，升级后核对歌曲、偏好与暂停状态。
 

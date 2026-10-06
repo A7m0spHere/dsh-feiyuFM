@@ -79,19 +79,34 @@
 
 ### 安装到 DSH
 
-在 DSH「插件 → 添加插件」输入以下包名，安装后启用：
+FishFM 以 npm 包分发，但需要通过 DSH 安装到它的 profile。DSH 会下载包、读取 `dsh.bundle` 并登记插件；单独运行 `npm install dsh-feiyufm-core` 不会完成 DSH 的安装与启用。[官方打包与安装说明](https://deepseek-harness.github.io/deepseek-harness/en/develop/basic/publish)
+
+在 DSH 侧栏打开「插件 → 添加插件」，在「包名或地址」中输入：
 
 ```text
 dsh-feiyufm-core@beta
 ```
 
-固定安装当前版本用 `dsh-feiyufm-core@0.1.0-beta.1`。安装和启用都通过 DSH 插件管理器完成。
+固定安装当前版本用 `dsh-feiyufm-core@0.1.0-beta.1`。等待安装完成后点击 **立即启用**；下载失败时可将「安装源」切换为「npm 官方源」再试。
 
 1. 点击侧栏 **肥鱼电台**，或进入 **设置 → 肥鱼电台**。
 2. 在网易云卡片扫码、手机确认，再导入音乐并点播。
 3. 模型功能使用你自己在 DSH 中配置的模型；不需要模型即可点播输入歌曲。
 
-更新时在插件管理器选择新的 beta 版本，并重载插件；必要时正常退出 DSH（含托盘）再启动。已有 workspace 安装应在插件管理器中更换来源，同一 profile 只启用一份 FishFM。使用同一 profile 保留原有数据，升级后核对曲库、偏好与暂停状态。
+DSH `0.2.0-rc.2` 的插件页暂不支持自动更新。升级时先在插件管理器卸载 FishFM，再添加 `dsh-feiyufm-core@beta` 或新版的固定版本，并点击「立即启用」。已有 workspace 安装也按此方式更换来源，同一 profile 只启用一份 FishFM。数据保存在 DSH 数据目录，升级时使用同一 profile，不删除数据库，之后核对曲库、偏好与暂停状态。
+
+<details>
+<summary>使用已安装的 DSH CLI 添加插件</summary>
+
+以 Web profile 为例，在 Windows 终端执行：
+
+```sh
+dsh plugin --profile web add dsh-feiyufm-core@0.1.0-beta.1 --registry https://registry.npmjs.org/
+```
+
+`web` 必须对应你实际使用的 profile；安装后重启该 DSH 实例。桌面版用户直接使用上面的应用内插件管理器。
+
+</details>
 
 安装、更新、数据位置和常见问题见 [使用说明](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/DELIVERY.md)。首次播放仍可能等待数秒，性能边界见下方 [当前进度](#当前进度)。
 
