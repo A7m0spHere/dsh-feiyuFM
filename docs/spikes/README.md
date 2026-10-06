@@ -46,6 +46,7 @@ N7/R2 的短跑或合成演练不能替代 A09 两小时验收；U3/U4 等 PHL �
 | [U10](U10-user-gif-cutout.md) | U10 用户 GIF 逐帧背景移除 |
 | [U11](U11-mode-autonomy-restore.md) | U11：模式恢复声音与「今天停止」恢复入口修复 |
 | [U12](U12-playback-dolls.md) | U12：本地播放动效开关、锅盖 GIF 与飞散玩偶 |
+| [U13](U13-easter-review-fixes.md) | U13：彩蛋跨窗口状态同步与高窄视口裁切修复 |
 
 ## 平台与音频基础
 

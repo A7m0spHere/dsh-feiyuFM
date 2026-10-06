@@ -40,7 +40,7 @@ export function DollLayer({ active, motion, names = [] }) {
       world.step(previous === null ? 0 : (now - previous) / 1000); previous = now;
       ctx.setTransform(ratio, 0, 0, ratio, 0, 0); ctx.clearRect(0, 0, width, height);
       world.bodies.forEach((body, index) => {
-        const g = dollShape(body);
+        const g = dollShape(body, world);
         ctx.save(); ctx.translate(body.x, body.y); ctx.rotate(body.angle);
         ctx.drawImage(sprites[index], -g.width / 2, g.offset - g.height / 2, g.width, g.height);
         ctx.restore();

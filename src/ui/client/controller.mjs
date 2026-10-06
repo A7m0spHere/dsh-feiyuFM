@@ -25,6 +25,13 @@ export function createController(connection) {
   let epoch = 0, timer, read, write,summaryWrite, disposed = false;
   const listeners = new Set();
   const emit = (patch) => { if (!disposed) {if(patch.persona?.generatedAt<state.persona?.generatedAt){patch={...patch};delete patch.persona;} if(patch.error==='')patch={...patch,errorCode:null};state = { ...state, ...patch }; listeners.forEach(fn => fn()); } };
+  const syncPlaybackEffects = event => {
+    if (event.key !== PLAYBACK_EFFECTS_KEY && event.key !== null) return;
+    try { if (event.storageArea !== window.localStorage) return; } catch { return; }
+    const value = readPreference(PLAYBACK_EFFECTS_KEY, false) === true;
+    if (value !== state.playbackEffects) emit({ playbackEffects: value });
+  };
+  window.addEventListener?.('storage', syncPlaybackEffects);
   const failure = error => `${error?.message || '音乐服务连接失败，请刷新重试。'}${error?.code ? ` (${error.code})` : ''}`;
   async function refresh() {
     if (disposed || state.busy || read) return;
@@ -181,6 +188,7 @@ export function createController(connection) {
       }catch(error){emit({summaryError:failure(error),summaryNotice:'本地选歌和旧总结仍保留。'});}
       finally{clearTimeout(timeout);summaryWrite=null;emit({summaryBusy:false});}
     },
-    dispose() { disposed = true; ++epoch; clearInterval(timer); read?.abort(); write?.abort();summaryWrite?.abort(); listeners.clear(); },
+    dispose() { disposed = true; ++epoch; clearInterval(timer); read?.abort(); write?.abort();summaryWrite?.abort(); listeners.clear();
+      window.removeEventListener?.('storage', syncPlaybackEffects); },
   };
 }

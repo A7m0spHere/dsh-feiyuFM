@@ -6,6 +6,8 @@ import { runInNewContext } from 'node:vm';
 function fixture(call, storage = new Map()) {
   const registrations = [], effects = [], styles = [];
   const intervals = new Set();
+  const windowListeners = new Map();
+  const localStorage = { getItem: key => storage.get(key) ?? null, setItem: (key, value) => storage.set(key, value) };
   const hooks = new Map();
   let activeHooks = null, cursor = 0;
   let bundle;
@@ -31,7 +33,9 @@ function fixture(call, storage = new Map()) {
     useEffect() {}, useId: () => `rate-${cursor++}`, Fragment: 'fragment',
   };
   runInNewContext(readFileSync(new URL('../src/ui/dsh-client.js', import.meta.url), 'utf8'), {
-    window: { localStorage: { getItem: key => storage.get(key) ?? null, setItem: (key, value) => storage.set(key, value) },
+    window: { localStorage,
+      addEventListener(name, handler) { if (!windowListeners.has(name)) windowListeners.set(name, new Set()); windowListeners.get(name).add(handler); },
+      removeEventListener(name, handler) { windowListeners.get(name)?.delete(handler); },
       __ModuleLoader__: { load(value) { bundle = value.factory(name => { assert.equal(name, 'react'); return React; }); } } },
     document: { hidden: false, activeElement: { focus() {} }, createElement: () => ({ dataset: {}, remove() { styles.pop(); } }), head: { appendChild(el) { styles.push(el); } } },
     AbortController, setTimeout, clearTimeout,
@@ -53,7 +57,8 @@ function fixture(call, storage = new Map()) {
     activeHooks = null;
     return tree;
   };
-  return { registrations, controller, intervals, styles, storage,
+  return { registrations, controller, intervals, styles, storage, windowListeners,
+    dispatchStorage(key, area = localStorage) { windowListeners.get('storage')?.forEach(handler => handler({ key, storageArea: area })); },
     render: props => renderComponent(panel, props),
     renderOverlay: props => renderComponent(overlay, props),
     dispose() { effects.forEach(fn => fn()); },
@@ -134,6 +139,38 @@ test('a saved effects preference cannot request absent artwork in the public pac
     assert.equal(tree.find(node => node.props['aria-label'] === '小开关').props.disabled, true);
     assert.equal(tree.some(node => node.type === 'canvas'), false);
   } finally { off(); f.dispose(); }
+});
+
+test('the easter switch follows localStorage changes in another renderer without sending Core commands', async () => {
+  const storage = new Map(), calls = [];
+  const answer = async (...args) => { calls.push(args); return { ok: true, value: {
+    snapshot: { ...snapshot(1), paused: false, status: 'playing' }, features: { artwork: { gif: true, dolls: ['glm'] } },
+  } }; };
+  const a = fixture(answer, storage), b = fixture(answer, storage);
+  const offA = a.controller.subscribe(() => {}), offB = b.controller.subscribe(() => {});
+  const hasGif = f => all(f.render()).some(node => node.type === 'img' && node.props.src.endsWith('.gif'));
+  try {
+    await tick();
+    const count = calls.length;
+    a.controller.setPlaybackEffects(true);
+    b.dispatchStorage('fishfm.playback.effects.v1');
+    assert.equal(b.controller.getSnapshot().playbackEffects, true);
+    assert.ok(hasGif(b));
+    a.controller.setPlaybackEffects(false);
+    b.dispatchStorage('fishfm.playback.effects.v1', {});
+    assert.equal(b.controller.getSnapshot().playbackEffects, true, 'sessionStorage must not change this preference');
+    b.dispatchStorage('fishfm.playback.effects.v1');
+    assert.equal(b.controller.getSnapshot().playbackEffects, false);
+    assert.equal(hasGif(b), false);
+    a.controller.setPlaybackEffects(true);
+    b.dispatchStorage('unrelated-key');
+    assert.equal(b.controller.getSnapshot().playbackEffects, false);
+    b.dispatchStorage('fishfm.playback.effects.v1');
+    storage.clear(); b.dispatchStorage(null);
+    assert.equal(b.controller.getSnapshot().playbackEffects, false);
+    assert.equal(calls.length, count, 'cross-window visual changes do not call Core');
+  } finally { offA(); offB(); a.dispose(); b.dispose(); }
+  assert.equal(b.windowListeners.get('storage')?.size, 0);
 });
 
 test('an empty LLM playlist offers real verification instead of reconnecting and refreshes the playlist projection',async()=>{

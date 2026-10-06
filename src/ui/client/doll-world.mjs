@@ -1,14 +1,20 @@
 // Original panel simulation. Workshop parameters and image proportions are
 // recorded in U12; no Workshop JavaScript is bundled into FishFM.
 const dollClamp = (value, low, high) => Math.max(low, Math.min(high, value));
-export function dollShape(body) {
+export function dollShape(body, viewport) {
   const width = body.size * Math.min(1, body.aspect) * (1 + body.squash);
   const baseHeight = body.size / Math.max(1, body.aspect);
   const height = baseHeight * (1 - body.squash);
   const offset = (baseHeight - height) / 2;
   const c = Math.abs(Math.cos(body.angle)), s = Math.abs(Math.sin(body.angle));
-  return { width, height, offset, dx: -offset * Math.sin(body.angle), dy: offset * Math.cos(body.angle),
-    hx: (width * c + height * s) / 2, hy: (width * s + height * c) / 2 };
+  const dx = -offset * Math.sin(body.angle), dy = offset * Math.cos(body.angle);
+  const hx = (width * c + height * s) / 2, hy = (width * s + height * c) / 2;
+  // Deformation and rotation can outgrow a narrow viewport even after the
+  // grid fits. Scale the full visual envelope, including its anchored offset.
+  const fit = Math.min(1, (viewport?.width ?? Infinity) / Math.max(1e-9, 2 * (hx + Math.abs(dx))),
+    (viewport?.height ?? Infinity) / Math.max(1e-9, 2 * (hy + Math.abs(dy))));
+  return { width: width * fit, height: height * fit, offset: offset * fit,
+    dx: dx * fit, dy: dy * fit, hx: hx * fit, hy: hy * fit };
 }
 
 export function createDollWorld(width, height, aspects, random = Math.random) {
@@ -35,7 +41,7 @@ export function createDollWorld(width, height, aspects, random = Math.random) {
     });
   }
   function walls(body) {
-    const g = dollShape(body);
+    const g = dollShape(body, world);
     const left = Math.min(world.width / 2, g.hx - g.dx), right = Math.max(world.width / 2, world.width - g.hx - g.dx);
     const top = Math.min(world.height / 2, g.hy - g.dy), bottom = Math.max(world.height / 2, world.height - g.hy - g.dy);
     if (body.x < left || body.x > right) {
