@@ -131,12 +131,13 @@ export function Panel({ controller, back, close }) {
               onChange: e => setRate(Number(e.target.value)) }),
             h('div', { className: 'fm-save-line' }, h('span', { className: 'fm-save', role: 'status', 'aria-live': 'polite' }, state.notice || '开关即时保存；探索率需点击保存。'),
               h('button', { type: 'button', className: 'fm-button', disabled: disabled || !settings.discovery || rate === Math.round(settings.discoveryRate * 100),
-                onClick: () => controller.command('setDiscoveryRate', rate / 100) }, '保存'))))),
+                onClick: () => controller.command('setDiscoveryRate', rate / 100) }, '保存'))))));
+  const management = h('div', {className:'fm-management','aria-label':'曲库与界面设置'},
         h('section', null, h('h2', null, '输入与连接',h('small',null,'LIBRARY')),
           h('details',{className:'fm-input-library'},h('summary',null,close?'输入音乐 · 查看和点播':`输入曲库 · ${state.library?.total??0} 首（展开查看）`),h(Library,{state,controller})),
           h('details',{className:'fm-platform-details fm-input-library'},h('summary',null,'音乐平台',h('span',{className:'fm-disclosure-meta'},accountHint)),platformSection)),
         h(FeedbackSettings,{state,controller}),
-        h('section', null, h('details', { className: 'fm-card fm-interface-details' }, h('summary',null,'界面与悬浮条'),
+        h('section', null, h('h2', null, '界面选项', h('small', null, 'INTERFACE')), h('details', { className: 'fm-card fm-interface-details' }, h('summary',null,'界面与悬浮条'),
           h('div', { className: 'fm-motion-row' }, h('label', { htmlFor: `${rateId}-motion` }, '动态效果'),
             h('select', { id: `${rateId}-motion`, 'aria-label': '动态效果', value: state.motion || 'full', onChange: event => controller.setMotion(event.target.value) },
               h('option', { value: 'full' }, '完整'), h('option', { value: 'reduced' }, '轻量'), h('option', { value: 'off' }, '关闭'))),
@@ -200,6 +201,6 @@ export function Panel({ controller, back, close }) {
     snapshot?.blockUntil > Date.now() && h('div', { className: 'fm-notice' }, '今天已停止自主听歌。到期后仍会保持暂停，直到你主动恢复。',
       h('button', { className: 'fm-button', type: 'button', disabled: state.busy || !state.connected,
         onClick: () => controller.command('chooseSelf') }, '恢复自主听歌')),
-    grid,
+    grid, management,
     h('footer', { className: 'fm-foot' }, h('span', null, '设置和登录材料保存在本机 · 关闭面板不会结束音乐服务'), h('span', null, '逐曲回复由本地规则生成 · 模型总结按需调用'))));
 }
