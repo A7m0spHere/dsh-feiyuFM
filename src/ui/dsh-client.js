@@ -357,6 +357,16 @@ window.__ModuleLoader__.load({
       return { label: '电台待命', art: 'whale-idle', active: false };
     }
 
+    function playbackNotice(snapshot) {
+      if (!snapshot?.lastError) return null;
+      if (snapshot.status === 'resolving' && snapshot.current?.recoveryAttempts > 0) {
+        return '播放中断，正在尝试从上次位置恢复这首歌…';
+      }
+      if (snapshot.lastError.code === 'media_stalled') return '播放长时间卡住，自动恢复未成功。可以重新点播或换一首。';
+      if (snapshot.lastError.code === 'playback_host_lost') return '播放服务中断，自动恢复未成功。可以重新点播。';
+      return '播放尚未成功，请核对平台连接和曲目权限。';
+    }
+
     function filterLibrary(tracks, query) {
       const needle = String(query ?? '').trim().toLocaleLowerCase();
       return (tracks ?? []).filter(track => !needle || `${track.title || ''} ${track.artist || ''} ${track.providerTrackId || ''}`.toLocaleLowerCase().includes(needle));
@@ -1203,7 +1213,7 @@ window.__ModuleLoader__.load({
           ' ', h('button', { className: 'fm-button', type: 'button', disabled: state.busy,
             onClick: state.errorCode==='no_candidates'&&state.insights?.recommendationMode==='llm'?()=>controller.platformAction('discovery','netease'):controller.refresh },
             state.errorCode==='no_candidates'&&state.insights?.recommendationMode==='llm'?'重新核对歌单':state.connected?'刷新状态':'重新连接')),
-        snapshot?.lastError && h('div', { className: 'fm-notice', role: 'status' }, `播放尚未成功：${snapshot.lastError.code || 'playback_failed'}。请核对平台连接和曲目权限。`),
+        snapshot?.lastError && h('div', { className: 'fm-notice', role: 'status' }, playbackNotice(snapshot)),
         snapshot?.blockUntil > Date.now() && h('div', { className: 'fm-notice' }, '今天已停止自主听歌。到期后仍会保持暂停，直到你主动恢复。',
           h('button', { className: 'fm-button', type: 'button', disabled: state.busy || !state.connected,
             onClick: () => controller.command('chooseSelf') }, '恢复自主听歌')),
@@ -1362,6 +1372,7 @@ window.__ModuleLoader__.load({
               ' ', h('button', { className: 'fm-button', type: 'button', disabled: state.busy,
                 onClick: state.errorCode === 'no_candidates' && state.insights?.recommendationMode === 'llm' ? () => controller.platformAction('discovery', 'netease') : controller.refresh },
                 state.errorCode === 'no_candidates' && state.insights?.recommendationMode === 'llm' ? '重新核对歌单' : state.connected ? '刷新状态' : '重新连接')),
+            snapshot?.lastError && h('div', { className: 'fm-notice', role: 'status' }, playbackNotice(snapshot)),
             h('div', { className: 'fm-float-controls' },
               h('button', { type: 'button', className: 'fm-button fm-primary', disabled: blocked || (!current && !state.library?.total && !snapshot?.queue?.length),
                 'aria-label': !current ? '开始听歌' : paused ? '继续播放' : '暂停', onClick: () => controller.playOrPause() }, h(Svg, { type: !current || paused ? 'play' : 'pause' }), !current ? '开始听歌' : paused ? '继续播放' : '暂停'),

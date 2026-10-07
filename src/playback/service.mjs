@@ -48,6 +48,8 @@ export class PlaybackService {
     this.lastProgressAt = 0;
     this.lastEffectiveAt = performance.now();
     this.recoveries = 0;
+    this._recovery = null;
+    this._recoveryContext = null;
     this.capabilities = { seek: null, mute: null };
 
     supervisor.onMessage = (message) => this._onHostMessage(message);
@@ -231,6 +233,7 @@ export class PlaybackService {
           version: active.version,
           code: typeof message.code === 'string' && message.code ? message.code : 'playback_error',
           message: typeof message.message === 'string' && message.message ? message.message : 'Playback failed',
+          retryable: message.retryable === true,
         });
       }
     }
@@ -273,6 +276,7 @@ export class PlaybackService {
   _adoptState(state) {
     const active = this.active;
     if (!active || active.finished) return;
+    if (Number.isFinite(state.version) && state.version < active.version) return;
     if (state.playInstanceId && state.playInstanceId === active.playInstanceId) {
       const positionMs = Number(state.positionMs);
       this.lastEffectiveAt = performance.now();
@@ -283,6 +287,13 @@ export class PlaybackService {
       if (state.status === 'playing' && !active.started) {
         active.started = true;
         this._emit({ type: 'started', playInstanceId: active.playInstanceId, version: active.version });
+      }
+      if (state.status === 'ended' || state.status === 'error') {
+        // The terminal event may have happened while the pipe was disconnected.
+        // Adopt the host fact once, without crediting the unobserved interval.
+        this._onHostMessage({ type: 'event', event: state.status, playInstanceId: active.playInstanceId,
+          version: active.version, positionMs: active.positionMs,
+          code: state.errorCode, message: state.errorMessage, retryable: state.retryable });
       }
       return;
     }
@@ -300,42 +311,42 @@ export class PlaybackService {
     // these: it budgets the reconnect of a *playing* track, and spending it on a
     // failed load would leave a later, recoverable drop with no retries left.
     if (!active || active.finished) return;
-    this._recover(error).catch(() => {});
+    const previous = this._recoveryContext;
+    if (previous?.active === active && previous.version === active.version) return;
+    const context = { active, version: active.version };
+    this._recoveryContext = context;
+    this._recovery = this._recover(error).catch(() => {}).finally(() => {
+      if (this._recoveryContext === context) {
+        this._recovery = null;
+        this._recoveryContext = null;
+      }
+    });
   }
 
   async _recover(error) {
     const active = this.active;
     if (!active) return;
-    if (this.recoveries >= this.maxRecoveries) {
-      this._failActive('playback_host_lost',
-        `Audio host connection kept failing: ${error?.message ?? 'unknown error'}`);
-      return;
+    const version = active.version;
+    const stillCurrent = () => !this.closing && this.active === active && active.version === version;
+    let failure = error;
+    for (let attempt = 0; attempt < this.maxRecoveries && stillCurrent(); attempt += 1) {
+      this.recoveries = attempt + 1;
+      try {
+        await this.supervisor.ensureHost();
+        if (!stillCurrent()) return;
+        // Cached greeting state cannot prove the track survived the disconnect.
+        const state = await this.hostSnapshot();
+        if (!stillCurrent()) return;
+        if (!state) throw playbackError('playback_host_lost', 'Audio host did not answer a state request');
+        this._adoptState(state);
+        this.recoveries = 0;
+        if (stillCurrent()) this.onLog({ type: 'reconnected', playInstanceId: active.playInstanceId, positionMs: active.positionMs });
+        return;
+      } catch (caught) {
+        failure = caught;
+      }
     }
-    this.recoveries += 1;
-    try {
-      await this.supervisor.ensureHost();
-    } catch (failure) {
-      this._failActive('playback_host_lost', `Audio host is unavailable: ${failure.message}`);
-      return;
-    }
-    if (this.active !== active) return;
-    // Ask the host for a fresh snapshot. The supervisor's cached state may be
-    // stale (it still holds whatever the first handshake reported), and treating
-    // that as current would kill a track the host is still playing.
-    let state = null;
-    try {
-      state = await this.hostSnapshot();
-    } catch {
-      state = null;
-    }
-    if (!state) {
-      this._failActive('playback_host_lost', 'Audio host did not answer a state request after reconnecting');
-      return;
-    }
-    this._adoptState(state);
-    if (this.active === active) {
-      this.recoveries = 0;
-      this.onLog({ type: 'reconnected', playInstanceId: active.playInstanceId, positionMs: active.positionMs });
-    }
+    if (stillCurrent()) this._failActive('playback_host_lost',
+      `Audio host connection kept failing: ${failure?.message ?? 'unknown error'}`);
   }
 }

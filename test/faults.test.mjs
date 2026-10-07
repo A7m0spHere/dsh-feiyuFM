@@ -147,6 +147,99 @@ test('the expiry bookkeeping stays bounded and never stores a handle', async () 
   }
 });
 
+for (const code of ['playback_host_lost', 'media_stalled', 'media_failed']) {
+  test(`an interruption (${code}) restores the same listen once from its last position`, async () => {
+    const h = harness();
+    try {
+      h.send('setHumanPlayback', { value: false });
+      h.send('requestTrack', { track });
+      await h.core.waitForIdle();
+      const before = h.core.snapshot();
+      const instance = before.current.playInstanceId;
+      h.playback.emit({ type: 'progress', playInstanceId: instance, positionMs: 4200, effectiveDeltaMs: 1200 });
+      const interrupted = { type: 'error', playInstanceId: instance, version: before.commandVersion,
+        code, message: 'interrupted', retryable: true };
+      assert.equal(h.core.onPlaybackEvent(interrupted), true);
+      assert.equal(h.core.onPlaybackEvent(interrupted), false, 'duplicate old errors cannot end the recovery');
+      await h.core.waitForIdle();
+      const restored = h.core.snapshot();
+      assert.equal(restored.status, 'playing');
+      assert.equal(restored.current.playInstanceId, instance);
+      assert.equal(restored.current.positionMs, 4200);
+      assert.equal(restored.current.effectiveMs, 1200, 'recovery invents no listening time');
+      assert.equal(h.playback.loaded.positionMs, 4200);
+      assert.equal(h.playback.muted, true);
+      assert.equal(h.provider.calls.length, 2);
+      assert.equal(h.store.getHistory(instance), null);
+      assert.equal(restored.lastError, null);
+      h.playback.emit({ type: 'error', playInstanceId: instance, version: restored.commandVersion,
+        code, message: 'still interrupted', retryable: true });
+      await h.core.waitForIdle();
+      assert.equal(h.provider.calls.length, 2, 'repeated failure cannot retry forever');
+      assert.equal(h.core.snapshot().status, 'error');
+      assert.equal(h.store.getHistory(instance).effective_ms, 1200);
+      assert.equal(h.store.getHistory(instance).end_reason, 'error');
+    } finally { h.store.close(); }
+  });
+}
+
+test('pause cancels an interruption recovery and a late resolve cannot resume audio', async () => {
+  const h = harness();
+  try {
+    h.send('requestTrack', { track });
+    await h.core.waitForIdle();
+    const instance = h.core.snapshot().current.playInstanceId;
+    h.provider.defer(track);
+    h.playback.emit({ type: 'error', playInstanceId: instance, code: 'media_stalled' });
+    for (let turn = 0; h.provider.calls.length < 2 && turn < 100; turn++) await new Promise(resolve => setImmediate(resolve));
+    assert.equal(h.provider.calls.length, 2, 'recovery must reach resolve');
+    h.send('pause');
+    h.provider.release(track);
+    await h.core.waitForIdle();
+    assert.equal(h.core.snapshot().paused, true);
+    assert.equal(h.playback.playing, false);
+    assert.equal(h.playback.calls.filter(call => call.type === 'play').length, 1);
+  } finally { h.store.close(); }
+});
+
+test('a new user track supersedes an interruption recovery', async () => {
+  const h = harness();
+  try {
+    h.send('requestTrack', { track });
+    await h.core.waitForIdle();
+    const instance = h.core.snapshot().current.playInstanceId;
+    h.provider.defer(track);
+    h.playback.emit({ type: 'error', playInstanceId: instance, code: 'playback_host_lost' });
+    for (let turn = 0; h.provider.calls.length < 2 && turn < 100; turn++) await new Promise(resolve => setImmediate(resolve));
+    assert.equal(h.provider.calls.length, 2, 'recovery must reach resolve');
+    const next = { ...track, providerTrackId: 'new-user-track' };
+    h.send('requestTrack', { track: next });
+    h.provider.release(track);
+    await h.core.waitForIdle();
+    assert.equal(h.core.snapshot().current.track.providerTrackId, next.providerTrackId);
+    assert.equal(h.core.snapshot().status, 'playing');
+    assert.equal(h.playback.calls.filter(call => call.type === 'play').length, 2);
+  } finally { h.store.close(); }
+});
+
+test('a failed recovery load records the already heard segment exactly once', async () => {
+  const h = harness();
+  try {
+    h.send('requestTrack', { track });
+    await h.core.waitForIdle();
+    const instance = h.core.snapshot().current.playInstanceId;
+    h.playback.emit({ type: 'progress', playInstanceId: instance, positionMs: 5000, effectiveDeltaMs: 1500 });
+    h.playback.failNextLoad();
+    h.playback.emit({ type: 'error', playInstanceId: instance, code: 'media_stalled' });
+    await h.core.waitForIdle();
+    assert.equal(h.core.snapshot().current, null);
+    assert.equal(h.core.snapshot().status, 'error');
+    assert.equal(h.store.getHistory(instance).effective_ms, 1500);
+    assert.equal(h.store.getHistory(instance).end_reason, 'error');
+    assert.equal(h.store.db.prepare('SELECT COUNT(*) AS n FROM listen_history WHERE play_instance_id = ?').get(instance).n, 1);
+  } finally { h.store.close(); }
+});
+
 test('a login that expired mid-session stops music honestly instead of pretending', async () => {
   const store = new MusicStore();
   importSeedTracks({ store, provider: 'netease', source: 'recent', requested: 1, tracks: [track] });

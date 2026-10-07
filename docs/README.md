@@ -22,7 +22,7 @@
 | [spikes](spikes/README.md) | N/U/P/T/I/R/A 各轮实现与实测报告，含截图和元数据附件；不作为实时账号或部署探针 |
 | [releases](releases/README.md) | 公开包的范围、摘要、安装/界面验证与发布确认 |
 
-最近的彩蛋、素材随包与实包验证见 [U12](spikes/U12-playback-dolls.md)，跨窗口状态与高窄布局修复见 [U13](spikes/U13-easter-review-fixes.md)。393 项源码验证、已发布首包与历史本地包的区别统一看 [开发路线](PROJECT_PLAN.md) 首页。
+最近的彩蛋、素材随包与实包验证见 [U12](spikes/U12-playback-dolls.md)，跨窗口状态与高窄布局修复见 [U13](spikes/U13-easter-review-fixes.md)。播放中断与断线续播修复、408 项源码验证见 [N21](spikes/N21-playback-interruption-recovery.md)；已发布首包与历史本地包的区别统一看 [开发路线](PROJECT_PLAN.md) 首页。
 
 播放/通信检查修复见 [N20](spikes/N20-review-fixes.md)。N19 的旧四持有者阈值已在 N20 修订；PHL 与早期未登录记录不代表当前官方桌面状态。
 

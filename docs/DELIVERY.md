@@ -1,6 +1,6 @@
 # 交付与使用说明
 
-更新日期：2026-10-07。已发布首包为 **0.1.0-beta.1 Windows／网易云测试版**，尚未完成稳定 v0.1 验收。`main` 已包含 U12/U13 彩蛋与修复，但没有发布新的 npm 版本；普通 `@beta` 安装仍取得首包。本文说明安装与使用，发行确认和摘要见 [首包记录](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/releases/0.1.0-beta.1.md)，源码/发布/实包与验收状态统一见 [开发路线](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/PROJECT_PLAN.md)。
+更新日期：2026-10-07。已发布首包为 **0.1.0-beta.1 Windows／网易云测试版**，尚未完成稳定 v0.1 验收。`main` 已包含 U12/U13 彩蛋与 N21 播放中断恢复修复，但没有发布新的 npm 版本；普通 `@beta` 安装仍取得首包。本文说明安装与使用，发行确认和摘要见 [首包记录](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/releases/0.1.0-beta.1.md)，源码/发布/实包与验收状态统一见 [开发路线](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/PROJECT_PLAN.md)。
 
 ## 支持范围
 

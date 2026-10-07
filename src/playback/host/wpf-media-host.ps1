@@ -83,6 +83,8 @@ $script:startedSent = $false
 $script:positionAtPlay = 0
 $script:lastProgress = -1
 $script:seekSupported = $null
+$script:stallTimeoutMs = 15000
+$script:progressWatch = [System.Diagnostics.Stopwatch]::new()
 
 # Pipe server state; at most one client at a time.
 $script:server = $null
@@ -115,6 +117,9 @@ function Get-State {
     muted = $script:muted
     seek = $script:seekSupported
     resource = $script:resource
+    errorCode = $script:failed
+    errorMessage = $script:failedMessage
+    retryable = $script:status -eq 'error' -and $null -ne $script:instance
   }
 }
 
@@ -349,6 +354,7 @@ function Stop-Playback {
   $script:startedSent = $false
   $script:positionAtPlay = 0
   $script:lastProgress = -1
+  $script:progressWatch.Reset()
 }
 
 # Media opening stays in the main event pump. Reading the pipe must continue so
@@ -396,14 +402,16 @@ $script:player.add_MediaOpened({
 })
 
 $script:player.add_MediaFailed({
+  param($sender, $eventArgs)
   $script:failed = 'media_failed'
-  $script:failedMessage = 'Media failed to open'
+  $script:failedMessage = 'Media playback failed'
   try {
-    if ($null -ne $script:player.ErrorException) { $script:failedMessage = $script:player.ErrorException.Message }
+    if ($null -ne $eventArgs.ErrorException) { $script:failedMessage = $eventArgs.ErrorException.Message }
   } catch { }
 })
 
 $script:player.add_MediaEnded({
+  if ($script:status -ne 'playing' -or $null -ne $script:failed) { return }
   $script:status = 'ended'
   $script:lastProgress = Get-Position
   Send-Event 'ended' @{ positionMs = $script:lastProgress }
@@ -470,12 +478,14 @@ function Invoke-Command($command) {
       $script:positionAtPlay = Get-Position
       $script:startedSent = $false
       $script:lastProgress = -1
+      $script:progressWatch.Restart()
       Send-Result $id @{ positionMs = $script:positionAtPlay }
     }
     'pause' {
       if ($null -ne $script:pendingOpen) { Stop-Playback }
       if ($null -ne $script:instance) { try { $script:player.Pause() } catch { } }
       if ($script:status -eq 'playing' -or $script:status -eq 'ready') { $script:status = 'paused' }
+      $script:progressWatch.Reset()
       Send-Result $id @{ positionMs = (Get-Position) }
     }
     'stop' {
@@ -516,7 +526,17 @@ function Handle-Line([string]$line) {
 
 function Step-Playback {
   if ($script:status -ne 'playing') { return }
+  if ($null -ne $script:failed) {
+    Fail-Playback $script:failed $script:failedMessage
+    return
+  }
   $position = Get-Position
+  if ($position -gt [Math]::Max($script:positionAtPlay, $script:lastProgress)) {
+    $script:progressWatch.Restart()
+  } elseif ($script:progressWatch.Elapsed.TotalMilliseconds -ge $script:stallTimeoutMs) {
+    Fail-Playback 'media_stalled' 'Audio timeline did not advance for 15 seconds'
+    return
+  }
   # 'started' only after the timeline really advanced; a transient 0 read after
   # a resume must not look like progress.
   if ($position -le 0 -or $position -le $script:positionAtPlay) { return }
@@ -530,6 +550,19 @@ function Step-Playback {
     $script:lastProgress = $position
     Send-Event 'progress' @{ positionMs = $position; progressSource = 'audio' }
   }
+}
+
+# Preserve instance/version/error in snapshots so reconnecting clients can adopt
+# a failure whose event was lost. Status prevents duplicate events on later ticks.
+function Fail-Playback([string]$code, [string]$message) {
+  $script:status = 'error'
+  $script:failed = $code
+  $script:failedMessage = $message
+  $script:progressWatch.Reset()
+  try { $script:player.Stop() } catch { }
+  try { $script:player.Close() } catch { }
+  Send-Event 'error' @{ code = $code; message = $message; retryable = $true }
+  Write-Marker "MEDIA_ERROR code=$code"
 }
 
 $script:lastWatchdog = Get-Date

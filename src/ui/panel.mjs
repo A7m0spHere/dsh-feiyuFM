@@ -181,6 +181,10 @@ export function describeNotice({ snapshot = null, platform = null, bridge = null
   }
   const error = snapshot.lastError;
   if (error) {
+    if (snapshot.status === 'resolving' && snapshot.current?.recoveryAttempts > 0) {
+      return { kind: 'playback-recovering', severity: 'info', title: '播放中断，正在恢复这首歌',
+        detail: '正在重新获取音频并尝试从上次位置继续。', actionId: null };
+    }
     const explanation = EXPLANATIONS[error.code] ?? {
       title: '播放出现问题', detail: error.message ?? '', actionId: null,
     };
@@ -240,6 +244,8 @@ const EXPLANATIONS = Object.freeze({
   login_required: { title: '登录已失效', detail: '需要重新登录平台才能继续播放。', actionId: 'sign-in' },
   media_unavailable: { title: '这首歌暂时无法播放', detail: '平台没有给出可播放的地址，可能需要会员或受地区限制。', actionId: null },
   media_failed: { title: '播放中断了', detail: '音频无法继续，可能已失效。', actionId: 'retry-track' },
+  media_stalled: { title: '播放卡住了', detail: '音频长时间没有继续，自动恢复未成功，可以重试这首歌。', actionId: 'retry-track' },
+  playback_host_lost: { title: '播放服务中断了', detail: '自动恢复未成功，可以重试这首歌。', actionId: 'retry-track' },
   resource_expired: { title: '播放地址已过期，正在重新获取', detail: '这类地址有时效，正在自动重试。', actionId: null },
   rate_limited: { title: '平台请求过于频繁', detail: '稍后会自动重试。', actionId: null },
   provider_failure: { title: '平台请求失败', detail: '可能是网络问题，稍后会重试。', actionId: 'retry-track' },

@@ -1,4 +1,4 @@
-import { playbackPresentation, discoveryPresentation } from './presentation.mjs';
+import { playbackPresentation, discoveryPresentation, playbackNotice } from './presentation.mjs';
 import React from 'react';
 import { h, minutes, progressPercent, modes, sourceNames, stageNames } from './shared.mjs';
 import { Svg, StatusMark, PlaybackArtwork, useSmoothProgress } from './components.mjs';
@@ -195,7 +195,7 @@ export function Panel({ controller, back, close }) {
       ' ', h('button', { className: 'fm-button', type: 'button', disabled: state.busy,
         onClick: state.errorCode==='no_candidates'&&state.insights?.recommendationMode==='llm'?()=>controller.platformAction('discovery','netease'):controller.refresh },
         state.errorCode==='no_candidates'&&state.insights?.recommendationMode==='llm'?'重新核对歌单':state.connected?'刷新状态':'重新连接')),
-    snapshot?.lastError && h('div', { className: 'fm-notice', role: 'status' }, `播放尚未成功：${snapshot.lastError.code || 'playback_failed'}。请核对平台连接和曲目权限。`),
+    snapshot?.lastError && h('div', { className: 'fm-notice', role: 'status' }, playbackNotice(snapshot)),
     snapshot?.blockUntil > Date.now() && h('div', { className: 'fm-notice' }, '今天已停止自主听歌。到期后仍会保持暂停，直到你主动恢复。',
       h('button', { className: 'fm-button', type: 'button', disabled: state.busy || !state.connected,
         onClick: () => controller.command('chooseSelf') }, '恢复自主听歌')),

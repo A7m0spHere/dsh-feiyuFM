@@ -4,7 +4,7 @@
 
 N7/R2 的短跑或合成演练不能替代 A09 两小时验收；U3/U4 等 PHL 记录按其日期阅读；N19 的旧预热阈值以 [N20](N20-review-fixes.md) 后续复测为准。
 
-本轮彩蛋与素材验证从 [U12](U12-playback-dolls.md) 读起，最近复核与 393 项测试基线见 [U13](U13-easter-review-fixes.md)。U12 的历史本地包不包含之后的开关样式/U13 修复，源码、发布和生产状态统一看 [开发路线](../PROJECT_PLAN.md)。
+彩蛋与素材验证从 [U12](U12-playback-dolls.md) 读起，布局复核见 [U13](U13-easter-review-fixes.md)，最近播放中断修复与 408 项测试基线见 [N21](N21-playback-interruption-recovery.md)。U12 的历史本地包不包含之后的开关样式/U13/N21 修复，源码、发布和生产状态统一看 [开发路线](../PROJECT_PLAN.md)。
 
 ## 自主听歌、推荐与后续修复
 
@@ -31,6 +31,7 @@ N7/R2 的短跑或合成演练不能替代 A09 两小时验收；U3/U4 等 PHL �
 | [N18](N18-p2-progress-and-relations.md) | N18：P2——进度平滑与歌单生成的关系事实 |
 | [N19](N19-wpf-audio-warmup.md) | N19：WPF 音频预热（播放/下一首慢的根因修复） |
 | [N20](N20-review-fixes.md) | N20：项目检查发现的超时、筛选状态与预热问题 |
+| [N21](N21-playback-interruption-recovery.md) | N21：播放中断检测、原曲有界恢复与断线曲终续播 |
 
 ## 界面、认证与桌面验证
 

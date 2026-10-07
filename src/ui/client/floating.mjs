@@ -1,4 +1,4 @@
-import { playbackPresentation, popupPlacement } from './presentation.mjs';
+import { playbackPresentation, popupPlacement, playbackNotice } from './presentation.mjs';
 import React from 'react';
 import { h, minutes, progressPercent, modes } from './shared.mjs';
 import { Svg, SwipeHandle, usePresence, StatusMark, PlaybackArtwork, useSmoothProgress } from './components.mjs';
@@ -152,6 +152,7 @@ export function FloatingPlayer({ controller, layout, usePanelInfo }) {
           ' ', h('button', { className: 'fm-button', type: 'button', disabled: state.busy,
             onClick: state.errorCode === 'no_candidates' && state.insights?.recommendationMode === 'llm' ? () => controller.platformAction('discovery', 'netease') : controller.refresh },
             state.errorCode === 'no_candidates' && state.insights?.recommendationMode === 'llm' ? '重新核对歌单' : state.connected ? '刷新状态' : '重新连接')),
+        snapshot?.lastError && h('div', { className: 'fm-notice', role: 'status' }, playbackNotice(snapshot)),
         h('div', { className: 'fm-float-controls' },
           h('button', { type: 'button', className: 'fm-button fm-primary', disabled: blocked || (!current && !state.library?.total && !snapshot?.queue?.length),
             'aria-label': !current ? '开始听歌' : paused ? '继续播放' : '暂停', onClick: () => controller.playOrPause() }, h(Svg, { type: !current || paused ? 'play' : 'pause' }), !current ? '开始听歌' : paused ? '继续播放' : '暂停'),

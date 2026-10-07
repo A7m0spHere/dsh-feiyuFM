@@ -16,6 +16,16 @@ export function playbackPresentation(snapshot, connected) {
   return { label: '电台待命', art: 'whale-idle', active: false };
 }
 
+export function playbackNotice(snapshot) {
+  if (!snapshot?.lastError) return null;
+  if (snapshot.status === 'resolving' && snapshot.current?.recoveryAttempts > 0) {
+    return '播放中断，正在尝试从上次位置恢复这首歌…';
+  }
+  if (snapshot.lastError.code === 'media_stalled') return '播放长时间卡住，自动恢复未成功。可以重新点播或换一首。';
+  if (snapshot.lastError.code === 'playback_host_lost') return '播放服务中断，自动恢复未成功。可以重新点播。';
+  return '播放尚未成功，请核对平台连接和曲目权限。';
+}
+
 export function filterLibrary(tracks, query) {
   const needle = String(query ?? '').trim().toLocaleLowerCase();
   return (tracks ?? []).filter(track => !needle || `${track.title || ''} ${track.artist || ''} ${track.providerTrackId || ''}`.toLocaleLowerCase().includes(needle));

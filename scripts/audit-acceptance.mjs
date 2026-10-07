@@ -60,9 +60,11 @@ const EVIDENCE = [
   {
     id: 'A04', claim: '用户点歌/下一首优先；禁播、暂停不会被自动事件覆盖',
     status: 'offline-passed',
-    files: ['test/core.test.mjs', 'test/selection.test.mjs', 'docs/spikes/T2-selection.md'],
+    files: ['test/core.test.mjs', 'test/selection.test.mjs', 'docs/spikes/T2-selection.md', 'test/faults.test.mjs', 'docs/spikes/N21-playback-interruption-recovery.md'],
     tests: [
       { file: 'test/core.test.mjs', name: 'late resolve cannot replace a newer user track or undo pause' },
+      { file: 'test/faults.test.mjs', name: 'pause cancels an interruption recovery and a late resolve cannot resume audio' },
+      { file: 'test/faults.test.mjs', name: 'a new user track supersedes an interruption recovery' },
     ],
     unverified: '真实慢请求与真实命令冲突未验',
   },
@@ -127,6 +129,7 @@ const EVIDENCE = [
     files: ['test/faults.test.mjs', 'test/growth.test.mjs', 'test/core.test.mjs', 'docs/spikes/R1-faults.md', 'test/autonomous-accounting.test.mjs', 'docs/spikes/N1-autonomous-accounting.md'],
     tests: [
       { file: 'test/faults.test.mjs', name: 'a login that expired mid-session stops music honestly instead of pretending' },
+      { file: 'test/faults.test.mjs', name: 'a failed recovery load records the already heard segment exactly once' },
       { file: 'test/growth.test.mjs', name: 'a pause, a failure, a short listen and a user pick change nothing' },
     ],
     unverified: '真实进程重启的长时间行为未验',

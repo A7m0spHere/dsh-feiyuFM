@@ -145,7 +145,10 @@ export class MusicCore {
       const candidateFailure = ['media_unavailable', 'resource_unavailable', 'media_open_timeout', 'media_failed'].includes(error.code);
       if (failed && candidateFailure) this.store.markUnavailable(failed.track, error.code, this.clock.now()
         + (['media_open_timeout','media_failed'].includes(error.code) ? 5 : 30) * 60_000);
-      if (this.state.current && !this.state.current.finished) {
+      if (this.state.current) {
+        // A failed recovery still belongs to the listen that already happened.
+        // Only a never-started load is discarded without a history row.
+        if (this.state.current.startedAt != null) this._finishCurrent('error');
         this.state.current.finished = true;
         this.state.current = null;
       }
@@ -622,12 +625,19 @@ export class MusicCore {
           && Number.isSafeInteger(expiry.expiresAt)
           && at >= expiry.expiresAt - 1000;
         const platformSaysGone = event.code === 'media_unavailable' || event.code === 'resource_expired';
-        if (expiry && !expiry.reResolved && (knownAndPassed || platformSaysGone)) {
+        const interrupted = event.code === 'playback_host_lost' || event.code === 'media_stalled'
+          || (event.code === 'media_failed' && event.retryable === true);
+        if (!(current.recoveryAttempts > 0) && expiry && !expiry.reResolved
+          && (knownAndPassed || platformSaysGone || interrupted)) {
           expiry.reResolved = true;
+          current.recoveryAttempts = 1;
+          // A new version rejects duplicate/late events from the failed player.
+          this._invalidate();
           this.state.status = 'resolving';
           this.state.lastError = {
-            code: 'resource_expired',
-            message: 'the platform handle expired, so it is being resolved again',
+            code: interrupted ? event.code : 'resource_expired',
+            message: interrupted ? 'Playback was interrupted, so the current track is being restored'
+              : 'the platform handle expired, so it is being resolved again',
           };
           this._commit();
           const version = this.state.commandVersion;
@@ -641,7 +651,7 @@ export class MusicCore {
       this.state.current = null;
       this._commit();
       if (event.type === 'ended') this.selectAutonomously();
-      else if (current.selectedBy === 'agent' && ['media_unavailable','media_failed','media_open_timeout'].includes(event.code)) {
+      else if (current.selectedBy === 'agent' && ['media_unavailable','media_failed','media_open_timeout','media_stalled'].includes(event.code)) {
         this.store.markUnavailable(current.track, event.code, this.clock.now() + (event.code === 'media_unavailable' ? 30 : 5) * 60_000);
         if (this.autoFailures < 2) { this.autoFailures++; this.selectAutonomously(); }
       }

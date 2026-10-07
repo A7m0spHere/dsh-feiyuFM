@@ -52,6 +52,147 @@ async function shutdown(service) {
   try { await service.close({ gracefulTimeoutMs: 1500 }); } catch { /* already gone */ }
 }
 
+function controlledService() {
+  const supervisor = {
+    ensureHost: async () => {},
+    request: async command => command.type === 'load' ? { positionMs: 0 }
+      : { state: { status: 'playing', playInstanceId: 'old', version: 1, positionMs: 1000 } },
+  };
+  const service = new PlaybackService({ supervisor, progressIntervalMs: 0 });
+  const events = [];
+  service.onEvent(event => events.push(event));
+  return { supervisor, service, events };
+}
+
+for (const status of ['ended', 'error']) {
+  test(`a reconnect snapshot adopts a missed ${status} once without crediting disconnected time`, async () => {
+    const h = controlledService();
+    await h.service.load({ resource: { handle: 'fake:old' }, playInstanceId: 'old', version: 1 });
+    h.service.lastEffectiveAt = performance.now() - 2000;
+    const state = { status, playInstanceId: 'old', version: 1, positionMs: 9000,
+      errorCode: 'media_stalled', errorMessage: 'timeline stalled', retryable: true };
+    h.service._onHostMessage({ type: 'state', ...state });
+    h.service._onHostMessage({ type: 'state', ...state });
+    assert.equal(h.events.filter(event => event.type === status).length, 1);
+    assert.equal(h.events.filter(event => event.type === 'progress').length, 0);
+    assert.equal(h.service.active, null);
+    if (status === 'error') {
+      assert.equal(h.events[0].code, 'media_stalled');
+      assert.equal(h.events[0].retryable, true);
+    }
+  });
+}
+
+for (const phase of ['ensure', 'snapshot']) {
+  test(`a late recovery ${phase} failure cannot clear a newer track`, async () => {
+    const h = controlledService();
+    await h.service.load({ resource: { handle: 'fake:old' }, playInstanceId: 'old', version: 1 });
+    let reject;
+    let reached;
+    const started = new Promise(resolve => { reached = resolve; });
+    const pending = new Promise((_, fail) => { reject = fail; });
+    if (phase === 'ensure') h.supervisor.ensureHost = () => { reached(); return pending; };
+    else h.service.hostSnapshot = () => { reached(); return pending; };
+    h.supervisor.onHostClose(new Error('drop'));
+    const recovery = h.service._recovery;
+    await started;
+    await h.service.load({ resource: { handle: 'fake:new' }, playInstanceId: 'new', version: 2 });
+    reject(new Error('old recovery failed'));
+    await recovery;
+    assert.equal(h.service.active?.playInstanceId, 'new');
+    assert.equal(h.events.length, 0);
+  });
+}
+
+test('nested pipe failures share one recovery and exhaust a bounded snapshot budget', async () => {
+  const h = controlledService();
+  await h.service.load({ resource: { handle: 'fake:old' }, playInstanceId: 'old', version: 1 });
+  let requests = 0;
+  h.service.hostSnapshot = async () => {
+    requests++;
+    h.supervisor.onHostClose(new Error('snapshot connection failed'));
+    throw new Error('snapshot timeout');
+  };
+  h.supervisor.onHostClose(new Error('drop'));
+  await h.service._recovery;
+  assert.equal(requests, 3);
+  assert.equal(h.events.length, 1);
+  assert.equal(h.events[0].code, 'playback_host_lost');
+});
+
+test('a newer track can reconnect while a superseded recovery is still pending', async () => {
+  const h = controlledService();
+  await h.service.load({ resource: { handle: 'fake:old' }, playInstanceId: 'old', version: 1 });
+  let release;
+  let reached;
+  const pending = new Promise(resolve => { release = resolve; });
+  const started = new Promise(resolve => { reached = resolve; });
+  h.supervisor.ensureHost = () => { reached(); return pending; };
+  h.supervisor.onHostClose(new Error('old drop'));
+  const oldRecovery = h.service._recovery;
+  await started;
+  await h.service.load({ resource: { handle: 'fake:new' }, playInstanceId: 'new', version: 2 });
+  h.supervisor.ensureHost = async () => {};
+  h.service.hostSnapshot = async () => ({ status: 'playing', playInstanceId: 'new', version: 2, positionMs: 2000 });
+  h.supervisor.onHostClose(new Error('new drop'));
+  await h.service._recovery;
+  release();
+  await oldRecovery;
+  assert.equal(h.service.active.playInstanceId, 'new');
+  assert.equal(h.service.active.positionMs, 2000);
+  assert.equal(h.events.filter(event => event.type === 'error').length, 0);
+});
+
+test('a song ending during a pipe disconnect reaches Core and starts the queued song', async () => {
+  const store = new MusicStore();
+  const h = harness({ durationMs: 800 });
+  const core = new MusicCore({ store, provider: new FakeProvider(), playback: h.service });
+  h.service.onEvent(event => { h.events.push(event); core.onPlaybackEvent(event); });
+  try {
+    core.dispatch({ type: 'requestTrack', track, commandId: 'before-disconnect' });
+    await waitFor(() => core.snapshot().status === 'playing');
+    const instance = core.snapshot().current.playInstanceId;
+    const next = { ...track, providerTrackId: 'after-disconnect' };
+    core.setQueue([next]);
+    const ensureHost = h.supervisor.ensureHost.bind(h.supervisor);
+    let release;
+    const gate = new Promise(resolve => { release = resolve; });
+    h.supervisor.ensureHost = async () => { await gate; return ensureHost(); };
+    h.supervisor.transport.close({ reason: new Error('lost at song end') });
+    await delay(950); // The independent host finishes while there is no client.
+    release();
+    await waitFor(() => core.snapshot().current?.track.providerTrackId === next.providerTrackId
+      && core.snapshot().status === 'playing', { what: 'continuation after a missed end' });
+    assert.equal(store.getHistory(instance).end_reason, 'ended');
+    assert.equal(h.events.filter(event => event.type === 'ended' && event.playInstanceId === instance).length, 1);
+  } finally { await shutdown(h.service); await core.waitForIdle(); store.close(); }
+});
+
+test('Core restores the same listen after a real playback child exits', async () => {
+  const store = new MusicStore();
+  const h = harness({ durationMs: 4000 });
+  const provider = new FakeProvider();
+  const core = new MusicCore({ store, provider, playback: h.service });
+  h.service.onEvent(event => core.onPlaybackEvent(event));
+  try {
+    core.dispatch({ type: 'requestTrack', track: { ...track, durationMs: 4000 }, commandId: 'before-host-exit' });
+    await waitFor(() => core.snapshot().status === 'playing' && core.snapshot().current.positionMs > 50);
+    const before = core.snapshot().current;
+    const pid = h.supervisor.pid;
+    h.supervisor.child.kill();
+    await waitFor(() => h.supervisor.pid !== pid && core.snapshot().status === 'playing'
+      && core.snapshot().current?.recoveryAttempts === 1, { what: 'same track after host exit' });
+    assert.equal(core.snapshot().current.playInstanceId, before.playInstanceId);
+    assert.ok(core.snapshot().current.positionMs >= before.positionMs);
+    assert.equal(provider.calls.length, 2);
+    assert.equal(store.getHistory(before.playInstanceId), null);
+    assert.equal(core.snapshot().lastError, null);
+    core.dispatch({ type: 'pause', commandId: 'after-host-exit' });
+    await core.waitForIdle();
+    assert.equal((await h.service.hostSnapshot()).status, 'paused');
+  } finally { await shutdown(h.service); await core.waitForIdle(); store.close(); }
+});
+
 test('a superseded slow load is acknowledged and cannot overwrite the newer loaded track', async () => {
   const h = harness({ openDelayMs: 200 });
   try {
