@@ -10,7 +10,7 @@
 
 **首个公开测试版 `0.1.0-beta.1` 已在 npm 发布。** 当前支持 Windows／网易云，可在 DSH 插件管理器中添加 `dsh-feiyufm-core@beta`。稳定版验收仍在进行，QQ 接入暂缓。
 
-`main` 的后续改动尚未发布到 npm：角色图下的小开关、完整素材打包、多窗口/高窄布局及播放中断恢复已实现，最新源码验证为 408 项测试和 126 个模块。已发布首包、当前源码和历史本地包的状态分别见 [开发路线](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/PROJECT_PLAN.md)。
+`main` 的后续改动尚未发布到 npm：小开关、完整素材、多窗口/高窄适配、播放中断恢复与紧凑布局已实现。最近全量基线为 N21 的 408 项测试；U14 布局的 54 项相关测试、126 模块及隔离浏览器复验通过。源码、已发布首包和历史本地包的状态分别见 [开发路线](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/PROJECT_PLAN.md)。
 
 [开始使用](#开始使用) · [npm 包](https://www.npmjs.com/package/dsh-feiyufm-core/v/0.1.0-beta.1) · [功能介绍](#能做什么) · [文档索引](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/README.md) · [开发与贡献](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/CONTRIBUTING.md) · [发布记录](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/releases/0.1.0-beta.1.md)
 
@@ -130,6 +130,7 @@ npm run build
 **`0.1.0-beta.1` 已发布，稳定 v0.1 验收尚未完成。** 网易云真实扫码、导入、播放、自然续播、部分偏好成长、设置持久化与停用恢复已有历史实测；本次发布额外验证了隔离安装与 DSH 页面交互。完整验收状态以 [开发路线](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/PROJECT_PLAN.md) 为准。
 
 - 2026-10-07 源码：[N21](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/spikes/N21-playback-interruption-recovery.md) 修复播放中断检测、原曲一次恢复、断线曲终续播与恢复竞争；408/408 测试、126 模块与构建通过，生产未重载。此前 [U12](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/spikes/U12-playback-dolls.md) 完整素材与彩蛋、[U13](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/spikes/U13-easter-review-fixes.md) 跨窗口/高窄布局已实现并隔离验证，完整生产组合仍待验。这些改动尚未发布到 npm。
+- 同日 [U14](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/spikes/U14-compact-layout.md) 紧凑布局：模拟数据下播放器约少 31%、设置默认内容约少 26%；54 项相关测试及浅深色/窄窗口/键盘浏览器复验通过，未重跑音频全量、未重载生产。
 
 - npm 下载包的 SHA-512／SHA-1 与封存包一致；从 registry 全新安装后的入口、图片、Core、WPF 和实际依赖版本检查均 `ALL-PASS`。本机 386 项测试通过；远端 CI 383 项通过，3 项依赖音频环境的回归显式跳过。详情见 [发布记录](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/releases/0.1.0-beta.1.md)。
 - 2026-10-06 发布核验时 `beta` 和 `latest` 都指向 `0.1.0-beta.1`；安装建议显式使用 `@beta` 或固定版本。稳定版完成后再更新 `latest`。

@@ -1,6 +1,6 @@
 # 交付与使用说明
 
-更新日期：2026-10-07。已发布首包为 **0.1.0-beta.1 Windows／网易云测试版**，尚未完成稳定 v0.1 验收。`main` 已包含 U12/U13 彩蛋与 N21 播放中断恢复修复，但没有发布新的 npm 版本；普通 `@beta` 安装仍取得首包。本文说明安装与使用，发行确认和摘要见 [首包记录](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/releases/0.1.0-beta.1.md)，源码/发布/实包与验收状态统一见 [开发路线](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/PROJECT_PLAN.md)。
+更新日期：2026-10-07。已发布首包为 **0.1.0-beta.1 Windows／网易云测试版**，尚未完成稳定 v0.1 验收。`main` 已包含 U12/U13 彩蛋、N21 播放中断恢复与 U14 紧凑布局，但没有发布新的 npm 版本；普通 `@beta` 安装仍取得首包。本文说明安装与使用，发行确认和摘要见 [首包记录](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/releases/0.1.0-beta.1.md)，源码/发布/实包与验收状态统一见 [开发路线](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/PROJECT_PLAN.md)。
 
 ## 支持范围
 
@@ -66,7 +66,7 @@ DSH `0.2.0-rc.2` 的插件页暂不支持自动更新。先在插件管理器卸
 
 ## 验证与边界
 
-网易云真实链路见 [P3](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/spikes/P3-real-loop.md)，设置和重启恢复见 [N10](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/spikes/N10-feedback-reset.md)，一次模型歌单生成见 [N11](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/spikes/N11-model-playlist.md)。音频/通信复核见 [N20](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/spikes/N20-review-fixes.md)，最近源码基线见 [U13](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/spikes/U13-easter-review-fixes.md)：393 项测试、126 模块检查、构建与隔离双页面/高窄布局已验。首包和 U12 历史实包分别验证了安装与资源，不等于当前生产平台播放验收；U12 tarball也不包含后续开关样式与 U13 修复。
+网易云真实链路见 [P3](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/spikes/P3-real-loop.md)，设置和重启恢复见 [N10](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/spikes/N10-feedback-reset.md)，一次模型歌单生成见 [N11](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/spikes/N11-model-playlist.md)。最近全量基线为 [N21](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/spikes/N21-playback-interruption-recovery.md) 的 408 项；[U14](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/spikes/U14-compact-layout.md) 紧凑布局另完成 54 项相关测试、126 模块、构建与隔离浏览器复验，没有重跑音频全量或重载生产。首包和 U12 历史实包分别验证了安装与资源，不等于当前生产平台播放验收；历史 tarball 不包含后续开关样式及 U13/N21/U14 修复。
 
 当前默认从 5 个持有者开始，按实际 Open 耗时最多补齐到 8 个；独立实测用了 6 个，后续加载 484ms。首曲仍冷，预热/打开时间随环境变化。`FISHFM_PLAYBACK_WARM_HOLDERS=0..8` 可指定固定数量，0 关闭。
 

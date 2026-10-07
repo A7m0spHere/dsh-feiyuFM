@@ -1,0 +1,1063 @@
+{
+  "verdict": "ALL-PASS",
+  "cases": [
+    {
+      "name": "main-1280x900-light",
+      "width": 1280,
+      "view": "main",
+      "scrollHeight": 1171,
+      "hero": 283,
+      "modes": 36,
+      "overflow": false,
+      "modesOneRow": true,
+      "header": {
+        "heading": {
+          "x": 131,
+          "y": 81,
+          "width": 818,
+          "height": 50
+        },
+        "title": {
+          "x": 177,
+          "y": 81,
+          "width": 217.0625,
+          "height": 30
+        },
+        "actions": {
+          "x": 961,
+          "y": 81,
+          "width": 188,
+          "height": 34
+        }
+      },
+      "columns": "724px 280px",
+      "brokenImages": []
+    },
+    {
+      "name": "main-1280x900-light-expanded",
+      "width": 1280,
+      "view": "main",
+      "scrollHeight": 2587,
+      "hero": 351,
+      "modes": 36,
+      "overflow": false,
+      "modesOneRow": true,
+      "header": {
+        "heading": {
+          "x": 131,
+          "y": 81,
+          "width": 818,
+          "height": 50
+        },
+        "title": {
+          "x": 177,
+          "y": 81,
+          "width": 217.0625,
+          "height": 30
+        },
+        "actions": {
+          "x": 961,
+          "y": 81,
+          "width": 188,
+          "height": 34
+        }
+      },
+      "columns": "724px 280px",
+      "brokenImages": []
+    },
+    {
+      "name": "main-1280x900-dark",
+      "width": 1280,
+      "view": "main",
+      "scrollHeight": 1171,
+      "hero": 283,
+      "modes": 36,
+      "overflow": false,
+      "modesOneRow": true,
+      "header": {
+        "heading": {
+          "x": 131,
+          "y": 81,
+          "width": 818,
+          "height": 50
+        },
+        "title": {
+          "x": 177,
+          "y": 81,
+          "width": 217.0625,
+          "height": 30
+        },
+        "actions": {
+          "x": 961,
+          "y": 81,
+          "width": 188,
+          "height": 34
+        }
+      },
+      "columns": "724px 280px",
+      "brokenImages": []
+    },
+    {
+      "name": "main-1280x900-dark-expanded",
+      "width": 1280,
+      "view": "main",
+      "scrollHeight": 2587,
+      "hero": 351,
+      "modes": 36,
+      "overflow": false,
+      "modesOneRow": true,
+      "header": {
+        "heading": {
+          "x": 131,
+          "y": 81,
+          "width": 818,
+          "height": 50
+        },
+        "title": {
+          "x": 177,
+          "y": 81,
+          "width": 217.0625,
+          "height": 30
+        },
+        "actions": {
+          "x": 961,
+          "y": 81,
+          "width": 188,
+          "height": 34
+        }
+      },
+      "columns": "724px 280px",
+      "brokenImages": []
+    },
+    {
+      "name": "main-740x900-light",
+      "width": 740,
+      "view": "main",
+      "scrollHeight": 1768,
+      "hero": 269,
+      "modes": 36,
+      "overflow": false,
+      "modesOneRow": true,
+      "header": {
+        "heading": {
+          "x": 16,
+          "y": 81,
+          "width": 508,
+          "height": 50
+        },
+        "title": {
+          "x": 62,
+          "y": 81,
+          "width": 217.0625,
+          "height": 30
+        },
+        "actions": {
+          "x": 536,
+          "y": 81,
+          "width": 188,
+          "height": 34
+        }
+      },
+      "columns": "708px",
+      "brokenImages": []
+    },
+    {
+      "name": "main-740x900-light-expanded",
+      "width": 740,
+      "view": "main",
+      "scrollHeight": 4019,
+      "hero": 337,
+      "modes": 36,
+      "overflow": false,
+      "modesOneRow": true,
+      "header": {
+        "heading": {
+          "x": 16,
+          "y": 81,
+          "width": 508,
+          "height": 50
+        },
+        "title": {
+          "x": 62,
+          "y": 81,
+          "width": 217.0625,
+          "height": 30
+        },
+        "actions": {
+          "x": 536,
+          "y": 81,
+          "width": 188,
+          "height": 34
+        }
+      },
+      "columns": "708px",
+      "brokenImages": []
+    },
+    {
+      "name": "main-740x900-dark",
+      "width": 740,
+      "view": "main",
+      "scrollHeight": 1768,
+      "hero": 269,
+      "modes": 36,
+      "overflow": false,
+      "modesOneRow": true,
+      "header": {
+        "heading": {
+          "x": 16,
+          "y": 81,
+          "width": 508,
+          "height": 50
+        },
+        "title": {
+          "x": 62,
+          "y": 81,
+          "width": 217.0625,
+          "height": 30
+        },
+        "actions": {
+          "x": 536,
+          "y": 81,
+          "width": 188,
+          "height": 34
+        }
+      },
+      "columns": "708px",
+      "brokenImages": []
+    },
+    {
+      "name": "main-740x900-dark-expanded",
+      "width": 740,
+      "view": "main",
+      "scrollHeight": 4019,
+      "hero": 337,
+      "modes": 36,
+      "overflow": false,
+      "modesOneRow": true,
+      "header": {
+        "heading": {
+          "x": 16,
+          "y": 81,
+          "width": 508,
+          "height": 50
+        },
+        "title": {
+          "x": 62,
+          "y": 81,
+          "width": 217.0625,
+          "height": 30
+        },
+        "actions": {
+          "x": 536,
+          "y": 81,
+          "width": 188,
+          "height": 34
+        }
+      },
+      "columns": "708px",
+      "brokenImages": []
+    },
+    {
+      "name": "main-390x844-light",
+      "width": 390,
+      "view": "main",
+      "scrollHeight": 1830,
+      "hero": 265,
+      "modes": 36,
+      "overflow": false,
+      "modesOneRow": true,
+      "header": {
+        "heading": {
+          "x": 12,
+          "y": 100,
+          "width": 186,
+          "height": 28
+        },
+        "title": {
+          "x": 48,
+          "y": 100.5,
+          "width": 70.8125,
+          "height": 27
+        },
+        "actions": {
+          "x": 206,
+          "y": 100,
+          "width": 172,
+          "height": 34
+        }
+      },
+      "columns": "366px",
+      "brokenImages": []
+    },
+    {
+      "name": "main-390x844-light-expanded",
+      "width": 390,
+      "view": "main",
+      "scrollHeight": 4328,
+      "hero": 332,
+      "modes": 36,
+      "overflow": false,
+      "modesOneRow": true,
+      "header": {
+        "heading": {
+          "x": 12,
+          "y": 100,
+          "width": 186,
+          "height": 28
+        },
+        "title": {
+          "x": 48,
+          "y": 100.5,
+          "width": 70.8125,
+          "height": 27
+        },
+        "actions": {
+          "x": 206,
+          "y": 100,
+          "width": 172,
+          "height": 34
+        }
+      },
+      "columns": "366px",
+      "brokenImages": []
+    },
+    {
+      "name": "main-390x844-dark",
+      "width": 390,
+      "view": "main",
+      "scrollHeight": 1830,
+      "hero": 265,
+      "modes": 36,
+      "overflow": false,
+      "modesOneRow": true,
+      "header": {
+        "heading": {
+          "x": 12,
+          "y": 100,
+          "width": 186,
+          "height": 28
+        },
+        "title": {
+          "x": 48,
+          "y": 100.5,
+          "width": 70.8125,
+          "height": 27
+        },
+        "actions": {
+          "x": 206,
+          "y": 100,
+          "width": 172,
+          "height": 34
+        }
+      },
+      "columns": "366px",
+      "brokenImages": []
+    },
+    {
+      "name": "main-390x844-dark-expanded",
+      "width": 390,
+      "view": "main",
+      "scrollHeight": 4328,
+      "hero": 332,
+      "modes": 36,
+      "overflow": false,
+      "modesOneRow": true,
+      "header": {
+        "heading": {
+          "x": 12,
+          "y": 100,
+          "width": 186,
+          "height": 28
+        },
+        "title": {
+          "x": 48,
+          "y": 100.5,
+          "width": 70.8125,
+          "height": 27
+        },
+        "actions": {
+          "x": 206,
+          "y": 100,
+          "width": 172,
+          "height": 34
+        }
+      },
+      "columns": "366px",
+      "brokenImages": []
+    },
+    {
+      "name": "main-320x844-light",
+      "width": 320,
+      "view": "main",
+      "scrollHeight": 1886,
+      "hero": 303,
+      "modes": 36,
+      "overflow": false,
+      "modesOneRow": true,
+      "header": {
+        "heading": {
+          "x": 12,
+          "y": 100,
+          "width": 116,
+          "height": 28
+        },
+        "title": {
+          "x": 48,
+          "y": 100.5,
+          "width": 70.8125,
+          "height": 27
+        },
+        "actions": {
+          "x": 136,
+          "y": 100,
+          "width": 172,
+          "height": 34
+        }
+      },
+      "columns": "296px",
+      "brokenImages": []
+    },
+    {
+      "name": "main-320x844-light-expanded",
+      "width": 320,
+      "view": "main",
+      "scrollHeight": 4600,
+      "hero": 370,
+      "modes": 36,
+      "overflow": false,
+      "modesOneRow": true,
+      "header": {
+        "heading": {
+          "x": 12,
+          "y": 100,
+          "width": 116,
+          "height": 28
+        },
+        "title": {
+          "x": 48,
+          "y": 100.5,
+          "width": 70.8125,
+          "height": 27
+        },
+        "actions": {
+          "x": 136,
+          "y": 100,
+          "width": 172,
+          "height": 34
+        }
+      },
+      "columns": "296px",
+      "brokenImages": []
+    },
+    {
+      "name": "main-320x844-dark",
+      "width": 320,
+      "view": "main",
+      "scrollHeight": 1886,
+      "hero": 303,
+      "modes": 36,
+      "overflow": false,
+      "modesOneRow": true,
+      "header": {
+        "heading": {
+          "x": 12,
+          "y": 100,
+          "width": 116,
+          "height": 28
+        },
+        "title": {
+          "x": 48,
+          "y": 100.5,
+          "width": 70.8125,
+          "height": 27
+        },
+        "actions": {
+          "x": 136,
+          "y": 100,
+          "width": 172,
+          "height": 34
+        }
+      },
+      "columns": "296px",
+      "brokenImages": []
+    },
+    {
+      "name": "main-320x844-dark-expanded",
+      "width": 320,
+      "view": "main",
+      "scrollHeight": 4600,
+      "hero": 370,
+      "modes": 36,
+      "overflow": false,
+      "modesOneRow": true,
+      "header": {
+        "heading": {
+          "x": 12,
+          "y": 100,
+          "width": 116,
+          "height": 28
+        },
+        "title": {
+          "x": 48,
+          "y": 100.5,
+          "width": 70.8125,
+          "height": 27
+        },
+        "actions": {
+          "x": 136,
+          "y": 100,
+          "width": 172,
+          "height": 34
+        }
+      },
+      "columns": "296px",
+      "brokenImages": []
+    },
+    {
+      "name": "main-320x1900-light",
+      "width": 320,
+      "view": "main",
+      "scrollHeight": 1886,
+      "hero": 303,
+      "modes": 36,
+      "overflow": false,
+      "modesOneRow": true,
+      "header": {
+        "heading": {
+          "x": 12,
+          "y": 100,
+          "width": 116,
+          "height": 28
+        },
+        "title": {
+          "x": 48,
+          "y": 100.5,
+          "width": 70.8125,
+          "height": 27
+        },
+        "actions": {
+          "x": 136,
+          "y": 100,
+          "width": 172,
+          "height": 34
+        }
+      },
+      "columns": "296px",
+      "brokenImages": []
+    },
+    {
+      "name": "main-320x1900-light-expanded",
+      "width": 320,
+      "view": "main",
+      "scrollHeight": 4600,
+      "hero": 370,
+      "modes": 36,
+      "overflow": false,
+      "modesOneRow": true,
+      "header": {
+        "heading": {
+          "x": 12,
+          "y": 100,
+          "width": 116,
+          "height": 28
+        },
+        "title": {
+          "x": 48,
+          "y": 100.5,
+          "width": 70.8125,
+          "height": 27
+        },
+        "actions": {
+          "x": 136,
+          "y": 100,
+          "width": 172,
+          "height": 34
+        }
+      },
+      "columns": "296px",
+      "brokenImages": []
+    },
+    {
+      "name": "main-320x1900-dark",
+      "width": 320,
+      "view": "main",
+      "scrollHeight": 1886,
+      "hero": 303,
+      "modes": 36,
+      "overflow": false,
+      "modesOneRow": true,
+      "header": {
+        "heading": {
+          "x": 12,
+          "y": 100,
+          "width": 116,
+          "height": 28
+        },
+        "title": {
+          "x": 48,
+          "y": 100.5,
+          "width": 70.8125,
+          "height": 27
+        },
+        "actions": {
+          "x": 136,
+          "y": 100,
+          "width": 172,
+          "height": 34
+        }
+      },
+      "columns": "296px",
+      "brokenImages": []
+    },
+    {
+      "name": "main-320x1900-dark-expanded",
+      "width": 320,
+      "view": "main",
+      "scrollHeight": 4600,
+      "hero": 370,
+      "modes": 36,
+      "overflow": false,
+      "modesOneRow": true,
+      "header": {
+        "heading": {
+          "x": 12,
+          "y": 100,
+          "width": 116,
+          "height": 28
+        },
+        "title": {
+          "x": 48,
+          "y": 100.5,
+          "width": 70.8125,
+          "height": 27
+        },
+        "actions": {
+          "x": 136,
+          "y": 100,
+          "width": 172,
+          "height": 34
+        }
+      },
+      "columns": "296px",
+      "brokenImages": []
+    },
+    {
+      "name": "settings-1280x900-light",
+      "width": 1280,
+      "view": "settings",
+      "scrollHeight": 1810,
+      "hero": 265,
+      "modes": 36,
+      "overflow": false,
+      "modesOneRow": true,
+      "header": {
+        "heading": {
+          "x": 437,
+          "y": 106,
+          "width": 226,
+          "height": 28
+        },
+        "title": {
+          "x": 473,
+          "y": 106.5,
+          "width": 70.8125,
+          "height": 27
+        },
+        "actions": {
+          "x": 671,
+          "y": 106,
+          "width": 172,
+          "height": 34
+        }
+      },
+      "columns": "406px",
+      "brokenImages": []
+    },
+    {
+      "name": "settings-1280x900-light-expanded",
+      "width": 1280,
+      "view": "settings",
+      "scrollHeight": 4291,
+      "hero": 332,
+      "modes": 36,
+      "overflow": false,
+      "modesOneRow": true,
+      "header": {
+        "heading": {
+          "x": 437,
+          "y": 106,
+          "width": 226,
+          "height": 28
+        },
+        "title": {
+          "x": 473,
+          "y": 106.5,
+          "width": 70.8125,
+          "height": 27
+        },
+        "actions": {
+          "x": 671,
+          "y": 106,
+          "width": 172,
+          "height": 34
+        }
+      },
+      "columns": "406px",
+      "brokenImages": []
+    },
+    {
+      "name": "settings-1280x900-dark",
+      "width": 1280,
+      "view": "settings",
+      "scrollHeight": 1810,
+      "hero": 265,
+      "modes": 36,
+      "overflow": false,
+      "modesOneRow": true,
+      "header": {
+        "heading": {
+          "x": 437,
+          "y": 106,
+          "width": 226,
+          "height": 28
+        },
+        "title": {
+          "x": 473,
+          "y": 106.5,
+          "width": 70.8125,
+          "height": 27
+        },
+        "actions": {
+          "x": 671,
+          "y": 106,
+          "width": 172,
+          "height": 34
+        }
+      },
+      "columns": "406px",
+      "brokenImages": []
+    },
+    {
+      "name": "settings-1280x900-dark-expanded",
+      "width": 1280,
+      "view": "settings",
+      "scrollHeight": 4291,
+      "hero": 332,
+      "modes": 36,
+      "overflow": false,
+      "modesOneRow": true,
+      "header": {
+        "heading": {
+          "x": 437,
+          "y": 106,
+          "width": 226,
+          "height": 28
+        },
+        "title": {
+          "x": 473,
+          "y": 106.5,
+          "width": 70.8125,
+          "height": 27
+        },
+        "actions": {
+          "x": 671,
+          "y": 106,
+          "width": 172,
+          "height": 34
+        }
+      },
+      "columns": "406px",
+      "brokenImages": []
+    },
+    {
+      "name": "settings-390x844-light",
+      "width": 390,
+      "view": "settings",
+      "scrollHeight": 1830,
+      "hero": 265,
+      "modes": 36,
+      "overflow": false,
+      "modesOneRow": true,
+      "header": {
+        "heading": {
+          "x": 13,
+          "y": 125,
+          "width": 184,
+          "height": 28
+        },
+        "title": {
+          "x": 49,
+          "y": 125.5,
+          "width": 70.8125,
+          "height": 27
+        },
+        "actions": {
+          "x": 205,
+          "y": 125,
+          "width": 172,
+          "height": 34
+        }
+      },
+      "columns": "364px",
+      "brokenImages": []
+    },
+    {
+      "name": "settings-390x844-light-expanded",
+      "width": 390,
+      "view": "settings",
+      "scrollHeight": 4328,
+      "hero": 332,
+      "modes": 36,
+      "overflow": false,
+      "modesOneRow": true,
+      "header": {
+        "heading": {
+          "x": 13,
+          "y": 125,
+          "width": 184,
+          "height": 28
+        },
+        "title": {
+          "x": 49,
+          "y": 125.5,
+          "width": 70.8125,
+          "height": 27
+        },
+        "actions": {
+          "x": 205,
+          "y": 125,
+          "width": 172,
+          "height": 34
+        }
+      },
+      "columns": "364px",
+      "brokenImages": []
+    },
+    {
+      "name": "settings-390x844-dark",
+      "width": 390,
+      "view": "settings",
+      "scrollHeight": 1830,
+      "hero": 265,
+      "modes": 36,
+      "overflow": false,
+      "modesOneRow": true,
+      "header": {
+        "heading": {
+          "x": 13,
+          "y": 125,
+          "width": 184,
+          "height": 28
+        },
+        "title": {
+          "x": 49,
+          "y": 125.5,
+          "width": 70.8125,
+          "height": 27
+        },
+        "actions": {
+          "x": 205,
+          "y": 125,
+          "width": 172,
+          "height": 34
+        }
+      },
+      "columns": "364px",
+      "brokenImages": []
+    },
+    {
+      "name": "settings-390x844-dark-expanded",
+      "width": 390,
+      "view": "settings",
+      "scrollHeight": 4328,
+      "hero": 332,
+      "modes": 36,
+      "overflow": false,
+      "modesOneRow": true,
+      "header": {
+        "heading": {
+          "x": 13,
+          "y": 125,
+          "width": 184,
+          "height": 28
+        },
+        "title": {
+          "x": 49,
+          "y": 125.5,
+          "width": 70.8125,
+          "height": 27
+        },
+        "actions": {
+          "x": 205,
+          "y": 125,
+          "width": 172,
+          "height": 34
+        }
+      },
+      "columns": "364px",
+      "brokenImages": []
+    },
+    {
+      "name": "settings-320x844-light",
+      "width": 320,
+      "view": "settings",
+      "scrollHeight": 1886,
+      "hero": 303,
+      "modes": 36,
+      "overflow": false,
+      "modesOneRow": true,
+      "header": {
+        "heading": {
+          "x": 13,
+          "y": 125,
+          "width": 114,
+          "height": 28
+        },
+        "title": {
+          "x": 49,
+          "y": 125.5,
+          "width": 70.8125,
+          "height": 27
+        },
+        "actions": {
+          "x": 135,
+          "y": 125,
+          "width": 172,
+          "height": 34
+        }
+      },
+      "columns": "294px",
+      "brokenImages": []
+    },
+    {
+      "name": "settings-320x844-light-expanded",
+      "width": 320,
+      "view": "settings",
+      "scrollHeight": 4604,
+      "hero": 370,
+      "modes": 36,
+      "overflow": false,
+      "modesOneRow": true,
+      "header": {
+        "heading": {
+          "x": 13,
+          "y": 125,
+          "width": 114,
+          "height": 28
+        },
+        "title": {
+          "x": 49,
+          "y": 125.5,
+          "width": 70.8125,
+          "height": 27
+        },
+        "actions": {
+          "x": 135,
+          "y": 125,
+          "width": 172,
+          "height": 34
+        }
+      },
+      "columns": "294px",
+      "brokenImages": []
+    },
+    {
+      "name": "settings-320x844-dark",
+      "width": 320,
+      "view": "settings",
+      "scrollHeight": 1886,
+      "hero": 303,
+      "modes": 36,
+      "overflow": false,
+      "modesOneRow": true,
+      "header": {
+        "heading": {
+          "x": 13,
+          "y": 125,
+          "width": 114,
+          "height": 28
+        },
+        "title": {
+          "x": 49,
+          "y": 125.5,
+          "width": 70.8125,
+          "height": 27
+        },
+        "actions": {
+          "x": 135,
+          "y": 125,
+          "width": 172,
+          "height": 34
+        }
+      },
+      "columns": "294px",
+      "brokenImages": []
+    },
+    {
+      "name": "settings-320x844-dark-expanded",
+      "width": 320,
+      "view": "settings",
+      "scrollHeight": 4604,
+      "hero": 370,
+      "modes": 36,
+      "overflow": false,
+      "modesOneRow": true,
+      "header": {
+        "heading": {
+          "x": 13,
+          "y": 125,
+          "width": 114,
+          "height": 28
+        },
+        "title": {
+          "x": 49,
+          "y": 125.5,
+          "width": 70.8125,
+          "height": 27
+        },
+        "actions": {
+          "x": 135,
+          "y": 125,
+          "width": 172,
+          "height": 34
+        }
+      },
+      "columns": "294px",
+      "brokenImages": []
+    },
+    {
+      "name": "long-copy",
+      "width": 390,
+      "view": "main",
+      "scrollHeight": 2159,
+      "hero": 345,
+      "modes": 36,
+      "overflow": false,
+      "modesOneRow": true,
+      "header": {
+        "heading": {
+          "x": 12,
+          "y": -1125,
+          "width": 186,
+          "height": 28
+        },
+        "title": {
+          "x": 48,
+          "y": -1124.5,
+          "width": 70.8125,
+          "height": 27
+        },
+        "actions": {
+          "x": 206,
+          "y": -1125,
+          "width": 172,
+          "height": 34
+        }
+      },
+      "columns": "366px",
+      "brokenImages": []
+    }
+  ],
+  "floatingHeight": 58.34375,
+  "errors": []
+}

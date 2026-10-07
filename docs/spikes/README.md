@@ -6,6 +6,8 @@ N7/R2 的短跑或合成演练不能替代 A09 两小时验收；U3/U4 等 PHL �
 
 彩蛋与素材验证从 [U12](U12-playback-dolls.md) 读起，布局复核见 [U13](U13-easter-review-fixes.md)，最近播放中断修复与 408 项测试基线见 [N21](N21-playback-interruption-recovery.md)。U12 的历史本地包不包含之后的开关样式/U13/N21 修复，源码、发布和生产状态统一看 [开发路线](../PROJECT_PLAN.md)。
 
+最新紧凑布局与浏览器/客户端专项验证见 [U14](U14-compact-layout.md)；N21 全量为此前基线，本轮不新增音频验收。
+
 ## 自主听歌、推荐与后续修复
 
 | 记录 | 主题 |
@@ -50,6 +52,7 @@ N7/R2 的短跑或合成演练不能替代 A09 两小时验收；U3/U4 等 PHL �
 | [U11](U11-mode-autonomy-restore.md) | U11：模式恢复声音与「今天停止」恢复入口修复 |
 | [U12](U12-playback-dolls.md) | U12：本地播放动效开关、锅盖 GIF 与飞散玩偶 |
 | [U13](U13-easter-review-fixes.md) | U13：彩蛋跨窗口状态同步与高窄视口裁切修复 |
+| [U14](U14-compact-layout.md) | U14：主面板、设置与悬浮条紧凑布局 |
 
 ## 平台与音频基础
 
