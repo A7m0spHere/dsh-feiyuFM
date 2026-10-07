@@ -1,10 +1,12 @@
 {
   "name": "dsh-feiyufm-core",
-  "version": "0.1.0-beta.1",
+  "version": "0.1.0-beta.2",
   "type": "module",
-  "description": "肥鱼电台 FishFM：面向 DeepSeek Harness 的音乐插件，支持网易云听歌、本地偏好学习与可选模型推荐。",
+  "description": "肥鱼电台 FishFM：DSH 社区音乐插件，从参考歌曲出发，由网易云推荐、模型筛选，再自主听歌。",
   "license": "MIT",
-  "os": ["win32"],
+  "os": [
+    "win32"
+  ],
   "files": [
     "index.js",
     "cordis.patch.yml",
@@ -38,7 +40,14 @@
   "bugs": {
     "url": "https://github.com/A7m0spHere/dsh-feiyuFM/issues"
   },
-  "keywords": ["fishfm", "deepseek", "deepseek-harness", "music", "netease", "dsh-plugin"],
+  "keywords": [
+    "fishfm",
+    "deepseek",
+    "deepseek-harness",
+    "music",
+    "netease",
+    "dsh-plugin"
+  ],
   "engines": {
     "node": ">=24.14.0 <25"
   },
@@ -93,5 +102,8 @@
   "overrides": {
     "basic-ftp": "6.2.2"
   },
-  "bundleDependencies": ["@neteasecloudmusicapienhanced/api", "qrcode"]
+  "bundleDependencies": [
+    "@neteasecloudmusicapienhanced/api",
+    "qrcode"
+  ]
 }

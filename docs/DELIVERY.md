@@ -1,6 +1,6 @@
 # 交付与使用说明
 
-更新日期：2026-10-07。已发布首包为 **0.1.0-beta.1 Windows／网易云测试版**，尚未完成稳定 v0.1 验收。`main` 已包含 U12/U13 彩蛋、N21 中断恢复、U14 紧凑布局与 N22 平台先推荐/模型再筛选，但没有发布新的 npm 版本；普通 `@beta` 安装仍取得首包。本文说明安装与使用，发行确认和摘要见 [首包记录](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/releases/0.1.0-beta.1.md)，源码/发布/实包与验收状态统一见 [开发路线](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/PROJECT_PLAN.md)。
+更新日期：2026-10-07。本文对应 **0.1.0-beta.2 Windows／网易云测试版**，包含 U12/U13 彩蛋、N21 中断恢复、U14 紧凑布局与 N22 平台先推荐/模型再筛选；稳定 v0.1 验收仍未完成。发行确认与摘要见 [beta.2 记录](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/releases/0.1.0-beta.2.md)，源码/发布/实包与验收状态统一见 [开发路线](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/PROJECT_PLAN.md)。
 
 ## 支持范围
 
@@ -16,9 +16,9 @@
 
 ## 安装
 
-FishFM 以 npm 包分发，通过 DSH 安装到当前 profile。在侧栏「插件 → 添加插件」的「包名或地址」中输入 `dsh-feiyufm-core@0.1.0-beta.1`，安装完成后点击「立即启用」；跟随 beta 更新用 `dsh-feiyufm-core@beta`。下载失败可切换「安装源 → npm 官方源」。DSH 会安装 bundle、读取 patch 并登记插件，无需手改 profile；单独 `npm install` 不会完成这一步。机制见 [DSH 官方安装说明](https://deepseek-harness.github.io/deepseek-harness/en/develop/basic/publish)。
+FishFM 以 npm 包分发，通过 DSH 安装到当前 profile。在侧栏「插件 → 添加插件」的「包名或地址」中输入 `dsh-feiyufm-core@0.1.0-beta.2`，安装完成后点击「立即启用」；跟随 beta 更新用 `dsh-feiyufm-core@beta`。下载失败可切换「安装源 → npm 官方源」。DSH 会安装 bundle、读取 patch 并登记插件，无需手改 profile；单独 `npm install` 不会完成这一步。机制见 [DSH 官方安装说明](https://deepseek-harness.github.io/deepseek-harness/en/develop/basic/publish)。
 
-已安装 DSH CLI 的用户可通过 `dsh plugin --profile web add dsh-feiyufm-core@0.1.0-beta.1 --registry https://registry.npmjs.org/` 安装到 Web profile；`web` 要对应实际启动的 profile，安装后重启该实例。桌面版使用上述应用内入口。
+已安装 DSH CLI 的用户可通过 `dsh plugin --profile web add dsh-feiyufm-core@0.1.0-beta.2 --registry https://registry.npmjs.org/` 安装到 Web profile；`web` 要对应实际启动的 profile，安装后重启该实例。桌面版使用上述应用内入口。
 
 支持 Windows、DSH 本机验证版本 `0.2.0-rc.2`；桌面宿主自带兼容 Node 24 时无需单独安装 Node。QQ 与其他系统不在首包已验证范围内。
 
@@ -28,11 +28,11 @@ FishFM 以 npm 包分发，通过 DSH 安装到当前 profile。在侧栏「插�
 
 ## 首次听歌
 
-当前源码的角色图下有一枚无文字的小开关，默认位于左侧，可以自行尝试另一侧。素材在当前仓库与打包清单中提供，无需 Wallpaper Engine 或手动提取；已上架首包尚无此功能。同源窗口即时同步、高窄面板适配已在 U13 隔离验证，真实生产窗口组合仍待验。
+beta.2 的角色图下有一枚无文字的小开关，默认位于左侧，可以自行尝试另一侧。素材随包提供，无需 Wallpaper Engine 或手动提取；beta.1 尚无此功能。同源窗口即时同步、高窄面板适配已在 U13 隔离验证，真实生产窗口组合仍待验。
 
 导入后，可直接点播输入曲库中的歌曲。自主听歌与电脑声音是独立开关：静听保留自主听歌但关闭声音，暂停冻结进度且不会被自动事件撤销。「今天停止」还会禁止当日自主行为，可通过「恢复自主听歌」解除。
 
-当前源码按“参考歌曲 → 网易云推荐 → 模型挑歌”工作。导入后沿用 DSH 已配置模型按批筛选，主界面只显示歌单、理由和换一批；模型选择与用量放在折叠设置。自动播放只来自入选歌单，失败保留同账号有效旧歌单；用户下一首可回退参考曲库，自动续播不走这条回退。此流程属于未发布的 N22，首包仍保留当时的模型歌单/核对界面。
+beta.2 按“参考歌曲 → 网易云推荐 → 模型挑歌”工作。导入后沿用 DSH 已配置模型按批筛选，主界面只显示歌单、理由和换一批；模型选择与用量放在折叠设置。自动播放只来自入选歌单，失败保留同账号有效旧歌单；用户下一首可回退参考曲库，自动续播不走这条回退。beta.1 仍保留当时的模型歌单/核对界面。
 
 主面板、设置页与悬浮条共用 Core。隐藏悬浮条或切换页面继续播放，停用插件会停止其后台服务与播放。模型总结、歌单与候选筛选是低频调用，受开关、冷却、每日次数和共享 token 预算约束；逐曲播放不请求模型。
 

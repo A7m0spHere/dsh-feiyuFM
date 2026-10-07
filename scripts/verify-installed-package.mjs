@@ -24,7 +24,8 @@ assert.ok(basicRoot.startsWith(join(root, 'node_modules')), 'FTP fix must come f
 
 const plugin = await import(pathToFileURL(join(root, 'index.js')));
 const manifest = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
-assert.equal(manifest.version, '0.1.0-beta.1');
+const expectedVersion = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version;
+assert.equal(manifest.version, expectedVersion, 'Installed package does not match the prepared release');
 assert.ok(existsSync(join(root, manifest.dsh.bundle.patch)));
 assert.ok(existsSync(join(root, manifest.exports['./client'])));
 const { clientArtwork } = await import(pathToFileURL(join(root, 'src/ui/artwork-assets.mjs')));
