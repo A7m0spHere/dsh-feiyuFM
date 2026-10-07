@@ -66,7 +66,7 @@ DSH `0.2.0-rc.2` 的插件页暂不支持自动更新。先在插件管理器卸
 
 ## 验证与边界
 
-网易云真实链路见 [P3](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/spikes/P3-real-loop.md)，设置和重启恢复见 [N10](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/spikes/N10-feedback-reset.md)，一次模型歌单生成见 [N11](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/spikes/N11-model-playlist.md)。最近全量基线为 [N21](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/spikes/N21-playback-interruption-recovery.md) 的 408 项；[U14](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/spikes/U14-compact-layout.md) 紧凑布局另完成 54 项相关测试、126 模块、构建与隔离浏览器复验，没有重跑音频全量或重载生产。首包和 U12 历史实包分别验证了安装与资源，不等于当前生产平台播放验收；历史 tarball 不包含后续开关样式及 U13/N21/U14 修复。
+网易云真实链路见 [P3](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/spikes/P3-real-loop.md)，设置和重启恢复见 [N10](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/spikes/N10-feedback-reset.md)，一次旧版模型歌单生成见 [N11](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/spikes/N11-model-playlist.md)。最近全量基线为 [N22](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/spikes/N22-platform-first-recommendations.md) 的 420 项测试、127 模块、构建/debug smoke 与隔离浏览器 20 个组合；这些不构成真实账号推荐、模型质量或生产验收。首包和 U12 历史实包分别验证了安装与资源，不等于当前源码的生产平台播放验收；历史 tarball 不包含后续开关样式及 U13/N21/U14/N22 改动。
 
 当前默认从 5 个持有者开始，按实际 Open 耗时最多补齐到 8 个；独立实测用了 6 个，后续加载 484ms。首曲仍冷，预热/打开时间随环境变化。`FISHFM_PLAYBACK_WARM_HOLDERS=0..8` 可指定固定数量，0 关闭。
 

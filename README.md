@@ -2,119 +2,60 @@
 
 给正在 DSH 里工作的 DeepSeek 一副耳机。
 
-<p>
-  <img src="https://raw.githubusercontent.com/A7m0spHere/dsh-feiyuFM/main/assets/readme/hero.svg" width="100%" alt="肥鱼电台 FishFM：从你的常听歌曲出发，学习偏好、挑选音乐，在 DSH 中持续听歌。">
-</p>
+<img src="assets/readme/hero.svg" width="100%" alt="肥鱼电台 FishFM：导入参考歌曲，网易云找歌，模型挑歌，大肥鱼听歌。">
 
-**FishFM 是 DeepSeek Harness（DSH）的社区音乐插件。** 导入你的网易云音乐，以常听歌曲为起点建立本地音乐偏好，让大肥鱼自主选歌、探索新歌；你可以随时点播、暂停、换曲或静音。
+**FishFM 是 DeepSeek Harness（DSH）的社区音乐插件。** 导入你常听的歌曲，让网易云找来推荐，再由模型挑出一批，大肥鱼就可以沿着这份歌单继续听。你随时可以点播、暂停、换曲或静音。
 
-**首个公开测试版 `0.1.0-beta.1` 已在 npm 发布。** 当前支持 Windows／网易云，可在 DSH 插件管理器中添加 `dsh-feiyufm-core@beta`。稳定版验收仍在进行，QQ 接入暂缓。
+[开始使用](#开始使用) · [推荐流程](#推荐怎样运行) · [使用说明](docs/DELIVERY.md) · [开发与贡献](CONTRIBUTING.md) · [文档索引](docs/README.md)
 
-`main` 已收拢为“导入参考歌曲 → 网易云找歌 → LLM 挑歌 → 大肥鱼听歌”，界面直接显示歌曲、理由和换一批。模型与用量放在推荐设置。N22 完成 420 项测试、127 模块与隔离浏览器复验，尚未发布到 npm 或重载生产；源码、首包和历史包的区别见 [开发路线](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/PROJECT_PLAN.md)。
-
-[开始使用](#开始使用) · [npm 包](https://www.npmjs.com/package/dsh-feiyufm-core/v/0.1.0-beta.1) · [功能介绍](#能做什么) · [文档索引](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/README.md) · [开发与贡献](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/CONTRIBUTING.md) · [发布记录](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/releases/0.1.0-beta.1.md)
+> **版本提示：** 本页介绍当前 `main` 源码。已发布的 npm 包仍为 `0.1.0-beta.1`，使用旧版推荐流程和界面；体验下面的新歌单界面请使用源码安装。版本与验收状态见 [开发路线](docs/PROJECT_PLAN.md)。
 
 ## 界面预览
 
-![肥鱼电台主面板：播放控制、音乐偏好、模型总结与听歌设置](https://raw.githubusercontent.com/A7m0spHere/dsh-feiyuFM/main/assets/readme/panel.png)
+![当前源码主面板：大肥鱼的歌单、选歌理由、播放控制与听歌设置](assets/readme/panel.png)
+
+歌单直接显示歌曲、艺人和简短理由，点击即可播放；想换个方向就点「换一批」。模型选择、用量和预算放在折叠的「推荐设置」中。
 
 <details>
 <summary>查看深色界面</summary>
 
-![肥鱼电台深色主面板](https://raw.githubusercontent.com/A7m0spHere/dsh-feiyuFM/main/assets/readme/panel-dark.png)
+![当前源码深色主面板](assets/readme/panel-dark.png)
 
 </details>
 
-以上截图来自 2026-10-05 客户端的隔离预览，使用模拟歌曲和统计数据，不代表真实账号记录或模型效果，也未展示后续彩蛋开关。主面板、设置页和可隐藏的悬浮条共用同一个音乐服务；切换 DSH 页面或隐藏控件后仍可继续播放。
+截图于 2026-10-07 从实际客户端的隔离预览截取，使用模拟歌曲和数据，展示布局与操作，不代表真实账号记录或模型推荐质量。
 
-<details>
-<summary>查看 beta 包安装后的 DSH 界面</summary>
+## 推荐怎样运行
 
-![官方 DSH 隔离环境中的 FishFM beta 包](https://raw.githubusercontent.com/A7m0spHere/dsh-feiyuFM/main/docs/releases/assets/beta1-ui.png)
+**参考歌曲 → 网易云找歌 → 模型挑歌 → 大肥鱼听歌。**
 
-来自官方 DSH `0.2.0-rc.2` 的隔离 profile，已验证实包安装、侧栏、图片与设置读写。该环境未登录网易云、曲库为空，完整验证范围见 [发布记录](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/releases/0.1.0-beta.1.md)。
+1. 扫码登录网易云，从近期播放、喜欢的歌曲或指定歌单导入参考歌曲。
+2. 网易云返回相似歌曲、每日推荐等候选；模型结合参考歌曲与反馈，从候选里挑选并给出理由。
+3. 本地电台从入选歌单选歌、播放和续播，记录有效收听经历，供下一批推荐参考。
 
-</details>
+模型按批挑歌，**播放和换曲不发模型请求**。自动补充歌单受冷却、每日次数和共享 token 预算限制，用量可在推荐设置查看。换批失败会保留同账号仍有效的旧歌单；没有可用歌单时可以手动点播参考歌曲。播放范围仍取决于网易云账号权限和平台资源。
 
-## 能做什么
+这里的「听歌」指选歌、播放和收听记录形成的产品体验；当前不做音频理解。完整规则见 [产品规格](docs/MVP.md)。
 
-| 功能 | 使用方式 |
+## 你可以怎样听
+
+| 操作 | 效果 |
 | --- | --- |
-| 导入你的音乐 | 网易云扫码登录，从近期播放、喜欢的歌曲或指定歌单建立输入曲库 |
-| 自主听歌 | 按本地偏好、歌曲关系与重复惩罚选择歌曲，曲终继续播放；用户暂停优先 |
-| 找新歌 | 从参考歌曲出发，让网易云返回相似歌曲与每日推荐等真实候选 |
-| 模型挑歌 | 使用 DSH 已配置的模型从网易云候选里挑选，再由本地电台接着播放 |
-| 看懂选歌理由 | 歌单显示简短理由，「大肥鱼说」解释当前选择；详细听歌记录在设置中 |
-| 调整推荐 | 对歌曲点「喜欢 / 少推荐」并撤销；偏好重置和输入曲库清空分别提供恢复入口 |
-| 控制听歌状态 | 暂停、继续、下一首，以及日常、专注、静听、关闭和「今天停止」 |
-| 随时收起 | DSH 内悬浮条可隐藏、重开、拖动和吸附；支持浅色、深色与减少动态效果 |
+| 点播、暂停、下一首 | 随时接管播放，用户暂停优先 |
+| 喜欢 / 少推荐 | 调整后续推荐，可撤销；不改动网易云收藏 |
+| 日常 / 专注 / 静听 / 关闭 | 切换听歌方式；静听关闭电脑声音，继续记录有效经历 |
+| 今天停止 | 停止今天的自主听歌，可手动恢复 |
+| 收起悬浮条或切换页面 | 音乐服务继续运行，控件可重新打开 |
 
-「静听」会关闭电脑声音，让自主听歌与有效经历继续。音乐偏好、用户反馈和禁播约束分别保存，平台请求失败不会被当成不喜欢一首歌，反馈也不会改动网易云收藏。
-
-### 推荐怎样运行
-
-```text
-你的常听歌曲 / 喜欢 / 歌单
-          ↓
-本地画像与歌曲关系 → 候选召回 / 可选模型歌单与筛选
-          ↓
-本地逐曲选歌 → 平台核对与资源解析 → 独立播放服务
-          ↓
-有效收听记录 → 有界偏好更新 → 下一次选择
-```
-
-**逐曲选歌、播放和偏好更新不请求模型。** 画像总结、模型歌单、发现候选筛选是低频操作，共用 token 预算，并受冷却与每日上限约束；成功和失败的调用都会记录到账本。自动更新可关闭，模型不可用时界面展示实际状态。
-
-模型歌单会先搜索核对，再播放可匹配的歌曲。歌单暂时没有可播曲目时，用户主动点「下一首」可回退输入曲库并显示原因；自主续播保持歌单边界。完整行为见 [产品规格](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/MVP.md)。
+主面板、设置页和悬浮条共用同一个音乐服务，支持浅色、深色与减少动态效果。
 
 ## 开始使用
 
-### 环境要求
+当前支持 **Windows + 网易云音乐**。需要 Node.js `>=24.14.0 <25`；DSH 桌面宿主自带兼容 Node 24 时无需另装。历史实测宿主为 DSH `0.2.0-rc.2`，其他版本尚未验证。自动推荐使用你在 DSH 中已配置的模型；不配置模型也可手动点播导入歌曲。
 
-| 项目 | 要求 |
-| --- | --- |
-| 系统 | Windows；当前真实音频后端使用 WPF `MediaPlayer` |
-| Node.js | `>=24.14.0 <25`；DSH 桌面宿主自带兼容 Node 24 时无需单独安装 |
-| 宿主 | DSH 桌面版；本机验证版本为 `0.2.0-rc.2`，其他版本尚未验证 |
-| 音乐账号 | 网易云音乐；可播放范围取决于账号权限和平台资源 |
-| 模型 | 可选，使用 DSH 中已配置的模型；离线开发检查不需要模型或音乐账号 |
+### 体验当前源码
 
-### 安装到 DSH
-
-FishFM 以 npm 包分发，但需要通过 DSH 安装到它的 profile。DSH 会下载包、读取 `dsh.bundle` 并登记插件；单独运行 `npm install dsh-feiyufm-core` 不会完成 DSH 的安装与启用。[官方打包与安装说明](https://deepseek-harness.github.io/deepseek-harness/en/develop/basic/publish)
-
-在 DSH 侧栏打开「插件 → 添加插件」，在「包名或地址」中输入：
-
-```text
-dsh-feiyufm-core@beta
-```
-
-固定安装当前版本用 `dsh-feiyufm-core@0.1.0-beta.1`。等待安装完成后点击 **立即启用**；下载失败时可将「安装源」切换为「npm 官方源」再试。
-
-1. 点击侧栏 **肥鱼电台**，或进入 **设置 → 肥鱼电台**。
-2. 在网易云卡片扫码、手机确认，再导入音乐并点播。
-3. 模型功能使用你自己在 DSH 中配置的模型；不需要模型即可点播输入歌曲。
-
-DSH `0.2.0-rc.2` 的插件页暂不支持自动更新。升级时先在插件管理器卸载 FishFM，再添加 `dsh-feiyufm-core@beta` 或新版的固定版本，并点击「立即启用」。已有 workspace 安装也按此方式更换来源，同一 profile 只启用一份 FishFM。数据保存在 DSH 数据目录，升级时使用同一 profile，不删除数据库，之后核对曲库、偏好与暂停状态。
-
-<details>
-<summary>使用已安装的 DSH CLI 添加插件</summary>
-
-以 Web profile 为例，在 Windows 终端执行：
-
-```sh
-dsh plugin --profile web add dsh-feiyufm-core@0.1.0-beta.1 --registry https://registry.npmjs.org/
-```
-
-`web` 必须对应你实际使用的 profile；安装后重启该 DSH 实例。桌面版用户直接使用上面的应用内插件管理器。
-
-</details>
-
-安装、更新、数据位置和常见问题见 [使用说明](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/DELIVERY.md)。首次播放仍可能等待数秒，性能边界见下方 [当前进度](#当前进度)。
-
-### 从源码开发
-
-使用上述 Windows 和 Node.js 环境：
+在上述环境中构建：
 
 ```sh
 git clone https://github.com/A7m0spHere/dsh-feiyuFM.git
@@ -123,59 +64,67 @@ npm ci --ignore-scripts --no-audit --no-fund
 npm run build
 ```
 
-开发时通过插件管理器添加仓库绝对目录。`dist/` 是开发产物，不是独立安装器；开发检查和真实音频测试要求见 [贡献指南](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/CONTRIBUTING.md)。
+在 DSH 侧栏打开「插件 → 添加插件」，填入**仓库的绝对目录**，安装后点击「立即启用」。`dist/` 是构建产物，不是独立安装器。
 
-## 当前进度
+1. 打开侧栏「肥鱼电台」，或「设置 → 肥鱼电台」。
+2. 在网易云卡片扫码、手机确认，导入参考歌曲。
+3. 确认 DSH 已配置模型，等待挑歌或点击「找一批歌」，再点播入选歌曲。
 
-**`0.1.0-beta.1` 已发布，稳定 v0.1 验收尚未完成。** 网易云真实扫码、导入、播放、自然续播、部分偏好成长、设置持久化与停用恢复已有历史实测；本次发布额外验证了隔离安装与 DSH 页面交互。完整验收状态以 [开发路线](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/PROJECT_PLAN.md) 为准。
+### 安装已发布的 beta
 
-- 2026-10-07 源码：[N21](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/spikes/N21-playback-interruption-recovery.md) 修复播放中断检测、原曲一次恢复、断线曲终续播与恢复竞争；408/408 测试、126 模块与构建通过，生产未重载。此前 [U12](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/spikes/U12-playback-dolls.md) 完整素材与彩蛋、[U13](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/spikes/U13-easter-review-fixes.md) 跨窗口/高窄布局已实现并隔离验证，完整生产组合仍待验。这些改动尚未发布到 npm。
-- 同日 [U14](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/spikes/U14-compact-layout.md) 紧凑布局：模拟数据下播放器约少 31%、设置默认内容约少 26%；54 项相关测试及浅深色/窄窗口/键盘浏览器复验通过，未重跑音频全量、未重载生产。
+想使用已封存的首个测试包，可在 DSH「插件 → 添加插件」的「包名或地址」中输入：
 
-- npm 下载包的 SHA-512／SHA-1 与封存包一致；从 registry 全新安装后的入口、图片、Core、WPF 和实际依赖版本检查均 `ALL-PASS`。本机 386 项测试通过；远端 CI 383 项通过，3 项依赖音频环境的回归显式跳过。详情见 [发布记录](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/releases/0.1.0-beta.1.md)。
-- 2026-10-06 发布核验时 `beta` 和 `latest` 都指向 `0.1.0-beta.1`；安装建议显式使用 `@beta` 或固定版本。稳定版完成后再更新 `latest`。
-- 首次播放仍需数秒；默认从 5 个预热持有者开始，根据实际打开耗时最多补齐到 8 个。显式 `FISHFM_PLAYBACK_WARM_HOLDERS=0..8` 使用固定数量，0 关闭。性能与填池时间随环境变化；真实长期模型筛选质量与生产迁移仍待验证。
-- 真实两小时运行、DSH 模型请求/上下文对照与完整多会话验收尚未完成。
-- QQ 音乐保留在规划与适配代码中，接入暂缓；当前不提供可用的 QQ 登录与播放链路。其他操作系统未验证。
-
-## 数据与模型
-
-播放核心独立于可见 UI。默认数据存于 `$DSH_HOME/fishfm/music.sqlite`，常见本机位置为 `~/.dsh/fishfm/music.sqlite`。网易云会话使用 Windows DPAPI 加密，数据库只保存凭据引用；运行数据库、Cookie 和音频不会随仓库同步。
-
-使用模型功能时，会发送受大小上限约束的歌曲名称、艺人、反馈与关系等音乐事实；歌单生成不发送平台 ID；候选筛选会发送用于匹配结果的曲目键（含平台与歌曲 ID）。Cookie 和凭据不进入模型事实包。具体字段、预算与持久化边界见 [架构](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/ARCHITECTURE.md) 和 [控制契约](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/CORE_CONTRACT.md)。
-
-## 开发
-
-```sh
-npm run check             # 模块语法、Node 版本与生成客户端一致性
-npm test                  # 核心、适配器、桥接与 UI 逻辑测试
-npm run build             # 生成客户端、构建 dist/ 并运行调试冒烟
-npm run audit:acceptance  # 验收证据引用审计，不代表真实验收通过
-npm run debug             # JSON 行调试入口，使用假播放，不出声
+```text
+dsh-feiyufm-core@0.1.0-beta.1
 ```
 
-客户端源码在 `src/ui/client/`，`src/ui/dsh-client.js` 为生成文件。修改 UI 后执行 `npm run build:client`；隔离预览需要已有 React 18 UMD，详见 [贡献指南](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/CONTRIBUTING.md)。
+安装完成后点击「立即启用」。这个版本保留旧版模型歌单与平台核对界面；安装验证与截图见 [首包发布记录](docs/releases/0.1.0-beta.1.md)。
 
-维护仓库先看 [结构与入口](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/REPOSITORY.md) 和 [脚本索引](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/scripts/README.md)。原型、历史探针、运行源码与本机缓存分别维护，当前状态只在开发路线更新。
+<details>
+<summary>通过 DSH CLI 安装 beta</summary>
 
-## 文档导航
+以 Web profile 为例：
 
-| 文档 | 内容 |
+```sh
+dsh plugin --profile web add dsh-feiyufm-core@0.1.0-beta.1 --registry https://registry.npmjs.org/
+```
+
+`web` 必须对应你实际使用的 profile；安装后重启该 DSH 实例。单独运行 `npm install` 不会完成 DSH 插件注册与启用。
+
+</details>
+
+同一 profile 只启用一份 FishFM。安装源切换、更新、数据保留与常见问题见 [使用说明](docs/DELIVERY.md)。
+
+## 当前状态与数据
+
+项目仍是测试版。最新推荐流程已完成本机测试与隔离界面验证，尚未发布到 npm 或重载生产；真实模型筛选质量、两小时连续运行和完整多会话验收仍待完成。首次播放可能等待数秒，QQ 接入暂缓。最新进度和证据统一见 [开发路线](docs/PROJECT_PLAN.md)。
+
+曲库、偏好、反馈、收听历史与用量账本保存在本机，默认数据库为 `$DSH_HOME/fishfm/music.sqlite`，常见路径为 `~/.dsh/fishfm/music.sqlite`。网易云会话使用 Windows DPAPI 加密，数据库只保存凭据引用，Cookie、运行数据库和音频不入库。
+
+模型挑歌会收到有大小上限的歌名、艺人、反馈、关系与候选曲目键，不会收到 Cookie 或凭据。字段与存储边界见 [架构](docs/ARCHITECTURE.md) 和 [控制契约](docs/CORE_CONTRACT.md)。
+
+## 开发与文档
+
+```sh
+npm run check             # 语法、Node 版本与生成客户端一致性
+npm test                  # 核心、适配器、桥接与 UI 逻辑
+npm run build             # 生成客户端、构建与调试冒烟
+npm run audit:acceptance  # 文档链接与验收证据引用审计
+```
+
+客户端源码在 `src/ui/client/`，`src/ui/dsh-client.js` 为生成文件；修改 UI 后运行 `npm run build:client`。隔离预览、真实音频测试与贡献方式见 [贡献指南](CONTRIBUTING.md)。
+
+| 入口 | 内容 |
 | --- | --- |
-| [发布记录](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/releases/0.1.0-beta.1.md) | beta 包摘要、安装验证、CI 与剩余依赖告警 |
-| [文档索引](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/README.md) | 当前规格、设计提案和历史证据的统一入口 |
-| [交付与使用说明](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/DELIVERY.md) | 安装、更新、数据位置与常见问题 |
-| [产品规格](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/MVP.md) | 用户操作、推荐边界与验收标准 |
-| [开发路线](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/PROJECT_PLAN.md) | 实施进度、真实验收与跨设备交接 |
-| [架构](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/ARCHITECTURE.md) | Provider、Core、Playback 和 UI 的职责 |
-| [控制契约](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/CORE_CONTRACT.md) | 内部命令、状态与存储语义 |
-| [决策记录](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/DECISIONS.md) | 实现取舍与来源证据 |
-| [贡献指南](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/CONTRIBUTING.md) | 本地开发、问题反馈和提交要求 |
+| [文档索引](docs/README.md) | 规格、设计、历史证据与发行记录 |
+| [仓库结构](docs/REPOSITORY.md) · [脚本索引](scripts/README.md) | 维护入口与可执行工具 |
+| [产品规格](docs/MVP.md) · [开发路线](docs/PROJECT_PLAN.md) | 行为规则、实施进度与验收状态 |
+| [使用说明](docs/DELIVERY.md) · [发布记录](docs/releases/0.1.0-beta.1.md) | 安装、更新、数据与已发布版本 |
 
 ## 许可与致谢
 
-项目原创代码与文档采用 [MIT License](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/LICENSE)。已发布的首个 npm beta 包使用自有三张角色状态 PNG；当前源码还将锅盖 GIF、配套静态图和六张 doll PNG 一起打包，安装后无需另行提取即可开启播放动效，该更新尚未发布到 npm。运行依赖的源码与许可随包保留，按各自许可使用，见 [第三方声明](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/THIRD_PARTY_NOTICES.md) 和 [依赖许可清单](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/DEPENDENCY_LICENSES.md)。
+项目原创代码与文档采用 [MIT License](LICENSE)。运行依赖遵循各自许可，源码与许可随包保留，见 [第三方声明](THIRD_PARTY_NOTICES.md) 和 [依赖许可清单](DEPENDENCY_LICENSES.md)。
 
-用户提供锅盖鲸鱼娘 GIF、衍生素材及指定 Workshop 的 doll PNG 作者与许可尚未确认，不包含在本项目 MIT 授权范围内；保留各自来源和文件清单。本页界面截图使用自有状态图。
+首个 npm beta 使用三张自有角色 PNG。本页截图也使用自有状态图；当前源码随包的用户提供 GIF、衍生图与 Workshop doll PNG 作者和许可尚未确认，**不属于本项目 MIT 授权范围**，来源与清单保留在第三方声明中。
 
-感谢 DSH、网易云社区 API，以及提供 UI 风格和交互参考的 PHL、dsh-api-dashboard 与 DeepSeek Balance Whale Widget。具体版本、复用范围和声明见第三方文档。FishFM 为独立维护的社区项目。
+感谢 DSH、网易云社区 API，以及提供界面与交互参考的 PHL、dsh-api-dashboard 和 DeepSeek Balance Whale Widget。FishFM 是独立维护的社区项目。
