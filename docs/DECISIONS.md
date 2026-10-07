@@ -262,7 +262,7 @@ MVP 要求"多 Session 不抢占播放"（A08）与"临时 Session 权重只少�
 
 主要参考是 [`MeteorNOX/DeepSeek-Balance-Whale-Widget`](https://github.com/MeteorNOX/DeepSeek-Balance-Whale-Widget)：`whale-widget-prompt.md` 给出气泡挂件布局与视觉参数（描边 `#203170`、正文 `#536ba9`、提示 `#9fb0d9`、三点菜单、可隐藏）；本轮查看了仓库 README、`whale-widget-prompt.md`、`assets/DSH2.png` 和 `PROVENANCE.md`。另参考 [`dsh-api-dashboard`](https://github.com/133563825as-ai/dsh-api-dashboard) 的余额卡和设置截图。FishFM 将余额/用量信息替换为曲名/艺人、播放进度、播放/暂停/下一首、DeepSeek Listening、Human Playback 与探索率。
 
-只作 UI 参考，不复制代码或角色素材。`PROVENANCE.md` 明确声明余额挂件仓库的 `assets/**` 不属于 MIT 许可范围；FishFM 原型不使用其图片或音效。用户随后要求使用此前生成的鲸鱼娘图并加入动态展示，三张 Codex 生成图已复制到 `prototypes/assets/`，仅演示待机/听歌/DJ 姿态切换，来源映射见 [原型素材说明](../prototypes/ASSETS.md)。这不是桌宠：不增加喂食、抚摸、随机台词或主动宠物状态机。Tauri 2 仍未锁定；Core/Playback 独立于可见 UI 的约束不变。本决定取代 D04 与 D08 中的宠物产品/默认角色范围，并要求同步 [MVP](MVP.md)、[ARCHITECTURE](ARCHITECTURE.md)、[PROJECT_PLAN](PROJECT_PLAN.md)、[DELIVERY](DELIVERY.md) 和 U2 证据说明。
+只作 UI 参考，不复制代码或角色素材。`PROVENANCE.md` 明确声明余额挂件仓库的 `assets/**` 不属于 MIT 许可范围；FishFM 原型不使用其图片或音效。用户随后要求使用此前生成的鲸鱼娘图并加入动态展示，三张 Codex 生成图已复制到 `prototypes/assets/`，仅演示待机/听歌/DJ 姿态切换，来源映射见 [原型素材说明](../prototypes/README.md#素材来源)。这不是桌宠：不增加喂食、抚摸、随机台词或主动宠物状态机。Tauri 2 仍未锁定；Core/Playback 独立于可见 UI 的约束不变。本决定取代 D04 与 D08 中的宠物产品/默认角色范围，并要求同步 [MVP](MVP.md)、[ARCHITECTURE](ARCHITECTURE.md)、[PROJECT_PLAN](PROJECT_PLAN.md)、[DELIVERY](DELIVERY.md) 和 U2 证据说明。
 
 
 ## 17. 先提供 DSH 主界面设置入口（2026-09-29）

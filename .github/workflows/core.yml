@@ -20,6 +20,7 @@ jobs:
           cache-dependency-path: npm-shrinkwrap.json
       - run: npm ci --ignore-scripts --no-audit --no-fund
       - run: npm run check
+      - run: npm run audit:acceptance
       - run: npm test
       - run: npm run build
       - run: node scripts/dependency-notices.mjs

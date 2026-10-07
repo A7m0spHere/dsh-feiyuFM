@@ -1,6 +1,6 @@
 # 技术验证方法与证据要求
 
-更新：2026-10-06。保留 `PHASE_0.md` 路径供既有引用使用。本文维护实验问题和通过条件；不独立维护完成状态，任务及验收进度统一见 [开发路线](PROJECT_PLAN.md)。早期探针保留在 [spikes](spikes/README.md)，当前采用的进程/接口方案见 [架构](ARCHITECTURE.md) 和 [控制契约](CORE_CONTRACT.md)。
+更新：2026-10-07。保留 `PHASE_0.md` 路径供既有引用使用。本文维护实验问题和通过条件；不独立维护完成状态，任务及验收进度统一见 [开发路线](PROJECT_PLAN.md)。早期可执行探针保留在 [根 spikes](../spikes/README.md)，报告保留在 [docs/spikes](spikes/README.md)，当前采用的进程/接口方案见 [架构](ARCHITECTURE.md) 和 [控制契约](CORE_CONTRACT.md)。
 
 ## 验证清单
 

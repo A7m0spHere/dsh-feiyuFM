@@ -13,6 +13,7 @@
 | [内部控制契约](CORE_CONTRACT.md) | 命令、状态、RPC、资源、记账、预算与存储语义 |
 | [技术验证方法](PHASE_0.md) | 探针通过条件、证据格式和真实验证要求 |
 | [决策记录](DECISIONS.md) | 按日期保留取舍、来源和被后续修订的规则 |
+| [仓库结构与维护入口](REPOSITORY.md) | 文件位置、生成物/本机数据边界、脚本和原型入口 |
 
 ## 设计与证据
 
@@ -21,12 +22,9 @@
 | [design](design/README.md) | 自主听歌、透明人格、模型筛选、画像缓存与相似图的原始设计；最新行为看 MVP/契约，状态看 PROJECT_PLAN |
 | [spikes](spikes/README.md) | N/U/P/T/I/R/A 各轮实现与实测报告，含截图和元数据附件；不作为实时账号或部署探针 |
 | [releases](releases/README.md) | 公开包的范围、摘要、安装/界面验证与发布确认 |
+| [archive](archive/README.md) | 封存的旧交接文字，不作为现行规则或实时状态 |
 
-最近的彩蛋、素材随包与实包验证见 [U12](spikes/U12-playback-dolls.md)，跨窗口状态与高窄布局修复见 [U13](spikes/U13-easter-review-fixes.md)。播放中断与断线续播修复、408 项源码验证见 [N21](spikes/N21-playback-interruption-recovery.md)；已发布首包与历史本地包的区别统一看 [开发路线](PROJECT_PLAN.md) 首页。
-
-紧凑布局由 [U14](spikes/U14-compact-layout.md) 建立；最新 [N22](spikes/N22-platform-first-recommendations.md) 收拢推荐流程与界面，含 420 项测试与平台→模型→播放验证，浅深色/宽窄预览和生产边界。
-
-播放/通信检查修复见 [N20](spikes/N20-review-fixes.md)。N19 的旧四持有者阈值已在 N20 修订；PHL 与早期未登录记录不代表当前官方桌面状态。
+最近推荐流程与界面见 [N22](spikes/N22-platform-first-recommendations.md)，中断恢复见 [N21](spikes/N21-playback-interruption-recovery.md)。素材/彩蛋与布局的历史证据从 [spikes 索引](spikes/README.md) 查阅，源码、发布与生产的区别只看开发路线首页。
 
 ## 维护约定
 

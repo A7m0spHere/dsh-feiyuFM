@@ -1,12 +1,12 @@
 #!/usr/bin/env node
-// A soak harness for R2: run the music layer for a while, drive it the way a
-// real session does, and produce the evidence A09 asks for — a request count
-// with zero model requests, a static prompt surface, and resource samples.
+// A soak harness for R2: run the music layer through generated session events
+// and produce synthetic request/resource samples.
+// It does not observe a real DSH task or establish A09's production evidence.
 //
 // Default is a short accelerated run (minutes, not the two hours R2 wants);
-// `--minutes 120` performs the real one. It is honest about which it did: the
-// report records the duration, so a short run can never be presented as the
-// two-hour evidence.
+// `--minutes 120` only extends the same rehearsal. Its generated session and
+// playback events cannot stand in for real platform audio or DSH comparisons.
+// Use observe-runtime.mjs plus audit-real-observation.mjs for real observation.
 //
 //   node scripts/soak.mjs [--minutes 5] [--interval 5] [--out <dir>] [--fake]
 //
@@ -75,7 +75,7 @@ const messages = [];
  * `--fake` also supplies a synthetic provider, so the run genuinely exercises
  * selection, resolution, playback and growth instead of failing at the first
  * resolve with `provider_unavailable`. Without it the run needs real signed-in
- * adapters, which is the real R2 configuration.
+ * adapters; this harness still injects synthetic events and is not real R2 evidence.
  */
 const syntheticProvider = fake ? (() => {
   const provider = new FakeProvider();

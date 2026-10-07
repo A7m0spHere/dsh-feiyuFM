@@ -8,7 +8,7 @@
 
 `assets/readme/hero.svg` 为本项目绘制的静态矢量介绍，按 MIT 提供；`panel.png` 和 `panel-dark.png` 来自 2026-10-05 当前客户端的隔离预览，展示模拟数据与暂停状态，角色使用本项目此前生成的 `whale-idle.png`，未展示上述锅盖鲸鱼娘素材。截图不构成真实账号或模型效果证据。
 
-原有 `whale-idle.png`、`whale-listening.png` 和 `whale-dj.png` 为本项目使用 Codex ImageGen 生成的状态图，来源输出名记录在 [原型素材记录](prototypes/ASSETS.md)；项目对这些自有状态图和上述截图按 MIT 提供。
+原有 `whale-idle.png`、`whale-listening.png` 和 `whale-dj.png` 为本项目使用 Codex ImageGen 生成的状态图，来源输出名记录在 [素材来源记录](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/prototypes/README.md#素材来源)；唯一维护位置为 `src/ui/assets/`。项目对这些自有状态图和上述截图按 MIT 提供。
 
 原有来源证据与英文许可原文保留如下。
 

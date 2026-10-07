@@ -4,9 +4,9 @@
 
 N7/R2 的短跑或合成演练不能替代 A09 两小时验收；U3/U4 等 PHL 记录按其日期阅读；N19 的旧预热阈值以 [N20](N20-review-fixes.md) 后续复测为准。
 
-彩蛋与素材验证从 [U12](U12-playback-dolls.md) 读起，布局复核见 [U13](U13-easter-review-fixes.md)，最近播放中断修复与 408 项测试基线见 [N21](N21-playback-interruption-recovery.md)。U12 的历史本地包不包含之后的开关样式/U13/N21 修复，源码、发布和生产状态统一看 [开发路线](../PROJECT_PLAN.md)。
+最新推荐与界面从 [N22](N22-platform-first-recommendations.md) 读起，播放中断修复见 [N21](N21-playback-interruption-recovery.md)，此前紧凑布局与素材/彩蛋见 U14、U12/U13。各报告的测试数量和安装包均按日期理解，当前状态统一看开发路线。
 
-最新紧凑布局与浏览器/客户端专项验证见 [U14](U14-compact-layout.md)；N21 全量为此前基线，本轮不新增音频验收。
+本目录存报告与证据；可执行的早期探针在 [根 spikes](../../spikes/README.md)，归档交接文字在 [archive](../archive/README.md)。
 
 ## 自主听歌、推荐与后续修复
 

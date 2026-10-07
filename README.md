@@ -156,6 +156,8 @@ npm run debug             # JSON 行调试入口，使用假播放，不出声
 
 客户端源码在 `src/ui/client/`，`src/ui/dsh-client.js` 为生成文件。修改 UI 后执行 `npm run build:client`；隔离预览需要已有 React 18 UMD，详见 [贡献指南](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/CONTRIBUTING.md)。
 
+维护仓库先看 [结构与入口](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/REPOSITORY.md) 和 [脚本索引](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/scripts/README.md)。原型、历史探针、运行源码与本机缓存分别维护，当前状态只在开发路线更新。
+
 ## 文档导航
 
 | 文档 | 内容 |

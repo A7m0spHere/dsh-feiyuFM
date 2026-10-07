@@ -138,14 +138,16 @@ const EVIDENCE = [
   },
 ];
 
-/** Discover all docs so new design/evidence pages cannot escape link checking. */
+/** Check maintained project docs; do not walk dependencies or local runtime data. */
 function documentationFiles(directory) {
   return readdirSync(join(root, directory), { withFileTypes: true }).flatMap(entry => {
+    if (['node_modules', '.git', '.tmp', 'dist', 'build', 'coverage'].includes(entry.name)) return [];
     const path = `${directory}/${entry.name}`;
     return entry.isDirectory() ? documentationFiles(path) : entry.name.endsWith('.md') ? [path] : [];
   });
 }
-const DOC_LINKS_FROM = ['README.md', 'CONTRIBUTING.md', ...documentationFiles('docs')];
+const DOC_LINKS_FROM = ['README.md', 'CONTRIBUTING.md', 'AGENTS.md', 'CHANGELOG.md', 'THIRD_PARTY_NOTICES.md',
+  ...['docs', 'scripts', 'prototypes', 'spikes', 'assets/readme'].flatMap(documentationFiles)];
 
 const testNames = new Map();
 for (const file of readdirSync(join(root, 'test'))) {

@@ -2,6 +2,8 @@
 
 欢迎使用简体中文反馈问题、讨论功能或提交改进。产品行为以 [MVP](docs/MVP.md) 为准，实际验收进度见 [PROJECT_PLAN](docs/PROJECT_PLAN.md)；开发前请阅读根目录 [AGENTS.md](AGENTS.md)。
 
+目录、生成物和本机资料的边界见 [仓库结构](docs/REPOSITORY.md)，维护命令见 [脚本索引](scripts/README.md)。
+
 ## 反馈问题
 
 请在 [Issues](https://github.com/A7m0spHere/dsh-feiyuFM/issues) 提供 Windows、Node.js、DSH 版本、插件提交号，以及复现步骤、预期结果和实际结果。播放问题请说明当时的自主听歌、声音、暂停状态和是否已登录。
@@ -19,7 +21,7 @@ npm test
 npm run build
 ```
 
-以上检查不需要音乐账号，也不会播放真实音频。`npm run smoke:playback` 会播放测试音；`npm run login` 会发起真实扫码登录，不属于常规离线检查。
+以上检查不需要音乐账号，也不会播放账号里的歌曲。`npm run smoke:playback` 会播放合成测试音；`npm run login` 会发起真实扫码登录，不属于常规离线检查。
 
 `npm test` 在本机 Windows 默认包含 3 项静音 WPF 媒体打开/预热回归，需要可用的音频环境。托管 CI 无法打开这些 WAV，设置 `FISHFM_TEST_REAL_AUDIO=0` 只跳过这 3 项；管道、取消控制和 fake-backend 测试仍运行。真实音频应在 Windows 工作站执行并单独记录，本机测试通过不能替代 runner 的硬件验证，反之亦然。
 
