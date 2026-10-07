@@ -339,6 +339,6 @@ test('LLM filter rank boosts a candidate but never empties the pool',()=>{
  }finally{store.close();}
 });
 test('selection replies quote the LLM pick reason for filtered candidates',()=>{
- assert.match(explainSelection({current:{selectedBy:'agent',origin:{source:'netease_daily',llmReason:'和你常听的接近'}}}).text,/我在候选新歌里挑了它：和你常听的接近/);
+ assert.match(explainSelection({current:{selectedBy:'agent',origin:{source:'netease_daily',llmReason:'和你常听的接近'}}}).text,/网易云.*挑.*和你常听的接近/);
  assert.equal(explainSelection({current:{selectedBy:'agent',origin:{source:'netease_daily'}}}).kind,'account');
 });

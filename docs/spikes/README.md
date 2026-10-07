@@ -34,6 +34,7 @@ N7/R2 的短跑或合成演练不能替代 A09 两小时验收；U3/U4 等 PHL �
 | [N19](N19-wpf-audio-warmup.md) | N19：WPF 音频预热（播放/下一首慢的根因修复） |
 | [N20](N20-review-fixes.md) | N20：项目检查发现的超时、筛选状态与预热问题 |
 | [N21](N21-playback-interruption-recovery.md) | N21：播放中断检测、原曲有界恢复与断线曲终续播 |
+| [N22](N22-platform-first-recommendations.md) | N22：网易云先推荐、LLM 再筛选与简化听歌界面 |
 
 ## 界面、认证与桌面验证
 

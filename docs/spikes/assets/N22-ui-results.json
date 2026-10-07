@@ -1,0 +1,315 @@
+{
+  "verdict": "ALL-PASS",
+  "cases": [
+    {
+      "width": 1280,
+      "dark": false,
+      "settings": false,
+      "closed": {
+        "overflow": false,
+        "cardHeight": 427,
+        "brokenImages": []
+      },
+      "open": {
+        "overflow": false,
+        "cardHeight": 833,
+        "brokenImages": []
+      }
+    },
+    {
+      "width": 1280,
+      "dark": false,
+      "settings": true,
+      "closed": {
+        "overflow": false,
+        "cardHeight": 427,
+        "brokenImages": []
+      },
+      "open": {
+        "overflow": false,
+        "cardHeight": 850,
+        "brokenImages": []
+      }
+    },
+    {
+      "width": 1280,
+      "dark": true,
+      "settings": false,
+      "closed": {
+        "overflow": false,
+        "cardHeight": 427,
+        "brokenImages": []
+      },
+      "open": {
+        "overflow": false,
+        "cardHeight": 833,
+        "brokenImages": []
+      }
+    },
+    {
+      "width": 1280,
+      "dark": true,
+      "settings": true,
+      "closed": {
+        "overflow": false,
+        "cardHeight": 427,
+        "brokenImages": []
+      },
+      "open": {
+        "overflow": false,
+        "cardHeight": 850,
+        "brokenImages": []
+      }
+    },
+    {
+      "width": 740,
+      "dark": false,
+      "settings": false,
+      "closed": {
+        "overflow": false,
+        "cardHeight": 427,
+        "brokenImages": []
+      },
+      "open": {
+        "overflow": false,
+        "cardHeight": 833,
+        "brokenImages": []
+      }
+    },
+    {
+      "width": 740,
+      "dark": false,
+      "settings": true,
+      "closed": {
+        "overflow": false,
+        "cardHeight": 427,
+        "brokenImages": []
+      },
+      "open": {
+        "overflow": false,
+        "cardHeight": 850,
+        "brokenImages": []
+      }
+    },
+    {
+      "width": 740,
+      "dark": true,
+      "settings": false,
+      "closed": {
+        "overflow": false,
+        "cardHeight": 427,
+        "brokenImages": []
+      },
+      "open": {
+        "overflow": false,
+        "cardHeight": 833,
+        "brokenImages": []
+      }
+    },
+    {
+      "width": 740,
+      "dark": true,
+      "settings": true,
+      "closed": {
+        "overflow": false,
+        "cardHeight": 427,
+        "brokenImages": []
+      },
+      "open": {
+        "overflow": false,
+        "cardHeight": 850,
+        "brokenImages": []
+      }
+    },
+    {
+      "width": 440,
+      "dark": false,
+      "settings": false,
+      "closed": {
+        "overflow": false,
+        "cardHeight": 427,
+        "brokenImages": []
+      },
+      "open": {
+        "overflow": false,
+        "cardHeight": 850,
+        "brokenImages": []
+      }
+    },
+    {
+      "width": 440,
+      "dark": false,
+      "settings": true,
+      "closed": {
+        "overflow": false,
+        "cardHeight": 427,
+        "brokenImages": []
+      },
+      "open": {
+        "overflow": false,
+        "cardHeight": 850,
+        "brokenImages": []
+      }
+    },
+    {
+      "width": 440,
+      "dark": true,
+      "settings": false,
+      "closed": {
+        "overflow": false,
+        "cardHeight": 427,
+        "brokenImages": []
+      },
+      "open": {
+        "overflow": false,
+        "cardHeight": 850,
+        "brokenImages": []
+      }
+    },
+    {
+      "width": 440,
+      "dark": true,
+      "settings": true,
+      "closed": {
+        "overflow": false,
+        "cardHeight": 427,
+        "brokenImages": []
+      },
+      "open": {
+        "overflow": false,
+        "cardHeight": 850,
+        "brokenImages": []
+      }
+    },
+    {
+      "width": 390,
+      "dark": false,
+      "settings": false,
+      "closed": {
+        "overflow": false,
+        "cardHeight": 427,
+        "brokenImages": []
+      },
+      "open": {
+        "overflow": false,
+        "cardHeight": 850,
+        "brokenImages": []
+      }
+    },
+    {
+      "width": 390,
+      "dark": false,
+      "settings": true,
+      "closed": {
+        "overflow": false,
+        "cardHeight": 427,
+        "brokenImages": []
+      },
+      "open": {
+        "overflow": false,
+        "cardHeight": 850,
+        "brokenImages": []
+      }
+    },
+    {
+      "width": 390,
+      "dark": true,
+      "settings": false,
+      "closed": {
+        "overflow": false,
+        "cardHeight": 427,
+        "brokenImages": []
+      },
+      "open": {
+        "overflow": false,
+        "cardHeight": 850,
+        "brokenImages": []
+      }
+    },
+    {
+      "width": 390,
+      "dark": true,
+      "settings": true,
+      "closed": {
+        "overflow": false,
+        "cardHeight": 427,
+        "brokenImages": []
+      },
+      "open": {
+        "overflow": false,
+        "cardHeight": 850,
+        "brokenImages": []
+      }
+    },
+    {
+      "width": 320,
+      "dark": false,
+      "settings": false,
+      "closed": {
+        "overflow": false,
+        "cardHeight": 442,
+        "brokenImages": []
+      },
+      "open": {
+        "overflow": false,
+        "cardHeight": 884,
+        "brokenImages": []
+      }
+    },
+    {
+      "width": 320,
+      "dark": false,
+      "settings": true,
+      "closed": {
+        "overflow": false,
+        "cardHeight": 442,
+        "brokenImages": []
+      },
+      "open": {
+        "overflow": false,
+        "cardHeight": 888,
+        "brokenImages": []
+      }
+    },
+    {
+      "width": 320,
+      "dark": true,
+      "settings": false,
+      "closed": {
+        "overflow": false,
+        "cardHeight": 442,
+        "brokenImages": []
+      },
+      "open": {
+        "overflow": false,
+        "cardHeight": 884,
+        "brokenImages": []
+      }
+    },
+    {
+      "width": 320,
+      "dark": true,
+      "settings": true,
+      "closed": {
+        "overflow": false,
+        "cardHeight": 442,
+        "brokenImages": []
+      },
+      "open": {
+        "overflow": false,
+        "cardHeight": 888,
+        "brokenImages": []
+      }
+    }
+  ],
+  "errors": [],
+  "interactions": [
+    "换一批不阻塞暂停",
+    "推荐点播",
+    "模型与用量默认隐藏",
+    "键盘展开设置",
+    "输出64到256恢复",
+    "断连与恢复",
+    "空曲库不请求"
+  ]
+}

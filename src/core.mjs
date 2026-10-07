@@ -519,6 +519,12 @@ export class MusicCore {
 
   /** 为什么现在没有可自动播放的歌曲，按推荐来源给出可操作的原因。 */
   _noCandidatesReason(fallbackAttempted = false) {
+    if(this.store.getSetting('recommendation_mode_v1')==='filtered'){
+      const status=this.provider.discoveryStatus?.();
+      if(status?.refreshing||status?.filtering)return '大肥鱼正在找歌和挑歌，稍后再开始听。';
+      if(!status?.picked)return '还没有挑好的歌单，请先导入参考歌曲，再让大肥鱼找一批歌。';
+      return '这批歌已经听过、正在播放或暂时不可用，可以换一批，也可以点播参考曲库。';
+    }
     if (this.store.getSetting('recommendation_mode_v1') === 'llm') {
       const playlist = modelRecommendations(this.store);
       if (!playlist) return '还没有模型歌单，请先根据歌曲推荐一批。';

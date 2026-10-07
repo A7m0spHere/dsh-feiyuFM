@@ -24,7 +24,7 @@ export function modelRecommendationTracks(store){
  const value=modelRecommendations(store);if(!value)return[];
  return value.verified.map(row=>({...normalizeTrack(row.track),discovery:{source:'llm_recommendation',modelCallId:value.callId,reason:value.text}}));
 }
-export function recommendationMode(store){return store?.getSetting('recommendation_mode_v1','platform')==='llm'?'llm':'platform';}
+export function recommendationMode(store){const mode=store?.getSetting('recommendation_mode_v1','platform');return ['llm','filtered'].includes(mode)?mode:'platform';}
 // 自动核对必须有界：无法核对的歌单（歌曲确实不存在/持续失败）不能按 60 秒预算
 // 永久重搜平台。每个歌单在一个 Core 进程内最多自动尝试这么多次；手动
 // 「重新核对歌单」不受此限。新歌单（新 callId）重新计数。

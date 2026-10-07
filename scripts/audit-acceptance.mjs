@@ -69,15 +69,17 @@ const EVIDENCE = [
     unverified: '真实慢请求与真实命令冲突未验',
   },
   {
-    id: 'A05', claim: '熟悉池、探索率 0/20/100%、候选为空和重复惩罚有效',
+    id: 'A05', claim: '平台候选与 LLM 筛选边界、探索关闭、空候选和重复惩罚有效；概率分流为旧兼容',
     status: 'offline-passed',
-    files: ['test/selection.test.mjs', 'docs/spikes/T2-selection.md', 'test/discovery-cache.test.mjs', 'test/discovery-provider.test.mjs', 'docs/spikes/N2-netease-discovery.md', 'docs/spikes/N3-discovery-cache.md'],
+    files: ['test/selection.test.mjs', 'docs/spikes/T2-selection.md', 'test/discovery-cache.test.mjs', 'test/discovery-provider.test.mjs', 'docs/spikes/N2-netease-discovery.md', 'docs/spikes/N3-discovery-cache.md', 'test/recommendation-pipeline.test.mjs', 'docs/spikes/N22-platform-first-recommendations.md'],
     tests: [
       { file: 'test/selection.test.mjs', name: 'discovery rate 0 always stays familiar; 100 always tries discovery' }
       , { file: 'test/selection.test.mjs', name: 'an empty discovery pool falls back to familiar and records that no exploration happened' }
       , { file: 'test/selection.test.mjs', name: 'repeat penalty grows with the number of recent plays' },
+      { file: 'test/recommendation-pipeline.test.mjs', name: 'reference songs flow through NetEase recall, LLM picks and local playback without generated-title lookup' },
+      { file: 'test/recommendation-pipeline.test.mjs', name: 'a model cannot introduce a song that NetEase did not return' },
     ],
-    unverified: '真实网易云发现池与自主推荐播放已接通；完整长期比例与双平台仍待后续验收',
+    unverified: '历史网易云发现/播放已接通；N22 真实账号候选与模型筛选质量、完整长跑及双平台未验',
   },
   {
     id: 'A06', claim: '用户环境与 Agent 偏好分离，重启后保留；Session 不覆盖长期偏好',

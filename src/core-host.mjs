@@ -122,7 +122,9 @@ export class ProviderRegistry {
  */
 export function buildSelector({ store, now = () => Date.now(), rng = null, listDiscovery = null, graphCache = null }) {
   const seed = readAgentSeed(store);
-  return createSelector({
+  const familiar = track => store.getEnvironmentEntry(track)||store.hasEffectiveListen(track)
+    ||store.listLikedTracks().some(row=>row.track_key===`${track.provider}:${track.providerTrackId}`);
+  const selector = createSelector({
     store,
     graphCache,
     // A stored seed keeps selection reproducible across restarts; without one
@@ -131,7 +133,11 @@ export function buildSelector({ store, now = () => Date.now(), rng = null, listD
     isPlayable: track => store.isTrackAvailable(track, now()),
     // LLM 模式的默认池只来自模型歌单。options.libraryFallback 是用户主动
     // 下一首的回退通道：歌单没有可播曲目时改用输入曲库，自主续播不用它。
-    listFamiliar: (options = {}) => recommendationMode(store)==='llm'&&!options.libraryFallback
+    listFamiliar: (options = {}) => recommendationMode(store)==='filtered'&&!options.libraryFallback
+      ? (listDiscovery?.()??[]).filter(track=>track.provider==='netease'&&Number.isSafeInteger(track.discovery?.llmRank)
+        &&track.discovery.llmRank>0&&['netease_daily','netease_similar','netease_personal_fm','platform_recommendation'].includes(track.discovery?.source)
+        &&(options.discoveryRate>0||familiar(track)))
+      : recommendationMode(store)==='llm'&&!options.libraryFallback
       ? modelRecommendationTracks(store).filter(t=>store.getEnvironmentEntry(t)||store.hasEffectiveListen(t)||store.listLikedTracks().some(r=>r.track_key===`${t.provider}:${t.providerTrackId}`))
       : [...new Map([...store.listEnvironment({ limit: 100000 }), ...store.listAgentKnownTracks(), ...store.listLikedTracks()].map(row => [row.track_key, row])).values()].map((row) => {
       // Restore the stored metadata, not just the key: the effective-progress
@@ -144,6 +150,7 @@ export function buildSelector({ store, now = () => Date.now(), rng = null, listD
       return stored;
     }),
     listDiscovery: (options = {}) => {
+      if(recommendationMode(store)==='filtered')return [];
       // LLM 模式探索池：模型歌单中未听过的歌 + 平台发现候选（后续由 LLM 筛选排序）。
       if (recommendationMode(store) === 'llm' && !options.libraryFallback) {
         const playlist = modelRecommendationTracks(store).filter(t=>!store.getEnvironmentEntry(t)&&!store.hasEffectiveListen(t)&&!store.listLikedTracks().some(r=>r.track_key===`${t.provider}:${t.providerTrackId}`));
@@ -155,6 +162,17 @@ export function buildSelector({ store, now = () => Date.now(), rng = null, listD
     },
     now,
   });
+  return {...selector,next(options={}){
+    // The filtered playlist is one pool; local constraints decide when a pick
+    // can play. Keep novelty accounting without treating the playlist as two
+    // unrelated pools that can randomly produce "no candidates".
+    const decision=selector.next(options);
+    if(recommendationMode(store)==='filtered'&&decision.track&&!options.libraryFallback){
+      const unfamiliar=!familiar(decision.track);
+      return {...decision,pool:unfamiliar?'discovery':'familiar',fellBack:false,fallbackReason:null,attemptedDiscovery:unfamiliar};
+    }
+    return decision;
+  }};
 }
 
 /**
@@ -206,6 +224,9 @@ export function createProviderFacade({ registry, store = null, now = () => Date.
   const discovery = createDiscoveryCache({ registry, store, now, onLog });
   const modelResolver=createModelRecommendationResolver({store,registry,now,onChange:()=>listeners.forEach(fn=>fn())});
   const listeners=new Set();
+  const consumed=new Map((store?.db.prepare('SELECT track_key,ended_at FROM listen_history WHERE ended_at>? ORDER BY ended_at DESC LIMIT 500').all(now()-30*60_000)??[])
+    .map(row=>[row.track_key,row.ended_at]));
+  const fresh = track => (consumed.get(`${track.provider}:${track.providerTrackId}`)??-Infinity)<=now()-30*60_000;
 
   return {
     registry,
@@ -218,21 +239,39 @@ export function createProviderFacade({ registry, store = null, now = () => Date.
     platforms: () => describePlatforms(registry),
 
     /** Synchronous, cache-only: the selector must not perform network I/O. */
-    discoveryTracks: () => discovery.tracks(),
+    discoveryTracks: () => recommendationMode(store)==='filtered'
+      ? discovery.recommendations().filter(track=>track.provider==='netease') : discovery.tracks(),
+    recommendationCandidates: () => {const current=store?.getCoreState()?.current?.track;
+      return discovery.candidates().filter(track=>track.provider==='netease'&&fresh(track)
+        &&(!current||track.provider!==current.provider||track.providerTrackId!==current.providerTrackId));},
+    markRecommendationConsumed: (track,endedAt=now()) => {
+      for(const [key,at] of consumed)if(at<=now()-30*60_000)consumed.delete(key);
+      const at=Number.isFinite(endedAt)?Math.min(now(),endedAt):now();
+      if(at>now()-30*60_000)consumed.set(`${track.provider}:${track.providerTrackId}`,at);
+    },
     // LLM 模式下平台候选同样进入缓存，供 LLM 筛选（探索池）；歌单核对信息单列。
     discoveryStatus: () => {
       const status = discovery.status();
+      if(recommendationMode(store)==='filtered'){
+        const picks=discovery.recommendations().filter(track=>track.provider==='netease');
+        const filter=store.getSetting('discovery_filter_v1',null);
+        const selectionComplete=filter?.source==='llm-discovery-filter'&&filter.candidateRevision===status.candidateRevision;
+        return {...status,pipeline:'platform-filter',count:discovery.candidates().filter(track=>track.provider==='netease').length,
+          picked:picks.length,remaining:picks.filter(fresh).length,filterCallId:filter?.callId??null,
+          tracks:picks.slice(0,12),summary:selectionComplete||picks.length?filter?.text??'':'',selectionComplete,
+          referenceCount:store.countEnvironment(),playlist:null};
+      }
       if (recommendationMode(store) !== 'llm') return status;
       const record = modelRecommendations(store);
       return { ...status, playlist: record ? { verification: record.verification, verified: record.verified.length, total: record.songs.length } : null };
     },
-    setDiscoveryEnabled: value => discovery.setEnabled(Boolean(value)),
+    setDiscoveryEnabled: value => discovery.setEnabled(recommendationMode(store)==='filtered'?store.countEnvironment()>0:Boolean(value)),
     tickDiscovery: () => { discovery.tick(); if (recommendationMode(store) === 'llm') modelResolver.tick(); },
     onDiscoveryChange: fn => {listeners.add(fn);const off=discovery.onChange(fn);return()=>{listeners.delete(fn);off();};},
     closeDiscovery: () => {modelResolver.close();discovery.close();listeners.clear();},
 
     refreshDiscovery: options => discovery.refresh(options),
-    verifyModelRecommendations:()=>modelResolver.tick(),
+    verifyModelRecommendations:()=>{if(recommendationMode(store)==='llm')modelResolver.tick();},
 
     clearDiscovery() { modelResolver.cancel();discovery.clear(); },
   };
@@ -299,7 +338,10 @@ export function createCoreHost({
 // references from the same store the host writes them to, and a caller that
 // already owns a store should not end up with two.
   const store = givenStore ?? new MusicStore(dbPath);
-  if(playbackMode==='real'&&store.getSetting('recommendation_mode_v1',null)===null)store.setSetting('recommendation_mode_v1','llm');
+  if(playbackMode==='real'&&store.getSetting('recommendation_pipeline_v1',null)!==1){
+    store.setSetting('recommendation_mode_v1','filtered');
+    store.setSetting('recommendation_pipeline_v1',1);
+  }
   // With no adapter installed the core must fail resolution honestly instead of
   // resolving through a stand-in, so a fake provider is opt-in only.
   const registry = providerRegistry ?? new ProviderRegistry({});
@@ -488,8 +530,23 @@ export function createCoreHost({
         }
         case 'persona':{
           const cachedProfile=profileInputs();
-          send({type:'result',id,ok:true,persona:personaView(store,core.snapshot(),now(),
-            {bundle:cachedProfile.bundle,strategyBundle:cachedProfile.strategyBundle,growthRows:cachedProfile.growthRows,callRows:cachedProfile.callRows,graph:cachedProfile.graph})});return;
+          const persona=personaView(store,core.snapshot(),now(),
+            {bundle:cachedProfile.bundle,strategyBundle:cachedProfile.strategyBundle,growthRows:cachedProfile.growthRows,callRows:cachedProfile.callRows,graph:cachedProfile.graph});
+          persona.recommendationPipeline=platformsFacade?.discoveryStatus?.()??null;
+          if(persona.recommendationPipeline){const last=cachedProfile.callRows.find(row=>row.purpose==='discovery-filter');
+            const refused=store.getSetting('recommendation_error_v1',null);
+            persona.recommendationPipeline.lastError=refused?.candidateRevision===persona.recommendationPipeline.candidateRevision?refused.code:last?.status==='failed'?last.error_code:null;}
+          persona.recommendationRoute=store.getSetting('recommendation_route_v1',null);
+          send({type:'result',id,ok:true,persona});return;
+        }
+        case 'recommendation-route':{
+          const route={provider:message.provider,model:message.model};
+          if(!Object.values(route).every(value=>typeof value==='string'&&/^[\w./:-]{1,120}$/.test(value)))throw new MusicError('invalid_model','请选择已配置的筛选模型。');
+          store.setSetting('recommendation_route_v1',route);
+          store.setSetting('recommendation_mode_v1','filtered');
+          invalidateProfile();
+          platformsFacade?.setDiscoveryEnabled(true);
+          send({type:'result',id,ok:true});return;
         }
         case 'persona-budget':setSummaryBudget(store,message.value);invalidateProfile();send({type:'result',id,ok:true});return;
         case 'persona-output':setSummaryOutputTokens(store,message.value);invalidateProfile();send({type:'result',id,ok:true});return;
@@ -498,7 +555,7 @@ export function createCoreHost({
           // 发现候选筛选：预留时把缓存里的候选（带来源线索）交给事实组装。
           const reservePurpose=message.purpose??'persona-summary';
           const candidates=reservePurpose==='discovery-filter'&&platformsFacade
-            ? platformsFacade.discoveryTracks().map(track=>{
+            ? (recommendationMode(store)==='filtered'?platformsFacade.recommendationCandidates():platformsFacade.discoveryTracks()).map(track=>{
               let seedTitle;
               try {
                 const seedKey=track.discovery?.seedTrackKey;
@@ -510,11 +567,17 @@ export function createCoreHost({
               return {...track,discovery:{...track.discovery,seedTitle}};
             })
             : null;
-          send({type:'result',id,ok:true,plan:reserveSummary({store,snapshot:core.snapshot(),provider:message.provider,model:message.model,now:now(),automatic:message.automatic===true,purpose:reservePurpose,candidates,graph:profileInputs().graph})});
+          send({type:'result',id,ok:true,plan:reserveSummary({store,snapshot:core.snapshot(),provider:message.provider,model:message.model,now:now(),automatic:message.automatic===true,purpose:reservePurpose,candidates,graph:profileInputs().graph,
+            candidateRevision:reservePurpose==='discovery-filter'&&recommendationMode(store)==='filtered'?platformsFacade?.discoveryStatus().candidateRevision:null,
+            candidateOwner:reservePurpose==='discovery-filter'&&recommendationMode(store)==='filtered'?platformsFacade?.discoveryStatus().candidateOwner:null})});
           return;
         }
         case 'persona-start':send({type:'result',id,ok:true,started:startSummary(store,message.callId)});return;
-        case 'persona-finish':{const result=finishSummary({store,...message,now:now()});invalidateProfile();send({type:'result',id,ok:true,result});platformsFacade?.setDiscoveryEnabled(core.snapshot().settings.discovery&&core.snapshot().settings.discoveryRate>0);platformsFacade?.verifyModelRecommendations();return;}
+        case 'persona-finish':{const result=finishSummary({store,...message,now:now(),candidateRevision:platformsFacade?.discoveryStatus?.().candidateRevision??null});invalidateProfile();
+          if(result.success)store.removeSetting('recommendation_error_v1');
+          platformsFacade?.setDiscoveryEnabled(core.snapshot().settings.discovery&&core.snapshot().settings.discoveryRate>0);
+          if(message.status==='completed'&&result.success&&recommendationMode(store)==='filtered')core.selectAutonomously();
+          send({type:'result',id,ok:true,result});platformsFacade?.verifyModelRecommendations();return;}
         case 'platforms': {
           if (!platformsFacade) {
             send({ type: 'result', id, ok: true, platforms: { platforms: {}, usable: [], reason: 'no platform adapters are configured in this build' } });
@@ -574,6 +637,7 @@ export function createCoreHost({
             });
             const taste = initializeAgentPreferences({ store, seed: message.seed ?? null, now: now() });
             invalidateProfile();
+            if(recommendationMode(store)==='filtered')platformsFacade.clearDiscovery();
             platformsFacade.tickDiscovery();
             publishIfChanged();
             send({ type: 'result', id, ok: true, provider: message.provider, source: seed.source, import: imported, attempts: seed.attempts, taste, snapshot: core.snapshot() });
@@ -603,17 +667,23 @@ export function createCoreHost({
         case 'discovery-filter-status': {
           // 调度器/设置页据此决定是否跑一次发现候选筛选；判定保持诚实：
           // 没有候选、有调用进行中、筛选结果仍新于最近一次成功刷新，都不算 due。
-          const llmMode = store.getSetting('recommendation_mode_v1', null) === 'llm';
+          const llmMode = ['llm','filtered'].includes(store.getSetting('recommendation_mode_v1', null));
           const status = platformsFacade?.discoveryStatus?.() ?? null;
           const filter = store.getSetting('discovery_filter_v1', null);
           const stale = !filter
-            || !Number.isSafeInteger(status?.picked) || status.picked === 0
+            || !Number.isSafeInteger(status?.picked) || (status.picked === 0&&!(status?.pipeline==='platform-filter'&&status.selectionComplete&&filter.picks?.length===0))
+            || (status?.pipeline==='platform-filter'&&filter.candidateRevision!==status.candidateRevision)
+            || (status?.pipeline==='platform-filter'&&status.remaining<=1&&status.picked>0&&platformsFacade.recommendationCandidates()
+              .some(track=>!status.tracks.some(pick=>pick.provider===track.provider&&pick.providerTrackId===track.providerTrackId)))
             || (Number.isFinite(status?.lastSuccessAt) && Number.isFinite(filter.generatedAt) && filter.generatedAt < status.lastSuccessAt);
-          const due = Boolean(llmMode && status && status.count > 0 && !status.refreshing && !status.filtering && stale);
+          const snapshot=core.snapshot();
+          const automaticAllowed=status?.pipeline!=='platform-filter'||(snapshot.settings.listening&&!(snapshot.blockUntil>now()));
+          const due = Boolean(llmMode && automaticAllowed && status && status.count > 0 && !status.refreshing && !status.filtering && stale);
           send({ type: 'result', id, ok: true, filter: {
             due, count: status?.count ?? 0, picked: status?.picked ?? 0,
             filtering: status?.filtering === true, refreshing: status?.refreshing === true,
-            hasFilter: Boolean(filter), llmMode,
+            hasFilter: Boolean(filter), llmMode, pipeline:status?.pipeline??null,
+            referenceCount:store.countEnvironment(),
           } });
           return;
         }
@@ -654,6 +724,10 @@ export function createCoreHost({
           throw new MusicError('invalid_command', `Unknown host message: ${String(message.type)}`);
       }
     } catch (error) {
+      if(message.type==='persona-reserve'&&message.purpose==='discovery-filter'&&recommendationMode(store)==='filtered'){
+        store.setSetting('recommendation_error_v1',{code:error.code??'model_failed',candidateRevision:platformsFacade?.discoveryStatus?.().candidateRevision??null});
+        invalidateProfile();core._commit();publishIfChanged();
+      }
       send({
         type: 'error',
         id,
@@ -731,6 +805,7 @@ export function createCoreHost({
         // A finished listen is reported here; growth policy decides what, if
         // anything, it changes about the agent's preferences.
         onListened: (entry) => {
+          platformsFacade?.markRecommendationConsumed?.(entry.track,entry.endedAt);
           const sessionId = entry.sessionId ?? null;
           const report = applyListenGrowth({
             store, entry, durationMs: entry.durationMs, now: now(),
@@ -769,7 +844,7 @@ export function createCoreHost({
     },
     // Dispatch/reads are synchronous until their first await. Keep them out of
     // long account/import work so a slow media request cannot hold up pause.
-    handle: (message) => ['command','snapshot','platforms','library','account','environment','insights','persona','persona-budget','persona-output','persona-automatic','persona-reserve','persona-start','persona-finish','sessions','discovery','discovery-filter-status','shutdown','wait','autonomous','session-event','setQueue'].includes(message.type)
+    handle: (message) => ['command','snapshot','platforms','library','account','environment','insights','persona','recommendation-route','persona-budget','persona-output','persona-automatic','persona-reserve','persona-start','persona-finish','sessions','discovery','discovery-filter-status','shutdown','wait','autonomous','session-event','setQueue'].includes(message.type)
       ? handle(message) : enqueue(() => handle(message)),
     close,
     get core() { return core; },

@@ -4,6 +4,7 @@ import QRCode from 'qrcode';
 import { artworkCapabilities } from './artwork-assets.mjs';
 import { assertCommand, normalizeTrack } from '../contracts.mjs';
 import { NETEASE_QR_LOGIN_URL } from '../providers/endpoints/netease.mjs';
+import { prepareRecommendations } from '../persona-scheduler.mjs';
 
 const ALLOWED = new Set(['pause', 'resume', 'next', 'setListening', 'setHumanPlayback',
   'setDiscovery', 'setDiscoveryRate', 'setMode', 'stopForToday', 'chooseSelf', 'requestTrack', 'setTrackFeedback', 'resetTaste', 'resetLibrary', 'undoTasteReset','setRecommendationMode']);
@@ -84,7 +85,9 @@ export function createSettingsHandler(bridge,summaryService={current:null}) {
           const persona=await bridge.request({type:'persona'},{signal,abortable:true});
           const maxOutput=persona?.persona?.policy?.maxOutputTokens;
           if(!Number.isSafeInteger(maxOutput)||maxOutput<OUTPUT_RANGE.min||maxOutput>OUTPUT_RANGE.max)throw Object.assign(new Error('总结输出上限未就绪。'),{code:'invalid_output'});
-          summaryResult=await summaryService.current.summarize({provider:payload?.provider,model:payload?.model},{signal,maxOutputTokens:maxOutput,...(endpoint==='fishfm/persona-recommendations'?{purpose:'model-recommendations'}:{})});
+          summaryResult=endpoint==='fishfm/persona-recommendations'
+            ?await prepareRecommendations({bridge,service:summaryService.current,route:{provider:payload?.provider,model:payload?.model},signal})
+            :await summaryService.current.summarize({provider:payload?.provider,model:payload?.model},{signal,maxOutputTokens:maxOutput});
         }
         return{ok:true,value:{...await readSettingsState(bridge,signal),summaryResult}};
       }
@@ -137,6 +140,7 @@ export function createSettingsHandler(bridge,summaryService={current:null}) {
         if(source==='playlist'&&!playlistId)throw Object.assign(new Error('请选择有效歌单。'),{code:'invalid_command'});
         const imported = await bridge.request({ type: 'import-platform', provider: QUICK_LOGIN_PROVIDER, limit: 300,source,playlistId },
           { signal, abortable: true, timeoutMs: 75_000 });
+        if(typeof summaryService.discoveryFilterRun==='function')setTimeout(()=>{void Promise.resolve(summaryService.discoveryFilterRun()).catch(()=>{});},0);
         return { ok: true, value: { login: { provider: QUICK_LOGIN_PROVIDER, status: 'authorized' }, imported: imported.import,
           attempts: imported.attempts ?? [], snapshot: imported.snapshot, ...(await readSettingsState(bridge, signal)) } };
       }

@@ -59,7 +59,7 @@ export function createPersonaModelService({llm,bridge,onLog=()=>{}}){
    const finished=await bridge.request({type:'persona-finish',callId:plan.callId,status,text,usage:started?usage:{inputTokens:0,outputTokens:0},code,validListens:plan.validListens??null});
    if(status==='completed'&&finished.result?.success===false){status='failed';code=finished.result.code??'invalid_recommendations';}
   }
-  if(status!=='completed')throw Object.assign(new Error(purpose==='model-recommendations'?'歌单生成未成功，旧歌单保留；用量已记录。':'总结未成功，旧总结和本地推荐仍保留；用量已记录。'),{code:code||'model_failed'});
+  if(status!=='completed')throw Object.assign(new Error(purpose==='discovery-filter'?'这次挑歌没有完成，已有歌单保留；用量已记录。':purpose==='model-recommendations'?'歌单生成未成功，旧歌单保留；用量已记录。':'总结未成功，旧总结和本地推荐仍保留；用量已记录。'),{code:code||'model_failed'});
   return{cached:false};
  }
  return{models,summarize,peekModels:()=>catalog??(observed?[{...observed,label:`${observed.provider} · ${observed.model}`}]:[]),

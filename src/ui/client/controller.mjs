@@ -172,20 +172,20 @@ export function createController(connection) {
     },
     async personaAction(action,payload){
       if(disposed||state.summaryBusy||!state.connected)return;
-      summaryWrite=new AbortController();const timeout=setTimeout(()=>summaryWrite?.abort(),65000);
+      summaryWrite=new AbortController();const timeout=setTimeout(()=>summaryWrite?.abort(),action==='recommendations'?120000:65000);
       const endpoint={summary:'fishfm/persona-summary',recommendations:'fishfm/persona-recommendations',budget:'fishfm/persona-budget',output:'fishfm/persona-output',automatic:'fishfm/persona-automatic'}[action];
-      const pending={summary:'正在总结聚合画像…',recommendations:'正在由模型生成具体推荐歌单…',budget:'正在保存总结预算…',output:'正在保存单次输出上限…',automatic:'正在保存自动总结设置…'}[action];
+      const pending={summary:'正在总结聚合画像…',recommendations:'正在从网易云找歌，再挑一批…',budget:'正在保存模型预算…',output:'正在保存单次输出上限…',automatic:'正在保存自动总结设置…'}[action];
       emit({summaryBusy:true,summaryError:'',summaryNotice:pending});
       try{
         if(!endpoint)throw Object.assign(new Error('未知的画像操作。'),{code:'invalid_command'});
         const result=await connection.rpc.call('/api',endpoint,payload,summaryWrite.signal);
         if(!result.ok)throw result.error;
         // This operation never overwrites live playback with a late snapshot.
-        const notice=['summary','recommendations'].includes(action)?(result.value.summaryResult?.cached?'已复用缓存，没有新增模型调用。':action==='recommendations'?'模型歌单已生成，正在核对平台歌曲。':'总结已更新。')
+        const notice=['summary','recommendations'].includes(action)?(result.value.summaryResult?.cached?'这批歌已经挑好，可以继续听。':action==='recommendations'?'挑好了，歌单已经更新。':'总结已更新。')
           :action==='automatic'?(payload?.value?'自动总结已开启，只在画像更新且预算允许时运行。':'自动总结已关闭。')
           :action==='output'?'单次输出上限已保存。':'总结预算已保存。';
         emit({persona:result.value.persona,summaryNotice:notice});
-      }catch(error){emit({summaryError:failure(error),summaryNotice:'本地选歌和旧总结仍保留。'});}
+      }catch(error){emit({summaryError:failure(error),summaryNotice:'已有的歌单和播放状态保持。'});}
       finally{clearTimeout(timeout);summaryWrite=null;emit({summaryBusy:false});}
     },
     dispose() { disposed = true; ++epoch; clearInterval(timer); read?.abort(); write?.abort();summaryWrite?.abort(); listeners.clear();

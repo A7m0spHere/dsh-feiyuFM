@@ -142,7 +142,16 @@ export function apply(ctx, config = {}) {
     scheduler.start();
     // 设置页"刷新新歌"后手动补跑发现候选筛选；Core 侧仍会重验每个门控。
     summaryService.discoveryFilterRun=()=>scheduler.checkDiscoveryFilter();
-    modelCtx.effect(()=>()=>{scheduler.stop();service.dispose();if(summaryService.current===service)summaryService.current=null;delete summaryService.discoveryFilterRun;},'fishfm: optional summaries');
+    let lastPipelineSignal=null;
+    const offPipeline=bridge.onState(snapshot=>{
+      const status=snapshot?.discovery;
+      if(status?.pipeline!=='platform-filter')return;
+      const signal=`${status.candidateRevision}|${status.count}|${status.remaining}|${status.filterCallId}|${snapshot.settings.listening}|${snapshot.blockUntil}`;
+      if(signal===lastPipelineSignal)return;
+      lastPipelineSignal=signal;
+      if(status.count>0&&!status.refreshing&&!status.filtering&&(status.picked===0||status.remaining<=1))void scheduler.checkDiscoveryFilter();
+    });
+    modelCtx.effect(()=>()=>{offPipeline();scheduler.stop();service.dispose();if(summaryService.current===service)summaryService.current=null;delete summaryService.discoveryFilterRun;},'fishfm: optional summaries');
   });
   // Optional in headless profiles; the browser uses the host's authenticated RPC.
   if (typeof ctx.inject === 'function') {

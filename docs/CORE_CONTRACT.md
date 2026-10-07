@@ -1,6 +1,6 @@
 # 内部控制契约
 
-更新：2026-10-06，按 N20 实现整理。本文描述 FishFM 内部契约，DSH 外部接口经 Adapter 映射。职责见 [架构](ARCHITECTURE.md)，用户行为见 [MVP](MVP.md)，现场状态见 [开发路线](PROJECT_PLAN.md)；历史变化见 [决策记录](DECISIONS.md) 与 [实验记录](spikes/README.md)。
+更新：2026-10-07，含 N22 默认推荐流程。本文描述 FishFM 内部契约，DSH 外部接口经 Adapter 映射。职责见 [架构](ARCHITECTURE.md)，用户行为见 [MVP](MVP.md)，现场状态见 [开发路线](PROJECT_PLAN.md)；历史变化见 [决策记录](DECISIONS.md) 与 [实验记录](spikes/README.md)。
 
 ## 1. 曲目、账号与资源
 
@@ -20,14 +20,14 @@ Provider 暴露账号和能力状态，`resolve(track, {signal, version})` 返�
 | `next` | 无 | 优先队列，否则用选择器；选择器排除当前并保留约束/不可播/冷却过滤，暂停期间换曲仍暂停 |
 | `requestTrack` | `track` | 明确点播并解除暂停，不自动改声音或自主开关；禁播返回 `constraint_conflict` |
 | `setListening/setHumanPlayback/setDiscovery` | `value: boolean` | 独立开关；关闭自主会暂停当前 Agent 曲目 |
-| `setDiscoveryRate` | `value: 0..1` | 探索目标概率，不保证存在新歌 |
+| `setDiscoveryRate` | `value: 0..1` | filtered 模式作筛选偏好，0 不自动播陌生曲；旧兼容模式仍作池选择概率 |
 | `setMode` | `normal/focus/silent/off` | normal/focus 启用自主并恢复声音；silent 静听；off 关闭两开关并暂停 |
 | `stopForToday/chooseSelf` | 无 | 禁止当日自主并暂停 / 解除当日限制、开启自主并尝试恢复 |
 | `banTrack/unbanTrack` | `track` | 独立用户约束，不暗中取消禁播 |
 | `setTrackFeedback` | `track, playInstanceId, value: -1/0/1` | 校验当前曲目与实例，旧实例返回 `stale_track`；不改 affinity 或平台收藏 |
 | `resetTaste/resetLibrary` | `value: {clearFeedback: boolean}` | 保存可撤销恢复点，与去重记录同事务；模型预留/运行中返回 `summary_busy` |
 | `undoTasteReset` | 无 | 恢复最近恢复点，缺备份返回 `no_reset_backup`，重置后新增反馈优先 |
-| `setRecommendationMode` | `value: llm/platform` | 显式切换来源，不静默包装失败 |
+| `setRecommendationMode` | `value: filtered/llm/platform` | filtered 默认平台召回后筛选；后两项保留内部兼容，界面不提供旧来源切换 |
 
 `resetTaste` 保留输入曲库；`resetLibrary` 还清空输入/来源及队列。两者保留账号、历史、约束与模型账本，不改变当前播放。重置边界前的成长不能重新写回旧偏好。
 
@@ -50,7 +50,7 @@ UI 经宿主认证 `/api` 调用；完整白名单见 [dsh-settings.mjs](../src/
 | `fishfm/login-start/login-poll/logout` | 网易云扫码、账号确认、退出 |
 | `fishfm/import/playlists` | 来源导入与账号歌单，保留数量/尝试轨迹 |
 | `fishfm/discovery-refresh` | 后台刷新状态，可补跑一次有预算的筛选 |
-| `fishfm/persona-summary/persona-recommendations` | 复用 DSH 模型生成总结/具体歌单 |
+| `fishfm/persona-summary/persona-recommendations` | 旧展示总结 / 平台召回后模型筛选；后者不生成歌名 |
 | `fishfm/persona-budget/persona-output/persona-automatic` | 预算、输出上限与自动更新设置 |
 
 Host `library` 返回导入总数及最多 300 首元数据，UI 不接受音频 URL。`insights` 统计按最近 200 次决策关联，不代表历史全期；反馈、成长与解释独立。业务错误有应答不等于 Core 断连。
@@ -61,11 +61,13 @@ Host `library` 返回导入总数及最多 300 首元数据，UI 不接受音频
 
 陌生候选排除已导入、有效听过、喜欢或不可播曲目。`snapshot.discovery` 包含 `state/count/cached/sources`、刷新时刻和 `picked/filtering`；`picked` 统计仍可用且已加入模型排名的条目，不计缓存外/不可用排名。
 
-真实宿主默认 `llm`：熟悉池来自歌单已熟悉歌曲，探索池含歌单未听过歌曲和平台候选；`platform` 是显式兼容模式。自主选择不走输入曲库回退；用户 `next` 在默认候选耗尽后可经 `libraryFallback` 回退输入/已知/喜欢歌曲，并说明来源。
+真实宿主首次加载 N22 默认迁移为 `filtered`：平台推荐先形成候选，再由 LLM 选出一个歌单，本地只从入选歌曲播放。保留原曲库、账号、历史和开关。`llm/platform` 保留旧内部兼容；用户 `next` 在筛选歌单耗尽后仍可经 `libraryFallback` 回退输入/已知/喜欢歌曲并说明，自动续播没有这条回退。
 
-歌单为有界歌名/艺人 JSON，平台元数据匹配后才可执行。核对单飞、最短间隔 1 分钟，每歌单每进程最多 10 次自动核对；登录缺失不计数，手动不受次数上限限制，新 callId 重置预算，替换/退出取消旧核对。
+旧直接生成歌名的记录继续保留原有搜索匹配与有界核对契约，filtered 模式不调用这条核对路径，也不把旧歌名记录加入默认播放池。
 
-`local-v5` 的真实评分保存在决策中，解释只读事实；筛选加入 `llmRank/llmReason` 与有界 `llmBoost`，未入选候选仍可用。默认规则含 30 分钟曲目冷却，精确参数见 [selection.mjs](../src/selection.mjs)。
+`local-v5` 的真实评分保存在决策中，解释只读事实。新版 filtered 模式从平台候选中严格取 LLM 入选歌曲，`llmRank/llmReason` 参与本地执行；未入选歌曲不进入默认自动池。N15 的“只加分、不排空”保留旧兼容模式。默认 30 分钟曲目冷却，精确参数见 [selection.mjs](../src/selection.mjs)。
+
+`fishfm/persona-recommendations` 现在先保存已配置模型路线、触发并等待平台推荐，再运行 `discovery-filter`；不调用直接生成歌名的用途。内部 `recommendation-route` 保存路线并进入 filtered 模式；启动/导入/候选变化/歌单低水位按需筛选，首次可沿用已配置模型，不要求先生成总结。推荐 DTO 使用 `persona.recommendationPipeline`（状态、歌曲、理由、剩余数量）与 `recommendationRoute`。见 [N22](spikes/N22-platform-first-recommendations.md)。
 
 ## 5. 模型预留与账本
 
@@ -75,7 +77,9 @@ Host `library` 返回导入总数及最多 300 首元数据，UI 不接受音频
 
 总结/歌单遵循日尝试上限 3，当前查询覆盖当日全部音乐模型调用；筛选单独计数，每日最多 12 次。普通用途冷却 1 小时，筛选 15 分钟；已知用量的失败可有限手动重试。精确门控见 [persona.mjs](../src/persona.mjs)。
 
-自动总结默认关闭；开启需成功基线、沿用原路由、足够新增有效经历（默认 50 次）、至少 24 小时并复检预算。候选筛选属于 LLM 推荐模式，不要求自动总结开关，但仍受 due、冷却、次数与共享预算限制。
+旧画像自动总结仍保留内部契约，filtered 模式不再调度这条独立展示任务。候选筛选作为推荐流程按需运行，不要求自动总结开关，仍受 due、15 分钟冷却、每日 12 次和共享预算限制；播放/下一首不调用模型。默认输出 256 时提示最多六首，低上限减少数量；结构解析最多保留十二个有效去重序号，明确空筛选不循环。
+
+候选 revision、账号归属摘要与完整候选元数据只存本机预留，不发送给模型。模型输出依预留索引映射；finish 检查当前 revision，候选变化时失败但记用量。普通刷新保留同账号有效的旧筛选歌曲；账号切换、清空输入或缓存清理使其失效，不让旧输出覆盖新候选。
 
 歌单事实不发平台 ID，筛选事实含候选曲目键用于映射，不发凭据。A09 要求逐曲零模型请求、计划内调用门控及真实两小时对照。
 

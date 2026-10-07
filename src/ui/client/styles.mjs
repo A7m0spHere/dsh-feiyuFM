@@ -117,6 +117,20 @@ export const css = `
   .fishfm h2 small { color:var(--fm-faint); font-size:9px; font-weight:500; letter-spacing:.1em; }
   .fm-card { padding:4px 14px; border:1px solid var(--fm-line); border-radius:9px; background:var(--fm-surface); }
   .fm-persona-card { padding:12px; }
+  .fm-picks-head { display:flex; align-items:center; flex-wrap:wrap; gap:8px; }
+  .fm-picks-head .fm-note { flex:1 1 160px; }
+  .fm-picks { margin:8px 0; }
+  .fm-pick { display:flex; align-items:center; gap:9px; width:100%; padding:9px 0; text-align:left;
+    color:var(--fm-ink); background:transparent; border:0; border-bottom:1px solid var(--fm-line); }
+  .fm-pick:last-child { border-bottom:0; }
+  .fm-pick:hover:not(:disabled) { color:var(--fm-accent-ink); }
+  .fm-pick-index { flex:none; width:16px; color:var(--fm-faint); font-size:10px; }
+  .fm-pick-copy { min-width:0; flex:1; }
+  .fm-pick-copy strong,.fm-pick-copy>span { display:block; overflow-wrap:anywhere; }
+  .fm-pick-copy strong { font-size:12px; font-weight:550; }
+  .fm-pick-copy>span { color:var(--fm-muted); font-size:11px; }
+  .fm-pick-copy .fm-pick-reason { margin-top:3px; font-size:10px; }
+  .fm-pick-play { flex:none; font-size:10px; color:var(--fm-accent-ink); }
   .fm-section-head { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px; }
   .fm-facts { display:flex; flex-wrap:wrap; gap:5px; margin:8px 0; }
   .fm-fact { padding:3px 7px; border-radius:6px; background:var(--fm-sunken); color:var(--fm-muted); font-size:11px; overflow-wrap:anywhere; min-width:0; }

@@ -2,6 +2,8 @@
 
 这里保留设计时的目标、参数建议与分阶段标准，部分内容已由后续实现修订。当前行为看 [MVP](../MVP.md) 和 [控制契约](../CORE_CONTRACT.md)，完成状态看 [开发路线](../PROJECT_PLAN.md)。
 
+2026-10-07 用户明确收拢为平台先推荐、模型再筛选和简单听歌界面，修订下表 N9/N11/N15 的展示与默认路径，见 [N22](../spikes/N22-platform-first-recommendations.md)。旧设计不代表当前默认流程。
+
 | 设计 | 对应实现与证据 |
 |---|---|
 | [自主听歌与推荐规划](AUTONOMOUS_MUSIC_ROADMAP.md) | N0–N8 的原始拆分；实际结果从 [证据索引](../spikes/README.md) 查阅，QQ 与完整长跑仍以开发路线为准 |

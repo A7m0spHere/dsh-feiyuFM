@@ -1,6 +1,25 @@
 // The plugin owns the clock for automatic summaries; the Core owns the policy.
 // This scheduler never decides on its own that a run is allowed: it asks the
 // Core, and the Core re-checks every gate inside the reservation transaction.
+import { setTimeout as delay } from 'node:timers/promises';
+
+export async function prepareRecommendations({bridge,service,route,signal}){
+ if(!service?.available)throw Object.assign(new Error('请先在 DSH 配置可用的模型。'),{code:'model_unavailable'});
+ if(typeof service.models==='function'&&!(await service.models()).some(item=>item.provider===route?.provider&&item.model===route?.model))
+  throw Object.assign(new Error('请选择 DSH 中已配置的模型。'),{code:'invalid_model'});
+ await bridge.request({type:'recommendation-route',...route},{signal,abortable:true});
+ await bridge.request({type:'discovery'},{signal,abortable:true});
+ let status;
+ for(let waited=0;waited<=30000;waited+=250){
+  if(signal?.aborted)throw Object.assign(new Error('挑歌已取消。'),{code:'cancelled'});
+  status=(await bridge.request({type:'discovery-filter-status'},{signal,abortable:true}))?.filter;
+  if(!status?.refreshing)break;
+  await delay(250,undefined,{signal});
+ }
+ if(status?.refreshing)throw Object.assign(new Error('网易云还在找歌，稍后可以再试。'),{code:'provider_timeout'});
+ if(!status?.count)throw Object.assign(new Error('网易云暂时没有返回合适的歌曲，请先导入参考音乐或稍后重试。'),{code:'no_candidates'});
+ return service.summarize(route,{signal,purpose:'discovery-filter'});
+}
 export function createPersonaScheduler({bridge,service,onLog=()=>{},intervalMs=600000}){
  let timer=null,checking=false,checkingFilter=false,stopped=false,last=null;
  const emit=entry=>{try{onLog(entry);}catch{/* Diagnostics do not decide whether a call succeeded. */}};
@@ -12,6 +31,7 @@ export function createPersonaScheduler({bridge,service,onLog=()=>{},intervalMs=6
    const answer=await bridge.request({type:'persona'});
    if(stopped||!service?.available)return last={skipped:stopped?'stopped':'model_unavailable'};
    const persona=answer?.persona;
+   if(persona?.recommendationPipeline?.pipeline==='platform-filter')return last={skipped:'playlist_pipeline'};
    if(!persona?.policy?.automatic)return last={skipped:'disabled'};
    if(!persona.policy.automaticDue)return last={skipped:persona.policy.automaticBlockedBy??'not_due'};
    // Reuse the route of the last successful summary instead of inventing a
@@ -45,9 +65,17 @@ export function createPersonaScheduler({bridge,service,onLog=()=>{},intervalMs=6
     await new Promise(resolve=>setTimeout(resolve,1000));
    }
    if(!status?.due)return last={filterSkipped:'not_due'};
+   if(stopped)return last={filterSkipped:'stopped'};
    const answer=await bridge.request({type:'persona'});
-   const route=answer?.persona?.lastModelRoute;
+   let route=answer?.persona?.recommendationRoute??answer?.persona?.lastModelRoute;
+   if(status?.pipeline==='platform-filter'){
+    const routes=typeof service.models==='function'?await service.models():[];
+    if(stopped)return last={filterSkipped:'stopped'};
+    if(routes.length&&!routes.some(item=>item.provider===route?.provider&&item.model===route?.model))route=routes[0];
+    if(route?.provider&&route?.model)await bridge.request({type:'recommendation-route',provider:route.provider,model:route.model});
+   }
    if(!route?.provider||!route?.model)return last={filterSkipped:'no_model'};
+   if(stopped)return last={filterSkipped:'stopped'};
    const result=await service.summarize(route,{automatic:true,purpose:'discovery-filter'});
    if(result?.cached)return last={filterSkipped:'current',cached:true};
    emit({type:'discovery-filter-run',provider:route.provider,model:route.model});
@@ -60,7 +88,7 @@ export function createPersonaScheduler({bridge,service,onLog=()=>{},intervalMs=6
  }
  return{
   check,checkDiscoveryFilter,
-  start(){if(timer||stopped)return false;timer=setInterval(()=>{void check();void checkDiscoveryFilter();},intervalMs);timer.unref?.();return true;},
+  start(){if(timer||stopped)return false;void checkDiscoveryFilter();timer=setInterval(()=>{void check();void checkDiscoveryFilter();},intervalMs);timer.unref?.();return true;},
   stop(){stopped=true;if(timer)clearInterval(timer);timer=null;},
   get last(){return last;},
   get running(){return Boolean(timer);},
