@@ -1,23 +1,18 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="340" viewBox="0 0 1200 340" role="img" aria-labelledby="title desc">
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="260" viewBox="0 0 1200 260" role="img" aria-labelledby="title desc">
   <title id="title">肥鱼电台 FishFM</title>
-  <desc id="desc">DSH 社区音乐插件。导入参考歌曲，让网易云找歌、模型挑歌，大肥鱼沿着歌单继续听。</desc>
-  <rect width="1200" height="340" rx="24" fill="#f3f5f8"/>
+  <desc id="desc">给正在工作的 DeepSeek 一副耳机。DSH 社区音乐插件，由网易云找歌、模型挑歌，本地电台播放。</desc>
+  <rect width="1200" height="260" rx="24" fill="#f3f5f8"/>
   <g font-family="Segoe UI, Microsoft YaHei, PingFang SC, sans-serif">
-    <g id="title-block" transform="translate(56 52)">
-      <text y="0" font-size="21" font-weight="600" fill="#2864db">DSH / 社区音乐插件</text>
-      <text y="83" font-size="64" font-weight="700" fill="#172235">肥鱼电台 <tspan fill="#2864db">FishFM</tspan></text>
-      <text y="136" font-size="30" fill="#566171">给正在工作的 DeepSeek 一副耳机。</text>
+    <g id="title-block" transform="translate(56 48)">
+      <text font-size="22" font-weight="600" fill="#2864db">DSH / 社区音乐插件</text>
+      <text y="92" font-size="82" font-weight="700" fill="#172235">肥鱼电台 <tspan fill="#2864db">FishFM</tspan></text>
+      <text y="150" font-size="38" fill="#566171">给正在工作的 DeepSeek 一副耳机。</text>
     </g>
-    <g id="listening-cycle" transform="translate(56 240)">
-      <path d="M0 14H870" stroke="#c3d2ec" stroke-width="3"/>
-      <g fill="#2864db"><circle cy="14" r="6"/><circle cx="290" cy="14" r="6"/><circle cx="580" cy="14" r="6"/><circle cx="870" cy="14" r="6"/></g>
-      <g font-size="30" fill="#172235"><text y="56">参考歌曲</text><text x="290" y="56">网易云找歌</text><text x="580" y="56">模型挑歌</text><text x="870" y="56">大肥鱼听歌</text></g>
-    </g>
-    <g id="player-mark" transform="translate(985 56)">
+    <g id="player-mark" transform="translate(1008 67)">
       <path d="M0 70V52a56 56 0 0 1 112 0v18" fill="none" stroke="#2864db" stroke-width="10" stroke-linecap="round"/>
       <rect x="-10" y="53" width="24" height="52" rx="10" fill="#2864db"/>
       <rect x="98" y="53" width="24" height="52" rx="10" fill="#2864db"/>
-      <path d="M45 53L45 98L78 75Z" fill="#172235"/>
+      <path d="M45 53V98L78 75Z" fill="#172235"/>
     </g>
   </g>
 </svg>

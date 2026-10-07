@@ -6,7 +6,7 @@
 
 2026-10-07 用户指定本机 Wallpaper Engine Workshop `431960/3811739493`（项目标题/描述以当地 `project.json` 为准，描述含 `BV1AQam6dESR`）的六张 `assets/doll-{glm,deepseek,claude,gemini,gpt,grok}.png` 用于面板动效，并随后明确要求将素材一起打包，避免安装者无法使用。PNG 原字节复制到 `src/ui/assets/dolls/`，纳入 Git 和 npm 白名单，没有重画、裁切或重采样；尺寸、SHA-256 与提取路径见 [U12 素材清单](docs/spikes/U12-doll-assets.json)。该目录未提供许可文件，作者/再分发许可未确认，不归入本项目 MIT。`scripts/import-doll-artwork.mjs` 保留作来源复现工具，普通安装不需要执行它。壁纸 `physics.js` / `app.js` 只用作运动与参数参考，没有复制其 JavaScript、音乐或视频；FishFM 的六体碰撞、旋转和形变由本项目代码实现。
 
-`assets/readme/hero.svg` 为本项目绘制的静态矢量介绍，按 MIT 提供；`panel.png` 和 `panel-dark.png` 来自 2026-10-05 当前客户端的隔离预览，展示模拟数据与暂停状态，角色使用本项目此前生成的 `whale-idle.png`，未展示上述锅盖鲸鱼娘素材。截图不构成真实账号或模型效果证据。
+`assets/readme/hero.svg` 为本项目绘制的静态矢量介绍，按 MIT 提供；`panel.png`、`panel-dark.png`、`panel-narrow.png` 和 `panel-narrow-dark.png` 于 2026-10-07 从当前客户端隔离预览更新，展示 U15/U16 界面、模拟数据与暂停状态，角色使用本项目此前生成的 `whale-idle.png`，未展示上述锅盖鲸鱼娘素材。截图不构成真实账号或模型效果证据，取景与尺寸见 [首页素材说明](assets/readme/README.md)。
 
 原有 `whale-idle.png`、`whale-listening.png` 和 `whale-dj.png` 为本项目使用 Codex ImageGen 生成的状态图，来源输出名记录在 [素材来源记录](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/prototypes/README.md#素材来源)；唯一维护位置为 `src/ui/assets/`。项目对这些自有状态图和上述截图按 MIT 提供。
 
