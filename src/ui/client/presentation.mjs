@@ -1,6 +1,29 @@
 // 播放进度平滑显示：状态每 ~2.2 秒轮询一次，直接渲染会在界面上"跳格"。
 // 以最近一次服务端进度为锚点，播放中按本地时钟插值推进；暂停、切歌或
 // 收到新快照时重新锚定。首次渲染与无锚点时返回服务端原值。
+export function recommendationActionState(availability,now){
+ let reason=availability?.reason;
+ const seconds=Math.max(0,Math.ceil(((availability?.retryAt??now)-now)/1000));
+ if(reason==='summary_cooldown'&&seconds===0)reason=null;
+ if(reason==='summary_retry_limit'&&now>=availability.resetAt)reason=null;
+ const remaining=`${Math.floor(seconds/60)}:${String(seconds%60).padStart(2,'0')}`;
+ const messages={summary_cooldown:'倒计时结束后可换一批，等待期间仍可点播歌曲。',
+  summary_busy:'模型任务正在进行，完成后可再挑歌。',
+  summary_retry_limit:'今天的挑歌次数已用完，明天可再换；已有歌曲仍可点播。',
+  budget_exhausted:'模型预算不足，可在推荐设置中调整；已有歌曲仍可点播。'};
+ return{reason,disabled:Boolean(reason),message:messages[reason]??'',
+  label:reason==='summary_cooldown'?`${remaining} 后可换`:reason==='summary_busy'?'模型处理中':reason==='summary_retry_limit'?'明天再换':reason==='budget_exhausted'?'预算不足':null};
+}
+
+export function recommendationFeedback(error){
+ const messages={summary_cooldown:'刚挑过一批，稍后可再换；现有歌单仍可播放。',
+  summary_busy:'已有模型任务正在进行，稍后再试。',
+  summary_retry_limit:'今天的挑歌次数已用完，明天可再换。',
+  budget_exhausted:'模型预算不足，请在推荐设置中调整后再试。',
+  no_candidates:'网易云暂时没有合适的候选，可补充参考歌曲或稍后重试。'};
+ return{expected:Boolean(messages[error?.code]),message:messages[error?.code]||error?.message||'这次挑歌没有完成，请稍后重试。',code:error?.code||'model_failed'};
+}
+
 export function interpolatedPosition({ anchor, playInstanceId, positionMs, durationMs, now, active }) {
   if (!active || !anchor || anchor.id !== playInstanceId) return positionMs;
   const advanced = anchor.ms + Math.max(0, now - anchor.at);

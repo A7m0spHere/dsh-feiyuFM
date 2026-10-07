@@ -125,6 +125,8 @@ window.__ModuleLoader__.load({
       .fishfm h2 small { color:var(--fm-faint); font-size:9px; font-weight:500; letter-spacing:.1em; }
       .fm-card { padding:4px 14px; border:1px solid var(--fm-line); border-radius:9px; background:var(--fm-surface); }
       .fm-persona-card { padding:12px; }
+      .fm-recommendation-status { margin:8px 0!important; padding:7px 9px; border-radius:6px; background:var(--fm-sunken); color:var(--fm-muted); font-size:11px; overflow-wrap:anywhere; }
+      .fm-error-details { margin-top:6px; font-size:10px; }
       .fm-picks-head { display:flex; align-items:center; flex-wrap:wrap; gap:8px; }
       .fm-picks-head .fm-note { flex:1 1 160px; }
       .fm-picks { margin:8px 0; }
@@ -364,6 +366,29 @@ window.__ModuleLoader__.load({
     // 播放进度平滑显示：状态每 ~2.2 秒轮询一次，直接渲染会在界面上"跳格"。
     // 以最近一次服务端进度为锚点，播放中按本地时钟插值推进；暂停、切歌或
     // 收到新快照时重新锚定。首次渲染与无锚点时返回服务端原值。
+    function recommendationActionState(availability,now){
+     let reason=availability?.reason;
+     const seconds=Math.max(0,Math.ceil(((availability?.retryAt??now)-now)/1000));
+     if(reason==='summary_cooldown'&&seconds===0)reason=null;
+     if(reason==='summary_retry_limit'&&now>=availability.resetAt)reason=null;
+     const remaining=`${Math.floor(seconds/60)}:${String(seconds%60).padStart(2,'0')}`;
+     const messages={summary_cooldown:'倒计时结束后可换一批，等待期间仍可点播歌曲。',
+      summary_busy:'模型任务正在进行，完成后可再挑歌。',
+      summary_retry_limit:'今天的挑歌次数已用完，明天可再换；已有歌曲仍可点播。',
+      budget_exhausted:'模型预算不足，可在推荐设置中调整；已有歌曲仍可点播。'};
+     return{reason,disabled:Boolean(reason),message:messages[reason]??'',
+      label:reason==='summary_cooldown'?`${remaining} 后可换`:reason==='summary_busy'?'模型处理中':reason==='summary_retry_limit'?'明天再换':reason==='budget_exhausted'?'预算不足':null};
+    }
+
+    function recommendationFeedback(error){
+     const messages={summary_cooldown:'刚挑过一批，稍后可再换；现有歌单仍可播放。',
+      summary_busy:'已有模型任务正在进行，稍后再试。',
+      summary_retry_limit:'今天的挑歌次数已用完，明天可再换。',
+      budget_exhausted:'模型预算不足，请在推荐设置中调整后再试。',
+      no_candidates:'网易云暂时没有合适的候选，可补充参考歌曲或稍后重试。'};
+     return{expected:Boolean(messages[error?.code]),message:messages[error?.code]||error?.message||'这次挑歌没有完成，请稍后重试。',code:error?.code||'model_failed'};
+    }
+
     function interpolatedPosition({ anchor, playInstanceId, positionMs, durationMs, now, active }) {
       if (!active || !anchor || anchor.id !== playInstanceId) return positionMs;
       const advanced = anchor.ms + Math.max(0, now - anchor.at);
@@ -592,7 +617,7 @@ window.__ModuleLoader__.load({
           summaryWrite=new AbortController();const timeout=setTimeout(()=>summaryWrite?.abort(),action==='recommendations'?120000:65000);
           const endpoint={summary:'fishfm/persona-summary',recommendations:'fishfm/persona-recommendations',budget:'fishfm/persona-budget',output:'fishfm/persona-output',automatic:'fishfm/persona-automatic'}[action];
           const pending={summary:'正在总结聚合画像…',recommendations:'正在从网易云找歌，再挑一批…',budget:'正在保存模型预算…',output:'正在保存单次输出上限…',automatic:'正在保存自动总结设置…'}[action];
-          emit({summaryBusy:true,summaryError:'',summaryNotice:pending});
+          emit({summaryBusy:true,summaryError:'',summaryErrorCode:null,summaryNotice:pending,summaryLimit:null});
           try{
             if(!endpoint)throw Object.assign(new Error('未知的画像操作。'),{code:'invalid_command'});
             const result=await connection.rpc.call('/api',endpoint,payload,summaryWrite.signal);
@@ -602,7 +627,14 @@ window.__ModuleLoader__.load({
               :action==='automatic'?(payload?.value?'自动总结已开启，只在画像更新且预算允许时运行。':'自动总结已关闭。')
               :action==='output'?'单次输出上限已保存。':'总结预算已保存。';
             emit({persona:result.value.persona,summaryNotice:notice});
-          }catch(error){emit({summaryError:failure(error),summaryNotice:'已有的歌单和播放状态保持。'});}
+          }catch(error){
+            if(action==='recommendations'){
+              const feedback=recommendationFeedback(error);
+              emit(feedback.expected?{summaryError:'',summaryNotice:feedback.message,summaryLimit:{code:feedback.code,details:error.details,
+                remainingTokens:state.persona?.ledger?.remainingTokens}}:{summaryError:feedback.message,summaryErrorCode:feedback.code,summaryNotice:''});
+              await refresh();
+            }else emit({summaryError:failure(error),summaryNotice:'已有的歌单和播放状态保持。'});
+          }
           finally{clearTimeout(timeout);summaryWrite=null;emit({summaryBusy:false});}
         },
         dispose() { disposed = true; ++epoch; clearInterval(timer); read?.abort(); write?.abort();summaryWrite?.abort(); listeners.clear();
@@ -931,6 +963,14 @@ window.__ModuleLoader__.load({
       const view = state.persona;
       const [selected, setSelected] = React.useState('');
       const [budget, setBudget] = React.useState(4000), [output, setOutput] = React.useState(256);
+      const [localNow,setLocalNow]=React.useState(()=>Date.now());
+      const clock=React.useRef({view,receivedAt:Date.now()});
+      if(clock.current.view!==view)clock.current={view,receivedAt:Date.now()};
+      React.useEffect(()=>{
+        if(!view?.recommendationAvailability?.retryAt)return undefined;
+        const timer=setInterval(()=>setLocalNow(Date.now()),1000);
+        return()=>clearInterval(timer);
+      },[view?.recommendationAvailability?.retryAt]);
       React.useEffect(() => {
         if (view) { setBudget(view.policy.dailyTokens); setOutput(view.policy.maxOutputTokens); }
       }, [view?.policy?.dailyTokens, view?.policy?.maxOutputTokens]);
@@ -944,20 +984,26 @@ window.__ModuleLoader__.load({
       const chosen = selected || (previous ? key(previous) : routes[0] ? key(routes[0]) : '');
       const route = routes.find(item => key(item) === chosen);
       const referenceCount = pipeline.referenceCount ?? state.library?.total ?? 0;
-      const busy = state.summaryBusy || pipeline.filtering || pipeline.refreshing;
+      const serverNow=(view.generatedAt??localNow)+Math.max(0,localNow-clock.current.receivedAt);
+      const availability=view.recommendationAvailability;
+      const limit=state.summaryLimit;
+      const budgetBlocked=limit?.code==='budget_exhausted'&&limit.remainingTokens===ledger.remainingTokens;
+      const action=recommendationActionState(budgetBlocked?{...availability,reason:'budget_exhausted'}:availability,serverNow);
+      const staleLimit=availability&&!action.reason&&['summary_cooldown','summary_busy','summary_retry_limit'].includes(limit?.code);
+      const filtering=pipeline.filtering||availability?.runningPurpose==='discovery-filter';
+      const busy = state.summaryBusy || filtering || pipeline.refreshing;
       const disabled = state.summaryBusy || state.busy || !state.connected;
       const status = !state.connected ? '正在连接电台…'
         : !referenceCount ? '先导入你常听的歌曲，我会沿着它们去找歌。'
         : pipeline.refreshing ? '我正在网易云找一些相近的歌…'
-        : state.summaryBusy || pipeline.filtering ? '歌找到了，我再挑一挑…'
+        : filtering ? '候选找到了，我正在挑歌…'
+        : state.summaryBusy ? '正在准备新一批歌曲…'
         : tracks.length ? !state.snapshot?.settings.discovery||state.snapshot?.settings.discoveryRate===0
           ? `这批挑了 ${tracks.length} 首，关闭探索时可以手动点播。` : `这批挑了 ${tracks.length} 首，可以点播或让我接着听。`
-        : pipeline.selectionComplete ? '这批没有挑到合适的歌，可以换一批或先点播参考歌曲。'
+        : pipeline.selectionComplete ? '这批没有挑到合适的歌，可先点播参考歌曲。'
         : pipeline.state === 'login_required' ? '先连接网易云，我才能找歌。'
         : !routes.length ? '先在 DSH 配好模型，我才能帮你挑歌。'
-        : pipeline.lastError === 'budget_exhausted' ? '今天的模型预算不足，可在推荐设置中调整。'
-        : pipeline.lastError === 'summary_cooldown' ? '刚刚挑过一批，稍后再换。'
-        : pipeline.lastError ? '这次没挑好，可以再试，也可以先点播参考歌曲。'
+        : pipeline.lastError&&!['budget_exhausted','summary_cooldown','summary_busy','summary_retry_limit'].includes(pipeline.lastError) ? '这次没挑好，可以再试，也可以先点播参考歌曲。'
         : '参考歌曲准备好了，找一批歌让我挑挑看。';
       const song = (track, index) => h('button', { type: 'button', className: 'fm-pick', key: `${track.provider}:${track.providerTrackId}`,
         disabled: state.busy || !state.connected, 'aria-label': `播放 ${track.title} · ${track.artist || '未知艺人'}`,
@@ -968,16 +1014,19 @@ window.__ModuleLoader__.load({
         h('span', { className: 'fm-pick-play', 'aria-hidden': true }, '▶'));
       return h('section', { 'aria-label': '大肥鱼的歌单' },
         h('h2', null, '大肥鱼的歌单'),
-        h('div', { className: 'fm-card fm-persona-card' },
+        h('div', { className: 'fm-card fm-persona-card', 'aria-busy':Boolean(busy) },
           h('div', { className: 'fm-picks-head' }, h('p', { className: 'fm-note', role: 'status', 'aria-live': 'polite' }, status),
-            h('button', { type: 'button', className: 'fm-button fm-primary', disabled: disabled || busy || !route || !referenceCount || !state.features?.personaSummary,
-              onClick: () => controller.personaAction('recommendations', { provider: route.provider, model: route.model }) }, busy ? '正在挑歌…' : tracks.length ? '换一批' : '找一批歌')),
+            h('button', { type: 'button', className: 'fm-button fm-primary', disabled: disabled || busy || action.disabled || !route || !referenceCount || !state.features?.personaSummary,
+              onClick: () => controller.personaAction('recommendations', { provider: route.provider, model: route.model }) }, busy ? filtering?'正在挑歌…':'正在找歌…' : action.label|| (state.summaryError?'再试一次':tracks.length ? '换一批' : '找一批歌'))),
+          action.message&&h('p',{className:'fm-recommendation-status',role:'status'},action.message),
           pipeline.summary && h('p', { className: 'fm-summary-text' }, pipeline.summary),
           tracks.length > 0 && h('div', { className: 'fm-picks' }, tracks.slice(0, 6).map(song)),
           tracks.length > 6 && h('details', { className: 'fm-disclosure' }, h('summary', null, `还有 ${tracks.length - 6} 首`),
             h('div', { className: 'fm-picks' }, tracks.slice(6).map((track, index) => song(track, index + 6)))),
-          state.summaryError && h('p', { className: 'fm-notice', 'data-error': true, role: 'alert' }, state.summaryError),
-          !state.summaryError && state.summaryNotice && !busy && h('p', { className: 'fm-note', role: 'status' }, state.summaryNotice),
+          state.summaryError && h('div', { className: 'fm-notice', 'data-error': true, role: 'alert' }, state.summaryError,
+            h('p',null,tracks.length?'已有歌单保留，可以继续点播。':referenceCount?'可先点播输入曲库，或稍后重试。':'可先导入参考歌曲，再重新挑歌。'),
+            state.summaryErrorCode&&h('details',{className:'fm-error-details'},h('summary',null,'技术详情'),h('code',null,state.summaryErrorCode))),
+          !state.summaryError && state.summaryNotice && !busy && !action.message && !staleLimit && h('p', { className: 'fm-note', role: 'status' }, state.summaryNotice),
           h('details', { className: 'fm-disclosure fm-recommendation-settings' }, h('summary', null, '推荐设置'),
             h('div', { className: 'fm-disclosure-body' },
               h('label', { className: 'fm-label' }, '帮我挑歌的模型'),

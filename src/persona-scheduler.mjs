@@ -2,11 +2,14 @@
 // This scheduler never decides on its own that a run is allowed: it asks the
 // Core, and the Core re-checks every gate inside the reservation transaction.
 import { setTimeout as delay } from 'node:timers/promises';
+import { assertRecommendationAvailable } from './persona.mjs';
 
 export async function prepareRecommendations({bridge,service,route,signal}){
  if(!service?.available)throw Object.assign(new Error('请先在 DSH 配置可用的模型。'),{code:'model_unavailable'});
  if(typeof service.models==='function'&&!(await service.models()).some(item=>item.provider===route?.provider&&item.model===route?.model))
   throw Object.assign(new Error('请选择 DSH 中已配置的模型。'),{code:'invalid_model'});
+ const view=await bridge.request({type:'persona'},{signal,abortable:true});
+ assertRecommendationAvailable(view?.persona?.recommendationAvailability);
  await bridge.request({type:'recommendation-route',...route},{signal,abortable:true});
  await bridge.request({type:'discovery'},{signal,abortable:true});
  let status;

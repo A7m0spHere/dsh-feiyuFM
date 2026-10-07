@@ -46,21 +46,40 @@ persona.recommendationRoute={provider:'preview',model:'example-model'};
 persona.recommendationPipeline={pipeline:'platform-filter',state:'ready',count:34,picked:4,remaining:4,referenceCount:100,tracks:previewPicks(),summary:'沿着你常听的歌，挑了几首想试试的。',selectionComplete:true};
 snapshot.discovery=persona.recommendationPipeline;
 const summaryModels=[{provider:'preview',model:'example-model',label:'已配置模型 · 示例总结路线'}];
+let pickerScenario='ready',pickerRetryAt=0;
+const pickerNow=()=>Date.now()+300000; // Exercise a server clock five minutes ahead.
+function syncPickerScenario(){
+ const now=pickerNow();
+ const reason={cooldown:'summary_cooldown',finishing:'summary_cooldown',filtering:'summary_busy',budget:'budget_exhausted',limit:'summary_retry_limit'}[pickerScenario]??null;
+ persona.generatedAt=now;
+ persona.recommendationAvailability={reason,serverNow:now,retryAt:reason==='summary_cooldown'?pickerRetryAt:null,
+  retryAfterMs:Math.max(0,pickerRetryAt-now),resetAt:now+86400000,remainingAttempts:pickerScenario==='limit'?0:11,dailyAttempts:12,
+  runningPurpose:pickerScenario==='filtering'?'discovery-filter':null};
+ if(reason==='summary_cooldown'&&now>=pickerRetryAt)persona.recommendationAvailability.reason=null;
+ persona.recommendationPipeline.refreshing=pickerScenario==='searching';
+ persona.recommendationPipeline.filtering=pickerScenario==='filtering';
+}
 let connected=true,empty=false,active='fishfm',changeActive;
 const connection={rpc:{async call(_channel,endpoint,payload){
  await new Promise(r=>setTimeout(r,80));
  if(!connected)return {ok:false,error:{code:'core_unavailable',message:'预览连接中断'}};
  if(endpoint.startsWith('fishfm/persona-')){
   if(endpoint==='fishfm/persona-recommendations'){
+   if(pickerScenario==='failure')return{ok:false,error:{code:'provider_failure',message:'挑歌服务暂时不可用，请稍后再试。'}};
+   if(pickerScenario==='race'){
+    pickerScenario='cooldown';pickerRetryAt=pickerNow()+15*60000;syncPickerScenario();
+    return{ok:false,error:{code:'summary_cooldown',message:'刚刚运行过，请稍后再试。',details:{serverNow:pickerNow(),retryAt:pickerRetryAt}}};
+   }
    await new Promise(r=>setTimeout(r,600));
    persona.recommendationPipeline={...persona.recommendationPipeline,tracks:previewPicks().reverse(),picked:4,remaining:4,referenceCount:empty?0:100};
    persona.recommendationRoute={provider:payload.provider,model:payload.model};snapshot.discovery=persona.recommendationPipeline;
+   pickerScenario='cooldown';pickerRetryAt=pickerNow()+15*60000;
   }
   if(endpoint==='fishfm/persona-budget')persona.policy.dailyTokens=payload.value;
   if(endpoint==='fishfm/persona-output')persona.policy.maxOutputTokens=payload.value;
   if(endpoint==='fishfm/persona-automatic')persona.policy.automatic=payload.value;
   if(endpoint==='fishfm/persona-summary')await new Promise(r=>setTimeout(r,1500));
-  persona.generatedAt=Date.now();return {ok:true,value:{persona:structuredClone(persona),summaryResult:{cached:false}}};
+  syncPickerScenario();return {ok:true,value:{persona:structuredClone(persona),summaryResult:{cached:false}}};
  }
  if(endpoint==='fishfm/command'){
   const type=payload.type;
@@ -83,6 +102,7 @@ const connection={rpc:{async call(_channel,endpoint,payload){
   snapshot.revision++;return {ok:true,value:{snapshot:structuredClone(snapshot),insights:structuredClone(insights),persona:structuredClone(persona),library:{total:empty?0:100,tracks:empty?[]:tracks}}};
  }
  persona.recommendationPipeline.referenceCount=empty?0:100;
+ syncPickerScenario();
  return {ok:true,value:{snapshot:structuredClone(snapshot),persona:structuredClone(persona),insights:structuredClone(insights),summaryModels,features:{personaSummary:true,discoveryRefresh:true,importSources:true,artwork},platforms:{netease:{installed:true,account:{status:'authorized'}},qq:{installed:false}},library:{total:empty?0:100,tracks:empty?[]:tracks},playlists:[{id:'preview-list',title:'示例输入歌单'}]}};
 }}};
 const layout={selectPanel(id){active=id;changeActive?.(id)}};
@@ -99,7 +119,10 @@ function Harness(){
    React.createElement('button',{onClick:()=>setSettings(!settings)},settings?'主面板':'设置宽度'),
    React.createElement('button',{onClick:()=>{demoMotion=!demo;previewStyle.textContent=demoMotion?normalCss.replace('@media(prefers-reduced-motion:reduce)','@media(preview-motion:none)'):normalCss;controller.setMotion('full');setDemo(!demo)}},demo?'系统动效':'动效演示'),
    React.createElement('button',{onClick:()=>{empty=!empty;controller.refresh()}},'切换空库'),
-   React.createElement('button',{onClick:()=>{connected=!connected;controller.refresh()}},'切换连接')),
+   React.createElement('button',{onClick:()=>{connected=!connected;controller.refresh()}},'切换连接'),
+   React.createElement('select',{'aria-label':'挑歌预览状态',defaultValue:'ready',onChange:event=>{
+    pickerScenario=event.target.value;pickerRetryAt=pickerNow()+(pickerScenario==='finishing'?3500:15*60000);controller.refresh();
+   }},...[['ready','可换批'],['cooldown','冷却'],['finishing','即将结束'],['searching','找歌中'],['filtering','挑歌中'],['budget','预算用完'],['limit','次数用完'],['failure','请求失败'],['race','并发冷却']].map(([value,label])=>React.createElement('option',{value,key:value},label)))),
   React.createElement('div',{className:'preview-shell'},page==='fishfm'?React.createElement('main',{className:settings?'preview-settings':'preview-main'},React.createElement(panel.component,{...panel.options.inject(),...(settings?{close:()=>setSettings(false)}:{})})):React.createElement('div',{className:'preview-conversation'},'对话面板 · 音乐服务独立于可见页面'),
    React.createElement('div',{'data-shell-overlay':''},React.createElement(overlay.component,{...overlay.options.inject(),usePanelInfo:fn=>fn({activePanelId:page})}))));
 }

@@ -184,3 +184,12 @@ test('import errors retain source and stage details while removing session mater
   assert.equal(serialized.includes('never-return-this'), false);
   assert.equal(serialized.includes('MUSIC_U='), false);
 });
+
+test('model gate RPC retains retry timing but drops arbitrary error metadata',async()=>{
+ const api=createSettingsHandler({async start(){},async request(){throw Object.assign(new Error('稍后再试'),{
+  code:'summary_cooldown',details:{retryAt:901000,serverNow:1000,retryAfterMs:900000,remainingAttempts:11,dailyAttempts:12,
+   resetAt:90000000,token:'secret',retryable:true,provider:'private'}});}});
+ const result=await api('fishfm/state',{});
+ assert.equal(result.error.code,'summary_cooldown');
+ assert.deepEqual(result.error.details,{retryAt:901000,serverNow:1000,retryAfterMs:900000,remainingAttempts:11,dailyAttempts:12,resetAt:90000000});
+});

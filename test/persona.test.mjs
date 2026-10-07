@@ -5,6 +5,29 @@ import {createPersonaModelService} from '../src/persona-model.mjs';
 import {createPersonaScheduler} from '../src/persona-scheduler.mjs';
 const snapshot={settings:{discoveryRate:.7,discovery:true,strategy:'normal'},current:null};
 const route={provider:'deepseek',model:'configured-model'};
+
+test('recommendation availability follows billed failures, interrupted calls and the local daily boundary',()=>{
+ const store=new MusicStore();
+ const candidates=[{provider:'netease',providerTrackId:'42',title:'Song',artist:'Artist',discovery:{source:'netease_similar'}}];
+ const reserve=now=>reserveSummary({store,snapshot,...route,now,purpose:'discovery-filter',candidates});
+ try{
+  store.setSetting('summary_daily_tokens',100000);
+  let plan=reserve(1000);
+  finishSummary({store,callId:plan.callId,status:'failed',usage:{inputTokens:10,outputTokens:0},code:'provider_failure',now:1001});
+  assert.equal(personaView(store,snapshot,1002).recommendationAvailability.reason,null,'known usage permits a bounded retry');
+  plan=reserve(1002);recoverSummaryCalls(store,1003);
+  assert.equal(personaView(store,snapshot,1004).recommendationAvailability.reason,'summary_cooldown','interruption does not erase cooldown');
+  for(let index=0;index<10;index++){
+   plan=reserve(901002+index*900001);
+   finishSummary({store,callId:plan.callId,status:'failed',usage:{inputTokens:1,outputTokens:0},now:901003+index*900001});
+  }
+  const limited=personaView(store,snapshot,10000000).recommendationAvailability;
+  assert.equal(limited.reason,'summary_retry_limit');assert.equal(limited.remainingAttempts,0);
+  assert.throws(()=>reserve(10000000),error=>error.code==='summary_retry_limit'&&error.details.resetAt===limited.resetAt);
+  const tomorrow=personaView(store,snapshot,limited.resetAt).recommendationAvailability;
+  assert.equal(tomorrow.reason,null);assert.equal(tomorrow.remainingAttempts,12);
+ }finally{store.close();}
+});
 test('summary cache reuses actual usage and never modifies independent preferences or paused playback',()=>{
  const store=new MusicStore();try{
   store.setPreference({targetType:'artist',targetKey:'Artist',affinity:.8,source:'listen',updatedAt:1});

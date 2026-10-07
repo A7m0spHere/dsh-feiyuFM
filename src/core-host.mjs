@@ -567,12 +567,14 @@ export function createCoreHost({
               return {...track,discovery:{...track.discovery,seedTitle}};
             })
             : null;
-          send({type:'result',id,ok:true,plan:reserveSummary({store,snapshot:core.snapshot(),provider:message.provider,model:message.model,now:now(),automatic:message.automatic===true,purpose:reservePurpose,candidates,graph:profileInputs().graph,
+          const plan=reserveSummary({store,snapshot:core.snapshot(),provider:message.provider,model:message.model,now:now(),automatic:message.automatic===true,purpose:reservePurpose,candidates,graph:profileInputs().graph,
             candidateRevision:reservePurpose==='discovery-filter'&&recommendationMode(store)==='filtered'?platformsFacade?.discoveryStatus().candidateRevision:null,
-            candidateOwner:reservePurpose==='discovery-filter'&&recommendationMode(store)==='filtered'?platformsFacade?.discoveryStatus().candidateOwner:null})});
+            candidateOwner:reservePurpose==='discovery-filter'&&recommendationMode(store)==='filtered'?platformsFacade?.discoveryStatus().candidateOwner:null});
+          profileCache.valid=false;
+          send({type:'result',id,ok:true,plan});
           return;
         }
-        case 'persona-start':send({type:'result',id,ok:true,started:startSummary(store,message.callId)});return;
+        case 'persona-start':{const started=startSummary(store,message.callId);profileCache.valid=false;send({type:'result',id,ok:true,started});return;}
         case 'persona-finish':{const result=finishSummary({store,...message,now:now(),candidateRevision:platformsFacade?.discoveryStatus?.().candidateRevision??null});invalidateProfile();
           if(result.success)store.removeSetting('recommendation_error_v1');
           platformsFacade?.setDiscoveryEnabled(core.snapshot().settings.discovery&&core.snapshot().settings.discoveryRate>0);

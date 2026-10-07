@@ -82,6 +82,10 @@ SOFTWARE.
 
 `@neteasecloudmusicapienhanced/api@4.40.1` is a direct runtime dependency, pinned in `package.json` and `npm-shrinkwrap.json`. Its npm metadata declares MIT. FishFM calls its Node modules in process and does not start the package's Express server. See [the package README](https://github.com/NeteaseCloudMusicApiEnhanced/api-enhanced/blob/main/README.MD) and [package manifest](https://github.com/NeteaseCloudMusicApiEnhanced/api-enhanced/blob/main/package.json). The npm beta includes the original runtime package and its dependencies without changing upstream source; nested license declarations and files are inventoried in DEPENDENCY_LICENSES.md.
 
+## Navidrome / Music Assistant — interaction references only
+
+2026-10-07 挑歌反馈参考 Navidrome `52135913d4747c8f8ddcfd8e7004202b8f53b594`（GPL-3.0）的 `LibraryScanButton.jsx`、`useScanElapsedTime.jsx`，以及 Music Assistant frontend `1e8c8c381171b7f1b9b61f037a69f2d548d61d7f`（Apache-2.0）的 `ShowCard.vue`、`useShows.ts`。只借鉴状态禁用、时间锚点与失败展示原则，没有复制代码、样式、素材或引入依赖。具体来源链接、取舍和验证见 [U16](docs/spikes/U16-recommendation-feedback.md)。
+
 ## DeepSeek Balance Whale Widget — reference only
 
 The widget's bubble, compact status, and three-dot menu informed the FishFM overlay. No code or artwork was copied. The upstream repository states that its code is MIT-licensed while `assets/**` is outside that grant; FishFM therefore uses the project's own generated art in `src/ui/assets/`. See [upstream provenance](https://raw.githubusercontent.com/MeteorNOX/DeepSeek-Balance-Whale-Widget/main/PROVENANCE.md).

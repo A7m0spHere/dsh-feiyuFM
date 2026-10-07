@@ -1,7 +1,17 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { filterLibrary, playbackPresentation, popupPlacement, discoveryPresentation } from '../src/ui/client/presentation.mjs';
-import {interpolatedPosition} from '../src/ui/client/presentation.mjs';
+import {interpolatedPosition,recommendationActionState,recommendationFeedback} from '../src/ui/client/presentation.mjs';
+
+test('a model gate expires at the server deadline while constraints remain separate from actual failures',()=>{
+ const gate={reason:'summary_cooldown',retryAt:901000};
+ assert.equal(recommendationActionState(gate,62000).label,'13:59 后可换');
+ assert.equal(recommendationActionState(gate,900999).disabled,true);
+ assert.equal(recommendationActionState(gate,901000).disabled,false);
+ assert.equal(recommendationFeedback({code:'summary_cooldown'}).expected,true);
+ assert.equal(recommendationFeedback({code:'provider_failure',message:'服务暂不可用'}).expected,false);
+ assert.equal(recommendationFeedback({code:'provider_failure',message:'服务暂不可用'}).message,'服务暂不可用');
+});
 
 test('playback preparation, mute, pause and disconnection have distinct visual states', () => {
   const snapshot = { status: 'playing', paused: false, settings: { humanPlayback: true } };

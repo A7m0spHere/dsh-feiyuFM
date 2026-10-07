@@ -179,13 +179,38 @@ test('filter cooldown and shared budget reject another request without dispatchi
   try {
     await prepareRecommendations({ ...f, route });
     f.time(62000); await f.facade.refreshDiscovery({ manual: true });
-    await assert.rejects(prepareRecommendations({ ...f, route }), { code: 'summary_cooldown' });
+    const beforeStages=f.stages.length;
+    const availability=(await f.bridge.request({type:'persona'})).persona.recommendationAvailability;
+    assert.equal(availability.retryAt,901000);
+    assert.equal(availability.retryAfterMs,839000);
+    await assert.rejects(prepareRecommendations({ ...f, route }), error=>error.code==='summary_cooldown'&&error.details.retryAt===901000);
+    assert.equal(f.stages.length,beforeStages,'cooldown prevents both platform refresh and model dispatch');
     assert.deepEqual(f.facade.discoveryTracks().map(track=>track.providerTrackId),['2','4'],'failed batch replacement retains the actual former CF picks');
     f.time(1000000); f.store.setSetting('summary_daily_tokens', 0);
     await assert.rejects(prepareRecommendations({ ...f, route }), { code: 'budget_exhausted' });
-    assert.equal((await f.bridge.request({type:'persona'})).persona.recommendationPipeline.lastError,'budget_exhausted');
+    assert.equal((await f.bridge.request({type:'persona'})).persona.recommendationAvailability.reason,'budget_exhausted');
     assert.equal(f.calls(), 1);
   } finally { await f.close(); }
+});
+
+test('running filter is visible across clients and a second request leaves the first batch and pause alone',async()=>{
+ const gate=Promise.withResolvers(),f=fixture({hold:gate.promise});let pending;
+ try{
+  pending=prepareRecommendations({...f,route});await waitForPick(f);
+  const view=(await f.bridge.request({type:'persona'})).persona;
+  assert.equal(view.recommendationAvailability.reason,'summary_busy');
+  assert.equal(view.recommendationAvailability.runningPurpose,'discovery-filter');
+  assert.equal(view.ledger.today.attempts,1,'reservation/start invalidate the cached UI ledger');
+  const beforeStages=f.stages.length;
+  await assert.rejects(prepareRecommendations({...f,route}),{code:'summary_busy'});
+  assert.equal(f.stages.length,beforeStages);
+  gate.resolve();await pending;
+  assert.equal((await f.bridge.request({type:'persona'})).persona.recommendationAvailability.reason,'summary_cooldown');
+  f.time(901000);
+  assert.equal((await f.bridge.request({type:'persona'})).persona.recommendationAvailability.reason,null);
+  await prepareRecommendations({...f,route});assert.equal(f.calls(),2);
+  assert.equal(f.host.snapshot().paused,true);
+ }finally{gate.resolve();await pending?.catch(()=>{});await f.close();}
 });
 
 test('a smaller remaining budget reduces the candidate batch without exceeding conservative reservation', async()=>{

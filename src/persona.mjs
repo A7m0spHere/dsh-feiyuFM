@@ -23,7 +23,7 @@ const MESSAGES={budget_exhausted:'今日模型预算不足，可在推荐设置�
  automatic_disabled:'自动总结未开启，本次请求已拒绝。',invalid_automatic:'自动总结开关只能是开启或关闭。',
  not_enough_new_listens:'新增有效经历不足，自动总结不会运行。',summary_interval:'距上次成功总结不足 24 小时。',
  automatic_no_model:'先手动生成一份总结或歌单，自动更新才能沿用其模型。',no_facts:'还没有参考歌曲，请先导入歌曲或标记喜欢。',summary_current:'总结已经是最新。',invalid_purpose:'未知的模型用途。',strategy_output_limit:'歌单生成需要至少 128 tokens 的输出上限，请先调整上限。'};
-const fail=code=>{throw Object.assign(new Error(MESSAGES[code]||'总结操作未完成。'),{code});};
+const fail=(code,details=null)=>{throw Object.assign(new Error(MESSAGES[code]||'总结操作未完成。'),{code,details});};
 const intIn=(value,{min,max})=>Number.isSafeInteger(value)&&value>=min&&value<=max?value:null;
 
 export function measuredUsage(value){
@@ -113,6 +113,25 @@ function aggregate(rows){
  return{attempts:rows.length,knownTokens,unknownCalls,chargedTokens};
 }
 
+// UI and reservation share the persisted call ledger; local clicks are not a clock.
+function modelCallAvailability(rows,policy,now,purpose){
+ const filter=purpose===DISCOVERY_FILTER_PURPOSE,limit=filter?FILTER_POLICY.dailyAttempts:SUMMARY_POLICY.maxDailyAttempts;
+ const attempts=rows.filter(row=>row.day===dayOf(now)&&(!filter||row.purpose===purpose)).length;
+ const running=rows.find(row=>['reserved','running'].includes(row.status));
+ const last=rows.find(row=>row.purpose===purpose);
+ const knownFailure=last?.status==='failed'&&Boolean(parseUsage(last.usage_json));
+ const retryAt=last&&!knownFailure?last.started_at+(filter?FILTER_POLICY.cooldownMs:SUMMARY_POLICY.cooldownMs):null;
+ const reset=new Date(now);reset.setHours(24,0,0,0);
+ const remainingTokens=Math.max(0,policy.dailyTokens-aggregate(rows.filter(row=>row.day===dayOf(now))).chargedTokens);
+ const reason=running?'summary_busy':attempts>=limit?'summary_retry_limit':retryAt>now?'summary_cooldown':remainingTokens===0?'budget_exhausted':null;
+ return{reason,serverNow:now,retryAt:retryAt>now?retryAt:null,retryAfterMs:Math.max(0,(retryAt??now)-now),
+  resetAt:reset.getTime(),remainingAttempts:Math.max(0,limit-attempts),dailyAttempts:limit,runningPurpose:running?.purpose??null};
+}
+
+export function assertRecommendationAvailable(availability){
+ if(availability?.reason)fail(availability.reason,availability);
+}
+
 // A bounded UI window is not an evidence counter. Anchor the actual growth-job
 // sequence at reservation time; legacy summaries use the real listen end time.
 // growthRows 允许宿主传入已解析的成长任务（缓存），避免每次轮询全量解析。
@@ -168,7 +187,7 @@ export function personaView(store,snapshot,now=Date.now(),cached=null){
  return{generatedAt:now,facts:bundle.facts,summary,summaryStale:summary?.factHash!==bundle.factHash,recommendations:strategy,recommendationsStale:strategy?.factHash!==strategyBundle.factHash,recommendationsSupported:true,referenceCoverage:strategyBundle.facts.inputCoverage,lastModelRoute:lastSuccessful?{provider:lastSuccessful.provider,model:lastSuccessful.model}:null,
   policy:{...SUMMARY_POLICY,...policy,automaticPurpose,outputMaximumTokens:OUTPUT_RANGE.max,automaticDue:automatic.due,automaticBlockedBy:automatic.reason,automaticNewListens:automatic.newListens??0,
    inputLimitKind:'utf8_bytes_not_exact_tokens',factsBytes:bundle.bytes},
-  ledger};
+  recommendationAvailability:modelCallAvailability(rows,policy,now,DISCOVERY_FILTER_PURPOSE),ledger};
 }
 
 export function reserveSummary({store,snapshot,provider,model,now=Date.now(),automatic=false,purpose='persona-summary',candidates=null,graph=null,candidateRevision=null,candidateOwner=null}){
@@ -209,15 +228,9 @@ export function reserveSummary({store,snapshot,provider,model,now=Date.now(),aut
    if(!gate.due)fail(({disabled:'automatic_disabled',no_model:'automatic_no_model',busy:'summary_busy',current:'summary_current',
     cooldown:'summary_cooldown',budget:'budget_exhausted',attempt_limit:'summary_retry_limit',interval:'summary_interval',input_size:'summary_input_too_large'})[gate.reason]??gate.reason);
   }
-  if(store.db.prepare("SELECT 1 FROM music_model_calls WHERE status IN ('reserved','running')").get())fail('summary_busy');
   const filterPurpose=purpose===DISCOVERY_FILTER_PURPOSE;
-  const attempts=store.db.prepare(filterPurpose
-   ?"SELECT count(*) count FROM music_model_calls WHERE day=? AND purpose='discovery-filter'"
-   :'SELECT count(*) count FROM music_model_calls WHERE day=?').get(dayOf(now)).count;
-  if(attempts>=(filterPurpose?FILTER_POLICY.dailyAttempts:SUMMARY_POLICY.maxDailyAttempts))fail('summary_retry_limit');
-  const last=store.db.prepare('SELECT started_at,status,usage_json FROM music_model_calls WHERE purpose=? ORDER BY started_at DESC LIMIT 1').get(purpose);
-  const knownFailure=last?.status==='failed'&&Boolean(parseUsage(last.usage_json));
-  if(last&&!knownFailure&&now-last.started_at<(filterPurpose?FILTER_POLICY.cooldownMs:SUMMARY_POLICY.cooldownMs))fail('summary_cooldown');
+  const availability=modelCallAvailability(store.db.prepare('SELECT * FROM music_model_calls ORDER BY started_at DESC').all(),policy,now,purpose);
+  if(availability.reason&&availability.reason!=='budget_exhausted')fail(availability.reason,availability);
   if(bundle.bytes>(filterPurpose?FILTER_POLICY.maxPromptBytes:SUMMARY_POLICY.maxPromptBytes))fail('summary_input_too_large');
   // Conservative reservation, not a claim about exact input tokenization.
   const reserved=bundle.bytes+1024+policy.maxOutputTokens,today=aggregate(store.db.prepare('SELECT usage_json,reserved_tokens FROM music_model_calls WHERE day=?').all(dayOf(now)));

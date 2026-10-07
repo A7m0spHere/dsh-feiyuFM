@@ -29,6 +29,9 @@ function safeImportDetails(details) {
   if (SAFE_STAGES.has(details.stage)) result.stage = details.stage;
   if (Number.isInteger(details.httpStatus)) result.httpStatus = details.httpStatus;
   if (Number.isInteger(details.platformCode)) result.platformCode = details.platformCode;
+  for(const key of ['serverNow','retryAt','retryAfterMs','resetAt','remainingAttempts','dailyAttempts']){
+    if(Number.isSafeInteger(details[key])&&details[key]>=0)result[key]=details[key];
+  }
   if (Array.isArray(details.attempts)) {
     result.attempts = details.attempts.slice(0, 3).map((row) => ({
       source: ['recent', 'liked', 'playlist'].includes(row?.source) ? row.source : 'unknown',

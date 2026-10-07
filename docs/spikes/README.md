@@ -55,6 +55,7 @@ N7/R2 的短跑或合成演练不能替代 A09 两小时验收；U3/U4 等 PHL �
 | [U13](U13-easter-review-fixes.md) | U13：彩蛋跨窗口状态同步与高窄视口裁切修复 |
 | [U14](U14-compact-layout.md) | U14：主面板、设置与悬浮条紧凑布局 |
 | [U15](U15-balanced-layout.md) | U15：歌单与常用控制两列、下方曲库/反馈/界面分区布局 |
+| [U16](U16-recommendation-feedback.md) | U16：参考开源音乐项目优化冷却倒计时、刷新前门控与请求反馈 |
 
 ## 平台与音频基础
 

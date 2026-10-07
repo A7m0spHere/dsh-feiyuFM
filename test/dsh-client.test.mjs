@@ -364,6 +364,38 @@ test('a pending model summary does not block pause and its stale response cannot
   assert.equal(f.controller.getSnapshot().snapshot.paused,true);assert.equal(f.controller.getSnapshot().summaryBusy,false);
  }finally{off();f.dispose();}
 });
+
+test('recommendation races become a timed constraint while genuine failures keep details and never disable point play',async()=>{
+ let gate=null,error={code:'summary_cooldown',message:'刚刚运行过',details:{retryAt:901000,serverNow:62000}},now=62000;
+ const track={provider:'netease',providerTrackId:'1',title:'Song',artist:'Artist'};
+ const persona=()=>({generatedAt:now,policy:{dailyTokens:4000,maxOutputTokens:256},
+  ledger:{today:{knownTokens:100},total:{knownTokens:100,attempts:1},remainingTokens:3900},
+  recommendationRoute:{provider:'p',model:'m'},recommendationAvailability:gate,
+  recommendationPipeline:{pipeline:'platform-filter',referenceCount:1,tracks:[track]}});
+ let requests=0;
+ const f=fixture(async(_channel,endpoint)=>{
+  if(endpoint==='fishfm/persona-recommendations'){requests++;return{ok:false,error};}
+  return{ok:true,value:{snapshot:{...snapshot(1),paused:true,current:{track}},persona:persona(),
+   summaryModels:[{provider:'p',model:'m',label:'Model'}],features:{personaSummary:true},library:{total:1,tracks:[track]}}};
+ });const off=f.controller.subscribe(()=>{});
+ try{
+  await tick();gate={reason:'summary_cooldown',retryAt:901000,serverNow:now};
+  await f.controller.personaAction('recommendations',{provider:'p',model:'m'});
+  assert.equal(f.controller.getSnapshot().summaryError,'');
+  assert.ok(all(f.render()).some(node=>node.type==='button'&&node.children.includes('13:59 后可换')&&node.props.disabled));
+  assert.equal(all(f.render()).find(node=>node.props['aria-label']==='播放 Song · Artist').props.disabled,false);
+  now=901000;gate={reason:null,serverNow:now};await f.controller.refresh();
+  assert.ok(all(f.render()).some(node=>node.type==='button'&&node.children.includes('换一批')&&!node.props.disabled));
+  assert.equal(requests,1,'expiry itself does not trigger a model call');
+  error={code:'provider_failure',message:'服务暂不可用'};
+  await f.controller.personaAction('recommendations',{provider:'p',model:'m'});
+  assert.equal(f.controller.getSnapshot().summaryError,'服务暂不可用');
+  const tree=all(f.render());assert.ok(tree.some(node=>node.type==='summary'&&node.children.includes('技术详情')));
+  assert.ok(tree.some(node=>node.type==='code'&&node.children.includes('provider_failure')));
+  assert.equal(tree.find(node=>node.props['aria-label']==='播放 Song · Artist').props.disabled,false);
+  assert.equal(f.controller.getSnapshot().snapshot.paused,true);
+ }finally{off();f.dispose();}
+});
 test('the automatic toggle and the output cap are separate actions with their own endpoints and notices', async () => {
   const calls = [];
   const persona = { generatedAt: 5, facts: { artists: [], validListens: 0, exploration: 70, discoveryEnabled: true },

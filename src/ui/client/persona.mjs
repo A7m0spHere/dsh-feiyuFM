@@ -1,10 +1,19 @@
 import React from 'react';
 import { h } from './shared.mjs';
+import { recommendationActionState } from './presentation.mjs';
 
 export function Persona({ state, controller }) {
   const view = state.persona;
   const [selected, setSelected] = React.useState('');
   const [budget, setBudget] = React.useState(4000), [output, setOutput] = React.useState(256);
+  const [localNow,setLocalNow]=React.useState(()=>Date.now());
+  const clock=React.useRef({view,receivedAt:Date.now()});
+  if(clock.current.view!==view)clock.current={view,receivedAt:Date.now()};
+  React.useEffect(()=>{
+    if(!view?.recommendationAvailability?.retryAt)return undefined;
+    const timer=setInterval(()=>setLocalNow(Date.now()),1000);
+    return()=>clearInterval(timer);
+  },[view?.recommendationAvailability?.retryAt]);
   React.useEffect(() => {
     if (view) { setBudget(view.policy.dailyTokens); setOutput(view.policy.maxOutputTokens); }
   }, [view?.policy?.dailyTokens, view?.policy?.maxOutputTokens]);
@@ -18,20 +27,26 @@ export function Persona({ state, controller }) {
   const chosen = selected || (previous ? key(previous) : routes[0] ? key(routes[0]) : '');
   const route = routes.find(item => key(item) === chosen);
   const referenceCount = pipeline.referenceCount ?? state.library?.total ?? 0;
-  const busy = state.summaryBusy || pipeline.filtering || pipeline.refreshing;
+  const serverNow=(view.generatedAt??localNow)+Math.max(0,localNow-clock.current.receivedAt);
+  const availability=view.recommendationAvailability;
+  const limit=state.summaryLimit;
+  const budgetBlocked=limit?.code==='budget_exhausted'&&limit.remainingTokens===ledger.remainingTokens;
+  const action=recommendationActionState(budgetBlocked?{...availability,reason:'budget_exhausted'}:availability,serverNow);
+  const staleLimit=availability&&!action.reason&&['summary_cooldown','summary_busy','summary_retry_limit'].includes(limit?.code);
+  const filtering=pipeline.filtering||availability?.runningPurpose==='discovery-filter';
+  const busy = state.summaryBusy || filtering || pipeline.refreshing;
   const disabled = state.summaryBusy || state.busy || !state.connected;
   const status = !state.connected ? '正在连接电台…'
     : !referenceCount ? '先导入你常听的歌曲，我会沿着它们去找歌。'
     : pipeline.refreshing ? '我正在网易云找一些相近的歌…'
-    : state.summaryBusy || pipeline.filtering ? '歌找到了，我再挑一挑…'
+    : filtering ? '候选找到了，我正在挑歌…'
+    : state.summaryBusy ? '正在准备新一批歌曲…'
     : tracks.length ? !state.snapshot?.settings.discovery||state.snapshot?.settings.discoveryRate===0
       ? `这批挑了 ${tracks.length} 首，关闭探索时可以手动点播。` : `这批挑了 ${tracks.length} 首，可以点播或让我接着听。`
-    : pipeline.selectionComplete ? '这批没有挑到合适的歌，可以换一批或先点播参考歌曲。'
+    : pipeline.selectionComplete ? '这批没有挑到合适的歌，可先点播参考歌曲。'
     : pipeline.state === 'login_required' ? '先连接网易云，我才能找歌。'
     : !routes.length ? '先在 DSH 配好模型，我才能帮你挑歌。'
-    : pipeline.lastError === 'budget_exhausted' ? '今天的模型预算不足，可在推荐设置中调整。'
-    : pipeline.lastError === 'summary_cooldown' ? '刚刚挑过一批，稍后再换。'
-    : pipeline.lastError ? '这次没挑好，可以再试，也可以先点播参考歌曲。'
+    : pipeline.lastError&&!['budget_exhausted','summary_cooldown','summary_busy','summary_retry_limit'].includes(pipeline.lastError) ? '这次没挑好，可以再试，也可以先点播参考歌曲。'
     : '参考歌曲准备好了，找一批歌让我挑挑看。';
   const song = (track, index) => h('button', { type: 'button', className: 'fm-pick', key: `${track.provider}:${track.providerTrackId}`,
     disabled: state.busy || !state.connected, 'aria-label': `播放 ${track.title} · ${track.artist || '未知艺人'}`,
@@ -42,16 +57,19 @@ export function Persona({ state, controller }) {
     h('span', { className: 'fm-pick-play', 'aria-hidden': true }, '▶'));
   return h('section', { 'aria-label': '大肥鱼的歌单' },
     h('h2', null, '大肥鱼的歌单'),
-    h('div', { className: 'fm-card fm-persona-card' },
+    h('div', { className: 'fm-card fm-persona-card', 'aria-busy':Boolean(busy) },
       h('div', { className: 'fm-picks-head' }, h('p', { className: 'fm-note', role: 'status', 'aria-live': 'polite' }, status),
-        h('button', { type: 'button', className: 'fm-button fm-primary', disabled: disabled || busy || !route || !referenceCount || !state.features?.personaSummary,
-          onClick: () => controller.personaAction('recommendations', { provider: route.provider, model: route.model }) }, busy ? '正在挑歌…' : tracks.length ? '换一批' : '找一批歌')),
+        h('button', { type: 'button', className: 'fm-button fm-primary', disabled: disabled || busy || action.disabled || !route || !referenceCount || !state.features?.personaSummary,
+          onClick: () => controller.personaAction('recommendations', { provider: route.provider, model: route.model }) }, busy ? filtering?'正在挑歌…':'正在找歌…' : action.label|| (state.summaryError?'再试一次':tracks.length ? '换一批' : '找一批歌'))),
+      action.message&&h('p',{className:'fm-recommendation-status',role:'status'},action.message),
       pipeline.summary && h('p', { className: 'fm-summary-text' }, pipeline.summary),
       tracks.length > 0 && h('div', { className: 'fm-picks' }, tracks.slice(0, 6).map(song)),
       tracks.length > 6 && h('details', { className: 'fm-disclosure' }, h('summary', null, `还有 ${tracks.length - 6} 首`),
         h('div', { className: 'fm-picks' }, tracks.slice(6).map((track, index) => song(track, index + 6)))),
-      state.summaryError && h('p', { className: 'fm-notice', 'data-error': true, role: 'alert' }, state.summaryError),
-      !state.summaryError && state.summaryNotice && !busy && h('p', { className: 'fm-note', role: 'status' }, state.summaryNotice),
+      state.summaryError && h('div', { className: 'fm-notice', 'data-error': true, role: 'alert' }, state.summaryError,
+        h('p',null,tracks.length?'已有歌单保留，可以继续点播。':referenceCount?'可先点播输入曲库，或稍后重试。':'可先导入参考歌曲，再重新挑歌。'),
+        state.summaryErrorCode&&h('details',{className:'fm-error-details'},h('summary',null,'技术详情'),h('code',null,state.summaryErrorCode))),
+      !state.summaryError && state.summaryNotice && !busy && !action.message && !staleLimit && h('p', { className: 'fm-note', role: 'status' }, state.summaryNotice),
       h('details', { className: 'fm-disclosure fm-recommendation-settings' }, h('summary', null, '推荐设置'),
         h('div', { className: 'fm-disclosure-body' },
           h('label', { className: 'fm-label' }, '帮我挑歌的模型'),

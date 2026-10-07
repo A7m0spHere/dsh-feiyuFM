@@ -1,4 +1,5 @@
 import { sourceNames } from './shared.mjs';
+import { recommendationFeedback } from './presentation.mjs';
 const WIDGET_VISIBLE_KEY = 'fishfm.widget.visible.v1';
 const WIDGET_POSITION_KEY = 'fishfm.widget.position.v1';
 const MOTION_KEY = 'fishfm.motion.v1';
@@ -175,7 +176,7 @@ export function createController(connection) {
       summaryWrite=new AbortController();const timeout=setTimeout(()=>summaryWrite?.abort(),action==='recommendations'?120000:65000);
       const endpoint={summary:'fishfm/persona-summary',recommendations:'fishfm/persona-recommendations',budget:'fishfm/persona-budget',output:'fishfm/persona-output',automatic:'fishfm/persona-automatic'}[action];
       const pending={summary:'正在总结聚合画像…',recommendations:'正在从网易云找歌，再挑一批…',budget:'正在保存模型预算…',output:'正在保存单次输出上限…',automatic:'正在保存自动总结设置…'}[action];
-      emit({summaryBusy:true,summaryError:'',summaryNotice:pending});
+      emit({summaryBusy:true,summaryError:'',summaryErrorCode:null,summaryNotice:pending,summaryLimit:null});
       try{
         if(!endpoint)throw Object.assign(new Error('未知的画像操作。'),{code:'invalid_command'});
         const result=await connection.rpc.call('/api',endpoint,payload,summaryWrite.signal);
@@ -185,7 +186,14 @@ export function createController(connection) {
           :action==='automatic'?(payload?.value?'自动总结已开启，只在画像更新且预算允许时运行。':'自动总结已关闭。')
           :action==='output'?'单次输出上限已保存。':'总结预算已保存。';
         emit({persona:result.value.persona,summaryNotice:notice});
-      }catch(error){emit({summaryError:failure(error),summaryNotice:'已有的歌单和播放状态保持。'});}
+      }catch(error){
+        if(action==='recommendations'){
+          const feedback=recommendationFeedback(error);
+          emit(feedback.expected?{summaryError:'',summaryNotice:feedback.message,summaryLimit:{code:feedback.code,details:error.details,
+            remainingTokens:state.persona?.ledger?.remainingTokens}}:{summaryError:feedback.message,summaryErrorCode:feedback.code,summaryNotice:''});
+          await refresh();
+        }else emit({summaryError:failure(error),summaryNotice:'已有的歌单和播放状态保持。'});
+      }
       finally{clearTimeout(timeout);summaryWrite=null;emit({summaryBusy:false});}
     },
     dispose() { disposed = true; ++epoch; clearInterval(timer); read?.abort(); write?.abort();summaryWrite?.abort(); listeners.clear();

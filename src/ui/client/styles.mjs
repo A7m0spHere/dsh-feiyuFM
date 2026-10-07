@@ -119,6 +119,8 @@ export const css = `
   .fishfm h2 small { color:var(--fm-faint); font-size:9px; font-weight:500; letter-spacing:.1em; }
   .fm-card { padding:4px 14px; border:1px solid var(--fm-line); border-radius:9px; background:var(--fm-surface); }
   .fm-persona-card { padding:12px; }
+  .fm-recommendation-status { margin:8px 0!important; padding:7px 9px; border-radius:6px; background:var(--fm-sunken); color:var(--fm-muted); font-size:11px; overflow-wrap:anywhere; }
+  .fm-error-details { margin-top:6px; font-size:10px; }
   .fm-picks-head { display:flex; align-items:center; flex-wrap:wrap; gap:8px; }
   .fm-picks-head .fm-note { flex:1 1 160px; }
   .fm-picks { margin:8px 0; }
