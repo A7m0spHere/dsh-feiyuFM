@@ -620,3 +620,102 @@ test('the floating drawer shows operation errors with the same recovery actions 
     assert.ok(alerts.some(n => JSON.stringify(n.children).includes('重新核对歌单')), 'LLM 无候选时提供与主面板一致的核对入口');
   } finally { off(); f.dispose(); }
 });
+
+
+test('slow import keeps playback controls and polling available without accepting stale playback', async () => {
+  let complete, polls = 0, paused = false, platformSignal;
+  const f = fixture(async (_channel, endpoint, payload, signal) => {
+    if (endpoint === 'fishfm/import') { platformSignal = signal; return new Promise(resolve => { complete = resolve; }); }
+    if (endpoint === 'fishfm/command') { assert.equal(payload.type, 'pause'); paused = true; }
+    if (endpoint === 'fishfm/state') polls++;
+    return state({ ...snapshot(paused ? 2 : 1), paused, current: { track: { provider: 'netease', providerTrackId: '1' } } });
+  });
+  try {
+    await f.controller.refresh();
+    const pending = f.controller.platformAction('import', 'netease');
+    assert.equal(f.controller.getSnapshot().platformBusy, true);
+    assert.equal(f.controller.getSnapshot().busy, false);
+    const pause = all(f.render()).find(n => n.type === 'button' && n.children.includes('暂停'));
+    assert.equal(pause.props.disabled, false);
+    await f.controller.refresh(); assert.equal(polls, 2);
+    await f.controller.command('pause');
+    assert.equal(platformSignal.aborted, false, 'pause must not abort the independent import');
+    complete(state({ ...snapshot(1), paused: false })); await pending;
+    assert.equal(f.controller.getSnapshot().snapshot.paused, true);
+    assert.equal(f.controller.getSnapshot().platformBusy, false);
+  } finally { f.dispose(); }
+});
+
+test('platform failures distinguish disconnection, live business errors and successful state recovery', async () => {
+  let actionError = new Error('transport disconnected'), recovery = 'offline', starting = true;
+  const f = fixture(async (_channel, endpoint) => {
+    if (endpoint !== 'fishfm/state') throw actionError;
+    if (!starting && recovery === 'offline') throw new Error('state disconnected');
+    if (!starting && recovery === 'core') return { ok: false, error: { code: 'core_unavailable', message: 'Core lost' } };
+    return state(snapshot(1));
+  });
+  try {
+    await f.controller.refresh(); starting = false;
+    await f.controller.platformAction('playlists', 'netease');
+    assert.equal(f.controller.getSnapshot().connected, false);
+    assert.match(f.controller.getSnapshot().notice, /读取歌单失败/);
+    assert.equal(f.controller.getSnapshot().login, null);
+    recovery = 'online'; await f.controller.refresh();
+    actionError = Object.assign(new Error('platform failed'), { code: 'provider_failure' });
+    await f.controller.platformAction('discovery', 'netease');
+    assert.equal(f.controller.getSnapshot().connected, true);
+    assert.match(f.controller.getSnapshot().notice, /刷新推荐失败/);
+    recovery = 'core'; await f.controller.platformAction('logout', 'netease');
+    assert.equal(f.controller.getSnapshot().connected, false);
+    assert.match(f.controller.getSnapshot().notice, /退出登录未确认/);
+    recovery = 'online'; await f.controller.refresh();
+    actionError = new Error('temporary transport failure');
+    await f.controller.platformAction('playlists', 'netease');
+    assert.equal(f.controller.getSnapshot().connected, true, 'successful recovery proves connectivity');
+  } finally { f.dispose(); }
+});
+
+test('library RPC ignores old searches and old polls and keeps the selected page in polling', async () => {
+  let finishOld, finishPoll, delayPoll = false;
+  const calls = [];
+  const library = (query = '', offset = 0) => ({ total: 400, matched: query ? 1 : 400, query, offset, limit: 12,
+    tracks: [{ provider: 'netease', providerTrackId: query || String(offset), title: query || 'Song', artist: 'Artist' }] });
+  const f = fixture(async (_channel, endpoint, payload) => {
+    calls.push({ endpoint, payload });
+    if (endpoint === 'fishfm/library') {
+      if (payload.query === 'old') return new Promise(resolve => { finishOld = resolve; });
+      return { ok: true, value: { library: library(payload.query, payload.offset) } };
+    }
+    if (delayPoll) { delayPoll = false; return new Promise(resolve => { finishPoll = resolve; }); }
+    return { ...state(snapshot(1)), value: { ...state(snapshot(1)).value, library: library(payload.library.query, payload.library.offset) } };
+  });
+  try {
+    await f.controller.refresh();
+    delayPoll = true; const poll = f.controller.refresh();
+    const old = f.controller.queryLibrary('old');
+    await f.controller.queryLibrary('new');
+    finishOld({ ok: true, value: { library: library('old') } }); await old;
+    finishPoll({ ok: true, value: { library: library(), snapshot: snapshot(1) } }); await poll;
+    assert.equal(f.controller.getSnapshot().library.query, 'new');
+    assert.equal(f.controller.getSnapshot().libraryBusy, false);
+    await f.controller.queryLibrary('', 312); await f.controller.refresh();
+    assert.equal(calls.at(-1).payload.library.offset, 312);
+    assert.equal(f.controller.getSnapshot().library.offset, 312);
+    const nodes = all(f.render());
+    assert.ok(nodes.some(n => n.children.includes('27 / 34')));
+    await nodes.find(n => n.props['aria-label'] === '下一页曲目').props.onClick();
+    assert.equal(calls.at(-1).payload.offset, 324);
+  } finally { f.dispose(); }
+});
+
+test('manual playback can start from the library while the current search is empty', async () => {
+  let sent;
+  const firstTrack = { provider: 'netease', providerTrackId: 'first', title: 'First' };
+  const f = fixture(async (_channel, endpoint, payload) => {
+    if (endpoint === 'fishfm/command') sent = payload;
+    return { ok: true, value: { snapshot: { ...snapshot(1), settings: { ...snapshot(1).settings, listening: false } },
+      library: { total: 400, matched: 0, query: 'missing', offset: 0, limit: 12, tracks: [], firstTrack } } };
+  });
+  try { await f.controller.refresh(); await f.controller.playOrPause(); assert.equal(sent.track.providerTrackId, 'first'); }
+  finally { f.dispose(); }
+});

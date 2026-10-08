@@ -4,7 +4,7 @@ import {h} from './shared.mjs';
 export function FeedbackSettings({state,controller}) {
   const [confirm,setConfirm]=React.useState(null),[clearFeedback,setClearFeedback]=React.useState(false);
   const feedback=state.insights?.feedback,available=feedback?.version===1;
-  const disabled=state.busy||state.summaryBusy||!state.connected||!available;
+  const disabled=state.busy||state.platformBusy||state.summaryBusy||!state.connected||!available;
   return h('section',null,h('h2',null,'推荐反馈',h('small',null,'FEEDBACK')),
     h('div',{className:'fm-card'},
       available?h('p',{className:'fm-note'},`输入曲库 ${state.library?.total??0} 首 · 喜欢 ${feedback.liked} 首 · 少推荐 ${feedback.reduced} 首。`)

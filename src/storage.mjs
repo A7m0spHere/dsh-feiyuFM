@@ -505,6 +505,21 @@ export class MusicStore {
       : this.db.prepare('SELECT * FROM user_environment ORDER BY track_key LIMIT ?').all(limit);
   }
 
+  searchEnvironment({ query = '', offset = 0, limit = 12 } = {}) {
+    const total = this.countEnvironment();
+    // instr treats %, _ and quotes as literal search text, not SQL patterns.
+    const from = `FROM user_environment e JOIN tracks t USING(track_key)`;
+    const where = `WHERE instr(lower(t.title || ' ' || t.artist || ' ' || t.provider_track_id), lower(?)) > 0`;
+    const matched = this.db.prepare(`SELECT count(*) count ${from} ${where}`).get(query).count;
+    offset = Math.min(offset, Math.max(0, Math.ceil(matched / limit) - 1) * limit);
+    const project = row => ({ provider: row.provider, providerTrackId: row.provider_track_id,
+      title: row.title, artist: row.artist, durationMs: row.duration_ms });
+    const tracks = this.db.prepare(`SELECT t.* ${from} ${where} ORDER BY e.track_key LIMIT ? OFFSET ?`)
+      .all(query, limit, offset).map(project);
+    const first = this.db.prepare(`SELECT t.* ${from} ORDER BY e.track_key LIMIT 1`).get();
+    return { total, matched, query, offset, limit, tracks, firstTrack: first ? project(first) : null };
+  }
+
   setPreference(preference) {
     this.db.prepare(`INSERT INTO agent_preferences (target_type, target_key, affinity, source, updated_at)
       VALUES (?, ?, ?, ?, ?)

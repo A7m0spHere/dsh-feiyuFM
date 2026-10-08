@@ -10,6 +10,7 @@ const ALLOWED = new Set(['pause', 'resume', 'next', 'setListening', 'setHumanPla
   'setDiscovery', 'setDiscoveryRate', 'setMode', 'stopForToday', 'chooseSelf', 'requestTrack', 'setTrackFeedback', 'resetTaste', 'resetLibrary', 'undoTasteReset','setRecommendationMode']);
 const QUICK_LOGIN_PROVIDER = 'netease';
 const STATE_ENDPOINT = 'fishfm/state';
+const LIBRARY_ENDPOINT = 'fishfm/library';
 const PERSONA_ENDPOINTS=new Set(['fishfm/persona-summary','fishfm/persona-recommendations','fishfm/persona-budget','fishfm/persona-output','fishfm/persona-automatic']);
 const OUTPUT_RANGE={min:64,max:256};
 const PLATFORM_ENDPOINTS = new Set(['fishfm/login-start', 'fishfm/login-poll', 'fishfm/import', 'fishfm/logout', 'fishfm/discovery-refresh','fishfm/playlists']);
@@ -52,11 +53,15 @@ function safeImportDetails(details) {
   return result;
 }
 
-async function readSettingsState(bridge, signal) {
+function libraryRequest(options = {}) {
+  return { type: 'library', query: options?.query ?? '', offset: options?.offset ?? 0, limit: options?.limit ?? 12 };
+}
+
+async function readSettingsState(bridge, signal, libraryOptions) {
   const [state, platforms, library,insights,persona] = await Promise.all([
     bridge.request({ type: 'snapshot' }, { signal, abortable: true }),
     bridge.request({ type: 'platforms' }, { signal, abortable: true }),
-    bridge.request({ type: 'library' }, { signal, abortable: true }),
+    bridge.request(libraryRequest(libraryOptions), { signal, abortable: true }),
     bridge.request({type:'insights'},{signal,abortable:true}),
     bridge.request({type:'persona'},{signal,abortable:true}),
   ]);
@@ -68,8 +73,13 @@ async function readSettingsState(bridge, signal) {
 export function createSettingsHandler(bridge,summaryService={current:null}) {
   return async (endpoint, payload, signal) => {
     try {
-      if (endpoint !== STATE_ENDPOINT && endpoint !== 'fishfm/command' && !PLATFORM_ENDPOINTS.has(endpoint)&&!PERSONA_ENDPOINTS.has(endpoint)) {
+      if (endpoint !== STATE_ENDPOINT && endpoint !== LIBRARY_ENDPOINT && endpoint !== 'fishfm/command' && !PLATFORM_ENDPOINTS.has(endpoint)&&!PERSONA_ENDPOINTS.has(endpoint)) {
         throw Object.assign(new Error('Unknown FishFM endpoint'), { code: 'not_found' });
+      }
+      if (endpoint === LIBRARY_ENDPOINT) {
+        await bridge.start();
+        const result = await bridge.request(libraryRequest(payload), { signal, abortable: true });
+        return { ok: true, value: { library: result.library } };
       }
       if(PERSONA_ENDPOINTS.has(endpoint)){
         let summaryResult=null;
@@ -92,7 +102,7 @@ export function createSettingsHandler(bridge,summaryService={current:null}) {
             ?await prepareRecommendations({bridge,service:summaryService.current,route:{provider:payload?.provider,model:payload?.model},signal})
             :await summaryService.current.summarize({provider:payload?.provider,model:payload?.model},{signal,maxOutputTokens:maxOutput});
         }
-        return{ok:true,value:{...await readSettingsState(bridge,signal),summaryResult}};
+        return{ok:true,value:{...await readSettingsState(bridge,signal,payload?.library),summaryResult}};
       }
       if (PLATFORM_ENDPOINTS.has(endpoint)) {
         if (payload?.provider !== QUICK_LOGIN_PROVIDER) {
@@ -101,7 +111,7 @@ export function createSettingsHandler(bridge,summaryService={current:null}) {
         await bridge.start();
         if(endpoint==='fishfm/playlists') {
           const listed=await bridge.request({type:'playlists',provider:QUICK_LOGIN_PROVIDER},{signal,abortable:true,timeoutMs:40000});
-          return {ok:true,value:{playlists:listed.playlists,...(await readSettingsState(bridge,signal))}};
+          return {ok:true,value:{playlists:listed.playlists,...(await readSettingsState(bridge,signal,payload?.library))}};
         }
         if (endpoint === 'fishfm/discovery-refresh') {
           const refreshed = await bridge.request({ type: 'discovery' }, { signal, abortable: true });
@@ -110,7 +120,7 @@ export function createSettingsHandler(bridge,summaryService={current:null}) {
           if (typeof summaryService.discoveryFilterRun === 'function') {
             setTimeout(() => { try { void Promise.resolve(summaryService.discoveryFilterRun()).catch(() => {}); } catch { /* 筛选失败不影响刷新结果 */ } }, 0);
           }
-          return { ok: true, value: { discovery: refreshed.discovery, ...(await readSettingsState(bridge, signal)) } };
+          return { ok: true, value: { discovery: refreshed.discovery, ...(await readSettingsState(bridge, signal, payload?.library)) } };
         }
         if (endpoint === 'fishfm/login-start') {
           const started = await bridge.request({ type: 'login', step: 'begin', provider: QUICK_LOGIN_PROVIDER }, { signal, abortable: true });
@@ -126,17 +136,17 @@ export function createSettingsHandler(bridge,summaryService={current:null}) {
           const image = typeof started.login?.qrImage === 'string' && started.login.qrImage.startsWith('data:image/')
             ? started.login.qrImage
             : await QRCode.toDataURL(qrUrl, { width: 288, margin: 2, errorCorrectionLevel: 'M' });
-          return { ok: true, value: { login: { provider: QUICK_LOGIN_PROVIDER, status: 'waiting', qrImage: image }, ...(await readSettingsState(bridge, signal)) } };
+          return { ok: true, value: { login: { provider: QUICK_LOGIN_PROVIDER, status: 'waiting', qrImage: image }, ...(await readSettingsState(bridge, signal, payload?.library)) } };
         }
         if (endpoint === 'fishfm/login-poll') {
           const polled = await bridge.request({ type: 'login', step: 'poll', provider: QUICK_LOGIN_PROVIDER }, { signal, abortable: true, timeoutMs: 40_000 });
           return { ok: true, value: { login: { provider: QUICK_LOGIN_PROVIDER, status: polled.status, qrExpired: polled.status === 'expired',
             accountId: polled.login?.accountId ?? null, identityError: polled.login?.identityError ?? null },
-          ...(await readSettingsState(bridge, signal)) } };
+          ...(await readSettingsState(bridge, signal, payload?.library)) } };
         }
         if (endpoint === 'fishfm/logout') {
           await bridge.request({ type: 'logout', provider: QUICK_LOGIN_PROVIDER }, { signal, abortable: true });
-          return { ok: true, value: { login: null, imported: null, ...(await readSettingsState(bridge, signal)) } };
+          return { ok: true, value: { login: null, imported: null, ...(await readSettingsState(bridge, signal, payload?.library)) } };
         }
         const source=['recent','liked','playlist'].includes(payload.source)?payload.source:null;
         const playlistId=source==='playlist' && /^\d{1,20}$/.test(String(payload.playlistId??''))?String(payload.playlistId):null;
@@ -145,7 +155,7 @@ export function createSettingsHandler(bridge,summaryService={current:null}) {
           { signal, abortable: true, timeoutMs: 75_000 });
         if(typeof summaryService.discoveryFilterRun==='function')setTimeout(()=>{void Promise.resolve(summaryService.discoveryFilterRun()).catch(()=>{});},0);
         return { ok: true, value: { login: { provider: QUICK_LOGIN_PROVIDER, status: 'authorized' }, imported: imported.import,
-          attempts: imported.attempts ?? [], snapshot: imported.snapshot, ...(await readSettingsState(bridge, signal)) } };
+          attempts: imported.attempts ?? [], snapshot: imported.snapshot, ...(await readSettingsState(bridge, signal, payload?.library)) } };
       }
       let command;
       if (endpoint === 'fishfm/command') {
@@ -173,12 +183,12 @@ export function createSettingsHandler(bridge,summaryService={current:null}) {
         const value = await bridge.command(command, { signal });
         if(['setTrackFeedback','resetTaste','resetLibrary','undoTasteReset','setRecommendationMode'].includes(command.type)) {
           const [insights,persona]=await Promise.all([bridge.request({type:'insights'},{signal,abortable:true}),bridge.request({type:'persona'},{signal,abortable:true})]);
-          const library=await bridge.request({type:'library'},{signal,abortable:true});
+          const library=await bridge.request(libraryRequest(payload?.library),{signal,abortable:true});
           return {ok:true,value:{...value,insights:insights.insights,persona:persona.persona,library:library.library}};
         }
         return { ok: true, value };
       }
-      const value=await readSettingsState(bridge,signal);
+      const value=await readSettingsState(bridge,signal,payload?.library);
       value.summaryModels=summaryService.current?.peekModels()??[];
       summaryService.current?.warm();
       value.features.personaSummary=Boolean(summaryService.current);
@@ -198,7 +208,7 @@ export function registerSettingsApi(ctx, bridge,summaryService) {
   // both the Electron renderer and a Web profile.
   if (typeof ctx.connection.fetch?.register === 'function') {
     ctx.effect(() => {
-      const disposers = [STATE_ENDPOINT, 'fishfm/command', ...PLATFORM_ENDPOINTS,...PERSONA_ENDPOINTS].map(endpoint =>
+      const disposers = [STATE_ENDPOINT, LIBRARY_ENDPOINT, 'fishfm/command', ...PLATFORM_ENDPOINTS,...PERSONA_ENDPOINTS].map(endpoint =>
         ctx.connection.fetch.register({
           path: `/api/${endpoint}`, methods: ['POST'], requestBody: 'buffered',
           async fetch(request) {
@@ -218,6 +228,6 @@ export function registerSettingsApi(ctx, bridge,summaryService) {
     }, 'fishfm: authenticated settings routes');
   } else {
     ctx.effect(() => ctx.connection.rpc.intercept('/api',
-      endpoint => endpoint === STATE_ENDPOINT || endpoint === 'fishfm/command' || PLATFORM_ENDPOINTS.has(endpoint)||PERSONA_ENDPOINTS.has(endpoint), handler));
+      endpoint => endpoint === STATE_ENDPOINT || endpoint === LIBRARY_ENDPOINT || endpoint === 'fishfm/command' || PLATFORM_ENDPOINTS.has(endpoint)||PERSONA_ENDPOINTS.has(endpoint), handler));
   }
 }

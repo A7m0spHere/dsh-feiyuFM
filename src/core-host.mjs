@@ -507,12 +507,12 @@ export function createCoreHost({
           return;
         }
         case 'library': {
-          const tracks = store.listEnvironment({ limit: 300 }).map(row => {
-            const track = store.getTrack({ provider: row.provider, providerTrackId: row.track_key.split(':').slice(1).join(':') });
-            return { provider: track.provider, providerTrackId: track.provider_track_id,
-              title: track.title, artist: track.artist, durationMs: track.duration_ms };
-          });
-          send({ type: 'result', id, ok: true, library: { total: store.countEnvironment(), tracks } });
+          const { query = '', offset = 0, limit = 12 } = message;
+          if (typeof query !== 'string' || query.length > 200 || !Number.isSafeInteger(offset) || offset < 0
+            || !Number.isSafeInteger(limit) || limit < 1 || limit > 100) {
+            throw new MusicError('invalid_command', '曲库查询参数无效。');
+          }
+          send({ type: 'result', id, ok: true, library: store.searchEnvironment({ query: query.trim(), offset, limit }) });
           return;
         }
         case 'environment': {

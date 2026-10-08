@@ -16,14 +16,16 @@ const writePreference = (key, value) => {
 
 export function createController(connection) {
   let state = {
-    snapshot: null, platforms: {}, busy: false, connected: false, error: '', notice: '',
+    snapshot: null, platforms: {}, busy: false, platformBusy: false, connected: false, error: '', notice: '',
+    libraryBusy: false, libraryError: '', libraryQuery: '',
     login: null, imported: null, importAttempts: [], library: { total: 0, tracks: [] },
     widgetVisible: readPreference(WIDGET_VISIBLE_KEY, true) !== false,
     widgetPosition: readPreference(WIDGET_POSITION_KEY, null),
     playbackEffects: readPreference(PLAYBACK_EFFECTS_KEY, false) === true,
     motion: ['full', 'reduced', 'off'].includes(readPreference(MOTION_KEY, 'full')) ? readPreference(MOTION_KEY, 'full') : 'full',
   };
-  let epoch = 0, timer, read, write,summaryWrite, disposed = false;
+  let epoch = 0, playbackEpoch = 0, libraryEpoch = 0, timer, read, write, platformWrite, libraryRead,summaryWrite, disposed = false;
+  let libraryOptions = { query: '', offset: 0, limit: 12 };
   const listeners = new Set();
   const emit = (patch) => { if (!disposed) {if(patch.persona?.generatedAt<state.persona?.generatedAt){patch={...patch};delete patch.persona;} if(patch.error==='')patch={...patch,errorCode:null};state = { ...state, ...patch }; listeners.forEach(fn => fn()); } };
   const syncPlaybackEffects = event => {
@@ -34,19 +36,28 @@ export function createController(connection) {
   };
   window.addEventListener?.('storage', syncPlaybackEffects);
   const failure = error => `${error?.message || '音乐服务连接失败，请刷新重试。'}${error?.code ? ` (${error.code})` : ''}`;
+  const unreachable = error => !error?.code || error.code === 'core_unavailable';
+  const project = (value, libraryVersion, playbackVersion = null) => {
+    const patch = { ...value };
+    if (libraryVersion !== libraryEpoch) delete patch.library;
+    else if (patch.library?.offset !== undefined) libraryOptions = { ...libraryOptions, offset: patch.library.offset };
+    if (playbackVersion !== null && (playbackVersion !== playbackEpoch || patch.snapshot?.revision < state.snapshot?.revision)) delete patch.snapshot;
+    return patch;
+  };
   async function refresh() {
     if (disposed || state.busy || read) return;
     const version = ++epoch;
+    const libraryVersion = libraryEpoch;
     const controller = new AbortController();
     read = controller;
     const timeout = setTimeout(() => controller.abort(), 18000);
     try {
-      const result = await connection.rpc.call('/api', 'fishfm/state', {}, controller.signal);
+      const result = await connection.rpc.call('/api', 'fishfm/state', { library: libraryOptions }, controller.signal);
       if (version !== epoch) return;
       if (!result.ok) throw result.error;
       const discovery = result.value.snapshot?.discovery;
       const finishedDiscovery = state.notice === '正在找新歌…' && discovery && !discovery.refreshing;
-      emit({ ...result.value, connected: true, error: '', ...(finishedDiscovery ? {
+      emit({ ...project(result.value, libraryVersion), ...(libraryVersion === libraryEpoch ? { libraryError: '' } : {}), connected: true, error: '', ...(finishedDiscovery ? {
         notice: discovery.state === 'disabled' ? '探索已关闭。' : discovery.reason && discovery.reason !== 'no-unfamiliar-candidates'
           ? '新歌没找成功，请查看状态。' : '新歌列表已更新。',
       } : {}) });
@@ -71,8 +82,9 @@ export function createController(connection) {
     async playOrPause() {
       if (state.snapshot?.current) return this.command(state.snapshot.paused ? 'resume' : 'pause');
       // Manual mode stays manual: start one library song without enabling autonomy.
-      if (!state.snapshot?.settings?.listening && state.library?.tracks?.[0]) {
-        return this.command('requestTrack', state.library.tracks[0]);
+      const firstTrack = state.library?.firstTrack ?? state.library?.tracks?.[0];
+      if (!state.snapshot?.settings?.listening && firstTrack) {
+        return this.command('requestTrack', firstTrack);
       }
       return this.command('resume');
     },
@@ -82,6 +94,27 @@ export function createController(connection) {
       return () => { listeners.delete(fn); if (!listeners.size) { clearInterval(timer); ++epoch; read?.abort(); read = null; } };
     },
     refresh,
+    async queryLibrary(query = libraryOptions.query, offset = 0) {
+      if (disposed) return;
+      const version = ++libraryEpoch;
+      libraryOptions = { query, offset, limit: 12 };
+      libraryRead?.abort();
+      const controller = new AbortController();
+      libraryRead = controller;
+      const timeout = setTimeout(() => controller.abort(), 18000);
+      emit({ libraryQuery: query, libraryBusy: true, libraryError: '' });
+      try {
+        const result = await connection.rpc.call('/api', 'fishfm/library', libraryOptions, controller.signal);
+        if (version !== libraryEpoch) return;
+        if (!result.ok) throw result.error;
+        emit(project(result.value, version));
+      } catch (error) {
+        if (version === libraryEpoch) emit({ libraryError: failure(error) });
+      } finally {
+        clearTimeout(timeout);
+        if (libraryRead === controller) { libraryRead = null; emit({ libraryBusy: false }); }
+      }
+    },
     setWidgetVisible(visible) {
       const next = Boolean(visible);
       writePreference(WIDGET_VISIBLE_KEY, next);
@@ -95,46 +128,51 @@ export function createController(connection) {
     },
     async command(type, value) {
       if (disposed || state.busy || !state.connected) return;
+      if (state.platformBusy && ['resetTaste', 'resetLibrary', 'undoTasteReset'].includes(type)) return;
+      ++playbackEpoch;
+      const libraryVersion = libraryEpoch;
       ++epoch; read?.abort(); read = null;
       emit({ busy: true, error: '', notice: ['pause', 'resume', 'next', 'requestTrack'].includes(type) ? '正在更新播放…' : '正在保存…' });
       write = new AbortController();
       const timeout = setTimeout(() => write?.abort(), 25000);
       try {
         const payload = type === 'requestTrack' ? {type,track:value} : type === 'setTrackFeedback' ? {type,...value} : {type,value};
-        const result = await connection.rpc.call('/api', 'fishfm/command', payload, write.signal);
+        const result = await connection.rpc.call('/api', 'fishfm/command',
+          ['setTrackFeedback','resetTaste','resetLibrary','undoTasteReset','setRecommendationMode'].includes(type) ? { ...payload, library: libraryOptions } : payload, write.signal);
         if (!result.ok) throw result.error;
         const feedbackNotice = type==='setTrackFeedback' ? value.value===1?'已喜欢，将提高这首歌的排序权重':value.value===-1?'已降低这首歌的排序权重':'已撤销这首歌的反馈'
           :type==='resetTaste'?'已重置成长偏好，输入曲库保留':type==='resetLibrary'?'已清空输入曲库并重建偏好，可撤销':type==='undoTasteReset'?'已恢复最近一次重置前的数据':type==='setRecommendationMode'?'推荐来源已更新':null;
-        emit({ ...result.value,...(['resetTaste','resetLibrary','undoTasteReset','setRecommendationMode'].includes(type)?{summaryNotice:'',summaryError:''}:{}),...(type==='resetLibrary'?{imported:null,importAttempts:[]}:{}), notice: feedbackNotice || (['pause', 'resume', 'next', 'requestTrack'].includes(type) ? '播放控制已更新' : '已保存到本机') });
+        emit({ ...project(result.value, libraryVersion),...(['resetTaste','resetLibrary','undoTasteReset','setRecommendationMode'].includes(type)?{summaryNotice:'',summaryError:''}:{}),...(type==='resetLibrary'?{imported:null,importAttempts:[]}:{}), notice: feedbackNotice || (['pause', 'resume', 'next', 'requestTrack'].includes(type) ? '播放控制已更新' : '已保存到本机') });
       } catch (error) {
         const actionError = ['no_candidates', 'autonomy_blocked', 'constraint_conflict', 'invalid_command', 'media_unavailable','stale_track','summary_busy','no_reset_backup','invalid_track'].includes(error?.code);
         // 连接语义只看"Core 是否可达"：RPC 有应答（带 code 的业务/内部错误）
         // 说明服务在线，不得把未知错误码误报成连接中断；仅传输层失败或
         // core_unavailable 才断开。
-        const coreUnreachable = !error?.code || error.code === 'core_unavailable';
+        const coreUnreachable = unreachable(error);
         emit({ connected: coreUnreachable ? false : true, error: failure(error), errorCode:error?.code??null, notice: actionError ? '请调整曲目或设置后重试' : coreUnreachable ? '未确认操作，请刷新核对' : '操作没有生效，请重试或展开详情' });
       }
       finally { clearTimeout(timeout); write = null; emit({ busy: false }); }
     },
     async platformAction(action, provider, options = {}) {
-      if (disposed || state.busy || !state.connected) return;
+      if (disposed || state.busy || state.platformBusy || !state.connected) return;
       const endpoint = ({ begin: 'fishfm/login-start', poll: 'fishfm/login-poll', import: 'fishfm/import', logout: 'fishfm/logout', discovery: 'fishfm/discovery-refresh', playlists:'fishfm/playlists' })[action];
       if (!endpoint) return;
-      ++epoch; read?.abort(); read = null;
+      const playbackVersion = playbackEpoch, libraryVersion = libraryEpoch;
       const progress = action === 'poll' ? '正在确认手机扫码…'
         : action === 'import' ? options.source ? `正在读取${sourceNames[options.source]||'指定来源'}…` : '正在读取近期记录；若不可用会继续尝试喜欢列表和用户歌单…'
           : action === 'begin' ? '正在向网易云申请二维码…' : '正在连接音乐平台…';
-      emit({ busy: true, error: '', notice: progress, importAttempts: action === 'import' ? [] : state.importAttempts });
-      write = new AbortController();
-      const timeout = setTimeout(() => write?.abort(), action === 'import' ? 120000 : 45000);
+      emit({ platformBusy: true, error: '', notice: progress, importAttempts: action === 'import' ? [] : state.importAttempts });
+      const controller = new AbortController();
+      platformWrite = controller;
+      const timeout = setTimeout(() => controller.abort(), action === 'import' ? 120000 : 45000);
       try {
-        const result = await connection.rpc.call('/api', endpoint, { provider,
-          ...(action==='import'?{source:options.source??null,playlistId:options.playlistId??null}:{}) }, write.signal);
+        const result = await connection.rpc.call('/api', endpoint, { provider, library: libraryOptions,
+          ...(action==='import'?{source:options.source??null,playlistId:options.playlistId??null}:{}) }, controller.signal);
         if (!result.ok) throw result.error;
         const value = result.value;
         const login = Object.hasOwn(value, 'login') ? value.login : state.login;
         if (action === 'poll' && login) login.qrImage = state.login?.qrImage;
-        emit({ snapshot: value.snapshot, platforms: value.platforms ?? state.platforms, library: value.library ?? state.library, login,
+        emit({ ...project({ snapshot: value.snapshot, library: value.library ?? state.library }, libraryVersion, playbackVersion), platforms: value.platforms ?? state.platforms, login,
           insights:value.insights??state.insights,
           persona:value.persona??state.persona,
           playlists: value.playlists??state.playlists,
@@ -152,11 +190,13 @@ export function createController(connection) {
                     : action === 'begin' ? '请用网易云音乐 App 扫描二维码。' : '等待手机确认…') });
       } catch (error) {
         const details = error?.details ?? {};
-        let latest = {};
+        let latest = {}, connected = !unreachable(error);
         try {
-          const refreshed = await connection.rpc.call('/api', 'fishfm/state', {}, write.signal);
-          if (refreshed?.ok) latest = refreshed.value;
-        } catch { /* the periodic snapshot will retry */ }
+          const recoveryLibraryVersion = libraryEpoch;
+          const refreshed = await connection.rpc.call('/api', 'fishfm/state', { library: libraryOptions }, controller.signal);
+          if (refreshed?.ok) { latest = project(refreshed.value, recoveryLibraryVersion, playbackVersion); connected = true; }
+          else connected = !unreachable(refreshed?.error);
+        } catch (recoveryError) { connected = !unreachable(recoveryError); }
         const accountStatus = latest.platforms?.[provider]?.account?.status;
         const login = action === 'begin' || action === 'poll'
           ? { ...(state.login ?? {}), provider, status: 'error', qrExpired: false, identityError: error.message,
@@ -165,11 +205,14 @@ export function createController(connection) {
           : accountStatus === 'login_required' ? null
           : accountStatus === 'expired' ? { provider, status: 'expired', qrExpired: false, identityError: error.message }
             : accountStatus === 'authorized' ? { ...(state.login ?? {}), provider, status: 'authorized' }
-              : { ...(state.login ?? {}), provider, status: 'error' };
-        emit({ ...latest, connected: true, error: failure(error), notice: action === 'import' ? '导入没有写入空批次，可检查失败阶段后重试。' : '登录步骤未完成，可重新扫码或刷新重试。',
+              : state.login;
+        const notices = { import: '导入未确认完成，请核对曲库后重试。', playlists: '读取歌单失败，请稍后重试。',
+          discovery: '刷新推荐失败，请稍后重试。', logout: '退出登录未确认，请刷新核对账号状态。',
+          begin: '获取二维码失败，请重试。', poll: '登录步骤未完成，可重新扫码或刷新重试。' };
+        emit({ ...latest, connected, error: failure(error), errorCode: error?.code ?? null, notice: notices[action],
           importAttempts: action === 'import' ? details.attempts ?? [] : state.importAttempts,
           login });
-      } finally { clearTimeout(timeout); write = null; emit({ busy: false }); }
+      } finally { clearTimeout(timeout); platformWrite = null; emit({ platformBusy: false }); }
     },
     async personaAction(action,payload){
       if(disposed||state.summaryBusy||!state.connected)return;
@@ -196,7 +239,7 @@ export function createController(connection) {
       }
       finally{clearTimeout(timeout);summaryWrite=null;emit({summaryBusy:false});}
     },
-    dispose() { disposed = true; ++epoch; clearInterval(timer); read?.abort(); write?.abort();summaryWrite?.abort(); listeners.clear();
+    dispose() { disposed = true; ++epoch; ++libraryEpoch; clearInterval(timer); read?.abort(); write?.abort(); platformWrite?.abort(); libraryRead?.abort();summaryWrite?.abort(); listeners.clear();
       window.removeEventListener?.('storage', syncPlaybackEffects); },
   };
 }

@@ -95,7 +95,7 @@ test('desktop exact routes coexist with the Gateway and validate RPC envelopes b
       } },
     },
   }, bridge);
-  assert.equal(routes.size, 13);
+  assert.equal(routes.size, 14);
   assert.equal(routes.has('/api/session/create'), false);
   const path = '/api/fishfm/command';
   const request = body => new Request(`http://localhost${path}`, {
@@ -192,4 +192,19 @@ test('model gate RPC retains retry timing but drops arbitrary error metadata',as
  const result=await api('fishfm/state',{});
  assert.equal(result.error.code,'summary_cooldown');
  assert.deepEqual(result.error.details,{retryAt:901000,serverNow:1000,retryAfterMs:900000,remainingAttempts:11,dailyAttempts:12,resetAt:90000000});
+});
+
+
+test('library RPC and state polling forward only bounded-query fields through the authenticated bridge', async () => {
+  const calls = [];
+  const api = createSettingsHandler({ async start() {}, async request(message) {
+    calls.push(message);
+    return { library: { total: 400, matched: 1, tracks: [] }, snapshot: {}, platforms: {} };
+  } });
+  const query = { query: '末页', offset: 12, limit: 12 };
+  assert.equal((await api('fishfm/library', { ...query, type: 'shutdown', sql: 'DROP TABLE tracks' })).ok, true);
+  assert.deepEqual(calls.at(-1), { type: 'library', ...query });
+  calls.length = 0;
+  await api('fishfm/state', { library: query });
+  assert.deepEqual(calls.find(row => row.type === 'library'), { type: 'library', ...query });
 });

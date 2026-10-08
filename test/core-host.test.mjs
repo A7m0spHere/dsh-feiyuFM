@@ -537,3 +537,37 @@ test('persona and insights polls reuse cached profile facts until invalidation',
     store.close();
   }
 });
+
+
+test('library pages and literal searches cover every imported track and clamp after clearing', async () => {
+  const out = collector();
+  const host = createCoreHost({ output: out.stream, playbackMode: 'fake' });
+  const request = async data => { await host.handle({ id: 'library-review', ...data }); return out.messages.findLast(row => row.id === 'library-review'); };
+  try {
+    await host.start();
+    for (let batch = 0; batch < 2; batch++) await request({ type: 'import', provider: 'netease', source: 'playlist', tracks:
+      Array.from({ length: 200 }, (_, i) => ({ ...track, providerTrackId: String(batch * 200 + i).padStart(3, '0'),
+        title: batch === 1 && i === 199 ? "末页 100%_ O'Reilly" : `Song ${batch * 200 + i}`, artist: 'TEST Artist' })) });
+    const seen = new Set();
+    for (let offset = 0; offset < 400; offset += 12) {
+      const { library } = await request({ type: 'library', offset });
+      assert.equal(library.total, 400); assert.equal(library.matched, 400);
+      assert.ok(library.tracks.length <= 12);
+      library.tracks.forEach(t => seen.add(t.providerTrackId));
+    }
+    assert.equal(seen.size, 400);
+    for (const query of ['100%_', "O'Reilly", '末页', '399']) {
+      const { library } = await request({ type: 'library', query });
+      assert.equal(library.matched, 1); assert.equal(library.tracks[0].providerTrackId, '399');
+    }
+    assert.equal((await request({ type: 'library', query: 'test artist' })).library.matched, 400);
+    assert.equal((await request({ type: 'library', offset: 900 })).library.offset, 396);
+    const empty = (await request({ type: 'library', query: 'missing', offset: 396 })).library;
+    assert.equal(empty.offset, 0); assert.equal(empty.matched, 0); assert.equal(empty.firstTrack.providerTrackId, '000');
+    for (const invalid of [{ offset: -1 }, { limit: 101 }, { query: 'x'.repeat(201) }, { offset: 1.5 }])
+      assert.equal((await request({ type: 'library', ...invalid })).error.code, 'invalid_command');
+    await request({ type: 'command', command: { type: 'resetLibrary', value: { clearFeedback: false } } });
+    const cleared = (await request({ type: 'library', offset: 396 })).library;
+    assert.equal(cleared.total, 0); assert.equal(cleared.offset, 0); assert.equal(cleared.firstTrack, null);
+  } finally { await host.close(); }
+});

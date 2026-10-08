@@ -45,16 +45,16 @@ export function Panel({ controller, back, close }) {
     const selectedPlaylist=playlistId||state.playlists?.[0]?.id||'';
     const action = platform?.account?.status === 'authorized'
       ? h(React.Fragment, null,
-        state.features?.importSources&&h('select',{ 'aria-label':'导入来源',value:importSource,disabled:state.busy||!state.connected,
+        state.features?.importSources&&h('select',{ 'aria-label':'导入来源',value:importSource,disabled:(state.busy || state.platformBusy)||!state.connected,
           onChange:e=>{setImportSource(e.target.value);if(e.target.value==='playlist')controller.platformAction('playlists',id);} },
           h('option',{value:'auto'},'自动来源'),h('option',{value:'recent'},'近期播放'),h('option',{value:'liked'},'我喜欢'),h('option',{value:'playlist'},'指定歌单')),
-        state.features?.importSources&&importSource==='playlist'&&h('select',{'aria-label':'输入歌单',value:selectedPlaylist,disabled:state.busy||!state.playlists?.length,
+        state.features?.importSources&&importSource==='playlist'&&h('select',{'aria-label':'输入歌单',value:selectedPlaylist,disabled:(state.busy || state.platformBusy)||!state.playlists?.length,
           onChange:e=>setPlaylistId(e.target.value)},...(state.playlists?.length?state.playlists.map(p=>h('option',{key:p.id,value:p.id},p.title)):[h('option',{value:''},'读取歌单…')])),
-        h('button', { type: 'button', className: 'fm-button fm-primary', disabled: state.busy || !state.connected || (importSource==='playlist'&&!selectedPlaylist),
+        h('button', { type: 'button', className: 'fm-button fm-primary', disabled: (state.busy || state.platformBusy) || !state.connected || (importSource==='playlist'&&!selectedPlaylist),
           onClick: () => controller.platformAction('import', id,{source:importSource==='auto'?null:importSource,playlistId:importSource==='playlist'?selectedPlaylist:null}) }, '导入我的音乐'),
-        h('button', { type: 'button', className: 'fm-button fm-subtle', disabled: state.busy || !state.connected,
+        h('button', { type: 'button', className: 'fm-button fm-subtle', disabled: (state.busy || state.platformBusy) || !state.connected,
           onClick: () => controller.platformAction('logout', id) }, '退出'))
-      : available && !state.login && h('button', { type: 'button', className: 'fm-button fm-primary', disabled: state.busy || !state.connected,
+      : available && !state.login && h('button', { type: 'button', className: 'fm-button fm-primary', disabled: (state.busy || state.platformBusy) || !state.connected,
         onClick: () => controller.platformAction('begin', id) }, '扫码登录');
     return h('div', { className: 'fm-platform', key: id },
       h('div', { className: 'fm-platform-name' }, h('span', { className: 'fm-platform-mark', 'aria-hidden': true }, mark), title),
@@ -72,10 +72,10 @@ export function Panel({ controller, back, close }) {
         ? state.login.accountId ? `账号已连接（ID ${state.login.accountId}），可以导入音乐。` : '账号已连接；导入前会自动补读账号 ID。'
         : state.login.status === 'expired' ? '请重新获取二维码后再试。' : '手机确认后会自动读取账号状态，随后即可导入音乐。')),
       (state.login.canRetryValidation || state.login.canRetryCheck) && state.login.status === 'error'
-        && h('button', { type: 'button', className: 'fm-button', disabled: state.busy || !state.connected,
+        && h('button', { type: 'button', className: 'fm-button', disabled: (state.busy || state.platformBusy) || !state.connected,
           onClick: () => controller.platformAction('poll', 'netease') }, state.login.canRetryValidation ? '重试登录校验' : '重试扫码检测'),
       ['expired', 'error'].includes(state.login.status)
-        && h('button', { type: 'button', className: 'fm-button fm-primary', disabled: state.busy || !state.connected,
+        && h('button', { type: 'button', className: 'fm-button fm-primary', disabled: (state.busy || state.platformBusy) || !state.connected,
           onClick: () => controller.platformAction('begin', 'netease') }, '重新获取二维码'))
     : null;
   const importNotice = state.imported
@@ -124,7 +124,7 @@ export function Panel({ controller, back, close }) {
           toggle('探索新音乐', '从可播放的新歌候选中探索。', 'discovery', 'setDiscovery'),
           h('p', { className: 'fm-note', role: 'status', 'aria-live': 'polite' }, discoveryPresentation(snapshot)),
           snapshot?.lastSelection?.fellBack && h('p', { className: 'fm-note' }, '最近一次自主选择：没有合适的新歌，先播了常听歌曲。'),
-          state.features?.discoveryRefresh && insights?.recommendationMode!=='filtered' && h('button', { type: 'button', className: 'fm-button', disabled: disabled || !settings.discovery || settings.discoveryRate === 0 || state.platforms?.netease?.account?.status !== 'authorized',
+          state.features?.discoveryRefresh && insights?.recommendationMode!=='filtered' && h('button', { type: 'button', className: 'fm-button', disabled: disabled || state.platformBusy || !settings.discovery || settings.discoveryRate === 0 || state.platforms?.netease?.account?.status !== 'authorized',
             onClick: () => controller.platformAction('discovery', 'netease') }, '刷新新歌推荐'),
           h('div', { className: 'fm-rate' }, h('div', { className: 'fm-rate-head' }, h('label', { htmlFor: rateId }, '新歌探索率'), h('output', { htmlFor: rateId }, `${rate}%`)),
             h('input', { id: rateId, 'aria-label': '新歌探索率', type: 'range', min: 0, max: 100, step: 1, value: rate, disabled: disabled || !settings.discovery,
