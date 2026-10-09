@@ -4,7 +4,7 @@
 
 N7/R2 的短跑或合成演练不能替代 A09 两小时验收；U3/U4 等 PHL 记录按其日期阅读；N19 的旧预热阈值以 [N20](N20-review-fixes.md) 后续复测为准。
 
-最新推荐与界面从 [N22](N22-platform-first-recommendations.md) 读起，播放中断修复见 [N21](N21-playback-interruption-recovery.md)，此前紧凑布局与素材/彩蛋见 U14、U12/U13。各报告的测试数量和安装包均按日期理解，当前状态统一看开发路线。
+最新推荐与界面从 [N22](N22-platform-first-recommendations.md) 读起，播放中断修复见 [N21](N21-playback-interruption-recovery.md)，macOS 源码移植见 [MACOS_PORT](MACOS_PORT.md)，此前紧凑布局与素材/彩蛋见 U14、U12/U13。各报告的测试数量和安装包均按日期理解，当前状态统一看开发路线。
 
 本目录存报告与证据；可执行的早期探针在 [根 spikes](../../spikes/README.md)，归档交接文字在 [archive](../archive/README.md)。
 
@@ -71,6 +71,7 @@ N7/R2 的短跑或合成演练不能替代 A09 两小时验收；U3/U4 等 PHL �
 | [P2](P2-netease.md) | P2 网易云适配器：实现与验证 |
 | [P3](P3-real-loop.md) | P3 网易云首条真实播放闭环 |
 | [P4](P4-P5-platforms.md) | P4 QQ 与 P5 双平台协调：实现与验证 |
+| [MACOS_PORT](MACOS_PORT.md) | macOS 源码移植、桌面集成和平台验收边界 |
 
 ## 环境、选择与成长
 

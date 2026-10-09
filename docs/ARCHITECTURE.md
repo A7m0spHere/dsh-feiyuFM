@@ -1,6 +1,6 @@
 # 技术架构
 
-更新：2026-10-07，含 N22 平台先推荐、模型再筛选的默认流程。本文维护模块职责与数据流；字段和命令见 [内部控制契约](CORE_CONTRACT.md)，生产加载版本及验收缺口见 [开发路线](PROJECT_PLAN.md)。历史探针在 [证据索引](spikes/README.md)，设计提案在 [design](design/README.md)。
+更新：2026-10-09，含 N22 默认流程与 macOS 源码移植。本文维护模块职责与数据流；字段和命令见 [内部控制契约](CORE_CONTRACT.md)，生产加载版本及验收缺口见 [开发路线](PROJECT_PLAN.md)。历史探针在 [证据索引](spikes/README.md)，设计提案在 [design](design/README.md)。
 
 ## 1. 运行结构
 
@@ -14,7 +14,7 @@ DSH 插件宿主（index.js）
      ├─ Provider：平台账号、导入、候选、搜索、资源解析
      ├─ 本地选择器 / 平台候选缓存 / LLM 入选歌单
      ├─ MusicStore：SQLite、历史、成长、反馈、模型账本
-     └─ PlaybackService → 同用户命名管道 → 独立 WPF 音频宿主
+     └─ PlaybackService → 平台 IPC → Windows WPF / macOS AVFoundation 音频宿主
 ```
 
 音频不依赖可见页面。隐藏悬浮条或切换 DSH 页面不停止播放；停用插件会清理其 Core 与 Playback。完整退出 UI 进程和多会话的实际覆盖程度以验收表为准，不能仅凭进程结构宣称通过。
@@ -60,7 +60,7 @@ Core 崩溃后桥可在下次启动时重建；音频掉线用新快照核对是
 
 ## 5. 播放与有效经历
 
-Windows 音频宿主为隐藏 STA PowerShell 进程中的 WPF `MediaPlayer`，优先 `pwsh`，后备 Windows PowerShell。宿主只管理资源、声音和时间线，不选曲、不写库、不读凭据；静听使用真实音频静音，时间线继续推进。
+Windows 音频宿主为隐藏 STA PowerShell 进程中的 WPF `MediaPlayer`，优先 `pwsh`，后备 Windows PowerShell；macOS 源码版使用 Swift `AVPlayer`，通过权限为当前用户读写的 AF_UNIX socket 通信，Swift Helper 首次需要时由 `/usr/bin/swiftc` 编译到 DSH 私有数据目录。两个宿主只管理资源、声音和时间线，不选曲、不写库、不读凭据；静听使用真实音频静音，时间线继续推进。macOS 的真实平台音频与生命周期验收状态见 [开发路线](PROJECT_PLAN.md)。
 
 默认在播放期间从 5 个静音、不播放的持有者开始，根据实际 Open 耗时最多补齐至 8 个，资源在临时目录生成并正常退出时删除。首曲仍冷启动；当前机器填池后加载约 0.58–0.85 秒，阈值与耗时依赖环境，不能推广成兼容性保证。参数和测量见 [N20](spikes/N20-review-fixes.md)。
 
@@ -72,7 +72,7 @@ UI 进度以服务端锚点加本地时钟插值，暂停归位、切歌不串�
 
 仓库 schema v11。曲目/来源、用户环境、Agent 偏好、反馈、历史/成长、约束/Core 状态和模型账本分别保存，实体与保留规则见契约。重启保留曲目和位置，但恢复为暂停，不伪增经历。
 
-Cookie 在 Windows DPAPI CurrentUser 凭据文件中加密保存，SQLite 只存引用和账号状态。导入前核对实际账号身份，密文存在不代表会话有效。短期 handle 只从 Provider 传到 Playback，不进数据库、UI 或模型事实包。
+Cookie 在 Windows DPAPI CurrentUser 凭据文件或 macOS Keychain generic-password 项中加密保存，SQLite 只存引用和账号状态。macOS Keychain 项使用 `WhenUnlockedThisDeviceOnly`；导入前核对实际账号身份，凭据存在不代表会话有效。短期 handle 只从 Provider 传到 Playback，不进数据库、UI 或模型事实包。
 
 歌单事实不发送平台 ID；候选筛选包含匹配结果所需的曲目键。运行证据有界且脱敏，不记录 Cookie、Token、完整媒体 URL。无法覆盖的 DSH 请求/上下文指标保持未知，A09 两小时对照仍未通过。
 

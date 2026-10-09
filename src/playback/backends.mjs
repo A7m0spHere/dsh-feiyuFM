@@ -1,14 +1,16 @@
 // Audio backend descriptors. A backend only describes how to start a host
-// process that speaks the playback pipe protocol; the Node side never imports
+// process that speaks the playback IPC protocol; the Node side never imports
 // platform audio code, so a verified host can be swapped without touching Core.
 import { existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { playbackError } from './protocol.mjs';
+import { pipePath } from './transport.mjs';
 
 const root = dirname(fileURLToPath(import.meta.url));
 
 export const WPF_HOST_SCRIPT = join(root, 'host', 'wpf-media-host.ps1');
+export const MAC_HOST_LAUNCHER_SCRIPT = join(root, 'host', 'macos-host-launcher.mjs');
 export const FAKE_BACKEND_SCRIPT = join(root, 'fake-backend.mjs');
 
 function windowsPowerShellPath(env) {
@@ -92,6 +94,32 @@ export function wpfBackend({
       ...(warmResource ? ['-WarmResource', warmResource] : []),
     ],
   };
+}
+
+/** AVFoundation host launched through the DSH Node runtime on macOS. */
+export function macBackend() {
+  return {
+    name: 'avfoundation',
+    script: MAC_HOST_LAUNCHER_SCRIPT,
+    candidates: [{ command: process.execPath, args: [], label: 'DSH Node runtime', source: 'process.execPath' }],
+    extraArgs: (context) => [
+      '--socket', pipePath(context.pipeName, 'darwin'),
+      '--owner-pid', String(context.ownerPid ?? 0),
+      '--protocol', String(context.protocol),
+    ],
+  };
+}
+
+export function backendForPlatform(platform = process.platform) {
+  if (platform === 'win32') return wpfBackend();
+  if (platform === 'darwin') return macBackend();
+  throw playbackError('unsupported_platform', `Real audio playback is not supported on ${platform}`);
+}
+
+export function requireSupportedPlatform(platform = process.platform) {
+  if (!['win32', 'darwin'].includes(platform)) {
+    throw playbackError('unsupported_platform', `Real audio playback is not supported on ${platform}`);
+  }
 }
 
 /**

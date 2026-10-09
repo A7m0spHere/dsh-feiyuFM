@@ -3,20 +3,27 @@
 // can never be reused by accident.
 import net from 'node:net';
 import { randomUUID } from 'node:crypto';
+import { join } from 'node:path';
 import { createLineDecoder, encodeMessage, playbackError, resultError } from './protocol.mjs';
 
-export function pipePath(name) {
-  if (process.platform !== 'win32') {
-    throw playbackError('unsupported_platform', 'The local playback pipe currently requires Windows');
-  }
+export function pipePath(name, platform = process.platform) {
   if (!name || /[\\/]/.test(name)) throw playbackError('invalid_pipe_name', 'Pipe name must be a plain name');
-  return `\\\\.\\pipe\\${name}`;
+  if (platform === 'win32') return `\\\\.\\pipe\\${name}`;
+  if (platform === 'darwin') {
+    // Keep the AF_UNIX path comfortably below sockaddr_un.sun_path limits even
+    // when a temporary directory has a long per-user path.
+    const path = join('/tmp', `ffm-${name}.sock`);
+    if (Buffer.byteLength(path) >= 100) throw playbackError('invalid_pipe_name', 'Playback socket path is too long');
+    return path;
+  }
+  throw playbackError('unsupported_platform', `Local playback IPC is not supported on ${platform}`);
 }
 
 export class PipeTransport {
-  constructor({ name, onMessage = () => {}, onClose = () => {}, label = 'playback' }) {
+  constructor({ name, onMessage = () => {}, onClose = () => {}, label = 'playback', platform = process.platform }) {
     this.name = name;
     this.label = label;
+    this.platform = platform;
     this.onMessage = onMessage;
     this.onClose = onClose;
     this.socket = null;
@@ -34,7 +41,7 @@ export class PipeTransport {
     if (this.connected) return Promise.resolve();
     if (this.closed) return Promise.reject(playbackError('pipe_closed', 'Transport was already closed', { retryable: true }));
     return new Promise((resolve, reject) => {
-      const socket = net.createConnection(pipePath(this.name));
+      const socket = net.createConnection(pipePath(this.name, this.platform));
       let settled = false;
       const timer = setTimeout(() => {
         if (settled) return;

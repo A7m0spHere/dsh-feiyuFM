@@ -401,3 +401,7 @@ N19 的 4 个持有者阈值是历史实测，不是 WPF 固定契约。本轮�
 ## 39. 平台请求与播放控制分离，曲库改为全库查询（2026-10-08）
 
 项目复核复现了导入期间暂停被客户端 busy 丢弃、400 首库只暴露前 300 首，以及平台断连误报在线。平台任务采用独立 busy/AbortController，保留播放与状态读取通道；涉及清库/恢复的操作仍与导入互斥。迟到响应按播放命令代次和查询代次拒绝覆盖。曲库通过认证 RPC 访问 SQLite 分页搜索，不把全部曲目反复传给每个窗口；查询无结果不影响手动开始播放。修复与测试见 [U17](spikes/U17-control-library-fixes.md)，未新增依赖或模型调用。
+
+## 40. macOS 源码版播放与凭据适配（2026-10-09）
+
+应用户要求为当前 `main` 增加 macOS 桌面路径，同时保留 Windows WPF/DPAPI 实现。macOS 播放由 Swift `AVPlayer` Helper 承载，经权限为当前用户读写的 AF_UNIX socket 与既有协议 v1 通信；Helper 首次使用时由系统 Swift 编译器构建到 `$DSH_HOME/fishfm/hosts`。网易云会话使用 Keychain generic-password，设为 `WhenUnlockedThisDeviceOnly`，SQLite 仍只存引用。Secret 经 helper stdin/stdout JSON 传递，不进入进程参数。发布版 `0.1.0-beta.2` 不变且仍仅面向 Windows；macOS 登录、平台音频、退出和 DSH 重载验收单独记录于 [MACOS_PORT](spikes/MACOS_PORT.md)。

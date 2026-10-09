@@ -26,7 +26,7 @@
 
 ## 开始使用
 
-支持 **Windows + 网易云音乐**。已实测 DSH 桌面版 `0.2.0-rc.2`；其他宿主版本尚未验证。需要 Node.js `>=24.14.0 <25`，桌面宿主自带兼容 Node 24 时无需另装。
+已发布的 npm `0.1.0-beta.2` 支持 **Windows + 网易云音乐**。当前 `main` 已加入 macOS 源码路径：AVFoundation 播放宿主、Unix socket IPC 与 Keychain 凭据适配；本机 DSH `0.2.0-rc.2` profile 已加载此源码，Swift Helper 编译通过，真实音频与登录链路仍待验证。此次源码移植没有发布新的 npm 版本。其他宿主版本尚未验证。需要 Node.js `>=24.14.0 <25`，桌面宿主自带兼容 Node 24 时无需另装。
 
 在 DSH「插件 → 添加插件」的「包名或地址」中输入：
 
@@ -58,7 +58,7 @@ dsh plugin --profile web add dsh-feiyufm-core@0.1.0-beta.2 --registry https://re
 <details>
 <summary>从 main 体验最新布局与倒计时</summary>
 
-在上述 Windows / Node 环境中构建：
+在 Windows / Node 环境中构建：
 
 ```sh
 git clone https://github.com/A7m0spHere/dsh-feiyuFM.git
@@ -70,6 +70,14 @@ npm run build
 在 DSH「插件 → 添加插件」中填写**仓库的绝对目录**，安装后点击「立即启用」。`dist/` 是构建产物，不是独立安装器。
 
 源码安装不会自动更新已安装的 npm 包。切换来源前通过插件管理器处理原安装；后端改动需从托盘完整退出 DSH，再启动。
+
+macOS 上可把仓库绝对路径作为插件来源添加到实际桌面 profile，例如：
+
+```sh
+dsh plugin --profile desktop add /absolute/path/to/dsh-feiyuFM
+```
+
+macOS 当前仅指 `main` 源码版；首次使用原生播放或 Keychain 时需要可用的 `/usr/bin/swiftc`（Xcode Command Line Tools），Helper 会编译到 `$DSH_HOME/fishfm/hosts`。桌面后端改动需从托盘完整退出 DSH 后再启动。已发布 npm beta.2 仍是 Windows 版本。
 
 </details>
 
@@ -105,7 +113,7 @@ npm run build
 
 ## 数据、开发与许可
 
-曲库、偏好、反馈、收听历史与用量账本保存在本机，默认位置为 `$DSH_HOME/fishfm/music.sqlite`。网易云会话使用 Windows DPAPI 加密，数据库只保存凭据引用；Cookie、运行数据库和音频不入库。
+曲库、偏好、反馈、收听历史与用量账本保存在本机，默认位置为 `$DSH_HOME/fishfm/music.sqlite`。Windows 使用 DPAPI、macOS 源码版使用 Keychain 保存网易云会话，数据库只保存凭据引用；Cookie、运行数据库和音频不入库。
 
 模型接收有大小上限的歌名、艺人、反馈、关系和候选曲目键，不接收 Cookie 或凭据。字段与存储边界见 [架构](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/ARCHITECTURE.md) 与 [控制契约](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/CORE_CONTRACT.md)。
 

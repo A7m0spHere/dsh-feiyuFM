@@ -1,14 +1,15 @@
 # 肥鱼电台 FishFM — 开发路线
 
-更新：2026-10-08。Windows／网易云范围，稳定 v0.1 验收仍未完成。下面分别记录源码、已发布版本和历史安装包，避免把本地实现当作 npm 已更新或生产已验。
+更新：2026-10-09。已发布 `0.1.0-beta.2` 仍是 Windows／网易云版本；当前 `main` 增加 macOS 源码移植，本机 DSH `desktop` profile 已加载并显示 FishFM，真实音频/登录验收仍未完成。稳定 v0.1 验收仍未完成。下面分别记录源码、已发布版本和历史安装包，避免把本地实现当作 npm 已更新或生产已验。
 
 | 状态面 | 最新已确认内容 |
 |---|---|
-| `main` 源码 | N22 平台先推荐、LLM 再筛选，只从入选歌单自动播；[U15](spikes/U15-balanced-layout.md) 分区布局减少留白，[U16](spikes/U16-recommendation-feedback.md) 后端冷却倒计时、刷新前门控和普通限制/真实失败分别展示；[U17](spikes/U17-control-library-fixes.md) 修复慢平台请求阻塞播放、300 首曲库限制与平台断连反馈。保留 U12/U13 素材、N21 中断恢复及 U14 风格 |
+| `main` 源码 | N22/U17 当前功能外，已加入 macOS Swift/AVFoundation 播放宿主、AF_UNIX 传输与 Keychain 凭据；DSH `desktop` profile 重启后侧栏与悬浮条均显示 FishFM。未发布 npm |
 | 最近源码验证 | U17 **431 项离线测试：428 通过、3 项真实音频跳过**，127 模块检查、构建/debug smoke、隔离浏览器曲库分页/末尾搜索点播/慢导入暂停/窄深色设置验证 ALL-PASS。最近包含真实音频的全量仍为 N22 **420 项**；真实模型质量和生产边界不变 |
 | 已发布 npm | `0.1.0-beta.2`，2026-10-07 registry 版本/标签/下载摘要及 npm/DSH 重装均已确认，包含 N22/N21/U12–U14；`beta` 指向新版，`latest` 保持 beta.1。420 本机测试、127 模块、实包和 registry 两条安装链路 ALL-PASS，见 [本次记录](releases/0.1.0-beta.2.md)。历史 [beta.1](releases/0.1.0-beta.1.md) 首包于 2026-10-06 发布 |
 | 本地历史实包 | U12 素材阶段 34.83 MB tarball，仅对应当时验证，不含之后的样式、修复或 N22 新推荐流程，不能当作当前源码安装包 |
-| 生产与剩余验收 | 本轮未重载生产 DSH，N22 真实账号推荐/筛选质量与默认模式迁移未现场验；N21 中断恢复、U12–U14 完整多窗口、两小时、DSH 对照、多会话仍未完成。桌面后端改动需完整退出含托盘再启动，加载成功不等于验收完成 |
+| macOS 源码移植 | [移植记录](spikes/MACOS_PORT.md)：DSH 本机 `0.2.0-rc.2`、Apple Silicon、原生 Helper 编译通过；本地源码链接已加入 `desktop` profile 并在重启后可见。真实登录和音频结果待验。npm beta.2 仍只支持 Windows |
+| 生产与剩余验收 | macOS 登录/平台播放与退出生命周期，以及 N22 真实账号推荐/筛选质量、默认模式迁移、N21 恢复、U12–U14 完整多窗口、两小时、DSH 对照、多会话仍须分别实测；不能把源码安装或 Helper 编译当作这些项目通过 |
 
 产品范围约束（用户 2026-10-02 指定）：**QQ 接入暂缓，优先完善网易云体验。** [U7](spikes/U7-phl-ui-motion.md) 记录主播放器、曲库、浮层与动效重构；自主听歌与推荐的早期拆分见 [规划文档](design/AUTONOMOUS_MUSIC_ROADMAP.md)。当前进度以本文件验收表为准，音频/通信复核见 [N20](spikes/N20-review-fixes.md)，最近彩蛋与边界复核见 [U13](spikes/U13-easter-review-fixes.md)。
 
@@ -247,4 +248,4 @@ R6（2026-10-07）：`0.1.0-beta.2` 已发布，封存/registry SHA-512/SHA-1 �
 - 某平台的推荐不可用：退回熟悉池，记录本次没有发生探索。
 - UI 暂时不可用：允许继续验证 Core 和播放服务；不代表 DSH 内悬浮条的 A07 已通过。
 - QQ 登录/搜索/真实播放无法通过：可以交付技术进展，不能称为双平台 MVP 完成。
-- Windows 为首轮验证环境；其他系统尚未承诺兼容，待验证后再记录支持范围。
+- Windows 是已发布 beta.2 的验证环境；当前 `main` 加入 macOS 源码适配，最终运行支持范围以 [macOS 移植记录](spikes/MACOS_PORT.md) 的实际证据为准。

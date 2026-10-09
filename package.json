@@ -5,6 +5,7 @@
   "description": "肥鱼电台 FishFM：DSH 社区音乐插件，从参考歌曲出发，由网易云推荐、模型筛选，再自主听歌。",
   "license": "MIT",
   "os": [
+    "darwin",
     "win32"
   ],
   "files": [
@@ -13,6 +14,8 @@
     "bin/fishfm-core.mjs",
     "src/**/*.mjs",
     "src/ui/dsh-client.js",
+    "src/playback/host/macos-host-launcher.mjs",
+    "src/playback/host/fishfm-macos-host.swift",
     "src/playback/host/wpf-media-host.ps1",
     "src/ui/assets/whale-idle.png",
     "src/ui/assets/whale-listening.png",

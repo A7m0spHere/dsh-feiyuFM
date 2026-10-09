@@ -6,7 +6,7 @@ import { randomUUID } from 'node:crypto';
 import { setTimeout as delay } from 'node:timers/promises';
 import { PROTOCOL_VERSION, assertHello, playbackError } from './protocol.mjs';
 import { PipeTransport } from './transport.mjs';
-import { candidateCommandLine, requireWindows, wpfBackend } from './backends.mjs';
+import { backendForPlatform, candidateCommandLine, requireSupportedPlatform } from './backends.mjs';
 
 const MARKER_PREFIX = 'FISHFM_PLAYBACK_';
 const DIAGNOSTIC_LIMIT = 40;
@@ -28,7 +28,6 @@ function waitForExit(child, timeoutMs) {
 
 export class PlaybackSupervisor {
   constructor({
-    backend = wpfBackend(),
     pipeName = `fishfm-playback-${randomUUID()}`,
     ownerPid = process.pid,
     protocol = PROTOCOL_VERSION,
@@ -40,8 +39,9 @@ export class PlaybackSupervisor {
     onHostClose = () => {},
     onLog = () => {},
     platform = process.platform,
+    backend = null,
   } = {}) {
-    this.backend = backend;
+    this.backend = backend ?? backendForPlatform(platform);
     this.pipeName = pipeName;
     this.ownerPid = ownerPid;
     this.protocol = protocol;
@@ -71,7 +71,7 @@ export class PlaybackSupervisor {
     this._ensuring = null;
   }
 
-  get pid() { return this.child?.pid ?? null; }
+  get pid() { return this.hello?.pid ?? this.child?.pid ?? null; }
 
   get alive() { return Boolean(this.child) && this.child.exitCode === null; }
 
@@ -91,7 +91,7 @@ export class PlaybackSupervisor {
    */
   async ensureHost() {
     if (this.disposed) throw playbackError('host_unavailable', 'Playback supervisor was disposed');
-    requireWindows(this.platform);
+    requireSupportedPlatform(this.platform);
     if (this.alive && this.connected) return this.hello;
     if (this._ensuring) return this._ensuring;
     this._ensuring = this._ensureHostOnce().finally(() => { this._ensuring = null; });
@@ -117,7 +117,7 @@ export class PlaybackSupervisor {
       }
       if (this.alive) {
         throw playbackError('host_unavailable',
-          `Audio host did not answer on pipe ${this.pipeName} within ${this.startupTimeoutMs} ms: ${lastError?.message ?? 'no response'}`,
+          `Audio host did not answer on IPC endpoint ${this.pipeName} within ${this.startupTimeoutMs} ms: ${lastError?.message ?? 'no response'}`,
           { retryable: true });
       }
     }
@@ -191,7 +191,7 @@ export class PlaybackSupervisor {
       await delay(this.reconnectDelayMs);
     }
     throw playbackError('host_unavailable',
-      `Audio host did not answer on pipe ${this.pipeName} within ${this.startupTimeoutMs} ms: ${lastError?.message ?? 'no response'}`,
+      `Audio host did not answer on IPC endpoint ${this.pipeName} within ${this.startupTimeoutMs} ms: ${lastError?.message ?? 'no response'}`,
       { retryable: true });
   }
 
@@ -199,11 +199,12 @@ export class PlaybackSupervisor {
     this._teardownConnection(playbackError('pipe_closed', 'Superseded by a new connection', { retryable: true }));
     const transport = new PipeTransport({
       name: this.pipeName,
+      platform: this.platform,
       onMessage: (message) => this._handleMessage(message),
       onClose: (error) => this._handleClose(error),
     });
     await transport.connect({ timeoutMs: this.connectTimeoutMs }).catch((error) => {
-      // Startup ENOENT is expected until the host creates its pipe; report it as
+      // Startup ENOENT is expected until the host creates its IPC endpoint; report it as
       // retryable so callers keep waiting instead of surfacing a hard failure.
       throw playbackError('host_unavailable', error.message, { retryable: true });
     });

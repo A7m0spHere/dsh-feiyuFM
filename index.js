@@ -35,7 +35,7 @@ export const inject = ['tools'];
 const DEFAULT_SETTINGS = Object.freeze({
   /** Absolute path of the core entry to launch. Defaults to this package. */
   coreEntry: undefined,
-  /** 'real' uses the WPF audio host; 'fake' is for tests. */
+  /** 'real' uses the native audio host for the current platform; 'fake' is for tests. */
   playback: 'real',
   /** 'real' fails resolution honestly until a platform adapter exists. */
   provider: 'real',

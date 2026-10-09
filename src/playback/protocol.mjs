@@ -1,5 +1,5 @@
 // Wire protocol between the music core and an out-of-process audio host.
-// One JSON object per LF-terminated UTF-8 line over a same-user local pipe.
+// One JSON object per LF-terminated UTF-8 line over same-user local IPC.
 import { MusicError } from '../contracts.mjs';
 
 /** Bump when any message shape below changes in a way an older peer cannot read. */

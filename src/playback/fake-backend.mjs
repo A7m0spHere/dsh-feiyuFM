@@ -1,4 +1,4 @@
-// Deterministic audio-host double for tests. It speaks the same pipe protocol
+// Deterministic audio-host double for tests. It speaks the same IPC protocol
 // as the WPF host without touching an audio device, has no external
 // dependencies, and can reproduce the awkward cases the real host showed:
 // slow or failed opens, a transient 0 ms position after a resume, duplicate

@@ -24,7 +24,7 @@
 | [releases](releases/README.md) | 公开包的范围、摘要、安装/界面验证与发布确认 |
 | [archive](archive/README.md) | 封存的旧交接文字，不作为现行规则或实时状态 |
 
-最近推荐流程与界面见 [N22](spikes/N22-platform-first-recommendations.md)，中断恢复见 [N21](spikes/N21-playback-interruption-recovery.md)。素材/彩蛋与布局的历史证据从 [spikes 索引](spikes/README.md) 查阅，源码、发布与生产的区别只看开发路线首页。
+最近推荐流程与界面见 [N22](spikes/N22-platform-first-recommendations.md)，中断恢复见 [N21](spikes/N21-playback-interruption-recovery.md)，macOS 源码移植见 [MACOS_PORT](spikes/MACOS_PORT.md)。素材/彩蛋与布局的历史证据从 [spikes 索引](spikes/README.md) 查阅，源码、发布与生产的区别只看开发路线首页。
 
 ## 维护约定
 

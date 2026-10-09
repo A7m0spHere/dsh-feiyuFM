@@ -14,7 +14,7 @@
 import { buildProviderRegistry, createProviderFacade, runCoreHost } from '../src/core-host.mjs';
 import { FakeProvider } from '../src/fakes.mjs';
 import { MusicStore } from '../src/storage.mjs';
-import { createDpapiCredentials } from '../src/providers/credentials-dpapi.mjs';
+import { createPlatformCredentials } from '../src/providers/credentials.mjs';
 import { neteaseEndpoints } from '../src/providers/endpoints/netease.mjs';
 import { dirname, join, resolve } from 'node:path';
 import { createRuntimeEvidence } from '../src/runtime/evidence.mjs';
@@ -41,12 +41,12 @@ const onLog = (entry) => {
 
 let store = null;
 try {
-  const canPersistCredentials = providerMode === 'real' && process.platform === 'win32' && dbPath !== ':memory:';
+  const canPersistCredentials = providerMode === 'real' && ['win32', 'darwin'].includes(process.platform) && dbPath !== ':memory:';
   let providerRegistry;
   let platformsFacade;
   if (canPersistCredentials) {
     store = new MusicStore(dbPath);
-    const credentials = createDpapiCredentials({ directory: join(dirname(resolve(dbPath)), 'credentials') });
+    const credentials = createPlatformCredentials({ directory: join(dirname(resolve(dbPath)), 'credentials') });
     providerRegistry = buildProviderRegistry({
       adapters: { netease: { endpoints: neteaseEndpoints() } },
       credentials, store, onLog,

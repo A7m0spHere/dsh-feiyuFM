@@ -290,8 +290,8 @@ export function createPlayback({ mode = 'real', onLog = () => {} }) {
   // Imported lazily so the fake mode never loads the supervisor machinery.
   return import('./playback/supervisor.mjs').then(async ({ PlaybackSupervisor }) => {
     const { PlaybackService } = await import('./playback/service.mjs');
-    const { wpfBackend } = await import('./playback/backends.mjs');
-    const supervisor = new PlaybackSupervisor({ backend: wpfBackend(), onLog });
+    const { backendForPlatform } = await import('./playback/backends.mjs');
+    const supervisor = new PlaybackSupervisor({ backend: backendForPlatform(), onLog });
     const playback = new PlaybackService({ supervisor, onLog });
     return { playback, dispose: () => playback.close() };
   });

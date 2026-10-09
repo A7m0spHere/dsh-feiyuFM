@@ -1,12 +1,12 @@
 # 交付与使用说明
 
-更新日期：2026-10-07。本文对应 **0.1.0-beta.2 Windows／网易云测试版**，包含 U12/U13 彩蛋、N21 中断恢复、U14 紧凑布局与 N22 平台先推荐/模型再筛选；稳定 v0.1 验收仍未完成。发行确认与摘要见 [beta.2 记录](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/releases/0.1.0-beta.2.md)，源码/发布/实包与验收状态统一见 [开发路线](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/PROJECT_PLAN.md)。
+更新日期：2026-10-09。已发布 **0.1.0-beta.2** 仍是 Windows／网易云测试版，包含 U12/U13 彩蛋、N21 中断恢复、U14 紧凑布局与 N22 平台先推荐/模型再筛选；当前 `main` 另含 macOS 源码移植，尚未发布 npm 版本。稳定 v0.1 验收仍未完成。发行确认与摘要见 [beta.2 记录](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/releases/0.1.0-beta.2.md)，源码/发布/实包与验收状态统一见 [开发路线](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/PROJECT_PLAN.md)。
 
 ## 支持范围
 
 | 项目 | 当前范围 |
 | --- | --- |
-| 系统 | Windows，真实播放依赖 WPF `MediaPlayer` 与命名管道；其他系统未验证 |
+| 系统 | npm beta.2：Windows，真实播放依赖 WPF `MediaPlayer` 与命名管道；当前 `main` 源码另支持 macOS，使用 AVFoundation、Unix socket 和 Keychain，现场音频/登录验收仍在进行 |
 | Node.js | `>=24.14.0 <25`；使用内置 `node:sqlite` |
 | DSH | 本机官方桌面 `0.2.0-rc.2` 已安装并验证部分真实交互；其他版本需验证 |
 | 网易云 | 扫码、账号校验、导入、点播与自主续播已有真实验证；会员、版权与资源限制由平台决定 |
@@ -20,7 +20,15 @@ FishFM 以 npm 包分发，通过 DSH 安装到当前 profile。在侧栏「插�
 
 已安装 DSH CLI 的用户可通过 `dsh plugin --profile web add dsh-feiyufm-core@0.1.0-beta.2 --registry https://registry.npmjs.org/` 安装到 Web profile；`web` 要对应实际启动的 profile，安装后重启该实例。桌面版使用上述应用内入口。
 
-支持 Windows、DSH 本机验证版本 `0.2.0-rc.2`；桌面宿主自带兼容 Node 24 时无需单独安装 Node。QQ 与其他系统不在首包已验证范围内。
+已发布 npm beta.2 支持 Windows、DSH 本机验证版本 `0.2.0-rc.2`；桌面宿主自带兼容 Node 24 时无需单独安装 Node。macOS 仅限从 `main` 源码安装，要求 Xcode Command Line Tools 提供 `/usr/bin/swiftc`；首次启动原生后端时会编译 Helper 到 DSH 私有数据目录。此源码移植不代表 beta.2 支持 macOS。QQ 接入暂缓。
+
+在 macOS 桌面 profile 中从源码接入：
+
+```sh
+dsh plugin --profile desktop add /absolute/path/to/dsh-feiyuFM
+```
+
+将 `desktop` 和仓库绝对路径替换为本机实际 profile 与工作目录。安装后需从托盘完整退出并重启 DSH，后端改动才会载入。
 
 打开侧栏「肥鱼电台」或设置中的同名页，在网易云卡片扫码、手机确认，再导入歌曲。模型是可选功能，使用用户自己的 DSH 配置；没有模型可点播输入歌曲。
 
@@ -47,11 +55,11 @@ DSH `0.2.0-rc.2` 的插件页暂不支持自动更新。先在插件管理器卸
 | 内容 | 位置与处理 |
 | --- | --- |
 | SQLite | `$DSH_HOME/fishfm/music.sqlite`，本机通常为 `~/.dsh/fishfm/music.sqlite`；调试入口可用 `--db` 指定 |
-| 账号会话 | 数据目录内的 `credentials/*.dpapi`，使用 DPAPI CurrentUser 加密；SQLite 只存引用 |
+| 账号会话 | Windows：数据目录内 `credentials/*.dpapi`，使用 DPAPI CurrentUser 加密；macOS 源码版：用户 Keychain generic-password 项；SQLite 只存引用 |
 | 本地记录 | 输入音乐、偏好、反馈、收听历史、成长、约束与模型 token 账本 |
 | 模型事实包 | 有界的歌名、艺人、反馈、关系等；歌单生成不发平台 ID，候选筛选含曲目键；不发 Cookie 或凭据 |
 
-凭据绑定当前 Windows 用户，不随 Git 同步，也不能依靠复制密文跨设备登录。登出会清理凭据及其引用。偏好重置与输入曲库清空是两个可恢复入口，不用于登出；删除数据库是完整清除本地数据，请先确认是否需要备份。
+凭据绑定当前 Windows 用户或 macOS 登录 Keychain，不随 Git 同步，也不能依靠复制密文跨设备登录。登出会清理凭据及其引用。偏好重置与输入曲库清空是两个可恢复入口，不用于登出；删除数据库是完整清除本地数据，请先确认是否需要备份。
 
 仓库不保存 Cookie、运行数据库或音频。测试 WAV 由脚本现场生成。
 
@@ -70,7 +78,7 @@ DSH `0.2.0-rc.2` 的插件页暂不支持自动更新。先在插件管理器卸
 
 当前默认从 5 个持有者开始，按实际 Open 耗时最多补齐到 8 个；独立实测用了 6 个，后续加载 484ms。首曲仍冷，预热/打开时间随环境变化。`FISHFM_PLAYBACK_WARM_HOLDERS=0..8` 可指定固定数量，0 关闭。
 
-本轮没有重载生产宿主；U12/U13 完整真实窗口组合、两小时、DSH 请求/上下文对照、多会话、模型筛选质量和部分故障恢复仍待验证。N12–N20 的加载边界按各执行记录理解，不把用户可能自行重启当作已完成验收。当前状态统一见 [开发路线](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/PROJECT_PLAN.md)，短跑证据见 [N7](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/spikes/N7-short-run.md)。模拟预览和引用审计不能替代真实验收。
+macOS 移植当前已完成原生 Helper 编译检查；在本机 DSH 的首次重启、真实登录、平台音频播放与暂停/退出生命周期仍待验。U12/U13 完整真实窗口组合、两小时、DSH 请求/上下文对照、多会话和模型筛选质量也仍待验证。N12–N20 的加载边界按各执行记录理解。当前状态统一见 [开发路线](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/PROJECT_PLAN.md)，短跑证据见 [N7](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/spikes/N7-short-run.md)。模拟预览和引用审计不能替代真实验收。
 
 ## 许可
 

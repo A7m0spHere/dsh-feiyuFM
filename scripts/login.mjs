@@ -17,7 +17,8 @@ import { join, resolve } from 'node:path';
 import { neteaseEndpoints, NETEASE_ENDPOINT_PROVENANCE, NETEASE_QR_LOGIN_URL } from '../src/providers/endpoints/netease.mjs';
 import { createHttpTransport } from '../src/providers/transport.mjs';
 import { createNetEaseProvider } from '../src/providers/netease.mjs';
-import { createDpapiCredentials, createMemoryCredentials } from '../src/providers/credentials-dpapi.mjs';
+import { createPlatformCredentials } from '../src/providers/credentials.mjs';
+import { createMemoryCredentials } from '../src/providers/credentials-dpapi.mjs';
 
 const argValue = (name, fallback) => {
   const index = process.argv.indexOf(name);
@@ -37,7 +38,8 @@ if (providerName !== 'netease') {
 
 // Credentials live beside the Harness home, never in the repository.
 const stateDirectory = resolve(argValue('--out', join(process.env.DSH_HOME ?? join(homedir(), '.fishfm'), 'fishfm')));
-const credentials = dryRun ? createMemoryCredentials() : createDpapiCredentials({ directory: join(stateDirectory, 'credentials') });
+const credentials = dryRun ? createMemoryCredentials()
+  : createPlatformCredentials({ directory: join(stateDirectory, 'credentials') });
 const reference = `fishfm/${providerName}`;
 
 // A tiny store stand-in: the providers only use it for the credential reference
@@ -96,9 +98,6 @@ function fail(message, hint) {
 
 console.log(`FishFM sign-in · ${providerName}`);
 console.log(`  credential store: ${credentials.kind}${dryRun ? ' (nothing will be kept)' : ` at ${stateDirectory}`}`);
-if (!dryRun && process.platform !== 'win32') {
-  console.log('  note: DPAPI is Windows-only; on other platforms use --dry-run for now');
-}
 
 // --- 1. ask for a QR ---------------------------------------------------------
 
@@ -151,8 +150,10 @@ if (rendered) {
   // Opening the image is the user's action, not a hidden one.
   if (hasFlag('--open') || process.platform === 'win32') {
     try {
-      const child = spawn('powershell.exe', ['-NoProfile', '-Command', `Invoke-Item -LiteralPath '${imagePath.replace(/'/g, "''")}'`],
-        { detached: true, stdio: 'ignore', windowsHide: true });
+      const child = process.platform === 'darwin'
+        ? spawn('open', [imagePath], { detached: true, stdio: 'ignore' })
+        : spawn('powershell.exe', ['-NoProfile', '-Command', `Invoke-Item -LiteralPath '${imagePath.replace(/'/g, "''")}'`],
+          { detached: true, stdio: 'ignore', windowsHide: true });
       child.unref();
       console.log('   opened it in your default image viewer — scan it with the phone app');
     } catch { /* opening is a convenience, not a requirement */ }
@@ -199,7 +200,7 @@ if (status !== 'authorized') fail(`gave up after ${timeoutSeconds}s`, 'run the c
 const account = provider.getAccount();
 console.log(`\n4. signed in. account state: ${account.status}${account.accountId ? ` (id ${account.accountId})` : ''}`);
 const described = credentials.describe(reference);
-console.log(`   credential: ${described.present ? `stored, ${described.cipherBytes} base64 chars of ciphertext` : 'NOT stored'}`);
+console.log(`   credential: ${described.present ? `stored in ${credentials.kind}` : 'NOT stored'}`);
 if (described.path) console.log(`   file: ${described.path}`);
 console.log('   the session itself was never printed and is not in the database');
 

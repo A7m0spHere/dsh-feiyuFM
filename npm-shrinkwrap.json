@@ -9,6 +9,7 @@
       "version": "0.1.0-beta.2",
       "license": "MIT",
       "os": [
+        "darwin",
         "win32"
       ],
       "dependencies": {

@@ -15,11 +15,12 @@ const paths = new Set(pack.files.map(file => file.path));
 const manifest = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
 assert.equal(manifest.private, undefined);
 assert.equal(manifest.publishConfig.tag, 'beta');
-assert.deepEqual(manifest.os, ['win32']);
+assert.deepEqual(manifest.os, ['darwin', 'win32']);
 assert.match(manifest.version, /^\d+\.\d+\.\d+-beta\.\d+$/);
 for (const path of [
   'package.json', 'index.js', 'cordis.patch.yml', 'bin/fishfm-core.mjs',
-  'src/ui/dsh-client.js', 'src/playback/host/wpf-media-host.ps1',
+  'src/ui/dsh-client.js', 'src/playback/host/macos-host-launcher.mjs',
+  'src/playback/host/fishfm-macos-host.swift', 'src/playback/host/wpf-media-host.ps1',
   'src/ui/assets/whale-idle.png', 'src/ui/assets/whale-listening.png', 'src/ui/assets/whale-dj.png',
   'src/ui/assets/whale-pot-dance.gif', 'src/ui/assets/whale-pot-still.png',
   ...['glm', 'deepseek', 'claude', 'gemini', 'gpt', 'grok'].map(name => `src/ui/assets/dolls/doll-${name}.png`),

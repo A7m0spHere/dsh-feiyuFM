@@ -8,7 +8,7 @@ Track key 为 `(provider, providerTrackId)`，`provider` 仅为 `netease/qq`，�
 
 Provider 暴露账号和能力状态，`resolve(track, {signal, version})` 返回 `{handle, expiresAt?}`。handle 仅交 Playback，不进 SQLite、Core/UI 快照或模型输入。缺能力、过期账号、无可播资源和空候选分别报告。
 
-网易云导入可指定 `source/playlistId`，保留实际来源、sourceRef、数量及失败尝试。核对 `login_status` 账号 ID 后才保存 DPAPI 凭据引用；退出删除凭据及引用。QQ 真实登录/播放未验证，不显示未核实的扫码入口。
+网易云导入可指定 `source/playlistId`，保留实际来源、sourceRef、数量及失败尝试。核对 `login_status` 账号 ID 后才保存平台凭据引用（Windows DPAPI，macOS Keychain）；退出删除凭据及引用。QQ 真实登录/播放未验证，不显示未核实的扫码入口。
 
 ## 2. 用户命令
 
@@ -88,7 +88,7 @@ U16 在 `persona` 视图增加 `recommendationAvailability`：`reason/serverNow/
 
 ## 6. Playback 与有效进度
 
-`PlaybackService` 通过协议 v1 同用户命名管道控制独立 WPF 宿主：
+`PlaybackService` 通过协议 v1 控制独立本机音频宿主：Windows 使用同用户命名管道与 WPF，macOS 源码版使用同用户 AF_UNIX socket 与 AVFoundation：
 
 | 方法/事件 | 字段与要求 |
 |---|---|
@@ -100,7 +100,7 @@ U16 在 `persona` 视图增加 `recommendationAvailability`：`reason/serverNow/
 
 断线主动要新快照，不用 supervisor 缓存判断资源是否还在；匹配实例/版本的 `ended/error` 补发一次，不补计失联时间。每实例/版本共享恢复任务，最多三轮连接/快照尝试；await 后检查实例和版本，旧恢复不能清掉新曲目。超时/写入异常拒绝所有等待者；宿主退出、所有者消失及 `dispose` 都停止音频。
 
-WPF 播放期间的媒体失败上报 `media_failed`；连续 15 秒时间线不推进上报 `media_stalled`，暂停和实际推进重置检测。终态快照附加 `errorCode/errorMessage/retryable`，不改变协议版本。Core 对 `playback_host_lost/media_stalled` 或可重试的 `media_failed` 重新解析原曲一次，尝试从已确认位置继续，保留实例和实际收听累计；与过期地址恢复共用一次预算。暂停/换曲可取消，恢复 load 失败保留已听片段，未开始加载不伪造收听。见 [N21](spikes/N21-playback-interruption-recovery.md)。
+播放期间的媒体失败上报 `media_failed`；连续 15 秒时间线不推进上报 `media_stalled`，暂停和实际推进重置检测。终态快照附加 `errorCode/errorMessage/retryable`，不改变协议版本。Core 对 `playback_host_lost/media_stalled` 或可重试的 `media_failed` 重新解析原曲一次，尝试从已确认位置继续，保留实例和实际收听累计；与过期地址恢复共用一次预算。暂停/换曲可取消，恢复 load 失败保留已听片段，未开始加载不伪造收听。见 [N21](spikes/N21-playback-interruption-recovery.md)。
 
 默认播放中从 5 个静音、不播放的持有者开始，根据实际 Open 耗时最多补齐到 8 个；`FISHFM_PLAYBACK_WARM_HOLDERS=0..8` 可覆盖为固定数量，0 关闭。首曲仍冷，资源在临时目录生成；参数不是跨机器性能保证，见 [N19](spikes/N19-wpf-audio-warmup.md)、[N20](spikes/N20-review-fixes.md)。
 
@@ -122,6 +122,6 @@ Provider 解析最多 3 次；自主不可播替换有有限预算，明确资�
 
 历史、统计与成长作业入队同事务，`playInstanceId` 幂等；成长可重放，不重复应用。RNG 随 Core 保存，重启保留曲目和位置但强制暂停，不用墙钟补进度。
 
-命令去重及已完成成长作业保留 30 天；未完成成长、历史、反馈、约束和模型账本保留。维护清理最多每小时一次，见 [N17](spikes/N17-p1-retention-a09.md)。数据位置与 DPAPI 跨设备限制见 [使用说明](DELIVERY.md)。
+命令去重及已完成成长作业保留 30 天；未完成成长、历史、反馈、约束和模型账本保留。维护清理最多每小时一次，见 [N17](spikes/N17-p1-retention-a09.md)。数据位置与平台凭据限制见 [使用说明](DELIVERY.md)。
 
 诊断脱敏且有界，观察脚本只读，不能启动另一个 Core 或把模拟事件当生产证据。完整 DSH 请求/上下文和两小时对照仍未通过，状态统一在开发路线。
