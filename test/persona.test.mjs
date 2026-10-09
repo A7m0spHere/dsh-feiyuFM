@@ -16,7 +16,8 @@ test('recommendation availability follows billed failures, interrupted calls and
   finishSummary({store,callId:plan.callId,status:'failed',usage:{inputTokens:10,outputTokens:0},code:'provider_failure',now:1001});
   assert.equal(personaView(store,snapshot,1002).recommendationAvailability.reason,null,'known usage permits a bounded retry');
   plan=reserve(1002);recoverSummaryCalls(store,1003);
-  assert.equal(personaView(store,snapshot,1004).recommendationAvailability.reason,'summary_cooldown','interruption does not erase cooldown');
+  assert.equal(personaView(store,snapshot,1004).recommendationAvailability.reason,null,'interrupted calls allow an immediate manual retry');
+  assert.throws(()=>reserveSummary({store,snapshot,...route,now:1004,purpose:'discovery-filter',automatic:true,candidates}),{code:'summary_cooldown'},'interruption retains the automatic cooldown');
   for(let index=0;index<10;index++){
    plan=reserve(901002+index*900001);
    finishSummary({store,callId:plan.callId,status:'failed',usage:{inputTokens:1,outputTokens:0},now:901003+index*900001});

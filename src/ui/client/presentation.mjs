@@ -6,13 +6,12 @@ export function recommendationActionState(availability,now){
  const seconds=Math.max(0,Math.ceil(((availability?.retryAt??now)-now)/1000));
  if(reason==='summary_cooldown'&&seconds===0)reason=null;
  if(reason==='summary_retry_limit'&&now>=availability.resetAt)reason=null;
- const remaining=`${Math.floor(seconds/60)}:${String(seconds%60).padStart(2,'0')}`;
- const messages={summary_cooldown:'倒计时结束后可换一批，等待期间仍可点播歌曲。',
+ const messages={summary_cooldown:'刚挑过一批，稍后可再换；已有歌曲仍可点播。',
   summary_busy:'模型任务正在进行，完成后可再挑歌。',
   summary_retry_limit:'今天的挑歌次数已用完，明天可再换；已有歌曲仍可点播。',
   budget_exhausted:'模型预算不足，可在推荐设置中调整；已有歌曲仍可点播。'};
  return{reason,disabled:Boolean(reason),message:messages[reason]??'',
-  label:reason==='summary_cooldown'?`${remaining} 后可换`:reason==='summary_busy'?'模型处理中':reason==='summary_retry_limit'?'明天再换':reason==='budget_exhausted'?'预算不足':null};
+  label:reason==='summary_cooldown'?'稍后再试':reason==='summary_busy'?'模型处理中':reason==='summary_retry_limit'?'明天再换':reason==='budget_exhausted'?'预算不足':null};
 }
 
 export function recommendationFeedback(error){

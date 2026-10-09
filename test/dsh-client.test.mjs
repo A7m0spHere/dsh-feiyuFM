@@ -365,7 +365,7 @@ test('a pending model summary does not block pause and its stale response cannot
  }finally{off();f.dispose();}
 });
 
-test('recommendation races become a timed constraint while genuine failures keep details and never disable point play',async()=>{
+test('legacy cooldowns use plain feedback while current gates allow manual picking and failures retain point play',async()=>{
  let gate=null,error={code:'summary_cooldown',message:'刚刚运行过',details:{retryAt:901000,serverNow:62000}},now=62000;
  const track={provider:'netease',providerTrackId:'1',title:'Song',artist:'Artist'};
  const persona=()=>({generatedAt:now,policy:{dailyTokens:4000,maxOutputTokens:256},
@@ -382,7 +382,8 @@ test('recommendation races become a timed constraint while genuine failures keep
   await tick();gate={reason:'summary_cooldown',retryAt:901000,serverNow:now};
   await f.controller.personaAction('recommendations',{provider:'p',model:'m'});
   assert.equal(f.controller.getSnapshot().summaryError,'');
-  assert.ok(all(f.render()).some(node=>node.type==='button'&&node.children.includes('13:59 后可换')&&node.props.disabled));
+  assert.ok(all(f.render()).some(node=>node.type==='button'&&node.children.includes('稍后再试')&&node.props.disabled));
+  assert.ok(!all(f.render()).some(node=>node.children.some(child=>typeof child==='string'&&child.includes('后可换'))));
   assert.equal(all(f.render()).find(node=>node.props['aria-label']==='播放 Song · Artist').props.disabled,false);
   now=901000;gate={reason:null,serverNow:now};await f.controller.refresh();
   assert.ok(all(f.render()).some(node=>node.type==='button'&&node.children.includes('换一批')&&!node.props.disabled));

@@ -290,8 +290,7 @@ test('discovery filter reserves candidate facts and stores ranked picks with bou
   assert.equal(filter.picks[0].reason,'和你常听的接近');
  }finally{store.close();}
 });
-const FILTER_TEST_COOLDOWN=15.5*60_000;
-test('discovery filter has its own cooldown, daily budget and summary attempts stay separate',async()=>{
+test('manual discovery filter skips cooldown while automatic calls, daily limits and shared budget remain gated',async()=>{
  const store=fixture();try{
   // 每轮候选不同才不会命中相同事实的缓存：生产中缓存刷新会带来新候选。
   const runFilter=(now,seed)=>{
@@ -302,15 +301,16 @@ test('discovery filter has its own cooldown, daily budget and summary attempts s
    return finishSummary({store,callId:plan.callId,status:'completed',text:JSON.stringify({summary:'ok',picks:[{i:0,why:'r'}]}),usage:{inputTokens:10,outputTokens:5},now:now+1});
   };
   runFilter(3000,0);
-  // 15 分钟冷却内再次筛选被拒，且与总结的每日尝试互不占用。
-  assert.throws(()=>reserveSummary({store,snapshot,...route,purpose:'discovery-filter',now:3000+60_000,candidates:[t(200,'Fresh','Artist B')]}),e=>e.code==='summary_cooldown');
+  // 后台调用仍受 15 分钟冷却；手动立即换批，与总结次数互不占用。
+  assert.throws(()=>reserveSummary({store,snapshot,...route,purpose:'discovery-filter',automatic:true,now:3000+60_000,candidates:[t(200,'Fresh','Artist B')]}),e=>e.code==='summary_cooldown');
+  runFilter(3000+60_000,1);
   const summaryPlan=reserveSummary({store,snapshot,...route,now:3000+61_000});
   assert.ok(summaryPlan.callId,'筛选调用不挤占总结的每日尝试');
   finishSummary({store,callId:summaryPlan.callId,status:'cancelled',now:3000+61_500});
   // 12 次之后当日筛选预算用尽。
-  let last=3000;
-  for(let i=0;i<11;i++){last+=15.5*60_000;runFilter(last,1+i);}
-  assert.throws(()=>reserveSummary({store,snapshot,...route,purpose:'discovery-filter',now:last+15.5*60_000,candidates:[t(300,'Last','Artist C')]}),e=>e.code==='summary_retry_limit');
+  let last=3000+62_000;
+  for(let i=0;i<10;i++){last+=1000;runFilter(last,2+i);}
+  assert.throws(()=>reserveSummary({store,snapshot,...route,purpose:'discovery-filter',now:last+1000,candidates:[t(300,'Last','Artist C')]}),e=>e.code==='summary_retry_limit');
  }finally{store.close();}
 });
 test('discovery cache stamps LLM ranks and clears them with the cache',async()=>{

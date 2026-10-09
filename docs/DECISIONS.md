@@ -405,3 +405,7 @@ N19 的 4 个持有者阈值是历史实测，不是 WPF 固定契约。本轮�
 ## 40. macOS 源码版播放与凭据适配（2026-10-09）
 
 应用户要求为当前 `main` 增加 macOS 桌面路径，同时保留 Windows WPF/DPAPI 实现。macOS 播放由 Swift `AVPlayer` Helper 承载，经权限为当前用户读写的 AF_UNIX socket 与既有协议 v1 通信；Helper 首次使用时由系统 Swift 编译器构建到 `$DSH_HOME/fishfm/hosts`。网易云会话使用 Keychain generic-password，设为 `WhenUnlockedThisDeviceOnly`，SQLite 仍只存引用。Secret 经 helper stdin/stdout JSON 传递，不进入进程参数。发布版 `0.1.0-beta.2` 不变且仍仅面向 Windows；macOS 登录、平台音频、退出和 DSH 重载验收单独记录于 [MACOS_PORT](spikes/MACOS_PORT.md)。
+
+## 41. 手动找歌取消 15 分钟等待（2026-10-09）
+
+用户截图显示没有入选歌曲时“找一批歌”仍被 15 分钟倒计时禁用，明确要求取消。修订第 38 节：手动 `discovery-filter` 不受模型冷却限制，前端不显示倒计时；后台自动调用继续遵守冷却，并发预留、每日 12 次、共享预算与失败计费保留。平台的 1 分钟刷新节流与相同候选缓存复用保留，取消等待不保证平台或模型一定返回歌曲。证据见 [U18](spikes/U18-manual-picking-without-countdown.md)。

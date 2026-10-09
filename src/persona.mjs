@@ -114,13 +114,15 @@ function aggregate(rows){
 }
 
 // UI and reservation share the persisted call ledger; local clicks are not a clock.
-function modelCallAvailability(rows,policy,now,purpose){
+function modelCallAvailability(rows,policy,now,purpose,automatic=false){
  const filter=purpose===DISCOVERY_FILTER_PURPOSE,limit=filter?FILTER_POLICY.dailyAttempts:SUMMARY_POLICY.maxDailyAttempts;
  const attempts=rows.filter(row=>row.day===dayOf(now)&&(!filter||row.purpose===purpose)).length;
  const running=rows.find(row=>['reserved','running'].includes(row.status));
  const last=rows.find(row=>row.purpose===purpose);
  const knownFailure=last?.status==='failed'&&Boolean(parseUsage(last.usage_json));
- const retryAt=last&&!knownFailure?last.started_at+(filter?FILTER_POLICY.cooldownMs:SUMMARY_POLICY.cooldownMs):null;
+ // 用户手动换批不等待；后台筛选继续限频，共享并发、次数与预算门控。
+ const cooldownMs=filter?(automatic?FILTER_POLICY.cooldownMs:0):SUMMARY_POLICY.cooldownMs;
+ const retryAt=cooldownMs&&last&&!knownFailure?last.started_at+cooldownMs:null;
  const reset=new Date(now);reset.setHours(24,0,0,0);
  const remainingTokens=Math.max(0,policy.dailyTokens-aggregate(rows.filter(row=>row.day===dayOf(now))).chargedTokens);
  const reason=running?'summary_busy':attempts>=limit?'summary_retry_limit':retryAt>now?'summary_cooldown':remainingTokens===0?'budget_exhausted':null;
@@ -229,7 +231,7 @@ export function reserveSummary({store,snapshot,provider,model,now=Date.now(),aut
     cooldown:'summary_cooldown',budget:'budget_exhausted',attempt_limit:'summary_retry_limit',interval:'summary_interval',input_size:'summary_input_too_large'})[gate.reason]??gate.reason);
   }
   const filterPurpose=purpose===DISCOVERY_FILTER_PURPOSE;
-  const availability=modelCallAvailability(store.db.prepare('SELECT * FROM music_model_calls ORDER BY started_at DESC').all(),policy,now,purpose);
+  const availability=modelCallAvailability(store.db.prepare('SELECT * FROM music_model_calls ORDER BY started_at DESC').all(),policy,now,purpose,automatic);
   if(availability.reason&&availability.reason!=='budget_exhausted')fail(availability.reason,availability);
   if(bundle.bytes>(filterPurpose?FILTER_POLICY.maxPromptBytes:SUMMARY_POLICY.maxPromptBytes))fail('summary_input_too_large');
   // Conservative reservation, not a claim about exact input tokenization.

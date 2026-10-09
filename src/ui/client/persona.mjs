@@ -10,10 +10,12 @@ export function Persona({ state, controller }) {
   const clock=React.useRef({view,receivedAt:Date.now()});
   if(clock.current.view!==view)clock.current={view,receivedAt:Date.now()};
   React.useEffect(()=>{
-    if(!view?.recommendationAvailability?.retryAt)return undefined;
-    const timer=setInterval(()=>setLocalNow(Date.now()),1000);
-    return()=>clearInterval(timer);
-  },[view?.recommendationAvailability?.retryAt]);
+    const gate=view?.recommendationAvailability;
+    const deadline=gate?.reason==='summary_retry_limit'?gate.resetAt:gate?.retryAt;
+    if(!deadline)return undefined;
+    const timer=setTimeout(()=>setLocalNow(Date.now()),Math.max(0,deadline-(gate.serverNow??Date.now())));
+    return()=>clearTimeout(timer);
+  },[view?.recommendationAvailability]);
   React.useEffect(() => {
     if (view) { setBudget(view.policy.dailyTokens); setOutput(view.policy.maxOutputTokens); }
   }, [view?.policy?.dailyTokens, view?.policy?.maxOutputTokens]);

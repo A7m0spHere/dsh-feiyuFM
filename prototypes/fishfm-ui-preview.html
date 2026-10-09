@@ -79,13 +79,13 @@ const connection={rpc:{async call(_channel,endpoint,payload){
   if(endpoint==='fishfm/persona-recommendations'){
    if(pickerScenario==='failure')return{ok:false,error:{code:'provider_failure',message:'挑歌服务暂时不可用，请稍后再试。'}};
    if(pickerScenario==='race'){
-    pickerScenario='cooldown';pickerRetryAt=pickerNow()+15*60000;syncPickerScenario();
-    return{ok:false,error:{code:'summary_cooldown',message:'刚刚运行过，请稍后再试。',details:{serverNow:pickerNow(),retryAt:pickerRetryAt}}};
+    pickerScenario='filtering';pickerRetryAt=0;syncPickerScenario();
+    return{ok:false,error:{code:'summary_busy',message:'已有模型任务正在进行。'}};
    }
    await new Promise(r=>setTimeout(r,600));
    persona.recommendationPipeline={...persona.recommendationPipeline,tracks:previewPicks().reverse(),picked:4,remaining:4,referenceCount:empty?0:tracks.length};
    persona.recommendationRoute={provider:payload.provider,model:payload.model};snapshot.discovery=persona.recommendationPipeline;
-   pickerScenario='cooldown';pickerRetryAt=pickerNow()+15*60000;
+   pickerScenario='ready';pickerRetryAt=0;
   }
   if(endpoint==='fishfm/persona-budget')persona.policy.dailyTokens=payload.value;
   if(endpoint==='fishfm/persona-output')persona.policy.maxOutputTokens=payload.value;
@@ -134,7 +134,7 @@ function Harness(){
    React.createElement('button',{onClick:()=>{connected=!connected;controller.refresh()}},'切换连接'),
    React.createElement('select',{'aria-label':'挑歌预览状态',defaultValue:'ready',onChange:event=>{
     pickerScenario=event.target.value;pickerRetryAt=pickerNow()+(pickerScenario==='finishing'?3500:15*60000);controller.refresh();
-   }},...[['ready','可换批'],['cooldown','冷却'],['finishing','即将结束'],['searching','找歌中'],['filtering','挑歌中'],['budget','预算用完'],['limit','次数用完'],['failure','请求失败'],['race','并发冷却']].map(([value,label])=>React.createElement('option',{value,key:value},label)))),
+   }},...[['ready','可换批'],['cooldown','旧宿主等待'],['finishing','旧宿主即将到期'],['searching','找歌中'],['filtering','挑歌中'],['budget','预算用完'],['limit','次数用完'],['failure','请求失败'],['race','并发任务']].map(([value,label])=>React.createElement('option',{value,key:value},label)))),
   React.createElement('div',{className:'preview-shell'},page==='fishfm'?React.createElement('main',{className:settings?'preview-settings':'preview-main'},React.createElement(panel.component,{...panel.options.inject(),...(settings?{close:()=>setSettings(false)}:{})})):React.createElement('div',{className:'preview-conversation'},'对话面板 · 音乐服务独立于可见页面'),
    React.createElement('div',{'data-shell-overlay':''},React.createElement(overlay.component,{...overlay.options.inject(),usePanelInfo:fn=>fn({activePanelId:page})}))));
 }

@@ -5,7 +5,8 @@ import {interpolatedPosition,recommendationActionState,recommendationFeedback} f
 
 test('a model gate expires at the server deadline while constraints remain separate from actual failures',()=>{
  const gate={reason:'summary_cooldown',retryAt:901000};
- assert.equal(recommendationActionState(gate,62000).label,'13:59 后可换');
+ assert.equal(recommendationActionState(gate,62000).label,'稍后再试','legacy hosts never show a countdown');
+ assert.equal(recommendationActionState({reason:null,retryAt:null},62000).disabled,false,'manual picking has no waiting period');
  assert.equal(recommendationActionState(gate,900999).disabled,true);
  assert.equal(recommendationActionState(gate,901000).disabled,false);
  assert.equal(recommendationFeedback({code:'summary_cooldown'}).expected,true);

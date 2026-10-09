@@ -111,7 +111,7 @@ test('a model cannot introduce a song that NetEase did not return', async () => 
   } finally { await f.close(); }
 });
 
-test('an explicit empty LLM selection stays empty without a repeated automatic request', async () => {
+test('an empty LLM selection avoids automatic repeats but allows immediate manual picking', async () => {
   const f = fixture({ output: { summary: '这批暂时没有合适的', picks: [] } });
   try {
     await prepareRecommendations({ ...f, route });
@@ -121,6 +121,11 @@ test('an explicit empty LLM selection stays empty without a repeated automatic r
     const scheduler = createPersonaScheduler(f);
     assert.equal((await scheduler.checkDiscoveryFilter()).filterSkipped, 'not_due'); scheduler.stop();
     assert.equal(f.calls(), 1);
+    f.time(62000); // 平台刷新仍保留 1 分钟节流，模型不再等待 15 分钟。
+    assert.equal((await f.bridge.request({type:'persona'})).persona.recommendationAvailability.reason,null);
+    await prepareRecommendations({...f,route});
+    assert.equal(f.calls(),2,'no_candidates does not impose a manual waiting period');
+    assert.equal(f.host.snapshot().paused,true);
   } finally { await f.close(); }
 });
 
@@ -174,22 +179,24 @@ test('account changes discard selected songs and an exhausted playlist asks for 
   } finally { await f.close(); }
 });
 
-test('filter cooldown and shared budget reject another request without dispatching a model', async () => {
+test('manual batch replacement skips cooldown while shared budget still blocks platform and model requests', async () => {
   const f = fixture();
   try {
     await prepareRecommendations({ ...f, route });
     f.time(62000); await f.facade.refreshDiscovery({ manual: true });
-    const beforeStages=f.stages.length;
     const availability=(await f.bridge.request({type:'persona'})).persona.recommendationAvailability;
-    assert.equal(availability.retryAt,901000);
-    assert.equal(availability.retryAfterMs,839000);
-    await assert.rejects(prepareRecommendations({ ...f, route }), error=>error.code==='summary_cooldown'&&error.details.retryAt===901000);
-    assert.equal(f.stages.length,beforeStages,'cooldown prevents both platform refresh and model dispatch');
-    assert.deepEqual(f.facade.discoveryTracks().map(track=>track.providerTrackId),['2','4'],'failed batch replacement retains the actual former CF picks');
+    assert.equal(availability.reason,null);
+    assert.equal(availability.retryAt,null);
+    assert.equal(availability.retryAfterMs,0);
+    await prepareRecommendations({ ...f, route });
+    assert.equal(f.calls(),2,'another batch can be picked within one minute');
+    assert.deepEqual(f.facade.discoveryTracks().map(track=>track.providerTrackId),['2','4']);
+    const beforeStages=f.stages.length;
     f.time(1000000); f.store.setSetting('summary_daily_tokens', 0);
     await assert.rejects(prepareRecommendations({ ...f, route }), { code: 'budget_exhausted' });
     assert.equal((await f.bridge.request({type:'persona'})).persona.recommendationAvailability.reason,'budget_exhausted');
-    assert.equal(f.calls(), 1);
+    assert.equal(f.calls(), 2);
+    assert.equal(f.stages.length,beforeStages,'budget prevents both platform refresh and model dispatch');
   } finally { await f.close(); }
 });
 
@@ -205,9 +212,8 @@ test('running filter is visible across clients and a second request leaves the f
   await assert.rejects(prepareRecommendations({...f,route}),{code:'summary_busy'});
   assert.equal(f.stages.length,beforeStages);
   gate.resolve();await pending;
-  assert.equal((await f.bridge.request({type:'persona'})).persona.recommendationAvailability.reason,'summary_cooldown');
-  f.time(901000);
   assert.equal((await f.bridge.request({type:'persona'})).persona.recommendationAvailability.reason,null);
+  f.time(62000);
   await prepareRecommendations({...f,route});assert.equal(f.calls(),2);
   assert.equal(f.host.snapshot().paused,true);
  }finally{gate.resolve();await pending?.catch(()=>{});await f.close();}

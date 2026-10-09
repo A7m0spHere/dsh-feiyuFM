@@ -6,6 +6,8 @@
 //
 // Options arrive as JSON in FISHFM_FAKE_BACKEND. Used by test/playback.test.mjs.
 import net from 'node:net';
+import { rmSync } from 'node:fs';
+import { pipePath } from './transport.mjs';
 
 const options = JSON.parse(process.env.FISHFM_FAKE_BACKEND ?? '{}');
 const argOf = (name) => {
@@ -17,6 +19,12 @@ const PIPE_NAME = argOf('-PipeName');
 const OWNER_PID = Number(argOf('-OwnerPid') ?? 0);
 const PROTOCOL = Number(argOf('-ProtocolVersion') ?? 1);
 if (!PIPE_NAME) throw new Error('Fake backend needs -PipeName');
+const endpoint = pipePath(PIPE_NAME);
+// 崩溃恢复复用同一个名称，AF_UNIX 遗留 socket 需先清理。
+if (process.platform === 'darwin') rmSync(endpoint, { force: true });
+process.on('exit', () => {
+  if (process.platform === 'darwin') rmSync(endpoint, { force: true });
+});
 
 const durationMs = options.durationMs ?? 2000;
 const tickMs = options.tickMs ?? 40;
@@ -281,7 +289,7 @@ function accept() {
     process.stderr.write(`fake backend pipe error: ${error.code ?? error.message}\n`);
     process.exit(4);
   });
-  server.listen(`\\\\.\\pipe\\${PIPE_NAME}`, () => {
+  server.listen(endpoint, () => {
     process.stdout.write(`FISHFM_PLAYBACK_READY protocol=${PROTOCOL} pid=${process.pid}\n`);
   });
 }

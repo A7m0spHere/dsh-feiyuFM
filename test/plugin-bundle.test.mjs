@@ -44,14 +44,15 @@ test('launches the core the way the desktop host launches Node work', () => {
 });
 
 test('the database lives under the Harness home, never in the repository', () => {
-  assert.equal(defaultDatabase({ DSH_HOME: 'C:\\Users\\x\\.dsh' }), join('C:\\Users\\x\\.dsh', 'fishfm', 'music.sqlite'));
+  const dshHome = join(homedir(), '.dsh-test-explicit');
+  assert.equal(defaultDatabase({ DSH_HOME: dshHome }), join(dshHome, 'fishfm', 'music.sqlite'));
   assert.equal(defaultDatabase({}), join(homedir(), '.dsh', 'fishfm', 'music.sqlite'));
   assert.equal(defaultDatabase({ DSH_HOME: '  ' }), defaultDatabase({}));
   assert.equal(defaultDatabase({ DSH_HOME: '~/.dsh-test' }), join(homedir(), '.dsh-test', 'fishfm', 'music.sqlite'));
   const databaseRelativeToRepo = relative(root, defaultDatabase({}));
   assert.ok(isAbsolute(databaseRelativeToRepo) || databaseRelativeToRepo.startsWith('..'),
     'the default database must be outside any repository checkout path');
-  assert.equal(defaultDatabase({ DSH_HOME: 'C:\\Users\\x\\.dsh' }).startsWith(root), false);
+  assert.equal(defaultDatabase({ DSH_HOME: dshHome }).startsWith(root), false);
 });
 
 test('apply registers the adapter and reports a core that cannot start', async () => {

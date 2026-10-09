@@ -371,13 +371,12 @@ window.__ModuleLoader__.load({
      const seconds=Math.max(0,Math.ceil(((availability?.retryAt??now)-now)/1000));
      if(reason==='summary_cooldown'&&seconds===0)reason=null;
      if(reason==='summary_retry_limit'&&now>=availability.resetAt)reason=null;
-     const remaining=`${Math.floor(seconds/60)}:${String(seconds%60).padStart(2,'0')}`;
-     const messages={summary_cooldown:'倒计时结束后可换一批，等待期间仍可点播歌曲。',
+     const messages={summary_cooldown:'刚挑过一批，稍后可再换；已有歌曲仍可点播。',
       summary_busy:'模型任务正在进行，完成后可再挑歌。',
       summary_retry_limit:'今天的挑歌次数已用完，明天可再换；已有歌曲仍可点播。',
       budget_exhausted:'模型预算不足，可在推荐设置中调整；已有歌曲仍可点播。'};
      return{reason,disabled:Boolean(reason),message:messages[reason]??'',
-      label:reason==='summary_cooldown'?`${remaining} 后可换`:reason==='summary_busy'?'模型处理中':reason==='summary_retry_limit'?'明天再换':reason==='budget_exhausted'?'预算不足':null};
+      label:reason==='summary_cooldown'?'稍后再试':reason==='summary_busy'?'模型处理中':reason==='summary_retry_limit'?'明天再换':reason==='budget_exhausted'?'预算不足':null};
     }
 
     function recommendationFeedback(error){
@@ -1019,10 +1018,12 @@ window.__ModuleLoader__.load({
       const clock=React.useRef({view,receivedAt:Date.now()});
       if(clock.current.view!==view)clock.current={view,receivedAt:Date.now()};
       React.useEffect(()=>{
-        if(!view?.recommendationAvailability?.retryAt)return undefined;
-        const timer=setInterval(()=>setLocalNow(Date.now()),1000);
-        return()=>clearInterval(timer);
-      },[view?.recommendationAvailability?.retryAt]);
+        const gate=view?.recommendationAvailability;
+        const deadline=gate?.reason==='summary_retry_limit'?gate.resetAt:gate?.retryAt;
+        if(!deadline)return undefined;
+        const timer=setTimeout(()=>setLocalNow(Date.now()),Math.max(0,deadline-(gate.serverNow??Date.now())));
+        return()=>clearTimeout(timer);
+      },[view?.recommendationAvailability]);
       React.useEffect(() => {
         if (view) { setBudget(view.policy.dailyTokens); setOutput(view.policy.maxOutputTokens); }
       }, [view?.policy?.dailyTokens, view?.policy?.maxOutputTokens]);
