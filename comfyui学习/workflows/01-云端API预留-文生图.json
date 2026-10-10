@@ -1,0 +1,282 @@
+{
+  "last_node_id": 7,
+  "last_link_id": 1,
+  "nodes": [
+    {
+      "id": 1,
+      "type": "Note",
+      "title": "先读这里：云端 API 尚未接入",
+      "pos": [
+        50,
+        20
+      ],
+      "size": [
+        1700,
+        150
+      ],
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [],
+      "properties": {
+        "Node name for S&R": "Note"
+      },
+      "widgets_values": [
+        "这是云端文生图的接线学习画布，尚不能出图。服务商、地址、模型和凭据按要求留空。\n左侧是文本，中间预留真实 API 节点，右侧是正常的本地图像处理和保存。中间说明框是 Note，不是 API 节点。\n图像 API 通常直接输出 IMAGE；不要把它接到 KSampler 的 MODEL 输入。若要学习完整采样过程，请打开 02 标准节点学习画布。"
+      ],
+      "color": "#223",
+      "bgcolor": "#334"
+    },
+    {
+      "id": 2,
+      "type": "PrimitiveStringMultiline",
+      "title": "① 提示词：描述想画什么",
+      "pos": [
+        70,
+        260
+      ],
+      "size": [
+        380,
+        270
+      ],
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "STRING",
+          "type": "STRING",
+          "links": [],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "PrimitiveStringMultiline"
+      },
+      "widgets_values": [
+        "a small orange cat sitting on a wooden windowsill, morning sunlight, green plants, watercolor illustration, soft colors, clean composition"
+      ]
+    },
+    {
+      "id": 3,
+      "type": "Note",
+      "title": "② 云端 API 区域（先留空）",
+      "pos": [
+        540,
+        260
+      ],
+      "size": [
+        400,
+        270
+      ],
+      "flags": {},
+      "order": 3,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [],
+      "properties": {
+        "Node name for S&R": "Note"
+      },
+      "widgets_values": [
+        "服务商：\n接口地址：\n模型名称：\n认证方式：\n\n接入后：\n左侧 STRING → API 的 prompt\nAPI 的 IMAGE → 右侧 image\n若 API 返回 URL / base64，适配节点须先转换为 IMAGE。\n不要将 API Key 写入工作流或说明框。"
+      ],
+      "color": "#223",
+      "bgcolor": "#334"
+    },
+    {
+      "id": 4,
+      "type": "ImageScale",
+      "title": "③ 调整输出尺寸（本地）",
+      "pos": [
+        1030,
+        260
+      ],
+      "size": [
+        300,
+        200
+      ],
+      "flags": {},
+      "order": 4,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "image",
+          "type": "IMAGE",
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            1
+          ],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "ImageScale"
+      },
+      "widgets_values": [
+        "lanczos",
+        1024,
+        0,
+        "disabled"
+      ]
+    },
+    {
+      "id": 5,
+      "type": "SaveImage",
+      "title": "④ 预览并保存 PNG（本地）",
+      "pos": [
+        1420,
+        260
+      ],
+      "size": [
+        320,
+        270
+      ],
+      "flags": {},
+      "order": 5,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 1
+        }
+      ],
+      "outputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "links": [],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "SaveImage"
+      },
+      "widgets_values": [
+        "learning/cloud-txt2img"
+      ]
+    },
+    {
+      "id": 6,
+      "type": "Note",
+      "title": "第一次练习",
+      "pos": [
+        70,
+        650
+      ],
+      "size": [
+        380,
+        190
+      ],
+      "flags": {},
+      "order": 6,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [],
+      "properties": {
+        "Node name for S&R": "Note"
+      },
+      "widgets_values": [
+        "先修改左侧提示词，不点击运行。\n示例结构：主体 + 场景 + 光线 + 风格。\n如：橘猫 + 窗台 + 清晨阳光 + 水彩。\n\n中间 API 接好后，先用默认参数生成一张；每次只改一个描述来比较。"
+      ],
+      "color": "#223",
+      "bgcolor": "#334"
+    },
+    {
+      "id": 7,
+      "type": "Note",
+      "title": "尺寸与保存说明",
+      "pos": [
+        1030,
+        650
+      ],
+      "size": [
+        710,
+        190
+      ],
+      "flags": {},
+      "order": 7,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [],
+      "properties": {
+        "Node name for S&R": "Note"
+      },
+      "widgets_values": [
+        "width=1024，height=0：按原始宽高比缩放；crop=disabled：不裁切。\n这是生成后的尺寸处理，不决定云端生成分辨率，也不是 AI 超分辨率。\n生成分辨率、seed、steps、CFG、负向提示词能否设置，取决于 API。\nSave Image 保存到当前执行后端的 output/learning/，并显示预览。\n当前 image 输入留空；点击运行会提示缺少输入，属于尚未接入的预期状态。"
+      ],
+      "color": "#223",
+      "bgcolor": "#334"
+    }
+  ],
+  "links": [
+    [
+      1,
+      4,
+      0,
+      5,
+      0,
+      "IMAGE"
+    ]
+  ],
+  "groups": [
+    {
+      "id": 1,
+      "title": "输入文本",
+      "bounding": [
+        50,
+        210,
+        420,
+        370
+      ],
+      "color": "#3f789e",
+      "font_size": 22,
+      "flags": {}
+    },
+    {
+      "id": 2,
+      "title": "预留云端服务",
+      "bounding": [
+        520,
+        210,
+        440,
+        370
+      ],
+      "color": "#a07035",
+      "font_size": 22,
+      "flags": {}
+    },
+    {
+      "id": 3,
+      "title": "正常图像工作流",
+      "bounding": [
+        1010,
+        210,
+        750,
+        370
+      ],
+      "color": "#3f789e",
+      "font_size": 22,
+      "flags": {}
+    }
+  ],
+  "config": {},
+  "extra": {
+    "ds": {
+      "scale": 0.65,
+      "offset": [
+        45,
+        60
+      ]
+    }
+  },
+  "version": 0.4
+}

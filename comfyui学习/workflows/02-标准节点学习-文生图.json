@@ -1,0 +1,581 @@
+{
+  "last_node_id": 12,
+  "last_link_id": 9,
+  "nodes": [
+    {
+      "id": 1,
+      "type": "Note",
+      "title": "标准文生图：先理解完整流程",
+      "pos": [
+        50,
+        10
+      ],
+      "size": [
+        1660,
+        150
+      ],
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [],
+      "properties": {
+        "Node name for S&R": "Note"
+      },
+      "widgets_values": [
+        "本画布完整保留 7 个标准节点。Checkpoint 当前留空，没有下载本地模型，当前不能出图。\n想保留所有节点并使用云端算力：将整张工作流导入云端 ComfyUI，在那里的 Checkpoint 节点选择云端模型。\n普通文生图 API 不能替换本节点的 MODEL / CLIP / VAE 输出；普通 API 的接入位置请看 01 云端 API 预留画布。"
+      ],
+      "color": "#223",
+      "bgcolor": "#334"
+    },
+    {
+      "id": 2,
+      "type": "CheckpointLoaderSimple",
+      "title": "① 模型来源：Checkpoint 留空",
+      "pos": [
+        70,
+        250
+      ],
+      "size": [
+        300,
+        130
+      ],
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "MODEL",
+          "type": "MODEL",
+          "links": [
+            1
+          ],
+          "slot_index": 0
+        },
+        {
+          "name": "CLIP",
+          "type": "CLIP",
+          "links": [
+            2,
+            3
+          ],
+          "slot_index": 1
+        },
+        {
+          "name": "VAE",
+          "type": "VAE",
+          "links": [
+            8
+          ],
+          "slot_index": 2
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "CheckpointLoaderSimple"
+      },
+      "widgets_values": [
+        ""
+      ]
+    },
+    {
+      "id": 3,
+      "type": "CLIPTextEncode",
+      "title": "② 正向提示词：希望出现",
+      "pos": [
+        450,
+        250
+      ],
+      "size": [
+        370,
+        230
+      ],
+      "flags": {},
+      "order": 3,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "clip",
+          "type": "CLIP",
+          "link": 2
+        }
+      ],
+      "outputs": [
+        {
+          "name": "CONDITIONING",
+          "type": "CONDITIONING",
+          "links": [
+            4
+          ],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "CLIPTextEncode"
+      },
+      "widgets_values": [
+        "a small orange cat sitting on a wooden windowsill, morning sunlight, green plants, watercolor illustration, soft colors, clean composition"
+      ],
+      "color": "#232",
+      "bgcolor": "#353"
+    },
+    {
+      "id": 4,
+      "type": "CLIPTextEncode",
+      "title": "③ 负向提示词：希望避免",
+      "pos": [
+        450,
+        560
+      ],
+      "size": [
+        370,
+        180
+      ],
+      "flags": {},
+      "order": 4,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "clip",
+          "type": "CLIP",
+          "link": 3
+        }
+      ],
+      "outputs": [
+        {
+          "name": "CONDITIONING",
+          "type": "CONDITIONING",
+          "links": [
+            5
+          ],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "CLIPTextEncode"
+      },
+      "widgets_values": [
+        "blurry, low quality, watermark, text"
+      ],
+      "color": "#322",
+      "bgcolor": "#533"
+    },
+    {
+      "id": 5,
+      "type": "EmptyLatentImage",
+      "title": "④ 画布尺寸（不是成品图片）",
+      "pos": [
+        70,
+        510
+      ],
+      "size": [
+        300,
+        130
+      ],
+      "flags": {},
+      "order": 5,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "LATENT",
+          "type": "LATENT",
+          "links": [
+            6
+          ],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "EmptyLatentImage"
+      },
+      "widgets_values": [
+        512,
+        512,
+        1
+      ]
+    },
+    {
+      "id": 6,
+      "type": "KSampler",
+      "title": "⑤ 采样：逐步生成画面",
+      "pos": [
+        900,
+        250
+      ],
+      "size": [
+        300,
+        290
+      ],
+      "flags": {},
+      "order": 6,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 1
+        },
+        {
+          "name": "positive",
+          "type": "CONDITIONING",
+          "link": 4
+        },
+        {
+          "name": "negative",
+          "type": "CONDITIONING",
+          "link": 5
+        },
+        {
+          "name": "latent_image",
+          "type": "LATENT",
+          "link": 6
+        }
+      ],
+      "outputs": [
+        {
+          "name": "LATENT",
+          "type": "LATENT",
+          "links": [
+            7
+          ],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "KSampler"
+      },
+      "widgets_values": [
+        42,
+        "fixed",
+        20,
+        7,
+        "euler",
+        "normal",
+        1
+      ]
+    },
+    {
+      "id": 7,
+      "type": "VAEDecode",
+      "title": "⑥ VAE：把潜空间转成图片",
+      "pos": [
+        1270,
+        250
+      ],
+      "size": [
+        240,
+        100
+      ],
+      "flags": {},
+      "order": 7,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "samples",
+          "type": "LATENT",
+          "link": 7
+        },
+        {
+          "name": "vae",
+          "type": "VAE",
+          "link": 8
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            9
+          ],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "VAEDecode"
+      },
+      "widgets_values": []
+    },
+    {
+      "id": 8,
+      "type": "SaveImage",
+      "title": "⑦ 预览并保存 PNG",
+      "pos": [
+        1580,
+        250
+      ],
+      "size": [
+        320,
+        300
+      ],
+      "flags": {},
+      "order": 8,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 9
+        }
+      ],
+      "outputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "links": [],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "SaveImage"
+      },
+      "widgets_values": [
+        "learning/standard-txt2img"
+      ]
+    },
+    {
+      "id": 9,
+      "type": "Note",
+      "title": "Checkpoint 三个输出",
+      "pos": [
+        70,
+        820
+      ],
+      "size": [
+        350,
+        230
+      ],
+      "flags": {},
+      "order": 9,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [],
+      "properties": {
+        "Node name for S&R": "Note"
+      },
+      "widgets_values": [
+        "MODEL：去噪模型，送到 KSampler。\nCLIP：文字编码器，送到两处提示词节点。\nVAE：解码器，送到 VAE Decode。\n\n不是 API 地址输入框。\n云端 ComfyUI 的 Checkpoint 同样读取那台服务器上的模型。\n本画布参数是 SD1.5 普通模型学习起点，不通用于所有模型。"
+      ],
+      "color": "#223",
+      "bgcolor": "#334"
+    },
+    {
+      "id": 10,
+      "type": "Note",
+      "title": "怎么阅读连线",
+      "pos": [
+        450,
+        820
+      ],
+      "size": [
+        370,
+        230
+      ],
+      "flags": {},
+      "order": 10,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [],
+      "properties": {
+        "Node name for S&R": "Note"
+      },
+      "widgets_values": [
+        "STRING：普通文字（云端 API 画布）。\nCONDITIONING：编码后的生成条件。\nLATENT：潜空间数据，还不是可见图片。\nIMAGE：已经解码的图片。\n\nEmpty Latent 只创建潜空间占位；\nKSampler 根据 seed 初始化采样噪声。\n端口类型必须匹配，不能只按位置连线。"
+      ],
+      "color": "#223",
+      "bgcolor": "#334"
+    },
+    {
+      "id": 11,
+      "type": "Note",
+      "title": "先掌握四个参数",
+      "pos": [
+        900,
+        820
+      ],
+      "size": [
+        370,
+        230
+      ],
+      "flags": {},
+      "order": 11,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [],
+      "properties": {
+        "Node name for S&R": "Note"
+      },
+      "widgets_values": [
+        "seed=42：固定初始噪声，便于比较。\nsteps=20：采样步数，更多不保证更好。\ncfg=7：提示词引导强度，不是画质分数。\ndenoise=1：基础文生图保持 1。\n\n首次学习保持 euler / normal 不变。\nbatch_size=1：每次一张。\n512×512 是 SD1.5 的常见学习起点。"
+      ],
+      "color": "#223",
+      "bgcolor": "#334"
+    },
+    {
+      "id": 12,
+      "type": "Note",
+      "title": "模型就绪后的练习顺序",
+      "pos": [
+        1320,
+        820
+      ],
+      "size": [
+        580,
+        230
+      ],
+      "flags": {},
+      "order": 12,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [],
+      "properties": {
+        "Node name for S&R": "Note"
+      },
+      "widgets_values": [
+        "1. 在执行后端选择匹配的模型，再点击 Run / 运行。\n2. 保持 seed=42，只把 orange cat 改成 white cat。\n3. 恢复主体，比较 watercolor 和 photograph。\n4. 只改 seed，观察构图差异。\n5. 最后比较 steps=20 与 30；不要一次改多个参数。\n\n保存路径：执行后端 output/learning/。\n固定 seed 便于同一环境比较，不保证跨模型、跨硬件完全一致。"
+      ],
+      "color": "#223",
+      "bgcolor": "#334"
+    }
+  ],
+  "links": [
+    [
+      1,
+      2,
+      0,
+      6,
+      0,
+      "MODEL"
+    ],
+    [
+      2,
+      2,
+      1,
+      3,
+      0,
+      "CLIP"
+    ],
+    [
+      3,
+      2,
+      1,
+      4,
+      0,
+      "CLIP"
+    ],
+    [
+      4,
+      3,
+      0,
+      6,
+      1,
+      "CONDITIONING"
+    ],
+    [
+      5,
+      4,
+      0,
+      6,
+      2,
+      "CONDITIONING"
+    ],
+    [
+      6,
+      5,
+      0,
+      6,
+      3,
+      "LATENT"
+    ],
+    [
+      7,
+      6,
+      0,
+      7,
+      0,
+      "LATENT"
+    ],
+    [
+      8,
+      2,
+      2,
+      7,
+      1,
+      "VAE"
+    ],
+    [
+      9,
+      7,
+      0,
+      8,
+      0,
+      "IMAGE"
+    ]
+  ],
+  "groups": [
+    {
+      "id": 1,
+      "title": "模型与尺寸",
+      "bounding": [
+        50,
+        200,
+        340,
+        530
+      ],
+      "color": "#3f789e",
+      "font_size": 22,
+      "flags": {}
+    },
+    {
+      "id": 2,
+      "title": "描述画面",
+      "bounding": [
+        430,
+        200,
+        410,
+        560
+      ],
+      "color": "#3f789e",
+      "font_size": 22,
+      "flags": {}
+    },
+    {
+      "id": 3,
+      "title": "采样",
+      "bounding": [
+        880,
+        200,
+        340,
+        380
+      ],
+      "color": "#3f789e",
+      "font_size": 22,
+      "flags": {}
+    },
+    {
+      "id": 4,
+      "title": "解码与保存",
+      "bounding": [
+        1250,
+        200,
+        670,
+        380
+      ],
+      "color": "#3f789e",
+      "font_size": 22,
+      "flags": {}
+    }
+  ],
+  "config": {},
+  "extra": {
+    "ds": {
+      "scale": 0.65,
+      "offset": [
+        45,
+        60
+      ]
+    }
+  },
+  "version": 0.4
+}
