@@ -89,3 +89,7 @@ SOFTWARE.
 ## DeepSeek Balance Whale Widget — reference only
 
 The widget's bubble, compact status, and three-dot menu informed the FishFM overlay. No code or artwork was copied. The upstream repository states that its code is MIT-licensed while `assets/**` is outside that grant; FishFM therefore uses the project's own generated art in `src/ui/assets/`. See [upstream provenance](https://raw.githubusercontent.com/MeteorNOX/DeepSeek-Balance-Whale-Widget/main/PROVENANCE.md).
+
+## 派蒙 SVG 临摹练习
+
+2026-10-10 用户要求先查找原图再制作 SVG 线稿，`comfyui学习/paimon-line-art.svg` 参考 [Creative Uncut 收录的派蒙立绘](https://www.creativeuncut.com/gallery-39/gi-paimon.html) 手写矢量路径重画，`comfyui学习/paimon-line-art-preview.png` 是该 SVG 的渲染预览。原角色及立绘的权益归原权利人，参考页面没有提供开放许可，具体绘师与再分发许可未确认；上述练习素材明确排除在本项目 MIT 授权范围之外。它们不作为 FishFM 生产界面素材。原图版本、摘要、临摹范围与验证见 [临摹参考记录](comfyui学习/paimon-line-art-notes.md)，原始 JPEG 没有收入仓库。
