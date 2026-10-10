@@ -1,6 +1,6 @@
 {
   "last_node_id": 7,
-  "last_link_id": 1,
+  "last_link_id": 3,
   "nodes": [
     {
       "id": 1,
@@ -23,7 +23,7 @@
         "Node name for S&R": "Note"
       },
       "widgets_values": [
-        "这是云端文生图的接线学习画布，尚不能出图。服务商、地址、模型和凭据按要求留空。\n左侧是文本，中间预留真实 API 节点，右侧是正常的本地图像处理和保存。中间说明框是 Note，不是 API 节点。\n图像 API 通常直接输出 IMAGE；不要把它接到 KSampler 的 MODEL 输入。若要学习完整采样过程，请打开 02 标准节点学习画布。"
+        "云端文生图已接入 A6API 的 gpt-image-2.5。每次点击运行会生成一张图片并由服务商计费。\n左侧文字 → 云端生成 → 本地尺寸调整 → 保存 PNG。密钥只从本机配置读取，不在工作流内。\n普通图像 API 已在云端完成文字编码、采样和解码；学习完整标准节点请打开 02 画布。"
       ],
       "color": "#223",
       "bgcolor": "#334"
@@ -48,7 +48,9 @@
         {
           "name": "STRING",
           "type": "STRING",
-          "links": [],
+          "links": [
+            2
+          ],
           "slot_index": 0
         }
       ],
@@ -61,29 +63,47 @@
     },
     {
       "id": 3,
-      "type": "Note",
-      "title": "② 云端 API 区域（先留空）",
+      "type": "A6APITextToImage",
+      "title": "② 云端生成：gpt-image-2.5",
       "pos": [
         540,
         260
       ],
       "size": [
         400,
-        270
+        200
       ],
       "flags": {},
       "order": 3,
       "mode": 0,
-      "inputs": [],
-      "outputs": [],
+      "inputs": [
+        {
+          "name": "prompt",
+          "type": "STRING",
+          "link": 2,
+          "widget": {
+            "name": "prompt"
+          }
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            3
+          ],
+          "slot_index": 0
+        }
+      ],
       "properties": {
-        "Node name for S&R": "Note"
+        "Node name for S&R": "A6APITextToImage"
       },
       "widgets_values": [
-        "服务商：\n接口地址：\n模型名称：\n认证方式：\n\n接入后：\n左侧 STRING → API 的 prompt\nAPI 的 IMAGE → 右侧 image\n若 API 返回 URL / base64，适配节点须先转换为 IMAGE。\n不要将 API Key 写入工作流或说明框。"
-      ],
-      "color": "#223",
-      "bgcolor": "#334"
+        "",
+        "gpt-image-2.5",
+        "1024x1024"
+      ]
     },
     {
       "id": 4,
@@ -104,7 +124,7 @@
         {
           "name": "image",
           "type": "IMAGE",
-          "link": null
+          "link": 3
         }
       ],
       "outputs": [
@@ -185,7 +205,7 @@
         "Node name for S&R": "Note"
       },
       "widgets_values": [
-        "先修改左侧提示词，不点击运行。\n示例结构：主体 + 场景 + 光线 + 风格。\n如：橘猫 + 窗台 + 清晨阳光 + 水彩。\n\n中间 API 接好后，先用默认参数生成一张；每次只改一个描述来比较。"
+        "示例结构：主体 + 场景 + 光线 + 风格。\n如：橘猫 + 窗台 + 清晨阳光 + 水彩。\n\n先生成一张；每次只改一个描述来比较。\n每次运行都会调用 API，按服务商计费。\n此 API 未接入 seed，不能做固定噪声的对照。"
       ],
       "color": "#223",
       "bgcolor": "#334"
@@ -211,7 +231,7 @@
         "Node name for S&R": "Note"
       },
       "widgets_values": [
-        "width=1024，height=0：按原始宽高比缩放；crop=disabled：不裁切。\n这是生成后的尺寸处理，不决定云端生成分辨率，也不是 AI 超分辨率。\n生成分辨率、seed、steps、CFG、负向提示词能否设置，取决于 API。\nSave Image 保存到当前执行后端的 output/learning/，并显示预览。\n当前 image 输入留空；点击运行会提示缺少输入，属于尚未接入的预期状态。"
+        "width=1024，height=0：按原始比例缩放；crop=disabled：不裁切。\n这是生成后的本地尺寸处理，不决定云端分辨率，也不是 AI 超分辨率。\n云端生成尺寸在中间节点 size 设置，默认 1024x1024。\nSave Image 保存到当前后端 output/learning/，并显示预览。\n无自动重试或其他模型回退；超时先核对服务端记录，避免重复扣费。"
       ],
       "color": "#223",
       "bgcolor": "#334"
@@ -223,6 +243,22 @@
       4,
       0,
       5,
+      0,
+      "IMAGE"
+    ],
+    [
+      2,
+      2,
+      0,
+      3,
+      0,
+      "STRING"
+    ],
+    [
+      3,
+      3,
+      0,
+      4,
       0,
       "IMAGE"
     ]
@@ -243,7 +279,7 @@
     },
     {
       "id": 2,
-      "title": "预留云端服务",
+      "title": "云端生成 · A6API",
       "bounding": [
         520,
         210,
