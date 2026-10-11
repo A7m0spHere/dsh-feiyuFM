@@ -270,6 +270,32 @@ test('the DPAPI store keeps ciphertext on disk and round-trips the secret', { sk
   }
 });
 
+test('the DPAPI store also round-trips when only Windows PowerShell 5.1 is available', { skip: process.platform !== 'win32' ? 'DPAPI is Windows-only' : false }, async () => {
+  const { createDpapiCredentials, dpapiAvailable } = await import('../src/providers/credentials-dpapi.mjs');
+  const directory = mkdtempSync(join(tmpdir(), 'fishfm-dpapi-51-test-'));
+  const previous = process.env.FISHFM_PS_SHELL;
+  process.env.FISHFM_PS_SHELL = 'powershell.exe';
+  try {
+    const store = createDpapiCredentials({ directory });
+    const reference = 'fishfm/netease';
+    const secret = 'MUSIC_U=five-one-only-machine; __csrf=abc';
+
+    assert.equal(store.read(reference), null, 'nothing is stored to begin with');
+    if (!dpapiAvailable()) {
+      assert.ok(true, 'Windows PowerShell is unavailable; the 5.1 path was not exercised');
+      return;
+    }
+    store.write(reference, secret);
+    assert.equal(store.read(reference), secret, 'the 5.1 helper round-trips the secret exactly');
+    store.delete(reference);
+    assert.equal(store.describe(reference).present, false);
+  } finally {
+    if (previous === undefined) delete process.env.FISHFM_PS_SHELL;
+    else process.env.FISHFM_PS_SHELL = previous;
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
 test('the login command refuses providers without a confirmed profile, and supports --dry-run', async () => {
   // A provider with no endpoint profile must not silently pretend.
   const result = await new Promise((done) => {

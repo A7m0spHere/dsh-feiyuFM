@@ -9,9 +9,10 @@
 // the stored record contains ciphertext only. Cross-device copies of the file are
 // deliberately useless, which is the intended property.
 //
-// One environment detail matters: the helper needs PowerShell 7. Windows
-// PowerShell 5.1 cannot load System.Security.Cryptography.ProtectedData by
-// assembly name, which is a real failure observed while finishing this file.
+// One environment detail matters: Windows PowerShell 5.1 cannot load
+// System.Security.Cryptography.ProtectedData by full assembly name, so the
+// helper falls back to `Add-Type -AssemblyName System.Security`; both shells
+// are exercised by the tests.
 import { spawnSync } from 'node:child_process';
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -19,15 +20,15 @@ import { join } from 'node:path';
 const HELPER = join(import.meta.dirname, 'dpapi-helper.ps1');
 const TIMEOUT_MS = 60_000;
 
-/** `pwsh` first: 5.1 cannot load the ProtectedData assembly by name. */
+/** `pwsh` first; the helper itself also runs under Windows PowerShell 5.1. */
 function shellCandidates() {
   const configured = process.env.FISHFM_PS_SHELL;
   return configured ? [configured] : ['pwsh', 'powershell.exe'];
 }
 
 /**
- * Runs the DPAPI helper. Tries each shell in turn so a machine with only
- * Windows PowerShell fails with a clear reason instead of a silent null.
+ * Runs the DPAPI helper. Tries each shell in turn, so a machine with only
+ * Windows PowerShell still works through the helper's assembly-load fallback.
  */
 export function runDpapiHelper(operation, { input = '', timeoutMs = TIMEOUT_MS, helper = HELPER } = {}) {
   const attempts = [];

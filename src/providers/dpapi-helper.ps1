@@ -1,6 +1,12 @@
 param([Parameter(Mandatory = $true)][ValidateSet('protect', 'unprotect')][string]$Operation)
 $ErrorActionPreference = 'Stop'
-Add-Type -AssemblyName System.Security.Cryptography.ProtectedData
+# Windows PowerShell 5.1 cannot resolve the ProtectedData assembly by its full
+# name; `System.Security` loads it there. PowerShell 7 takes the first branch.
+try {
+  Add-Type -AssemblyName System.Security.Cryptography.ProtectedData
+} catch {
+  Add-Type -AssemblyName System.Security
+}
 $inputText = [Console]::In.ReadToEnd()
 if ($Operation -eq 'protect') {
   $plain = [System.Text.Encoding]::UTF8.GetBytes($inputText)
