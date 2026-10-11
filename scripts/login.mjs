@@ -11,7 +11,7 @@
 // behind. `--probe` additionally asks the platform who we are, which is the
 // first real check that the endpoint profile is right.
 import { spawn } from 'node:child_process';
-import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { neteaseEndpoints, NETEASE_ENDPOINT_PROVENANCE, NETEASE_QR_LOGIN_URL } from '../src/providers/endpoints/netease.mjs';
@@ -54,6 +54,16 @@ const store = {
 /** The most recent response body, kept only to describe its shape on failure. */
 let lastRawBody = null;
 
+// The QR image and the key file both encode the sign-in key. They exist only
+// for the duration of this run and are removed when it ends, either way.
+let imagePath = null;
+let loginKeyFile = null;
+function removeLoginArtifacts() {
+  for (const file of [imagePath, loginKeyFile]) {
+    if (file) { try { rmSync(file, { force: true }); } catch { /* best effort */ } }
+  }
+}
+
 const transport = createHttpTransport({
   // An override keeps diagnostics and tests off the live service.
   endpoints: neteaseEndpoints(process.env.FISHFM_NETEASE_BASE ? { base: process.env.FISHFM_NETEASE_BASE } : {}),
@@ -91,6 +101,7 @@ function describeShape(value, depth = 0) {
 }
 
 function fail(message, hint) {
+  removeLoginArtifacts();
   console.error(`\n✗ ${message}`);
   if (hint) console.error(`  ${hint}`);
   process.exit(1);
@@ -123,7 +134,6 @@ console.log(`\n1. sign-in key received: ${String(qr.key).slice(0, 8)}…`);
 // The QR image must be rendered locally: the service does not produce one
 // (measured 2026-09-27 — every candidate image endpoint answered 接口未找到).
 // The QR encodes the sign-in URL containing the key.
-let imagePath = null;
 let rendered = false;
 try {
   const { default: QRCode } = await import('qrcode');
@@ -147,8 +157,9 @@ try {
 }
 
 if (rendered) {
-  // Opening the image is the user's action, not a hidden one.
-  if (hasFlag('--open') || process.platform === 'win32') {
+    // Opening the image is the user's action, not a hidden one. Tests set
+    // FISHFM_LOGIN_NO_OPEN so a headless run never pops a viewer.
+    if (hasFlag('--open') || (process.platform === 'win32' && !process.env.FISHFM_LOGIN_NO_OPEN)) {
     try {
       const child = process.platform === 'darwin'
         ? spawn('open', [imagePath], { detached: true, stdio: 'ignore' })
@@ -162,11 +173,13 @@ if (rendered) {
   console.log('   the code is also printed above as text; scan either one');
 }
 
-// Keep the sign-in URL beside the image so a failed scan can be retried without
-// starting a new handshake (the key stays valid until the service expires it).
+// Keep the sign-in URL beside the image while this command runs, so a failed
+// scan can be retried without starting a new handshake (the key stays valid
+// until the service expires it). Both files carry the key, so neither is left
+// behind when the command ends.
 mkdirSync(stateDirectory, { recursive: true });
-writeFileSync(join(stateDirectory, `login-${providerName}.txt`),
-  `${NETEASE_QR_LOGIN_URL}?codekey=${qr.key}\n`, 'utf8');
+loginKeyFile = join(stateDirectory, `login-${providerName}.txt`);
+writeFileSync(loginKeyFile, `${NETEASE_QR_LOGIN_URL}?codekey=${qr.key}\n`, 'utf8');
 
 // --- 2. poll until confirmed -------------------------------------------------
 
@@ -194,6 +207,10 @@ while (Date.now() < deadline) {
 }
 
 if (status !== 'authorized') fail(`gave up after ${timeoutSeconds}s`, 'run the command again when you are ready to scan');
+
+// The sign-in succeeded; the QR artifacts carried a one-time key and are no
+// longer needed. (Failure paths remove them inside fail().)
+removeLoginArtifacts();
 
 // --- 3. confirm what we stored ----------------------------------------------
 

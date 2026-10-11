@@ -339,3 +339,28 @@ test('--help-free smoke: the command starts, asks the platform, and reports a sh
     rmSync(directory, { recursive: true, force: true });
   }
 });
+
+test('the login command removes its QR image and key file when the run fails', async () => {
+  const server = await qrServer({ codes: [801] });
+  const directory = mkdtempSync(join(tmpdir(), 'fishfm-login-clean-fail-'));
+  try {
+    const result = await new Promise((done) => {
+      const child = spawn(process.execPath, [join(root, 'scripts', 'login.mjs'), '--dry-run', '--out', directory, '--timeout', '1'], {
+        windowsHide: true,
+        env: { ...process.env, FISHFM_NETEASE_BASE: `${server.origin}/api`, FISHFM_LOGIN_NO_OPEN: '1' },
+      });
+      let out = '';
+      child.stdout.on('data', (chunk) => { out += chunk; });
+      child.stderr.on('data', (chunk) => { out += chunk; });
+      child.on('close', (code) => done({ code, out }));
+    });
+    assert.equal(result.code, 1, 'an unconfirmed sign-in is a failure');
+    assert.match(result.out, /gave up after 1s/);
+    assert.match(result.out, /QR image written to/, 'the artifacts existed during the run');
+    assert.equal(existsSync(join(directory, 'login-netease.png')), false, 'the QR image must not survive the run');
+    assert.equal(existsSync(join(directory, 'login-netease.txt')), false, 'the key file must not survive the run');
+  } finally {
+    await server.close();
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
