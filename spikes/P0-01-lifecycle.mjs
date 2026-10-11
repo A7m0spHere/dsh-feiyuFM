@@ -8,7 +8,7 @@ export const inject = ['sessions', 'tools', 'credentials'];
 function dpapi(operation, input) {
   return new Promise((resolve, reject) => {
     const helper = spawn('pwsh', [
-      '-NoProfile', '-File', fileURLToPath(new URL('P0-06-dpapi.ps1', import.meta.url)),
+      '-NoProfile', '-File', fileURLToPath(new URL('../src/providers/dpapi-helper.ps1', import.meta.url)),
       '-Operation', operation,
     ], { windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'] });
     let output = '';

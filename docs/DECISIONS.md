@@ -409,3 +409,7 @@ N19 的 4 个持有者阈值是历史实测，不是 WPF 固定契约。本轮�
 ## 41. 手动找歌取消 15 分钟等待（2026-10-09）
 
 用户截图显示没有入选歌曲时“找一批歌”仍被 15 分钟倒计时禁用，明确要求取消。修订第 38 节：手动 `discovery-filter` 不受模型冷却限制，前端不显示倒计时；后台自动调用继续遵守冷却，并发预留、每日 12 次、共享预算与失败计费保留。平台的 1 分钟刷新节流与相同候选缓存复用保留，取消等待不保证平台或模型一定返回歌曲。证据见 [U18](spikes/U18-manual-picking-without-countdown.md)。
+
+## 42. 凭据助手随包发布，CLI 登录保持仓库内工具（2026-10-11）
+
+安装前核查发现 `credentials-dpapi.mjs` 引用的 DPAPI 助手位于 `spikes/`，而发布白名单不含该目录，安装态下插件 Core（`bin/fishfm-core.mjs` 经 `createPlatformCredentials`）与 CLI 都无法持久化网易云会话。助手是生产运行时代码，移入 `src/providers/dpapi-helper.ps1` 并纳入 `files` 与包校验清单；同时修正该文件头部注释：`index.js` 未把宿主 `ctx.credentials` 传给跨进程的 Core，凭据存储由 Core 自建。`scripts/login.mjs` 不随包发布——README、MVP 与交付记录均未把 `npm run login` 列为用户功能，产品登录入口是 DSH 设置页扫码，CLI 登录是仓库内开发工具，不为此扩大 `scripts/` 打包范围。验收标准：从发布 tarball 解包运行，凭据写入、读取、删除全部成功。

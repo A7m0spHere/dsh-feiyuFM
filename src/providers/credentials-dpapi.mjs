@@ -1,7 +1,7 @@
-// A standalone credential store for the command-line path.
-//
-// The DSH plugin gets `ctx.credentials` (verified in P0-06). A login run outside
-// DSH has no context, so this stores the same kind of thing the same way:
+// A standalone credential store for platform sessions outside the DSH host.
+// The core process owns platform logins — the spawned `bin/fishfm-core.mjs`
+// cannot reach `ctx.credentials` across processes — and `scripts/login.mjs`
+// signs in before or outside DSH. Both store the same way:
 // **DPAPI CurrentUser ciphertext on disk, keyed by the credential reference**.
 // SQLite keeps only the reference, never the secret.
 //
@@ -16,7 +16,7 @@ import { spawnSync } from 'node:child_process';
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-const HELPER = join(import.meta.dirname, '..', '..', 'spikes', 'P0-06-dpapi.ps1');
+const HELPER = join(import.meta.dirname, 'dpapi-helper.ps1');
 const TIMEOUT_MS = 60_000;
 
 /** `pwsh` first: 5.1 cannot load the ProtectedData assembly by name. */

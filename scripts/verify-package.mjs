@@ -21,6 +21,7 @@ for (const path of [
   'package.json', 'index.js', 'cordis.patch.yml', 'bin/fishfm-core.mjs',
   'src/ui/dsh-client.js', 'src/playback/host/macos-host-launcher.mjs',
   'src/playback/host/fishfm-macos-host.swift', 'src/playback/host/wpf-media-host.ps1',
+  'src/providers/dpapi-helper.ps1',
   'src/ui/assets/whale-idle.png', 'src/ui/assets/whale-listening.png', 'src/ui/assets/whale-dj.png',
   'src/ui/assets/whale-pot-dance.gif', 'src/ui/assets/whale-pot-still.png',
   ...['glm', 'deepseek', 'claude', 'gemini', 'gpt', 'grok'].map(name => `src/ui/assets/dolls/doll-${name}.png`),
