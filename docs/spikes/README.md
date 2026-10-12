@@ -6,6 +6,8 @@ N7/R2 的短跑或合成演练不能替代 A09 两小时验收；U3/U4 等 PHL �
 
 最新推荐与界面从 [N22](N22-platform-first-recommendations.md) 读起，播放中断修复见 [N21](N21-playback-interruption-recovery.md)，macOS 源码移植见 [MACOS_PORT](MACOS_PORT.md)，此前紧凑布局与素材/彩蛋见 U14、U12/U13。各报告的测试数量和安装包均按日期理解，当前状态统一看开发路线。
 
+beta.3 的模型协议／最终回答与日常原生 Desktop 重启补验见 [N23](N23-model-route-completion.md)。
+
 本目录存报告与证据；可执行的早期探针在 [根 spikes](../../spikes/README.md)，归档交接文字在 [archive](../archive/README.md)。
 
 ## 自主听歌、推荐与后续修复

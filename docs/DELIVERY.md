@@ -74,7 +74,7 @@ DSH `0.2.0-rc.2` 的插件页暂不支持自动更新。先在插件管理器卸
 
 ## 验证与边界
 
-最新验证为 [beta.3 发布前验收](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/releases/0.1.0-beta.3-acceptance.md)：435/435、132 模块、构建和正式打包通过；Windows 隔离实包完成真人扫码、100 首近期导入、搜索/听音/控制、暂停静音恢复和停用清理，真实筛选仍失败，暂不发布。日常生产没有重载。历史真实链路见 [P3](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/spikes/P3-real-loop.md)，旧版模型生成见 [N11](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/spikes/N11-model-playlist.md)；N22 隔离浏览器 20 个组合保留，不代表当前模型质量。首包和 U12 历史 tarball 不能代替本轮源码安装包。
+最新补验见 [N23](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/spikes/N23-model-route-completion.md)：真实平台候选经模型选出歌曲、入选曲的 WPF 静音进度与日常原生 Desktop 正常退出重开已通过；输出耗尽和只有推理无答案分别提示，默认额度仍为 256，可在推荐设置调到 4096，仍受共享日预算限制。前轮 Windows 实包、DPAPI、真人扫码、导入／听音／控制与停用证据在 [beta.3 验收](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/releases/0.1.0-beta.3-acceptance.md)。最新测试计数与最终包状态只在开发路线维护；首包和 U12 历史 tarball 不能代替本轮安装包。
 
 当前默认从 5 个持有者开始，按实际 Open 耗时最多补齐到 8 个；独立实测用了 6 个，后续加载 484ms。首曲仍冷，预热/打开时间随环境变化。`FISHFM_PLAYBACK_WARM_HOLDERS=0..8` 可指定固定数量，0 关闭。
 

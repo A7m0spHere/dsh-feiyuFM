@@ -1,0 +1,241 @@
+{
+  "date": "2026-10-12",
+  "baseline": "2790b16",
+  "sourceVersion": "0.1.0-beta.3",
+  "published": false,
+  "tests": {
+    "total": 438,
+    "passed": 438,
+    "failed": 0,
+    "skipped": 0
+  },
+  "check": {
+    "modules": 133,
+    "passed": true
+  },
+  "buildAndDebugSmoke": true,
+  "validatedPackageSnapshot": {
+    "filename": "dsh-feiyufm-core-0.1.0-beta.3.tgz",
+    "size": 35132088,
+    "unpackedSize": 64229056,
+    "entryCount": 4878,
+    "projectFiles": 95,
+    "sha1": "5c068cfb4a27e41c065e6bb94d964204fe19423a",
+    "integrity": "sha512-tZWiKGCtbi98icfIfgEa2EcuTnzZeIQs9L9Att/Eb3MKaIc9QPD0SFUa3rQyQ/yDeRnL8JkWTpu+THx+MfhLqQ==",
+    "npmConsumer": "pass",
+    "officialDshInstallAndManagerEnable": "pass",
+    "projectBytesEqualInBothInstallsAtValidation": true,
+    "scope": "snapshot_verified_before_documentation_closeout_repack_required_for_publication"
+  },
+  "credentials": {
+    "powershell7": "pass",
+    "powershell51": "pass",
+    "powershell51OnlyPath": "pass",
+    "restartRead": "pass"
+  },
+  "model": {
+    "protocol": "openai-completions",
+    "thinkingFormat": "deepseek",
+    "candidates": 40,
+    "picked": 9,
+    "inputTokens": 769,
+    "outputTokens": 160,
+    "reasoningChars": 0,
+    "finalTextChars": 288,
+    "finishReason": "stop",
+    "failedAttemptsRetained": true
+  },
+  "desktopRestart": {
+    "normalMenuExitByUser": true,
+    "oldApplicationHostCoreExited": true,
+    "libraryBefore": 233,
+    "libraryAfter": 233,
+    "positionBeforeMs": 48789,
+    "positionAfterMs": 48789,
+    "pausedPreserved": true,
+    "switchesPreserved": true,
+    "modelRoutePreserved": true
+  },
+  "installedModeMatrix": {
+    "checks": [
+      {
+        "kind": "mode",
+        "mode": "normal",
+        "settings": {
+          "listening": true,
+          "humanPlayback": true,
+          "discovery": true,
+          "discoveryRate": 0.2,
+          "strategy": "normal"
+        },
+        "paused": false
+      },
+      {
+        "kind": "mode",
+        "mode": "focus",
+        "settings": {
+          "listening": true,
+          "humanPlayback": true,
+          "discovery": true,
+          "discoveryRate": 0.2,
+          "strategy": "focus"
+        },
+        "paused": false
+      },
+      {
+        "kind": "mode",
+        "mode": "silent",
+        "settings": {
+          "listening": true,
+          "humanPlayback": false,
+          "discovery": true,
+          "discoveryRate": 0.2,
+          "strategy": "focus"
+        },
+        "paused": false
+      },
+      {
+        "kind": "mode",
+        "mode": "off",
+        "settings": {
+          "listening": false,
+          "humanPlayback": false,
+          "discovery": true,
+          "discoveryRate": 0.2,
+          "strategy": "focus"
+        },
+        "paused": true
+      },
+      {
+        "kind": "switches",
+        "listening": true,
+        "humanPlayback": true,
+        "paused": true
+      },
+      {
+        "kind": "switches",
+        "listening": true,
+        "humanPlayback": false,
+        "paused": true
+      },
+      {
+        "kind": "switches",
+        "listening": false,
+        "humanPlayback": true,
+        "paused": true
+      },
+      {
+        "kind": "switches",
+        "listening": false,
+        "humanPlayback": false,
+        "paused": true
+      }
+    ],
+    "libraryBefore": 100,
+    "libraryAfter": 100,
+    "modelCallsBefore": 10,
+    "modelCallsAfter": 10
+  },
+  "shortRun": {
+    "status": "interrupted",
+    "stopReason": "user_ended_early",
+    "startedAt": 1791810828108,
+    "finishedAt": 1791814111478,
+    "elapsedMs": 3283370,
+    "sameRun": true,
+    "uninterruptedEvidence": true,
+    "samplingComplete": true,
+    "naturalAutonomousEnds": 16,
+    "validAgentListens": 16,
+    "validUnfamiliarListens": 3,
+    "missingHistory": 0,
+    "duplicateHistory": 0,
+    "controlInterventions": 0,
+    "playbackErrors": 0,
+    "observedHostServiceCalls": 7,
+    "growthApplicationMarkersObserved": 0,
+    "growthApplicationAudit": "not-closed",
+    "musicRequestAttribution": "not-closed",
+    "unattendedTwoHourPassed": false,
+    "a09Passed": false,
+    "resources": {
+      "core": {
+        "samples": 653,
+        "firstRss": 104235008,
+        "lastRss": 108834816,
+        "maxSampleGapMs": 10043,
+        "firstTenMinuteMean": 149980091.73333332,
+        "lastTenMinuteMean": 111049753.81512605
+      },
+      "adapter": {
+        "samples": 653,
+        "firstRss": 210374656,
+        "lastRss": 238673920,
+        "maxSampleGapMs": 10014,
+        "firstTenMinuteMean": 218938470.4,
+        "lastTenMinuteMean": 239960304.94117647
+      }
+    }
+  },
+  "context": {
+    "scope": "selected_persisted_session_context_metadata",
+    "promptBodiesIncluded": false,
+    "concurrency": "serial_only",
+    "pairedPluginComparison": "not-completed",
+    "sessions": [
+      {
+        "completedTurns": 1,
+        "requestHeaders": [
+          {
+            "toolCount": 1,
+            "musicToolCount": 0
+          }
+        ],
+        "systemMessages": [
+          {
+            "contentBytes": 55450,
+            "fingerprint": "e096bc4590de0791b40947db74476fead652b6c800ae1b7bde986e9fc07549f7",
+            "musicToolNames": [
+              "fishfm_control",
+              "fishfm_request_track",
+              "fishfm_status"
+            ],
+            "musicStateFieldMarkers": []
+          }
+        ]
+      },
+      {
+        "completedTurns": 1,
+        "requestHeaders": [
+          {
+            "toolCount": 1,
+            "musicToolCount": 0
+          }
+        ],
+        "systemMessages": [
+          {
+            "contentBytes": 55450,
+            "fingerprint": "e096bc4590de0791b40947db74476fead652b6c800ae1b7bde986e9fc07549f7",
+            "musicToolNames": [
+              "fishfm_control",
+              "fishfm_request_track",
+              "fishfm_status"
+            ],
+            "musicStateFieldMarkers": []
+          }
+        ]
+      }
+    ]
+  },
+  "remaining": [
+    "two-hour-run",
+    "paired-dsh-comparison-and-attribution",
+    "growth-application-audit",
+    "concurrent-sessions",
+    "full-window-coverage",
+    "live-interruption-recovery",
+    "macos-real-device"
+  ],
+  "crossDevice": "deferred_by_user",
+  "implementationCommit": "e5ad1831a103560a690897cc1c6784dd11681234"
+}

@@ -413,3 +413,7 @@ N19 的 4 个持有者阈值是历史实测，不是 WPF 固定契约。本轮�
 ## 42. 凭据助手随包发布，CLI 登录保持仓库内工具（2026-10-11）
 
 安装前核查发现 `credentials-dpapi.mjs` 引用的 DPAPI 助手位于 `spikes/`，而发布白名单不含该目录，安装态下插件 Core（`bin/fishfm-core.mjs` 经 `createPlatformCredentials`）与 CLI 都无法持久化网易云会话。助手是生产运行时代码，移入 `src/providers/dpapi-helper.ps1` 并纳入 `files` 与包校验清单；同时修正该文件头部注释：`index.js` 未把宿主 `ctx.credentials` 传给跨进程的 Core，凭据存储由 Core 自建。`scripts/login.mjs` 不随包发布——README、MVP 与交付记录均未把 `npm run login` 列为用户功能，产品登录入口是 DSH 设置页扫码，CLI 登录是仓库内开发工具，不为此扩大 `scripts/` 打包范围。验收标准：从发布 tarball 解包运行，凭据写入、读取、删除全部成功。
+
+## 43. 模型最终回答与可调输出额度（2026-10-12）
+
+beta.3 补验确认，兼容服务的不同协议路线可能有不同的关闭推理行为；HTTP 200 和推理流不能证明筛选完成。模型服务拒绝以 max-tokens 结束的结果，区分只有推理而无最终文本的失败，继续保留旧结果与用量。单次输出范围扩展到 64–4096，保留默认 256 和所有既有设置，不自动扩大共享预算；不能靠扩大额度掩盖错误的协议配置。经真实 OpenAI 兼容路由完成 40 候选→9 入选→WPF 播放闭环，具体配置与边界见 [N23](spikes/N23-model-route-completion.md)。
