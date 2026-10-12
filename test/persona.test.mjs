@@ -161,7 +161,7 @@ test('a summary stored before baselines existed cannot trigger an automatic run 
 test('the saved output cap is bounded, reaches the plan and never rewrites the policy default',async()=>{
  const store=new MusicStore();try{
   assert.throws(()=>setSummaryOutputTokens(store,32),e=>e.code==='invalid_output');
-  assert.throws(()=>setSummaryOutputTokens(store,512),e=>e.code==='invalid_output');
+  assert.throws(()=>setSummaryOutputTokens(store,4097),e=>e.code==='invalid_output');
   assert.throws(()=>setSummaryBudget(store,1.5),e=>e.code==='invalid_budget');
   assert.throws(()=>setSummaryAutomatic(store,'yes'),e=>e.code==='invalid_automatic');
   setSummaryOutputTokens(store,64);
@@ -176,6 +176,42 @@ test('a per-call cap lowers the model request without changing the stored settin
   assert.equal(f.maxTokens(),64);assert.equal(personaView(f.store,snapshot).policy.maxOutputTokens,256,'the per-call cap is not a policy rewrite');
   await f.service.summarize(route,{maxOutputTokens:4096});
   assert.equal(f.calls(),1,'the cached profile is reused, so no second request is sent');
+ }finally{f.service.dispose();f.store.close();}
+});
+
+test('a saved reasoning-sized output cap is reserved before dispatch and remains within the daily budget',async()=>{
+ const f=modelFixture();try{
+  setSummaryOutputTokens(f.store,4096);
+  assert.equal(personaView(f.store,snapshot).policy.outputMaximumTokens,4096);
+  await assert.rejects(()=>f.service.summarize(route),{code:'budget_exhausted'});
+  assert.equal(f.calls(),0);assert.equal(personaView(f.store,snapshot).ledger.total.attempts,0);
+  setSummaryBudget(f.store,10000);
+  await f.service.summarize(route);assert.equal(f.maxTokens(),4096);
+  assert.equal(personaView(f.store,snapshot).ledger.total.knownTokens,143);
+ }finally{f.service.dispose();f.store.close();}
+});
+
+test('a max-token finish cannot replace an existing result even with parseable text, and usage is charged once',async()=>{
+ const f=modelFixture({chunks:[{type:'text-delta',text:'{"summary":"partial","picks":[]}'},
+  {type:'usage',usage:{inputTokens:12,outputTokens:256}},{type:'finish',reason:{kind:'max-tokens'}}]});
+ try{
+  f.store.setSetting('persona_summary_v1',{text:'已有结果',factHash:'previous'});
+  await assert.rejects(()=>f.service.summarize(route),{code:'model_output_limit'});
+  const view=personaView(f.store,snapshot);
+  assert.equal(view.summary.text,'已有结果');assert.equal(view.ledger.total.attempts,1);
+  assert.equal(view.ledger.total.knownTokens,268);assert.equal(view.ledger.recent[0].status,'failed');
+  assert.equal(view.ledger.recent[0].errorCode,'model_output_limit');assert.equal(f.calls(),1);
+ }finally{f.service.dispose();f.store.close();}
+});
+
+test('reasoning without final text stays a failed billed call and is never used as a summary',async()=>{
+ const f=modelFixture({chunks:[{type:'reasoning-delta',text:'private reasoning'},
+  {type:'usage',usage:{inputTokens:12,outputTokens:30}},{type:'finish',reason:{kind:'stop'}}]});
+ try{
+  await assert.rejects(()=>f.service.summarize(route),{code:'model_no_final_text'});
+  const view=personaView(f.store,snapshot);
+  assert.equal(view.summary,null);assert.equal(view.ledger.total.knownTokens,42);
+  assert.equal(view.ledger.recent[0].errorCode,'model_no_final_text');assert.equal(f.calls(),1);
  }finally{f.service.dispose();f.store.close();}
 });
 function schedulerFixture(persona,summarize){

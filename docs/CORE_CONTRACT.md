@@ -74,7 +74,7 @@ Host `library` 接收 `query/offset/limit`：关键词最多 200 字符，offset
 
 用途为 `persona-summary/model-recommendations/discovery-filter`，经 `persona-reserve → persona-start → persona-finish`，用预留时的事实映射和同一 token 账本。逐曲执行和解释不调用模型。
 
-默认共享日预算 4000 tokens，可设 0–100000；输出 64–256，歌单至少 128。并发预留/运行只能一条，相同事实与模型复用缓存。未知 usage 按保守预留记账，失败不抹费用；重启把未结束调用标为 interrupted。
+默认共享日预算 4000 tokens，可设 0–100000；单次输出默认 256，可设 64–4096，歌单至少 128。提高输出上限须仍能满足共享日预算的保守预留，不自动扩大预算。并发预留/运行只能一条，相同事实与模型复用缓存。未知 usage 按保守预留记账，失败不抹费用；重启把未结束调用标为 interrupted。模型结束原因为 max-tokens 时记为 model_output_limit，即使已有可解析文本也不应用；只有推理块而无最终文本时记为 model_no_final_text，不将推理内容作为结果，也不在同一次调用中自动提高输出上限或重试。
 
 总结/歌单遵循日尝试上限 3，当前查询覆盖当日全部音乐模型调用；筛选单独计数，每日最多 12 次。普通用途冷却 1 小时，后台自动筛选冷却 15 分钟；手动 `discovery-filter` 不受模型冷却限制，失败/中断仍入账，预算与次数限制继续生效。精确门控见 [persona.mjs](../src/persona.mjs)。
 

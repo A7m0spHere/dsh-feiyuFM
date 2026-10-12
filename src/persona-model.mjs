@@ -31,7 +31,7 @@ export function createPersonaModelService({llm,bridge,onLog=()=>{}}){
   const abort=new AbortController();active.add(abort);const combined=signal?AbortSignal.any([abort.signal,signal]):abort.signal;
   if(disposed)abort.abort();
   const timer=setTimeout(()=>abort.abort(),45000);
-  let usage=null,text='',status='failed',code=null,started=false;
+  let usage=null,text='',status='failed',code=null,started=false,finishReason=null,reasoningOnly=false;
   const blocks=new Map();
   try{
    combined.throwIfAborted();
@@ -53,18 +53,29 @@ export function createPersonaModelService({llm,bridge,onLog=()=>{}}){
     if(chunk.type==='block-end'&&chunk.block?.type==='text'){const b=blocks.get(chunk.index??0)??{delta:''};b.complete=chunk.block.text;blocks.set(chunk.index??0,b);}
     text=[...blocks.entries()].sort(([a],[b])=>a-b).map(([,b])=>b.complete??b.delta).join('');
     if(chunk.type==='usage')usage=measuredUsage(chunk.usage);
+    if((chunk.type==='reasoning-delta'&&chunk.text?.trim())||(chunk.type==='block-end'&&chunk.block?.type==='reasoning'&&chunk.block.text?.trim()))reasoningOnly=true;
+    if(chunk.type==='finish'){
+     finishReason=chunk.reason?.kind??null;
+     try{onLog({type:'music-model-finish',kind:finishReason});}catch{}
+    }
     if(chunk.type==='finish'&&['error','aborted'].includes(chunk.reason?.kind))throw Object.assign(new Error('模型未完成总结。'),{code:chunk.reason?.failure?.code||'model_failed'});
     if(text.length>2400)throw Object.assign(new Error('总结超出长度限制。'),{code:'summary_too_long'});
     combined.throwIfAborted();
    }
-   status=text.trim()?'completed':'failed';if(status==='failed')code='empty_summary';
+   // Even parseable partial JSON is not a completed selection when the route
+   // reports truncation. Reasoning blocks never become playlist text.
+   status=text.trim()&&finishReason!=='max-tokens'?'completed':'failed';
+   if(status==='failed')code=finishReason==='max-tokens'?'model_output_limit':reasoningOnly?'model_no_final_text':'empty_summary';
   }catch(error){status=combined.aborted?'cancelled':'failed';code=combined.aborted?'cancelled':/^[\w-]{1,60}$/.test(error.code??'')?error.code:'model_failed';}
   finally{
    clearTimeout(timer);active.delete(abort);
    const finished=await bridge.request({type:'persona-finish',callId:plan.callId,status,text,usage:started?usage:{inputTokens:0,outputTokens:0},code,validListens:plan.validListens??null});
    if(status==='completed'&&finished.result?.success===false){status='failed';code=finished.result.code??'invalid_recommendations';}
   }
-  if(status!=='completed')throw Object.assign(new Error(purpose==='discovery-filter'?'这次挑歌没有完成，已有歌单保留；用量已记录。':purpose==='model-recommendations'?'歌单生成未成功，旧歌单保留；用量已记录。':'总结未成功，旧总结和本地推荐仍保留；用量已记录。'),{code:code||'model_failed'});
+  if(status!=='completed'){
+   const detail=code==='model_output_limit'?'模型已用完单次输出额度，未完成回答；可在推荐设置提高输出上限，或选择能关闭推理的模型。':code==='model_no_final_text'?'模型只返回推理内容，没有最终答案；请检查模型路由或更换模型。':null;
+   throw Object.assign(new Error(detail?`${detail}已有结果保留，用量已记录。`:purpose==='discovery-filter'?'这次挑歌没有完成，已有歌单保留；用量已记录。':purpose==='model-recommendations'?'歌单生成未成功，旧歌单保留；用量已记录。':'总结未成功，旧总结和本地推荐仍保留；用量已记录。'),{code:code||'model_failed'});
+  }
   return{cached:false};
  }
  return{models,summarize,peekModels:()=>catalog??(observed?[{...observed,label:`${observed.provider} · ${observed.model}`}]:[]),

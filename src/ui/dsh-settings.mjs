@@ -5,6 +5,7 @@ import { artworkCapabilities } from './artwork-assets.mjs';
 import { assertCommand, normalizeTrack } from '../contracts.mjs';
 import { NETEASE_QR_LOGIN_URL } from '../providers/endpoints/netease.mjs';
 import { prepareRecommendations } from '../persona-scheduler.mjs';
+import { OUTPUT_RANGE } from '../persona.mjs';
 
 const ALLOWED = new Set(['pause', 'resume', 'next', 'setListening', 'setHumanPlayback',
   'setDiscovery', 'setDiscoveryRate', 'setMode', 'stopForToday', 'chooseSelf', 'requestTrack', 'setTrackFeedback', 'resetTaste', 'resetLibrary', 'undoTasteReset','setRecommendationMode']);
@@ -12,7 +13,6 @@ const QUICK_LOGIN_PROVIDER = 'netease';
 const STATE_ENDPOINT = 'fishfm/state';
 const LIBRARY_ENDPOINT = 'fishfm/library';
 const PERSONA_ENDPOINTS=new Set(['fishfm/persona-summary','fishfm/persona-recommendations','fishfm/persona-budget','fishfm/persona-output','fishfm/persona-automatic']);
-const OUTPUT_RANGE={min:64,max:256};
 const PLATFORM_ENDPOINTS = new Set(['fishfm/login-start', 'fishfm/login-poll', 'fishfm/import', 'fishfm/logout', 'fishfm/discovery-refresh','fishfm/playlists']);
 const SAFE_STAGES = new Set(['login_qr_key', 'login_qr_check', 'login_status', 'user_record', 'likelist', 'user_playlist', 'playlist_detail', 'song_detail',
   'accountInfo', 'recentTracks', 'likedTracks', 'playlists', 'playlistTracks', 'songDetails']);
@@ -88,7 +88,7 @@ export function createSettingsHandler(bridge,summaryService={current:null}) {
         if(endpoint==='fishfm/persona-budget'){
           await bridge.request({type:'persona-budget',value:payload.value});
         }else if(endpoint==='fishfm/persona-output'){
-          if(!Number.isSafeInteger(payload?.value)||payload.value<OUTPUT_RANGE.min||payload.value>OUTPUT_RANGE.max)throw Object.assign(new Error('单次输出上限需在 64–256 tokens 之间。'),{code:'invalid_output'});
+          if(!Number.isSafeInteger(payload?.value)||payload.value<OUTPUT_RANGE.min||payload.value>OUTPUT_RANGE.max)throw Object.assign(new Error('单次输出上限需在 64–4096 tokens 之间。'),{code:'invalid_output'});
           await bridge.request({type:'persona-output',value:payload.value});
         }else if(endpoint==='fishfm/persona-automatic'){
           if(typeof payload?.value!=='boolean')throw Object.assign(new Error('自动总结只能是开启或关闭。'),{code:'invalid_automatic'});

@@ -138,7 +138,7 @@ test('persona endpoints validate their values and the summary honours the stored
 
   assert.equal((await api('fishfm/persona-budget', { value: 1.5 })).error.code, 'invalid_budget');
   assert.equal((await api('fishfm/persona-output', { value: 32 })).error.code, 'invalid_output');
-  assert.equal((await api('fishfm/persona-output', { value: 4096 })).error.code, 'invalid_output');
+  assert.equal((await api('fishfm/persona-output', { value: 4097 })).error.code, 'invalid_output');
   assert.equal((await api('fishfm/persona-automatic', { value: 'on' })).error.code, 'invalid_automatic');
   assert.deepEqual(sent, [], 'a rejected value never reaches Core');
 

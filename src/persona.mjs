@@ -14,11 +14,11 @@ export const DISCOVERY_FILTER_PURPOSE='discovery-filter';
 export const FILTER_POLICY=Object.freeze({dailyAttempts:12,cooldownMs:15*60_000,maxPicks:12,maxCandidates:30,maxPromptBytes:2600,
  minReasonLength:1,maxReasonLength:40,maxSummaryLength:60});
 export const BUDGET_RANGE={min:0,max:100000};
-export const OUTPUT_RANGE={min:SUMMARY_POLICY.minOutputTokens,max:SUMMARY_POLICY.maxOutputTokens};
+export const OUTPUT_RANGE={min:SUMMARY_POLICY.minOutputTokens,max:4096};
 
 const dayOf=now=>{const d=new Date(now);return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;};
 const MESSAGES={budget_exhausted:'今日模型预算不足，可在推荐设置中调整。',summary_busy:'已有模型任务正在进行。',summary_cooldown:'刚刚运行过，请稍后再试。',
- invalid_model:'请选择已配置的模型。',invalid_budget:'预算需为 0–100000 的整数。',invalid_output:'单次输出上限需在 64–256 tokens 之间。',
+ invalid_model:'请选择已配置的模型。',invalid_budget:'预算需为 0–100000 的整数。',invalid_output:'单次输出上限需在 64–4096 tokens 之间。',
  summary_retry_limit:'今日总结调用尝试已达上限，旧总结仍保留。',summary_input_too_large:'聚合事实超出输入上限，未发送任何请求。',
  automatic_disabled:'自动总结未开启，本次请求已拒绝。',invalid_automatic:'自动总结开关只能是开启或关闭。',
  not_enough_new_listens:'新增有效经历不足，自动总结不会运行。',summary_interval:'距上次成功总结不足 24 小时。',
