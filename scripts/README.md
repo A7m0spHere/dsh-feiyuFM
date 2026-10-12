@@ -22,6 +22,7 @@
 | `npm run preview:ui -- --react-root <已有 node_modules> --port 4179` | 模拟 UI，复用 React 18 UMD；不访问账号或播放歌曲 |
 | `npm run verify:package` | npm dry-run 白名单核对，不发布、不生成安装后的生产验收 |
 | `node scripts/verify-installed-package.mjs <consumer-directory>` | 在已安装的隔离消费者目录核对入口、资源、依赖及静音 WPF；消费者通常应在仓库外 |
+| `node scripts/verify-windows-credentials.mjs <installed-package-root>` | 必须在 Windows 上实测已安装包的 DPAPI：PowerShell 7、5.1、仅 5.1 PATH 的写入/跨进程读取/删除；使用合成数据，不输出凭据。非 Windows 明示不适用 |
 | `node scripts/dependency-notices.mjs` | 根据锁定依赖生成许可清单；生成结果需审阅并提交 |
 | `node scripts/import-doll-artwork.mjs --source <Workshop目录>` | 按 U12 来源 hash 提取原图；正常安装不需要再提取 |
 | `python scripts/cutout-whale-pot.py --source <原附件>` | U10 指定附件的逐帧资产构建，不用于普通运行；工具依赖见 U10 |
