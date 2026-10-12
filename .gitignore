@@ -46,3 +46,6 @@ Thumbs.db
 
 # Tool state: hook reports and run history written by the local security hook.
 .mimosa/
+
+# Personal ComfyUI learning files
+/comfyui学习/
