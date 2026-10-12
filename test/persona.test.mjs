@@ -50,7 +50,7 @@ test('concurrent reservations, budget zero and restart recovery cannot bypass co
   assert.throws(()=>reserveSummary({store,snapshot,...route,now:3001}),e=>e.code==='summary_cooldown');
  }finally{store.close();}
 });
-function modelFixture({chunks,hold}={}){
+function modelFixture({chunks,hold,resolveModelInfo,assertOptions}={}){
  const store=new MusicStore();let calls=0,lastMax=null;
  const bridge={async request(m){
   if(m.type==='persona-reserve')return{plan:reserveSummary({store,snapshot,...m})};
@@ -58,10 +58,35 @@ function modelFixture({chunks,hold}={}){
   if(m.type==='persona-finish')return{result:finishSummary({store,...m})};
  }};
  const llm={listProviders:()=>[{id:route.provider,name:'Configured'}],listModels:async()=>[{id:route.model,name:'Existing model'}],
+  ...(resolveModelInfo?{resolveModelInfo}:{}),
   stream(options){calls++;lastMax=options.maxTokens;assert.deepEqual(options.tools,[]);assert.equal(options.messages.length,2);
+   assertOptions?.(options);
    return(async function*(){if(hold)await hold;yield*(chunks??[{type:'text-delta',text:'只总结本地事实。'},{type:'usage',usage:{inputTokens:123,outputTokens:20}},{type:'finish',reason:{kind:'stop'}}]);})();}};
  return{store,service:createPersonaModelService({llm,bridge}),calls:()=>calls,maxTokens:()=>lastMax};
 }
+
+test('music calls request reasoning off only when the configured model declares it',async()=>{
+ for(const info of [undefined,{}, {reasoning:{efforts:[{id:'high'}],defaultEffort:'high'}}, {reasoning:{efforts:[{id:'off'},{id:'high'}]}}]){
+  const f=modelFixture({resolveModelInfo:info===undefined?undefined:async(provider,model)=>{
+   assert.equal(provider,route.provider);assert.equal(model,route.model);return info;
+  },assertOptions:options=>{
+   const supportsOff=info?.reasoning?.efforts?.some(effort=>effort.id==='off')===true;
+   assert.equal(Object.hasOwn(options,'reasoningEffort'),supportsOff,'unsupported request controls must not reach DSH');
+   if(supportsOff)assert.equal(options.reasoningEffort,'off');
+  }});
+  try{await f.service.summarize(route);assert.equal(f.calls(),1);assert.equal(personaView(f.store,snapshot).ledger.total.knownTokens,143);}
+  finally{f.service.dispose();f.store.close();}
+ }
+});
+
+test('disposal during model capability resolution cannot dispatch a music request',async()=>{
+ const ready=Promise.withResolvers(),entered=Promise.withResolvers();
+ const f=modelFixture({resolveModelInfo:()=>{entered.resolve();return ready.promise;}});
+ try{
+  const pending=f.service.summarize(route);await entered.promise;f.service.dispose();ready.resolve({});
+  await assert.rejects(()=>pending,{code:'cancelled'});assert.equal(f.calls(),0);
+ }finally{f.service.dispose();f.store.close();}
+});
 test('manual one-generation summaries record reported usage while identical repeated requests use cache',async()=>{
  const f=modelFixture();try{await f.service.summarize(route);await f.service.summarize(route);
   assert.equal(f.calls(),1);assert.equal(f.maxTokens(),256);assert.equal(personaView(f.store,snapshot).ledger.total.knownTokens,143);

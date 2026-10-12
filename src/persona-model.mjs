@@ -38,7 +38,12 @@ export function createPersonaModelService({llm,bridge,onLog=()=>{}}){
    const ack=await bridge.request({type:'persona-start',callId:plan.callId});
    if(!ack.started)throw new Error('Summary reservation was lost');started=true;
    const cap=Number.isSafeInteger(maxOutputTokens)?Math.min(maxOutputTokens,plan.maxTokens):plan.maxTokens;
-   const options={provider:plan.provider,model:plan.model,maxTokens:cap,reasoningEffort:'off',tools:[],signal:combined,
+   // DSH rejects even "off" when a model has no reasoning capability.
+   // Ask only for declared support; otherwise use the configured model default.
+   const info=typeof llm.resolveModelInfo==='function'?await llm.resolveModelInfo(plan.provider,plan.model,combined):null;
+   combined.throwIfAborted();
+   const options={provider:plan.provider,model:plan.model,maxTokens:cap,
+    ...(info?.reasoning?.efforts?.some(effort=>effort.id==='off')?{reasoningEffort:'off'}:{}),tools:[],signal:combined,
     messages:[{id:randomUUID(),role:'system',source:{kind:'system-prompt'},content:[{type:'text',text:plan.system}]},
      {id:randomUUID(),role:'user',source:{kind:'user'},content:[{type:'text',text:plan.prompt}]}]};
    ownRequests.add(options);try{onLog({type:'music-model-request',kind:purpose});}catch{/* Diagnostics never block a call. */}
