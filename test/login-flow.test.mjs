@@ -250,11 +250,7 @@ test('the DPAPI store keeps ciphertext on disk and round-trips the secret', { sk
     const secret = 'MUSIC_U=fake-session-for-roundtrip; __csrf=abc';
 
     assert.equal(store.read(reference), null, 'nothing is stored to begin with');
-    if (!dpapiAvailable()) {
-      // Be explicit rather than silently passing: this machine cannot protect.
-      assert.ok(true, 'no PowerShell with DPAPI available; encryption path not exercised');
-      return;
-    }
+    assert.equal(dpapiAvailable(), true, 'Windows acceptance requires usable DPAPI; an unavailable helper is a failure');
     store.write(reference, secret);
     const described = store.describe(reference);
     assert.equal(described.present, true);
@@ -281,10 +277,7 @@ test('the DPAPI store also round-trips when only Windows PowerShell 5.1 is avail
     const secret = 'MUSIC_U=five-one-only-machine; __csrf=abc';
 
     assert.equal(store.read(reference), null, 'nothing is stored to begin with');
-    if (!dpapiAvailable()) {
-      assert.ok(true, 'Windows PowerShell is unavailable; the 5.1 path was not exercised');
-      return;
-    }
+    assert.equal(dpapiAvailable(), true, 'Windows acceptance requires Windows PowerShell 5.1 DPAPI; an unavailable helper is a failure');
     store.write(reference, secret);
     assert.equal(store.read(reference), secret, 'the 5.1 helper round-trips the secret exactly');
     store.delete(reference);
