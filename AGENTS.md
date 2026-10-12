@@ -12,6 +12,7 @@
 ## 当前事实与维护入口
 
 - 当前实现为 N22：参考歌曲 → 网易云候选 → LLM 筛选 → 本地播放；默认 `filtered`，自动播放只取入选歌曲。模型与用量收入推荐设置，保留用户控制和旧数据。见 `docs/spikes/N22-platform-first-recommendations.md`。
+- beta.3 发布前状态见 `docs/releases/0.1.0-beta.3-acceptance.md`：T1/PowerShell 5.1/T8 在当前基线，实包验收与 `26a4e5c` 模型能力修复已有证据；npm 尚未发布，不将本轮隔离 profile 的结果当作日常生产或 macOS 真机通过。
 - U17 已修复慢平台请求阻塞播放、曲库 300 首展示限制与平台断连反馈，见 `docs/spikes/U17-control-library-fixes.md`。最新测试数量与真实音频基线统一见 `docs/PROJECT_PLAN.md`；离线和模拟浏览器结果不算新增音频、模型质量或生产验收。
 - npm `0.1.0-beta.2` 已上架，包含 N22/N21/U12–U14；`beta` 已更新、`latest` 保持 beta.1，registry 下载摘要与封存包一致，确认见 `docs/releases/0.1.0-beta.2.md`。生产未重载，U12 的 34.83 MB 本地 tarball 是历史实包，不能当最新安装包。具体版本/数据/未验项只在 `docs/PROJECT_PLAN.md` 维护。
 - 用户 2026-10-02 指定 QQ 接入暂缓，优先网易云与 UI；保留 QQ 代码与后续范围。Last.fm 富化需要用户 API key，尚未开工。

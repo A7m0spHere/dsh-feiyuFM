@@ -1,12 +1,12 @@
 # 交付与使用说明
 
-更新日期：2026-10-09。已发布 **0.1.0-beta.2** 仍是 Windows／网易云测试版，包含 U12/U13 彩蛋、N21 中断恢复、U14 紧凑布局与 N22 平台先推荐/模型再筛选；当前 `main` 另含 macOS 源码移植，尚未发布 npm 版本。稳定 v0.1 验收仍未完成。发行确认与摘要见 [beta.2 记录](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/releases/0.1.0-beta.2.md)，源码/发布/实包与验收状态统一见 [开发路线](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/PROJECT_PLAN.md)。
+更新日期：2026-10-12。已发布 **0.1.0-beta.2** 仍是 Windows／网易云测试版；当前 `main` 包含 U17/U18、DPAPI 助手入包及 PowerShell 5.1 修复，并有 macOS 实验性源码适配，beta.3 正在发布前验收，尚未发布。稳定 v0.1 验收仍未完成。发行确认与摘要见 [beta.2 记录](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/releases/0.1.0-beta.2.md)，源码/发布/实包与验收状态统一见 [开发路线](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/PROJECT_PLAN.md)。
 
 ## 支持范围
 
 | 项目 | 当前范围 |
 | --- | --- |
-| 系统 | npm beta.2：Windows，真实播放依赖 WPF `MediaPlayer` 与命名管道；当前 `main` 源码另支持 macOS，使用 AVFoundation、Unix socket 和 Keychain，现场音频/登录验收仍在进行 |
+| 系统 | npm beta.2：Windows，真实播放依赖 WPF `MediaPlayer` 与命名管道；当前 `main` 有 macOS 实验性源码适配，使用 AVFoundation、Unix socket 和 Keychain，现场音频/登录/退出仍未完成验收 |
 | Node.js | `>=24.14.0 <25`；使用内置 `node:sqlite` |
 | DSH | 本机官方桌面 `0.2.0-rc.2` 已安装并验证部分真实交互；其他版本需验证 |
 | 网易云 | 扫码、账号校验、导入、点播与自主续播已有真实验证；会员、版权与资源限制由平台决定 |
@@ -42,7 +42,7 @@ beta.2 的角色图下有一枚无文字的小开关，默认位于左侧，可�
 
 beta.2 按“参考歌曲 → 网易云推荐 → 模型挑歌”工作。导入后沿用 DSH 已配置模型按批筛选，主界面只显示歌单、理由和换一批；模型选择与用量放在折叠设置。自动播放只来自入选歌单，失败保留同账号有效旧歌单；用户下一首可回退参考曲库，自动续播不走这条回退。beta.1 仍保留当时的模型歌单/核对界面。
 
-主面板、设置页与悬浮条共用 Core。隐藏悬浮条或切换页面继续播放，停用插件会停止其后台服务与播放。模型总结、歌单与候选筛选是低频调用，受开关、冷却、每日次数和共享 token 预算约束；逐曲播放不请求模型。
+主面板、设置页与悬浮条共用 Core。隐藏悬浮条或切换页面继续播放，停用插件会停止其后台服务与播放。模型总结、歌单与候选筛选是低频调用，受开关、每日次数和共享 token 预算约束；逐曲播放不请求模型。当前 `main` 的 U18 取消手动找歌/换批的 15 分钟模型等待，后台自动筛选仍受冷却限制；并发、次数、预算、平台刷新节流和候选缓存保留。npm beta.2 保持原规则。
 
 ## 更新
 
@@ -74,11 +74,11 @@ DSH `0.2.0-rc.2` 的插件页暂不支持自动更新。先在插件管理器卸
 
 ## 验证与边界
 
-网易云真实链路见 [P3](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/spikes/P3-real-loop.md)，设置和重启恢复见 [N10](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/spikes/N10-feedback-reset.md)，一次旧版模型歌单生成见 [N11](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/spikes/N11-model-playlist.md)。最近全量基线为 [N22](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/spikes/N22-platform-first-recommendations.md) 的 420 项测试、127 模块、构建/debug smoke 与隔离浏览器 20 个组合；这些不构成真实账号推荐、模型质量或生产验收。首包和 U12 历史实包分别验证了安装与资源，不等于当前源码的生产平台播放验收；历史 tarball 不包含后续开关样式及 U13/N21/U14/N22 改动。
+最新验证为 [beta.3 发布前验收](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/releases/0.1.0-beta.3-acceptance.md)：435/435、132 模块、构建和正式打包通过；Windows 隔离实包完成真人扫码、100 首近期导入、搜索/听音/控制、暂停静音恢复和停用清理，真实筛选仍失败，暂不发布。日常生产没有重载。历史真实链路见 [P3](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/spikes/P3-real-loop.md)，旧版模型生成见 [N11](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/spikes/N11-model-playlist.md)；N22 隔离浏览器 20 个组合保留，不代表当前模型质量。首包和 U12 历史 tarball 不能代替本轮源码安装包。
 
 当前默认从 5 个持有者开始，按实际 Open 耗时最多补齐到 8 个；独立实测用了 6 个，后续加载 484ms。首曲仍冷，预热/打开时间随环境变化。`FISHFM_PLAYBACK_WARM_HOLDERS=0..8` 可指定固定数量，0 关闭。
 
-macOS 移植当前已完成原生 Helper 编译检查；在本机 DSH 的首次重启、真实登录、平台音频播放与暂停/退出生命周期仍待验。U12/U13 完整真实窗口组合、两小时、DSH 请求/上下文对照、多会话和模型筛选质量也仍待验证。N12–N20 的加载边界按各执行记录理解。当前状态统一见 [开发路线](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/PROJECT_PLAN.md)，短跑证据见 [N7](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/spikes/N7-short-run.md)。模拟预览和引用审计不能替代真实验收。
+macOS 历史移植记录确认 Helper 编译和本地 profile 加载；真实登录、平台音频和退出生命周期仍待真机验收，本轮 Windows 不补写这些项目通过。完整窗口组合、两小时、DSH 请求/上下文对照、多会话和模型筛选质量也仍待验证。当前状态统一见 [开发路线](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/PROJECT_PLAN.md)，短跑证据见 [N7](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/spikes/N7-short-run.md)。模拟预览和引用审计不能替代真实验收。
 
 ## 许可
 

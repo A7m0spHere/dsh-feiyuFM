@@ -1,0 +1,118 @@
+{
+  "date": "2026-10-12",
+  "baseline": "e91c9cee45a132c9343f612ded9fb146a85be681",
+  "implementation": "26a4e5c1d0aa018d61185a5b2bcefc217d6886b7",
+  "decision": "not-ready",
+  "sourceVersion": "0.1.0-beta.2",
+  "build": {
+    "modules": 132,
+    "passed": true
+  },
+  "tests": {
+    "total": 435,
+    "passed": 435,
+    "failed": 0,
+    "skipped": 0
+  },
+  "package": {
+    "filename": "dsh-feiyufm-core-0.1.0-beta.2.tgz",
+    "size": 35131924,
+    "unpackedSize": 64231527,
+    "entryCount": 4878,
+    "projectFiles": 95,
+    "sha1": "030e17616a21ba6912402b210a9a24b5e590e12e",
+    "integrity": "sha512-uzOyTwsRXXof+sj3/t1G0g8nHbakuQ64WvYY+FfYS3oPNn5eMo/lzbn6h+3Vix0kKF2ePDr2bzbYLAXVgU6ERA==",
+    "actualTarVerified": true,
+    "installedProjectBytesEqual": true,
+    "excludedFilesAbsent": true
+  },
+  "dpapi": {
+    "powershell7": "pass",
+    "powershell51": "pass",
+    "powershell51OnlyPath": "pass",
+    "restartRead": "pass",
+    "negativeControl": "expected-failure"
+  },
+  "realWindows": {
+    "login": "pass",
+    "recentImported": 100,
+    "platformCandidates": 40,
+    "search": "pass",
+    "audible": "user-confirmed",
+    "pauseResumeNext": "pass",
+    "restoredPositionMs": 27000,
+    "restoredPaused": true,
+    "restoredSound": false,
+    "pluginDisable": "pass",
+    "normalDesktopExit": "not-executed"
+  },
+  "modelAttempts": [
+    {
+      "provider": "deepseek-official",
+      "model": "deepseek-flash",
+      "purpose": "discovery-filter",
+      "trigger": "automatic",
+      "status": "failed",
+      "error_code": "MISSING_CREDENTIAL",
+      "reserved_tokens": 3841,
+      "duration_ms": 454,
+      "usage": null
+    },
+    {
+      "provider": "fishfm-beta3-test",
+      "model": "deepseek-v4.1-flash",
+      "purpose": "discovery-filter",
+      "trigger": "manual",
+      "status": "failed",
+      "error_code": "UNSUPPORTED_REASONING_EFFORT",
+      "reserved_tokens": 3841,
+      "duration_ms": 1494,
+      "usage": null
+    },
+    {
+      "provider": "fishfm-beta3-test",
+      "model": "deepseek-v4.1-flash",
+      "purpose": "discovery-filter",
+      "trigger": "manual",
+      "status": "cancelled",
+      "error_code": "cancelled",
+      "reserved_tokens": 3841,
+      "duration_ms": 45400,
+      "usage": null
+    },
+    {
+      "provider": "deepseek-official",
+      "model": "deepseek-v4.1-flash",
+      "purpose": "discovery-filter",
+      "trigger": "manual",
+      "status": "failed",
+      "error_code": "empty_summary",
+      "reserved_tokens": 3841,
+      "duration_ms": 5699,
+      "usage": {
+        "inputTokens": 154,
+        "outputTokens": 256,
+        "cacheReadTokens": 640,
+        "cacheWriteTokens": 0
+      }
+    },
+    {
+      "provider": "deepseek-official",
+      "model": "deepseek-v4.1-flash",
+      "purpose": "discovery-filter",
+      "trigger": "automatic",
+      "status": "failed",
+      "error_code": "empty_summary",
+      "reserved_tokens": 3841,
+      "duration_ms": 7121,
+      "usage": {
+        "inputTokens": 154,
+        "outputTokens": 256,
+        "cacheReadTokens": 640,
+        "cacheWriteTokens": 0
+      }
+    }
+  ],
+  "macOS": "not-executed-on-Windows",
+  "published": false
+}

@@ -12,7 +12,7 @@
   <source media="(prefers-color-scheme: dark) and (max-width: 600px)" srcset="https://raw.githubusercontent.com/A7m0spHere/dsh-feiyuFM/main/assets/readme/panel-narrow-dark.png">
   <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/A7m0spHere/dsh-feiyuFM/main/assets/readme/panel-dark.png">
   <source media="(max-width: 600px)" srcset="https://raw.githubusercontent.com/A7m0spHere/dsh-feiyuFM/main/assets/readme/panel-narrow.png">
-  <img src="https://raw.githubusercontent.com/A7m0spHere/dsh-feiyuFM/main/assets/readme/panel.png" width="100%" alt="main 源码界面：播放器、大肥鱼的歌单、选歌理由与换批倒计时。">
+  <img src="https://raw.githubusercontent.com/A7m0spHere/dsh-feiyuFM/main/assets/readme/panel.png" width="100%" alt="历史源码界面：播放器、大肥鱼的歌单与选歌理由；当前手动换批已取消倒计时。">
 </picture>
 
 歌曲、艺人和推荐理由直接展示，点击即可播放。模型、用量和预算收入折叠设置；等待挑歌时仍可点播和暂停。
@@ -20,13 +20,13 @@
 | 获取方式 | 包含内容 |
 | --- | --- |
 | **npm 测试版** | `0.1.0-beta.2` 已发布，包含平台推荐 → 模型筛选、新歌单界面、播放中断恢复与播放动效。[发布记录](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/releases/0.1.0-beta.2.md) |
-| **当前 `main` 源码** | 在 beta.2 基础上增加分区布局、换批倒计时与更清楚的请求反馈，尚未发布到 npm。[布局](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/spikes/U15-balanced-layout.md) · [冷却与反馈](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/spikes/U16-recommendation-feedback.md) |
+| **当前 `main` 源码** | 分区布局、慢导入时的播放控制、全曲库搜索、取消手动找歌倒计时、DPAPI 包与 PowerShell 5.1 修复；含未完成真机验收的 macOS 路径。beta.3 正在验收，尚未发布。[U17](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/spikes/U17-control-library-fixes.md) · [U18](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/spikes/U18-manual-picking-without-countdown.md) |
 
-截图按屏宽和浅深色偏好切换，宽屏展示完整分区，窄屏聚焦播放器与歌单。2026-10-07 从当前客户端隔离预览截取，歌曲、账号状态和模型数据均为模拟内容，不代表生产账号或推荐质量。
+截图按屏宽和浅深色偏好切换，宽屏展示完整分区，窄屏聚焦播放器与歌单。截图来自 2026-10-07 隔离预览，歌曲、账号状态和模型数据均为模拟内容；图中的倒计时属于历史界面，U18 已移除，不代表当前推荐质量。
 
 ## 开始使用
 
-已发布的 npm `0.1.0-beta.2` 支持 **Windows + 网易云音乐**。当前 `main` 已加入 macOS 源码路径：AVFoundation 播放宿主、Unix socket IPC 与 Keychain 凭据适配；本机 DSH `0.2.0-rc.2` profile 已加载此源码，Swift Helper 编译通过，真实音频与登录链路仍待验证。此次源码移植没有发布新的 npm 版本。其他宿主版本尚未验证。需要 Node.js `>=24.14.0 <25`，桌面宿主自带兼容 Node 24 时无需另装。
+已发布的 npm `0.1.0-beta.2` 支持 **Windows + 网易云音乐**。当前 `main` 已加入 macOS 源码路径：AVFoundation 播放宿主、Unix socket IPC 与 Keychain 凭据适配；历史移植记录确认了 Helper 编译和本地 profile 加载，真实登录、音频与退出链路仍待真机验证。本轮没有发布新的 npm 版本。需要 Node.js `>=24.14.0 <25`，桌面宿主自带兼容 Node 24 时无需另装。
 
 在 DSH「插件 → 添加插件」的「包名或地址」中输入：
 
@@ -56,7 +56,7 @@ dsh plugin --profile web add dsh-feiyufm-core@0.1.0-beta.2 --registry https://re
 </details>
 
 <details>
-<summary>从 main 体验最新布局与倒计时</summary>
+<summary>从 main 体验最新布局与手动找歌</summary>
 
 在 Windows / Node 环境中构建：
 
@@ -87,7 +87,7 @@ macOS 当前仅指 `main` 源码版；首次使用原生播放或 Keychain 时�
 
 网易云返回相似歌曲、每日推荐等候选；模型结合参考歌曲与反馈挑选，并给出简短理由。电台从入选歌单中选歌、续播，记录有效收听经历，供之后推荐参考。
 
-模型按批调用，逐曲执行不请求模型。筛选设有 **15 分钟** 冷却，每天最多 **12 次**，与其他音乐模型任务共用 token 预算，用量可在推荐设置查看。换批失败保留同账号仍有效的旧歌单，没有可用入选歌曲时可手动点播参考曲库。
+模型按批调用，逐曲执行不请求模型。当前 `main` 的手动找歌/换批取消 **15 分钟** 模型冷却等待；后台自动筛选仍受冷却约束。手动和自动请求都保留并发限制、每天最多 **12 次**及共享 token 预算，用量可在推荐设置查看。平台刷新节流与相同候选缓存仍生效；已发布 beta.2 保留原冷却规则。换批失败保留同账号仍有效的旧歌单，没有可用入选歌曲时可手动点播参考曲库。
 
 “听歌”指选歌、播放和收听记录形成的体验，当前不做音频理解。播放范围受网易云账号权限和资源限制影响，完整规则见 [产品规格](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/MVP.md)。
 
@@ -105,11 +105,11 @@ macOS 当前仅指 `main` 源码版；首次使用原生播放或 Keychain 时�
 
 ## 常见问题与当前边界
 
-- **为什么暂时不能换一批？** 模型筛选受冷却、次数和预算限制。`main` 会显示倒计时或具体原因；beta.2 仍使用原提示。等待期间可以点播、暂停或换曲。
+- **为什么暂时不能换一批？** 当前 `main` 手动找歌没有模型冷却倒计时，但任务占用、每日次数、预算和平台节流仍可能限制请求；beta.2 保留原冷却提示。等待期间可以点播、暂停或换曲。
 - **为什么没有声音？** 检查声音开关、静听模式、暂停状态，以及系统音量和输出设备。首次播放可能等待数秒。
 - **安装后没看到截图中的新布局？** 图中为 `main`，U15/U16 尚未收入已发布的 beta.2；源码体验方法见上方折叠说明。
 
-项目仍是测试版。真实网易云登录、导入与播放已有部分验证；新推荐流程已完成本机测试与隔离界面检查，生产宿主尚未重载。真实模型筛选质量、两小时运行和完整多会话验收仍待完成，QQ 接入暂缓。最新状态统一见 [开发路线](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/PROJECT_PLAN.md)。
+项目仍是测试版。2026-10-12 的 beta.3 发布前验收已验证 Windows 实包安装、DPAPI、真人扫码、导入、听音、播放控制和暂停静音恢复；全量 435/435 通过。真实模型筛选复测未形成入选歌单，暂不发布；本轮没有重载日常生产实例。报告见 [beta.3 验收](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/releases/0.1.0-beta.3-acceptance.md)。两小时、完整多会话和 macOS 真机仍待验，QQ 接入暂缓。最新状态统一见 [开发路线](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/PROJECT_PLAN.md)。
 
 ## 数据、开发与许可
 

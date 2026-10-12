@@ -1,5 +1,14 @@
 # 更新记录
 
+## 0.1.0-beta.3（准备中，未发布）
+
+- DPAPI 助手移入运行源码并明确收入 npm 包；兼容 Windows PowerShell 5.1 的 `System.Security` 装载路径。Windows DPAPI 验收不再把不可用报告为通过。
+- 音乐模型调用仅在 DSH 声明支持时请求 `reasoningEffort: off`，修复自定义模型被 `UNSUPPORTED_REASONING_EFFORT` 拒绝的问题。
+- U17 修复慢平台请求阻塞播放控制、曲库 300 首展示上限、搜索与平台断连反馈；U15/U16 调整分区布局和请求反馈。
+- U18 取消手动找歌/换批的模型冷却倒计时；自动筛选仍限频，所有调用保留并发、次数、预算与账本。
+- 登录命令正常成功或失败后清理二维码图片与临时 key 文件；移除误放在仓库中的 ComfyUI 资料。
+- 包内新增 macOS Swift/AVPlayer、Unix socket、Keychain 源码适配，完整真机验收尚未完成，不声明完整 macOS 支持。
+
 ## 0.1.0-beta.2
 
 第二个 Windows／网易云测试包，包含 N22 推荐流程及 U12–U14/N21 改动。420 项测试、127 模块与构建通过，真实推荐质量、生产播放中断及完整窗口组合仍待验。发布范围与安装证据见仓库 `docs/releases/0.1.0-beta.2.md`。

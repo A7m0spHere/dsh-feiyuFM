@@ -1,15 +1,15 @@
 # 肥鱼电台 FishFM — 开发路线
 
-更新：2026-10-09。已发布 `0.1.0-beta.2` 仍是 Windows／网易云版本；当前 `main` 增加 macOS 源码移植，本机 DSH `desktop` profile 已加载并显示 FishFM，真实音频/登录验收仍未完成。稳定 v0.1 验收仍未完成。下面分别记录源码、已发布版本和历史安装包，避免把本地实现当作 npm 已更新或生产已验。
+更新：2026-10-12。已发布 `0.1.0-beta.2` 仍是 Windows／网易云版本；本轮完成 beta.3 发布前验收，当前源码版本暂留 beta.2。Windows 官方 DSH 的隔离 Web profile 已完成真人扫码、100 首近期导入、搜索/听音/播放控制、暂停静音恢复和停用清理；真实筛选复测失败，**暂不发布**。macOS 只有历史源码/编译证据，稳定 v0.1 的完整验收仍未完成。报告与最少补救任务见 [beta.3 发布前验收](releases/0.1.0-beta.3-acceptance.md)。
 
 | 状态面 | 最新已确认内容 |
 |---|---|
-| `main` 源码 | N22/U17 当前功能外，已加入 macOS Swift/AVFoundation 播放宿主、AF_UNIX 传输与 Keychain 凭据；U18 取消手动找歌/换批的 15 分钟模型等待与倒计时，后台自动筛选仍限频。DSH `desktop` profile 已链接此仓库，U18 待完整重启加载。未发布 npm |
-| 最近源码验证 | U18 在 macOS/Node 24.16.0 上 **431 项离线测试：423 通过、8 项平台相关测试跳过、0 失败**，131 模块检查、构建/debug smoke 与验收文档审计通过；手动换批、空筛选重试、后台冷却和模拟播放 IPC 回归通过，见 [U18](spikes/U18-manual-picking-without-countdown.md)。此前 U17 隔离浏览器曲库分页/末尾搜索点播/慢导入暂停/窄深色设置 ALL-PASS 保留；最近包含真实音频的全量仍为 N22 **420 项**，真实模型质量和生产边界不变 |
+| `main` 源码 | N22/U17/U18、macOS 实验性源码、DPAPI 助手入包/PowerShell 5.1/T8 清理均在基线。新增 `26a4e5c` 修复音乐调用强传不支持的推理参数；手动找歌不等待模型冷却，自动筛选仍限频。日常 desktop 生产实例本轮未更新，npm 未发布 |
+| 最近源码验证 | Windows/Node 24.14.0：**435/435 通过、0 失败、0 跳过**，含本机真实 WPF 媒体回归；132 模块检查、构建/debug smoke 通过。实包 npm/官方 DSH 隔离安装与 95 项项目文件逐字节核对通过；PS7/5.1/仅 5.1 PATH 下 DPAPI 写读删及跨进程恢复通过。历史 U17 浏览器和 U18 macOS 离线证据按原报告保留，本轮不声称新增 macOS 或模型质量通过 |
 | 已发布 npm | `0.1.0-beta.2`，2026-10-07 registry 版本/标签/下载摘要及 npm/DSH 重装均已确认，包含 N22/N21/U12–U14；`beta` 指向新版，`latest` 保持 beta.1。420 本机测试、127 模块、实包和 registry 两条安装链路 ALL-PASS，见 [本次记录](releases/0.1.0-beta.2.md)。历史 [beta.1](releases/0.1.0-beta.1.md) 首包于 2026-10-06 发布 |
 | 本地历史实包 | U12 素材阶段 34.83 MB tarball，仅对应当时验证，不含之后的样式、修复或 N22 新推荐流程，不能当作当前源码安装包 |
 | macOS 源码移植 | [移植记录](spikes/MACOS_PORT.md)：DSH 本机 `0.2.0-rc.2`、Apple Silicon、原生 Helper 编译通过；本地源码链接已加入 `desktop` profile 并在重启后可见。真实登录和音频结果待验。npm beta.2 仍只支持 Windows |
-| 生产与剩余验收 | macOS 登录/平台播放与退出生命周期，以及 N22 真实账号推荐/筛选质量、默认模式迁移、N21 恢复、U12–U14 完整多窗口、两小时、DSH 对照、多会话仍须分别实测；不能把源码安装或 Helper 编译当作这些项目通过 |
+| 生产与剩余验收 | Windows 隔离实包通过真人登录/平台音频/暂停恢复/停用；真实模型筛选及正常 DSH 退出路径仍需闭环。macOS 登录/音频/退出、N22 推荐质量/生产迁移、N21 现场恢复、完整多窗口、两小时、DSH 对照、多会话仍待验；不把隔离短跑当作日常生产或稳定 MVP 全部通过 |
 
 产品范围约束（用户 2026-10-02 指定）：**QQ 接入暂缓，优先完善网易云体验。** [U7](spikes/U7-phl-ui-motion.md) 记录主播放器、曲库、浮层与动效重构；自主听歌与推荐的早期拆分见 [规划文档](design/AUTONOMOUS_MUSIC_ROADMAP.md)。当前进度以本文件验收表为准，音频/通信复核见 [N20](spikes/N20-review-fixes.md)，最近彩蛋与边界复核见 [U13](spikes/U13-easter-review-fixes.md)。
 
