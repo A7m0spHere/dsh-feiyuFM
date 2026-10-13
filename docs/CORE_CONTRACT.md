@@ -31,6 +31,8 @@ Provider 暴露账号和能力状态，`resolve(track, {signal, version})` 返�
 
 `resetTaste` 保留输入曲库；`resetLibrary` 还清空输入/来源及队列。两者保留账号、历史、约束与模型账本，不改变当前播放。重置边界前的成长不能重新写回旧偏好。
 
+成功的 `resetLibrary/resetTaste/undoTasteReset` 使此前接收的在途及排队平台导入失效；提交前校验独立输入代次，过期导入返回 `cancelled`，不写曲库、来源或偏好。暂停、音量等播放控制不改变输入代次，且仍可越过慢平台队列。
+
 用户下一首记 `selectedBy='agent'、selectionTrigger='user-next'`，保留来源、评分和 decisionId；只有 `requestTrack` 记为 `selectedBy='user'`。选择不是有效收听，旧历史不倒改归属。
 
 今天限制到期不自动解除暂停。无当前曲目时，要求开始自主而失败应返回 `autonomy_blocked/no_candidates`，不得静默无操作。完整控制语义见 [MVP 第 3 节](MVP.md)。

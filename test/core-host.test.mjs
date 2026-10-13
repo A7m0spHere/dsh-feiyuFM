@@ -9,12 +9,58 @@ import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { setTimeout as delay } from 'node:timers/promises';
-import { createCoreHost, mapSessionEvent, ProviderRegistry, CORE_HOST_PROTOCOL } from '../src/core-host.mjs';
+import { createCoreHost, createProviderFacade, mapSessionEvent, ProviderRegistry, CORE_HOST_PROTOCOL } from '../src/core-host.mjs';
 import { MusicStore } from '../src/storage.mjs';
 import { FakeProvider } from '../src/fakes.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const track = { provider: 'netease', providerTrackId: 'h1', title: 'Host track', durationMs: 600 };
+
+test('input resets supersede delayed and queued imports from other clients without blocking pause', async t => {
+  for (const reset of ['resetLibrary', 'resetTaste', 'undoTasteReset', null]) await t.test(reset ?? 'pause-only', async () => {
+    const store = new MusicStore();
+    let release, entered;
+    const started = new Promise(resolve => { entered = resolve; });
+    const response = new Promise(resolve => { release = resolve; });
+    let calls = 0;
+    const adapter = {
+      getAccount: () => ({ status: 'authorized' }), getCapabilities: () => ({}),
+      getSeedTracks: () => { calls++; entered(); return response; },
+    };
+    const registry = new ProviderRegistry({ providers: { netease: adapter } });
+    const facade = createProviderFacade({ registry, store });
+    const out = collector();
+    const host = createCoreHost({ store, providerRegistry: registry, platformsFacade: facade, playbackMode: 'fake', output: out.stream });
+    try {
+      await host.start();
+      if (reset === 'undoTasteReset') await host.handle({ type: 'command', command: { type: 'resetLibrary', value: { clearFeedback: false } } });
+      // Client A's request remains alive in Core even after its UI stops waiting.
+      const late = host.handle({ id: 'client-a-timeout', type: 'import-platform', provider: 'netease' });
+      await started;
+      const queued = host.handle({ id: 'client-a-queued', type: 'import-platform', provider: 'netease' });
+      await host.handle({ id: 'client-b-pause', type: 'command', command: { type: 'pause' } });
+      assert.equal(out.messages.findLast(m => m.id === 'client-b-pause').snapshot.paused, true);
+      if (reset) {
+        await host.handle({ id: 'client-b-reset', type: 'command', command: { type: reset, value: { clearFeedback: false } } });
+        assert.equal(out.messages.findLast(m => m.id === 'client-b-reset').ok, true);
+      }
+      const preferences = store.db.prepare('SELECT * FROM agent_preferences').all();
+      release({ source: 'recent', tracks: [track], requested: 1 });
+      await Promise.all([late, queued]);
+      assert.equal(store.countEnvironment(), reset ? 0 : 1);
+      if (reset) assert.deepEqual(store.db.prepare('SELECT * FROM agent_preferences').all(), preferences);
+      for (const id of ['client-a-timeout', 'client-a-queued']) {
+        const reply = out.messages.findLast(m => m.id === id);
+        if (reset) assert.equal(reply.error.code, 'cancelled');
+        else assert.equal(reply.ok, true);
+      }
+      assert.equal(calls, reset ? 1 : 2, 'only reset supersedes queued imports');
+      await host.handle({ id: 'new-import', type: 'import-platform', provider: 'netease' });
+      assert.equal(out.messages.findLast(m => m.id === 'new-import').ok, true);
+      assert.equal(store.countEnvironment(), 1, 'an import issued after reset still succeeds');
+    } finally { release({ source: 'recent', tracks: [], requested: 0 }); await host.close(); store.close(); }
+  });
+});
 
 /** Collects protocol lines written by a host. */
 function collector() {

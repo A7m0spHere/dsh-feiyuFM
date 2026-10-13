@@ -391,6 +391,9 @@ export function createCoreHost({
   let closed = false;
   let lastRevision = -1;
   let pending = Promise.resolve();
+  // Independent of playback commands: input resets supersede even imports
+  // queued by another client before the reset, without cancelling on pause.
+  let inputEpoch = 0;
 
   const send = (message) => {
     if (closed) return;
@@ -419,7 +422,7 @@ export function createCoreHost({
     return pending;
   };
 
-  const handle = async (message) => {
+  const handle = async (message, inputVersion = inputEpoch) => {
     const id = message.id ?? null;
     try {
       switch (message.type) {
@@ -428,7 +431,9 @@ export function createCoreHost({
           return;
         case 'command': {
           onLog({ type: 'command', kind: message.command?.type });
+          const revision = core.snapshot().revision;
           const snapshot = core.dispatch({ ...message.command, commandId: message.command?.commandId ?? randomUUID() });
+          if (snapshot.revision !== revision && ['resetLibrary', 'resetTaste', 'undoTasteReset'].includes(message.command?.type)) ++inputEpoch;
           invalidateProfile();
           if(['resetLibrary','resetTaste','undoTasteReset','setRecommendationMode'].includes(message.command?.type))platformsFacade?.clearDiscovery();
           platformsFacade?.setDiscoveryEnabled(snapshot.settings.discovery && snapshot.settings.discoveryRate > 0);
@@ -629,10 +634,15 @@ export function createCoreHost({
           requireFacade();
           const accountProvider = requireProvider(message.provider);
           try {
+            const checkInput = () => {
+              if (closed || inputVersion !== inputEpoch) throw new MusicError('cancelled', '曲库或偏好已重置，本次旧导入已取消，请重新导入。');
+            };
+            checkInput();
             const seed = await accountProvider.getSeedTracks({
               limit: message.limit ?? 300, source: message.source ?? null, signal: null,
               playlistId: message.playlistId ?? null,
             });
+            checkInput();
             const imported = importSeedTracks({
               store, provider: message.provider, source: seed.source, tracks: seed.tracks,
               requested: seed.requested, degraded: seed.degraded, reason: seed.reason, sourceRef:seed.sourceRef??'', now: now(),
@@ -846,8 +856,11 @@ export function createCoreHost({
     },
     // Dispatch/reads are synchronous until their first await. Keep them out of
     // long account/import work so a slow media request cannot hold up pause.
-    handle: (message) => ['command','snapshot','platforms','library','account','environment','insights','persona','recommendation-route','persona-budget','persona-output','persona-automatic','persona-reserve','persona-start','persona-finish','sessions','discovery','discovery-filter-status','shutdown','wait','autonomous','session-event','setQueue'].includes(message.type)
-      ? handle(message) : enqueue(() => handle(message)),
+    handle: (message) => {
+      const inputVersion = inputEpoch;
+      return ['command','snapshot','platforms','library','account','environment','insights','persona','recommendation-route','persona-budget','persona-output','persona-automatic','persona-reserve','persona-start','persona-finish','sessions','discovery','discovery-filter-status','shutdown','wait','autonomous','session-event','setQueue'].includes(message.type)
+        ? handle(message, inputVersion) : enqueue(() => handle(message, inputVersion));
+    },
     close,
     get core() { return core; },
     get playback() { return playback; },
