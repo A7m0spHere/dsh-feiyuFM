@@ -1,0 +1,73 @@
+{
+  "date": "2026-10-13",
+  "sourceCommit": "7616517af0cfd760b28d908a421dd82d4fc991e1",
+  "runtimeCommit": "50613ed68e97ad10623c5c3ebbe9de8f059b3b74",
+  "version": "0.1.0-beta.3",
+  "package": {
+    "filename": "dsh-feiyufm-core-0.1.0-beta.3.tgz",
+    "bytes": 35132761,
+    "unpackedBytes": 64234039,
+    "entries": 4878,
+    "projectFiles": 95,
+    "sha1": "6d47a8ab097fa921e6f4a94102b702a60da17b1e",
+    "integrity": "sha512-VqksDSIwH/5D+xM8VR7/DpenFtmPeThijzWpsNHwyi6XhOcYodUL8q+paArAN/JYUoMF7P+WeW0GJYMowxG+Qw==",
+    "actualTarAndExclusionsVerified": true
+  },
+  "validation": {
+    "sourceTests": {
+      "total": 456,
+      "pass": 456,
+      "fail": 0,
+      "skip": 0
+    },
+    "installedFixTests": {
+      "total": 17,
+      "pass": 17,
+      "fail": 0
+    },
+    "modules": 134,
+    "sourceBuildAndDebugSmoke": true,
+    "prepackExecuted": true,
+    "localNpmInstall": "pass",
+    "officialDshCliVersion": "0.2.0-rc.2",
+    "localDshInstall": "pass",
+    "bundleRegistration": "pass",
+    "installedEntryAssetsCoreWpfFtp": "pass-both-installs",
+    "projectBytesEqualInBothInstalls": true,
+    "dpapi": {
+      "powershell7": "pass",
+      "powershell51": "pass",
+      "powershell51OnlyPath": "pass",
+      "restartRead": "pass"
+    },
+    "preparationCi": "https://github.com/A7m0spHere/dsh-feiyuFM/actions/runs/38348539599",
+    "temporaryCleanup": "recursive-cleanup-blocked-by-tool-policy",
+    "temporaryDirectory": "%LOCALAPPDATA%/Temp/fishfm-release-beta3-20261013"
+  },
+  "publication": {
+    "status": "confirmed",
+    "version": "0.1.0-beta.3",
+    "tags": {
+      "latest": "0.1.0-beta.1",
+      "beta": "0.1.0-beta.3"
+    },
+    "tarball": "https://registry.npmjs.org/dsh-feiyufm-core/-/dsh-feiyufm-core-0.1.0-beta.3.tgz",
+    "registrySha1": "6d47a8ab097fa921e6f4a94102b702a60da17b1e",
+    "registryIntegrity": "sha512-VqksDSIwH/5D+xM8VR7/DpenFtmPeThijzWpsNHwyi6XhOcYodUL8q+paArAN/JYUoMF7P+WeW0GJYMowxG+Qw==",
+    "publicTarBytes": 35132761,
+    "publicTarIdenticalToFrozen": true,
+    "npmRegistryInstall": "pass",
+    "officialDshRegistryInstall": "pass",
+    "registryEntryAssetsCoreWpfFtp": "pass-both-installs",
+    "registryProjectBytesEqualInBothInstalls": true,
+    "cliConnectionReset": true,
+    "confirmation": "registry-version-tags-public-download-and-fresh-install"
+  },
+  "boundaries": {
+    "dailyDesktopReloaded": false,
+    "macOsAcceptance": false,
+    "twoHourAcceptance": false,
+    "fullMultiSessionAcceptance": false,
+    "crossDeviceAcceptance": false
+  }
+}

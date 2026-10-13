@@ -12,10 +12,10 @@
 ## 当前事实与维护入口
 
 - 当前实现为 N22：参考歌曲 → 网易云候选 → LLM 筛选 → 本地播放；默认 `filtered`，自动播放只取入选歌曲。模型与用量收入推荐设置，保留用户控制和旧数据。见 `docs/spikes/N22-platform-first-recommendations.md`。
-- beta.3 发布前状态见 `docs/releases/0.1.0-beta.3-acceptance.md`：T1/PowerShell 5.1/T8 在当前基线，实包验收与 `26a4e5c` 模型能力修复已有证据；npm 尚未发布，不将本轮隔离 profile 的结果当作日常生产或 macOS 真机通过。
-- N23 已补上真实模型筛选／入选曲播放与日常原生 Desktop 正常退出重开；模型输出耗尽不应用截断结果，单次输出可设 64–4096，默认与预算保留。源码准备为 beta.3，npm 尚未发布；两小时／多会话／跨设备等实时状态只看 PROJECT_PLAN，不将运行中观察提前算作通过。见 `docs/spikes/N23-model-route-completion.md`。
+- beta.3 发布前状态见 `docs/releases/0.1.0-beta.3-acceptance.md`，最终发行确认见 `docs/releases/0.1.0-beta.3.md`：T1/PowerShell 5.1/T8 与模型能力修复在基线；不将隔离 profile 的结果当作日常生产或 macOS 真机通过。
+- N23 已补上真实模型筛选／入选曲播放与日常原生 Desktop 正常退出重开；模型输出耗尽不应用截断结果，单次输出可设 64–4096，默认与预算保留。beta.3 已发布并包含 REV-01–03 导入取消、凭据清理与快照去旧；两小时／多会话／跨设备等实时状态只看 PROJECT_PLAN，不将运行中观察提前算作通过。见 `docs/spikes/N23-model-route-completion.md`。
 - U17 已修复慢平台请求阻塞播放、曲库 300 首展示限制与平台断连反馈，见 `docs/spikes/U17-control-library-fixes.md`。最新测试数量与真实音频基线统一见 `docs/PROJECT_PLAN.md`；离线和模拟浏览器结果不算新增音频、模型质量或生产验收。
-- npm `0.1.0-beta.2` 已上架，包含 N22/N21/U12–U14；`beta` 已更新、`latest` 保持 beta.1，registry 下载摘要与封存包一致，确认见 `docs/releases/0.1.0-beta.2.md`。生产未重载，U12 的 34.83 MB 本地 tarball 是历史实包，不能当最新安装包。具体版本/数据/未验项只在 `docs/PROJECT_PLAN.md` 维护。
+- npm `0.1.0-beta.3` 已上架，`beta` 指向 beta.3、`latest` 保持 beta.1；registry 下载摘要与封存包一致，npm/官方 DSH registry 安装均已确认，见 `docs/releases/0.1.0-beta.3.md`。日常 Desktop 本轮未重载；beta.2 和 U12 的 34.83 MB tarball 是历史实包，不能当最新安装包。具体版本/数据/未验项只在 `docs/PROJECT_PLAN.md` 维护。
 - 用户 2026-10-02 指定 QQ 接入暂缓，优先网易云与 UI；保留 QQ 代码与后续范围。Last.fm 富化需要用户 API key，尚未开工。
 - N21 中断恢复保留原曲一次预算与暂停/换曲优先。U12/U13 彩蛋保持无文字、无悬停说明的左右小开关、默认关闭和本机偏好同步；完整 GIF/静态图/六张 doll PNG 随源码打包。边界与证据按对应报告阅读。
 - 当前进度和接续入口：`docs/PROJECT_PLAN.md`；产品行为：`docs/MVP.md`；模块职责：`docs/ARCHITECTURE.md`；内部接口：`docs/CORE_CONTRACT.md`；取舍：`docs/DECISIONS.md`。

@@ -1,15 +1,15 @@
 # 肥鱼电台 FishFM — 开发路线
 
-更新：2026-10-13。已发布 `0.1.0-beta.2` 仍是 Windows／网易云版本；源码已准备为 beta.3，npm 尚未发布。[N23](spikes/N23-model-route-completion.md) 已补上真实 40 候选→9 入选→WPF 静音播放、日常原生 Desktop 正常退出重开与状态保留，以及 beta.3 快照安装。日常观察实际 54.72 分钟，16 条有效收听、0 播放错误，按用户要求提前结束；两小时、完整 DSH 对照与真实并发仍待验，跨设备按用户要求保留待验。macOS 真机与稳定 v0.1 完整验收仍未完成。发行准备见 [beta.3 发布前验收](releases/0.1.0-beta.3-acceptance.md)。
+更新：2026-10-13。已发布 `0.1.0-beta.3`，Windows／网易云 Beta；`beta` 已更新、`latest` 保持 beta.1，正式包及 registry 安装已确认。[N23](spikes/N23-model-route-completion.md) 已补上真实 40 候选→9 入选→WPF 静音播放、日常原生 Desktop 正常退出重开与状态保留，以及 beta.3 快照安装。日常观察实际 54.72 分钟，16 条有效收听、0 播放错误，按用户要求提前结束；两小时、完整 DSH 对照与真实并发仍待验，跨设备按用户要求保留待验。macOS 真机与稳定 v0.1 完整验收仍未完成。发行准备见 [beta.3 发布前验收](releases/0.1.0-beta.3-acceptance.md)。
 
 | 状态面 | 最新已确认内容 |
 |---|---|
 | GitHub 修复 | [REV-01](spikes/REV-01-import-reset-race.md)：清空、重置和撤销使旧平台导入失效；合成故障回归覆盖在途、排队和暂停优先。原生多窗口现场未新增验收 |
 | 凭据清理修复 | [REV-02](spikes/REV-02-credential-cleanup.md)：退出时删除失败可见，内存会话停用，残留引用撤销并保留重试；DPAPI 正常删除复验通过，Keychain 仅合成故障验证 |
 | 快照去旧修复 | [REV-03](spikes/REV-03-snapshot-ordering.md)：所有快照入口按 revision 去旧，相等时比较 commandVersion；交错 RPC 与文件 SQLite 重启暂停回归通过，生成 bundle 已同步 |
-| `main` 源码 | N22/U17/U18、macOS 实验性源码、DPAPI 助手入包/PowerShell 5.1/T8 清理在基线；N23 区分输出耗尽／无最终文本，输出上限可调到 4096，默认与共享预算保留。REV-01–03 修复已入源码；日常 Desktop 已加载 N23 并正常退出重开，本轮修复未重载；npm 未发布 |
-| 最近源码验证 | Windows/Node 24.14.0：**456/456 通过、0 失败、0 跳过**，含本机真实 WPF 媒体回归；134 模块检查、构建/debug smoke 与包内容验证通过。REV-01–03 使用合成故障与文件 SQLite 重启验证，不新增日常 Desktop 或 macOS 现场结论。N23 已验证真实筛选／入选曲静音播放、日常 Desktop 重开保留、实包四模式／四开关／暂停优先通过。beta.3 补验快照的 npm／官方 DSH 管理器安装、95 项项目文件核对和 DPAPI 矩阵通过；摘要见 N23 证据。文档收尾后的正式发布产物仍须重打包，不新增 macOS 或长期质量结论 |
-| 已发布 npm | `0.1.0-beta.2`，2026-10-07 registry 版本/标签/下载摘要及 npm/DSH 重装均已确认，包含 N22/N21/U12–U14；`beta` 指向新版，`latest` 保持 beta.1。420 本机测试、127 模块、实包和 registry 两条安装链路 ALL-PASS，见 [本次记录](releases/0.1.0-beta.2.md)。历史 [beta.1](releases/0.1.0-beta.1.md) 首包于 2026-10-06 发布 |
+| `main` 源码 | N22/U17/U18、macOS 实验性源码、DPAPI 助手入包/PowerShell 5.1/T8 清理在基线；N23 区分输出耗尽／无最终文本，输出上限可调到 4096，默认与共享预算保留。REV-01–03 修复已入源码；日常 Desktop 已加载 N23 并正常退出重开，本轮修复未重载；npm beta.3 已发布 |
+| 最近源码验证 | Windows/Node 24.14.0：**456/456 通过、0 失败、0 跳过**，含本机真实 WPF 媒体回归；134 模块检查、构建/debug smoke 与包内容验证通过。REV-01–03 使用合成故障与文件 SQLite 重启验证，不新增日常 Desktop 或 macOS 现场结论。N23 已验证真实筛选／入选曲静音播放、日常 Desktop 重开保留、实包四模式／四开关／暂停优先通过。beta.3 补验快照的 npm／官方 DSH 管理器安装、95 项项目文件核对和 DPAPI 矩阵通过；摘要见 N23 证据。本轮正式发布实包重打包后，17 项安装态修复回归、DPAPI 矩阵、95 项项目文件与 npm/官方 DSH 的本地及 registry 安装均通过，公开下载摘要一致；见 [beta.3 发布记录](releases/0.1.0-beta.3.md)，不新增 macOS 或长期质量结论 |
+| 已发布 npm | `0.1.0-beta.3`，2026-10-13 registry 版本/标签/公开下载摘要及 npm/官方 DSH 重装均已确认；`beta` 指向 beta.3，`latest` 保持 beta.1。包含 N23、U17/U18、DPAPI/PowerShell 5.1 与 REV-01–03；35,132,761 bytes、4,878 文件、95 项项目文件与封存源码一致，见 [本次记录](releases/0.1.0-beta.3.md)。历史 [beta.2](releases/0.1.0-beta.2.md) 和 [beta.1](releases/0.1.0-beta.1.md) 记录保留 |
 | 本地历史实包 | U12 素材阶段 34.83 MB tarball，仅对应当时验证，不含之后的样式、修复或 N22 新推荐流程，不能当作当前源码安装包 |
 | macOS 源码移植 | [移植记录](spikes/MACOS_PORT.md)：DSH 本机 `0.2.0-rc.2`、Apple Silicon、原生 Helper 编译通过；本地源码链接已加入 `desktop` profile 并在重启后可见。真实登录和音频结果待验。npm beta.2 仍只支持 Windows |
 | 生产与剩余验收 | 日常 Desktop 正常退出重开保留状态已验，本轮观察 interrupted：54.72 分钟、16 条有效收听、无播放错误或控制干预。两次真实串行 DSH 会话的上下文指纹与事件已记录，完整启停对照／请求归因／真实并发未闭环。两小时、成长应用标记、N22 长期质量、N21 现场恢复、完整多窗口、macOS 与跨设备仍待验 |
