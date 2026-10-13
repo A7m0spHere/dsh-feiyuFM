@@ -61,7 +61,14 @@
     "registryEntryAssetsCoreWpfFtp": "pass-both-installs",
     "registryProjectBytesEqualInBothInstalls": true,
     "cliConnectionReset": true,
-    "confirmation": "registry-version-tags-public-download-and-fresh-install"
+    "confirmation": "registry-version-tags-public-download-and-fresh-install",
+    "gitTag": {
+      "name": "v0.1.0-beta.3",
+      "annotated": true,
+      "targetCommit": "7616517af0cfd760b28d908a421dd82d4fc991e1",
+      "tagObject": "3d26fe12d2b1441887685ab3607ec9a6579b9972",
+      "remoteVerified": true
+    }
   },
   "boundaries": {
     "dailyDesktopReloaded": false,
