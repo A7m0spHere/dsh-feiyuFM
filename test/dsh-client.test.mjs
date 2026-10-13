@@ -1,7 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, mkdtempSync, rmSync } from 'node:fs';
 import { runInNewContext } from 'node:vm';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { createCoreHost } from '../src/core-host.mjs';
+import { FakeProvider } from '../src/fakes.mjs';
 
 function fixture(call, storage = new Map()) {
   const registrations = [], effects = [], styles = [];
@@ -69,6 +73,86 @@ const snapshot = (revision, humanPlayback = true) => ({ revision, settings: {
 }, paused: true, current: null, queue: [], status: 'idle' });
 const state = value => ({ ok: true, value: { snapshot: value, platforms: {} } });
 const tick = () => new Promise(resolve => setImmediate(resolve));
+
+test('all snapshot entrances reject older revisions across platform, polling and command responses', async t => {
+  const playing = revision => ({ ...snapshot(revision), paused: false, status: 'playing',
+    current: { playInstanceId: 'new', track: { title: 'New track' } } });
+  await t.test('platform update before late poll', async () => {
+    let release, reads = 0, command;
+    const f = fixture(async (_channel, endpoint, payload) => {
+      if (endpoint === 'fishfm/command') { command = payload.type; return state({ ...playing(3), paused: true }); }
+      if (endpoint === 'fishfm/playlists') return state(playing(2));
+      if (++reads === 1) return state(snapshot(1));
+      return new Promise(resolve => { release = resolve; });
+    });
+    try {
+      await f.controller.refresh();
+      const poll = f.controller.refresh();
+      await f.controller.platformAction('playlists', 'netease');
+      release(state(snapshot(1))); await poll;
+      assert.equal(f.controller.getSnapshot().snapshot.revision, 2);
+      assert.equal(f.controller.getSnapshot().snapshot.paused, false);
+      await f.controller.playOrPause();
+      assert.equal(command, 'pause', 'the button must use the newer playback state');
+    } finally { f.dispose(); }
+  });
+  await t.test('cross-window polling update before late platform result', async () => {
+    let release, reads = 0;
+    const f = fixture(async (_channel, endpoint) => {
+      if (endpoint === 'fishfm/playlists') return new Promise(resolve => { release = resolve; });
+      return state(++reads === 1 ? snapshot(1) : playing(3));
+    });
+    try {
+      await f.controller.refresh();
+      const platform = f.controller.platformAction('playlists', 'netease');
+      await f.controller.refresh();
+      release(state(snapshot(2))); await platform;
+      assert.equal(f.controller.getSnapshot().snapshot.revision, 3);
+      assert.equal(f.controller.getSnapshot().snapshot.paused, false);
+    } finally { f.dispose(); }
+  });
+  await t.test('late command snapshot', async () => {
+    const f = fixture(async (_channel, endpoint) => state(endpoint === 'fishfm/command' ? snapshot(4) : playing(5)));
+    try {
+      await f.controller.refresh();
+      await f.controller.command('setHumanPlayback', false);
+      assert.equal(f.controller.getSnapshot().snapshot.revision, 5);
+    } finally { f.dispose(); }
+  });
+});
+
+test('reconnection accepts persisted Core restart pause and rejects a pre-restart platform snapshot', async () => {
+  const directory = mkdtempSync(join(tmpdir(), 'fishfm-client-restart-'));
+  const track = { provider: 'netease', providerTrackId: 'restart', title: 'Restart song', durationMs: 10000 };
+  const provider = new FakeProvider(); provider.set(track, 'fake:restart');
+  const make = () => createCoreHost({ dbPath: join(directory, 'state.sqlite'), playbackMode: 'fake', provider, output: { write() {} } });
+  let host = make(), offline = false, release;
+  const f = fixture(async (_channel, endpoint) => {
+    if (endpoint === 'fishfm/playlists') return new Promise(resolve => { release = resolve; });
+    if (offline) throw Object.assign(new Error('Core unavailable'), { code: 'core_unavailable' });
+    return state(host.snapshot());
+  });
+  try {
+    await host.start();
+    await host.handle({ type: 'command', command: { type: 'requestTrack', track } });
+    await host.core.waitForIdle();
+    const before = host.snapshot();
+    assert.equal(before.paused, false);
+    await f.controller.refresh();
+    const pending = f.controller.platformAction('playlists', 'netease');
+    offline = true; await f.controller.refresh();
+    assert.equal(f.controller.getSnapshot().connected, false);
+    await host.close(); host = make(); await host.start();
+    const restarted = host.snapshot();
+    assert.equal(restarted.revision, before.revision, 'normal startup preserves revision instead of resetting it');
+    assert.ok(restarted.commandVersion > before.commandVersion);
+    offline = false; await f.controller.refresh();
+    assert.equal(f.controller.getSnapshot().connected, true);
+    assert.equal(f.controller.getSnapshot().snapshot.paused, true);
+    release(state(before)); await pending;
+    assert.equal(f.controller.getSnapshot().snapshot.paused, true, 'the equal-revision old process response must not undo restart pause');
+  } finally { f.dispose(); await host.close(); rmSync(directory, { recursive: true, force: true }); }
+});
 
 test('failed credential cleanup shows a logged-out account and an actionable retry, then confirms deletion', async () => {
   let pending = false;

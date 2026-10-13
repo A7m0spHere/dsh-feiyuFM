@@ -41,6 +41,8 @@ Provider 暴露账号和能力状态，`resolve(track, {signal, version})` 返�
 
 Host 协议 v1 使用 JSON-lines：启动发 `ready`，请求返回带 `id` 的 `result/error`，状态变化发 `state`，退出发 `exiting`。快照含递增 `revision`、开关、策略、队列、当前实例、暂停和错误，不含凭据或 handle。
 
+客户端所有快照入口统一拒绝较低 `revision`；相等时拒绝较低 `commandVersion`。正常 Core 重启保留存储 revision，增加 commandVersion 并恢复暂停，因此重连可接收暂停，重启前迟到响应不能覆盖它。独立 playbackEpoch 继续保护本地播放命令取代的请求。
+
 `command` 应答代表接受后的快照，可能仍是 `resolving`；异步失败经后续状态呈现。控制/读取不被慢账号或导入排队，stdio 持续接收取消命令。调试用 `wait` 等媒体任务收尾，`setQueue/autonomous` 为固定候选及调试入口。
 
 UI 经宿主认证 `/api` 调用；完整白名单见 [dsh-settings.mjs](../src/ui/dsh-settings.mjs)，不能把全部 Core 命令自动暴露给浏览器。

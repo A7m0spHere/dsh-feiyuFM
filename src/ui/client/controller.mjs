@@ -41,13 +41,19 @@ export function createController(connection) {
     const patch = { ...value };
     if (libraryVersion !== libraryEpoch) delete patch.library;
     else if (patch.library?.offset !== undefined) libraryOptions = { ...libraryOptions, offset: patch.library.offset };
-    if (playbackVersion !== null && (playbackVersion !== playbackEpoch || patch.snapshot?.revision < state.snapshot?.revision)) delete patch.snapshot;
+    const incoming = patch.snapshot, current = state.snapshot;
+    // Startup retains revision but advances commandVersion and restores pause.
+    // Apply ordering to every entrance, including polling and command replies.
+    const older = incoming && current && (incoming.revision < current.revision
+      || (incoming.revision === current.revision && incoming.commandVersion < current.commandVersion));
+    if (older || (playbackVersion !== null && playbackVersion !== playbackEpoch)) delete patch.snapshot;
     return patch;
   };
   async function refresh() {
     if (disposed || state.busy || read) return;
     const version = ++epoch;
     const libraryVersion = libraryEpoch;
+    const playbackVersion = playbackEpoch;
     const controller = new AbortController();
     read = controller;
     const timeout = setTimeout(() => controller.abort(), 18000);
@@ -55,9 +61,10 @@ export function createController(connection) {
       const result = await connection.rpc.call('/api', 'fishfm/state', { library: libraryOptions }, controller.signal);
       if (version !== epoch) return;
       if (!result.ok) throw result.error;
-      const discovery = result.value.snapshot?.discovery;
+      const projected = project(result.value, libraryVersion, playbackVersion);
+      const discovery = projected.snapshot?.discovery;
       const finishedDiscovery = state.notice === '正在找新歌…' && discovery && !discovery.refreshing;
-      emit({ ...project(result.value, libraryVersion), ...(libraryVersion === libraryEpoch ? { libraryError: '' } : {}), connected: true, error: '', ...(finishedDiscovery ? {
+      emit({ ...projected, ...(libraryVersion === libraryEpoch ? { libraryError: '' } : {}), connected: true, error: '', ...(finishedDiscovery ? {
         notice: discovery.state === 'disabled' ? '探索已关闭。' : discovery.reason && discovery.reason !== 'no-unfamiliar-candidates'
           ? '新歌没找成功，请查看状态。' : '新歌列表已更新。',
       } : {}) });
