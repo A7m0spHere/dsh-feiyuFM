@@ -43,7 +43,10 @@ export function Panel({ controller, back, close }) {
     }[platform.account?.status] || '未连接');
     const available = id === 'netease' && platform?.installed;
     const selectedPlaylist=playlistId||state.playlists?.[0]?.id||'';
-    const action = platform?.account?.status === 'authorized'
+    const action = platform?.account?.cleanupPending
+      ? h('button', { type: 'button', className: 'fm-button', disabled: (state.busy || state.platformBusy) || !state.connected,
+        onClick: () => controller.platformAction('logout', id) }, '重试清理凭据')
+      : platform?.account?.status === 'authorized'
       ? h(React.Fragment, null,
         state.features?.importSources&&h('select',{ 'aria-label':'导入来源',value:importSource,disabled:(state.busy || state.platformBusy)||!state.connected,
           onChange:e=>{setImportSource(e.target.value);if(e.target.value==='playlist')controller.platformAction('playlists',id);} },

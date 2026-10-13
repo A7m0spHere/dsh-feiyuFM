@@ -647,11 +647,13 @@ window.__ModuleLoader__.load({
                 : accountStatus === 'authorized' ? { ...(state.login ?? {}), provider, status: 'authorized' }
                   : state.login;
             const notices = { import: '导入未确认完成，请核对曲库后重试。', playlists: '读取歌单失败，请稍后重试。',
-              discovery: '刷新推荐失败，请稍后重试。', logout: '退出登录未确认，请刷新核对账号状态。',
+              discovery: '刷新推荐失败，请稍后重试。', logout: error?.code === 'credential_cleanup_failed'
+                ? '账号已退出，本机凭据清理失败，请重试清理。' : '退出登录未确认，请刷新核对账号状态。',
               begin: '获取二维码失败，请重试。', poll: '登录步骤未完成，可重新扫码或刷新重试。' };
             emit({ ...latest, connected, error: failure(error), errorCode: error?.code ?? null, notice: notices[action],
+              ...(action === 'logout' && error?.code === 'credential_cleanup_failed' ? { login: null, imported: null } : { login }),
               importAttempts: action === 'import' ? details.attempts ?? [] : state.importAttempts,
-              login });
+            });
           } finally { clearTimeout(timeout); platformWrite = null; emit({ platformBusy: false }); }
         },
         async personaAction(action,payload){
@@ -1168,7 +1170,10 @@ window.__ModuleLoader__.load({
         }[platform.account?.status] || '未连接');
         const available = id === 'netease' && platform?.installed;
         const selectedPlaylist=playlistId||state.playlists?.[0]?.id||'';
-        const action = platform?.account?.status === 'authorized'
+        const action = platform?.account?.cleanupPending
+          ? h('button', { type: 'button', className: 'fm-button', disabled: (state.busy || state.platformBusy) || !state.connected,
+            onClick: () => controller.platformAction('logout', id) }, '重试清理凭据')
+          : platform?.account?.status === 'authorized'
           ? h(React.Fragment, null,
             state.features?.importSources&&h('select',{ 'aria-label':'导入来源',value:importSource,disabled:(state.busy || state.platformBusy)||!state.connected,
               onChange:e=>{setImportSource(e.target.value);if(e.target.value==='playlist')controller.platformAction('playlists',id);} },

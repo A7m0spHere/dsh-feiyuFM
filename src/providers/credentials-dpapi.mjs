@@ -78,6 +78,7 @@ export function createDpapiCredentials({
   helper = HELPER,
   run = (operation, options) => runDpapiHelper(operation, { ...options, helper }),
   now = () => Date.now(),
+  remove = rmSync,
 } = {}) {
   if (!directory) throw new Error('A credential directory is required');
 
@@ -112,8 +113,12 @@ export function createDpapiCredentials({
     },
 
     delete(reference) {
-      try { rmSync(fileFor(reference), { force: true }); } catch { /* already gone */ }
-      try { rmSync(metaFor(reference), { force: true }); } catch { /* already gone */ }
+      let failure;
+      for (const path of [fileFor(reference), metaFor(reference)]) {
+        try { remove(path, { force: true }); }
+        catch (error) { if (error.code !== 'ENOENT') failure ??= error; }
+      }
+      if (failure) throw failure;
       return true;
     },
 

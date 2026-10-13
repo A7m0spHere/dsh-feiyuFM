@@ -56,6 +56,8 @@ UI 经宿主认证 `/api` 调用；完整白名单见 [dsh-settings.mjs](../src/
 | `fishfm/persona-summary/persona-recommendations` | 旧展示总结 / 平台召回后模型筛选；后者不生成歌名 |
 | `fishfm/persona-budget/persona-output/persona-automatic` | 预算、输出上限与自动更新设置 |
 
+`logout` 分离会话停用与持久化清理：清理失败返回 `credential_cleanup_failed`（可重试），带 `cleanupPending/sessionDisabled`；内存 secret、cookie jar、扫码会话与发现缓存仍清空。数据库保留 `revoked` 引用，重启不复用残留凭据；账号显示 `login_required/cleanupPending`，再次退出可重试删除。只有删除完成或凭据已不存在才移除引用并提示清理成功。
+
 Host `library` 接收 `query/offset/limit`：关键词最多 200 字符，offset 为非负安全整数，limit 为 1–100（默认 12）。按标题/艺人/平台 ID 在全库搜索，返回 `total/matched/query/offset/limit/tracks/firstTrack`；偏移超出结果时收敛到最后一页，空结果回到 0。`firstTrack` 独立于查询，供手动模式在空搜索结果时开始播放。只返回安全曲目元数据，UI 不接受音频 URL。`insights` 统计按最近 200 次决策关联，不代表历史全期；反馈、成长与解释独立。业务错误有应答不等于 Core 断连；平台失败后以补查状态的结果更新连接标记，无法补查时保留实际错误语义。客户端平台任务与播放命令分别持有取消控制器；慢登录/导入不阻塞播放控制或状态轮询，命令之后到达的旧平台快照不能覆盖播放。曲库查询使用独立代次，旧搜索、旧轮询和旧平台响应不能替换新查询页。见 [U17](spikes/U17-control-library-fixes.md)。
 
 ## 4. 推荐缓存与歌单核对

@@ -27,6 +27,7 @@ function safeText(value, limit = 280) {
 function safeImportDetails(details) {
   if (!details || typeof details !== 'object') return {};
   const result = {};
+  for (const key of ['cleanupPending', 'sessionDisabled']) if (typeof details[key] === 'boolean') result[key] = details[key];
   if (SAFE_STAGES.has(details.stage)) result.stage = details.stage;
   if (Number.isInteger(details.httpStatus)) result.httpStatus = details.httpStatus;
   if (Number.isInteger(details.platformCode)) result.platformCode = details.platformCode;

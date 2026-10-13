@@ -7,6 +7,17 @@ import { join, resolve } from 'node:path';
 import { CoreBridge } from '../src/dsh-adapter.mjs';
 import { createSettingsHandler, registerSettingsApi } from '../src/ui/dsh-settings.mjs';
 
+test('logout RPC exposes cleanup status without swallowing failure or disclosing backend details', async () => {
+  const api = createSettingsHandler({ async start() {}, async request() {
+    throw Object.assign(new Error('账号已退出，但本机凭据清理失败'), { code: 'credential_cleanup_failed', retryable: true,
+      details: { cleanupPending: true, sessionDisabled: true, secret: 'private' } });
+  } });
+  const result = await api('fishfm/logout', { provider: 'netease' });
+  assert.equal(result.ok, false);
+  assert.equal(result.error.code, 'credential_cleanup_failed');
+  assert.deepEqual(result.error.details, { cleanupPending: true, sessionDisabled: true });
+});
+
 test('authenticated point play strips resource and credential fields and validates the track before forwarding', async () => {
   let sent;
   const api = createSettingsHandler({ async start() {}, async command(command) { sent = command; return { snapshot: {} }; } });

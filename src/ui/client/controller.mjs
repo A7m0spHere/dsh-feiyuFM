@@ -207,11 +207,13 @@ export function createController(connection) {
             : accountStatus === 'authorized' ? { ...(state.login ?? {}), provider, status: 'authorized' }
               : state.login;
         const notices = { import: '导入未确认完成，请核对曲库后重试。', playlists: '读取歌单失败，请稍后重试。',
-          discovery: '刷新推荐失败，请稍后重试。', logout: '退出登录未确认，请刷新核对账号状态。',
+          discovery: '刷新推荐失败，请稍后重试。', logout: error?.code === 'credential_cleanup_failed'
+            ? '账号已退出，本机凭据清理失败，请重试清理。' : '退出登录未确认，请刷新核对账号状态。',
           begin: '获取二维码失败，请重试。', poll: '登录步骤未完成，可重新扫码或刷新重试。' };
         emit({ ...latest, connected, error: failure(error), errorCode: error?.code ?? null, notice: notices[action],
+          ...(action === 'logout' && error?.code === 'credential_cleanup_failed' ? { login: null, imported: null } : { login }),
           importAttempts: action === 'import' ? details.attempts ?? [] : state.importAttempts,
-          login });
+        });
       } finally { clearTimeout(timeout); platformWrite = null; emit({ platformBusy: false }); }
     },
     async personaAction(action,payload){

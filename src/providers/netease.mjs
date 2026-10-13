@@ -479,7 +479,7 @@ export function createNetEaseProvider(options = {}) {
       } catch (error) {
         if (error.code === 'login_required') {
           const saved = store?.getCredentialReference(NETEASE);
-          if (saved) store.setCredentialReference({ provider: NETEASE, accountId: saved.account_id, credentialRef: accountRef, state: 'expired', updatedAt: (options.now ?? Date.now)() });
+          if (saved?.state === 'authorized') store.setCredentialReference({ provider: NETEASE, accountId: saved.account_id, credentialRef: accountRef, state: 'expired', updatedAt: (options.now ?? Date.now)() });
         }
         if (signal?.aborted || ['cancelled','login_required','expired'].includes(error.code)) throw error;
         failures.push(`${role}:${error.code ?? 'provider_failure'}`);
@@ -510,7 +510,7 @@ export function createNetEaseProvider(options = {}) {
         }
       }catch(error){
         if(error.code==='login_required'){
-          const ref=store?.getCredentialReference(NETEASE);if(ref)store.setCredentialReference({provider:NETEASE,accountId:ref.account_id,credentialRef:accountRef,state:'expired',updatedAt:fetchedAt});
+          const ref=store?.getCredentialReference(NETEASE);if(ref?.state==='authorized')store.setCredentialReference({provider:NETEASE,accountId:ref.account_id,credentialRef:accountRef,state:'expired',updatedAt:fetchedAt});
         }
         if(options.signal?.aborted)throw new MusicError('cancelled','Discovery was cancelled');
         if(error.code==='login_required')throw error;

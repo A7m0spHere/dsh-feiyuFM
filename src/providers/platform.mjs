@@ -82,9 +82,10 @@ export function createPlatformProvider({
   };
 
   const forgetCredential = () => {
+    if (!credentials?.delete && store?.getCredentialReference?.(providerName)) throw new Error('Credential store unavailable');
     try {
-      credentials?.delete?.(accountRef);
-    } catch { /* already gone is the desired end state */ }
+      if (credentials?.delete?.(accountRef) === false) throw new Error('Credential deletion was not confirmed');
+    } catch (error) { if (error.code !== 'ENOENT') throw error; }
     store?.removeCredentialReference(providerName);
   };
 
@@ -177,7 +178,8 @@ export function createPlatformProvider({
       if (reference && (reference.state === 'expired' || reference.state === 'revoked')) {
         return {
           status: reference.state === 'expired' ? 'expired' : 'login_required',
-          reason: 'the stored sign-in is no longer usable',
+          ...(reference.state === 'revoked' ? { cleanupPending: true } : {}),
+          reason: reference.state === 'revoked' ? '账号已退出，本机凭据清理未完成，请重试清理。' : 'the stored sign-in is no longer usable',
         };
       }
       if (authorized()) {
@@ -284,12 +286,26 @@ export function createPlatformProvider({
 
     async logout() {
       ++loginVersion;
-      forgetCredential();
-      cachedSecret = null;
-      transport.useSecret?.('');
-      pendingLogin = null;
-      noted.seedSource = null;
-      noted.seedReason = null;
+      try {
+        // Keep the reference for retry, but prevent loading the residual secret
+        // in this process or after a restart, even if deletion fails.
+        const reference = store?.getCredentialReference?.(providerName);
+        if (reference) store.setCredentialReference({ provider: providerName, accountId: reference.account_id,
+          credentialRef: reference.credential_ref, state: 'revoked', updatedAt: now() });
+        forgetCredential();
+      } catch {
+        // Backend exceptions can contain session material. Only this fixed
+        // message and structured cleanup status may cross the Core boundary.
+        throw new MusicError('credential_cleanup_failed', '账号已退出，但本机凭据清理失败，请重试清理。',
+          { retryable: true, details: { cleanupPending: true, sessionDisabled: true } });
+      } finally {
+        cachedSecret = null;
+        pendingLogin = null;
+        lastError = null;
+        noted.seedSource = null;
+        noted.seedReason = null;
+        try { transport.useSecret?.(''); } finally { transport.jar?.clear?.(); }
+      }
       return { status: 'login_required' };
     },
 

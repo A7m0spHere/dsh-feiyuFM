@@ -622,9 +622,9 @@ export function createCoreHost({
         case 'logout': {
           requireFacade();
           const accountProvider = requireProvider(message.provider);
-          const result = await accountProvider.logout();
-          platformsFacade.clearDiscovery();
-          publishIfChanged();
+          let result;
+          try { result = await accountProvider.logout(); }
+          finally { platformsFacade.clearDiscovery(); publishIfChanged(); }
           send({ type: 'result', id, ok: true, status: result.status, account: accountProvider.getAccount() });
           return;
         }

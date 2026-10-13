@@ -69,6 +69,35 @@ const snapshot = (revision, humanPlayback = true) => ({ revision, settings: {
 }, paused: true, current: null, queue: [], status: 'idle' });
 const state = value => ({ ok: true, value: { snapshot: value, platforms: {} } });
 const tick = () => new Promise(resolve => setImmediate(resolve));
+
+test('failed credential cleanup shows a logged-out account and an actionable retry, then confirms deletion', async () => {
+  let pending = false;
+  const f = fixture(async (_channel, endpoint) => {
+    if (endpoint === 'fishfm/logout') {
+      if (!pending) {
+        pending = true;
+        return { ok: false, error: { code: 'credential_cleanup_failed', message: '账号已退出，但本机凭据清理失败，请重试清理。', details: { cleanupPending: true, sessionDisabled: true } } };
+      }
+      pending = false;
+    }
+    return { ok: true, value: { snapshot: snapshot(1), login: null,
+      platforms: { netease: { installed: true, account: { status: pending ? 'login_required' : 'authorized', cleanupPending: pending } } } } };
+  });
+  try {
+    await f.controller.refresh();
+    await f.controller.platformAction('logout', 'netease');
+    assert.equal(f.controller.getSnapshot().connected, true);
+    assert.equal(f.controller.getSnapshot().login, null);
+    assert.match(f.controller.getSnapshot().notice, /清理失败/);
+    assert.ok(!f.controller.getSnapshot().notice.includes('已删除'));
+    const retry = all(f.render()).find(node => node.type === 'button' && node.children.includes('重试清理凭据'));
+    assert.ok(retry);
+    assert.equal(retry.props.disabled, false);
+    await retry.props.onClick();
+    assert.match(f.controller.getSnapshot().notice, /本机凭据已删除/);
+    assert.equal(f.controller.getSnapshot().error, '');
+  } finally { f.dispose(); }
+});
 function all(tree) { return !tree || typeof tree !== 'object' ? [] : [tree, ...tree.children.flatMap(all)]; }
 
 test('public playback artwork uses owned state PNGs while playing and paused', async () => {
