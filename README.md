@@ -19,19 +19,19 @@
 
 | 获取方式 | 包含内容 |
 | --- | --- |
-| **npm 测试版** | `0.1.0-beta.2` 已发布，包含平台推荐 → 模型筛选、新歌单界面、播放中断恢复与播放动效。[发布记录](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/releases/0.1.0-beta.2.md) |
-| **当前 `main` 源码** | 分区布局、慢导入播放控制、全库搜索、手动找歌无倒计时、DPAPI/PowerShell 5.1 修复；新增模型最终回答校验和可调输出额度。beta.3 正在准备，尚未发布；macOS 仍待真机验收。[N23](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/spikes/N23-model-route-completion.md) |
+| **npm 测试版** | 本次发行版本 `0.1.0-beta.3`：DPAPI/PowerShell 5.1、模型最终回答校验、可调输出额度、慢导入控制与全库搜索，以及导入重置、退出清理和快照去旧修复。[发行状态](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/releases/0.1.0-beta.3.md) |
+| **当前 `main` 源码** | 与 beta.3 本次运行实现一致；macOS 适配随包提供，仍为实验性且待真机验收。[验收与剩余工作](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/PROJECT_PLAN.md) |
 
 截图按屏宽和浅深色偏好切换，宽屏展示完整分区，窄屏聚焦播放器与歌单。截图来自 2026-10-07 隔离预览，歌曲、账号状态和模型数据均为模拟内容；图中的倒计时属于历史界面，U18 已移除，不代表当前推荐质量。
 
 ## 开始使用
 
-已发布的 npm `0.1.0-beta.2` 支持 **Windows + 网易云音乐**。当前 `main` 已加入 macOS 源码路径：AVFoundation 播放宿主、Unix socket IPC 与 Keychain 凭据适配；历史移植记录确认了 Helper 编译和本地 profile 加载，真实登录、音频与退出链路仍待真机验证。本轮没有发布新的 npm 版本。需要 Node.js `>=24.14.0 <25`，桌面宿主自带兼容 Node 24 时无需另装。
+本次 npm `0.1.0-beta.3` 的已验证范围是 **Windows + 网易云音乐**。macOS 的 AVFoundation 播放宿主、Unix socket IPC 与 Keychain 凭据适配随包提供；历史移植记录确认了 Helper 编译和本地 profile 加载，真实登录、音频与退出链路仍待真机验证。需要 Node.js `>=24.14.0 <25`，桌面宿主自带兼容 Node 24 时无需另装。
 
 在 DSH「插件 → 添加插件」的「包名或地址」中输入：
 
 ```text
-dsh-feiyufm-core@0.1.0-beta.2
+dsh-feiyufm-core@0.1.0-beta.3
 ```
 
 安装后点击「立即启用」，再完成三步：
@@ -109,7 +109,7 @@ macOS 当前仅指 `main` 源码版；首次使用原生播放或 Keychain 时�
 - **为什么没有声音？** 检查声音开关、静听模式、暂停状态，以及系统音量和输出设备。首次播放可能等待数秒。
 - **安装后没看到截图中的新布局？** 图中为 `main`，U15/U16 尚未收入已发布的 beta.2；源码体验方法见上方折叠说明。
 
-项目仍是测试版。2026-10-12 的 beta.3 补验已完成真实模型筛选、入选曲静音播放与日常原生 Desktop 正常退出重开；兼容服务须使用能正确关闭推理的模型路线。实包安装与 DPAPI 检查通过；本轮实际观察 54.72 分钟后按用户要求结束，16 条有效收听、0 播放错误。beta.3 尚未发布；两小时、完整 DSH 对照、并发多会话、跨设备和 macOS 真机仍待验，QQ 接入暂缓。报告见 [beta.3 验收](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/releases/0.1.0-beta.3-acceptance.md)，最新计数与剩余工作统一见 [开发路线](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/PROJECT_PLAN.md)。
+项目仍是测试版。2026-10-12 的 beta.3 补验已完成真实模型筛选、入选曲静音播放与日常原生 Desktop 正常退出重开；兼容服务须使用能正确关闭推理的模型路线。实包安装与 DPAPI 检查通过；当轮实际观察 54.72 分钟后按用户要求结束，16 条有效收听、0 播放错误。2026-10-13 补上三个 GitHub 问题修复；两小时、完整 DSH 对照、并发多会话、跨设备和 macOS 真机仍待验，QQ 接入暂缓。报告见 [beta.3 验收](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/releases/0.1.0-beta.3-acceptance.md)，最新计数与剩余工作统一见 [开发路线](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/PROJECT_PLAN.md)。
 
 ## 数据、开发与许可
 

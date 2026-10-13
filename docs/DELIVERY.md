@@ -1,12 +1,12 @@
 # 交付与使用说明
 
-更新日期：2026-10-12。已发布 **0.1.0-beta.2** 仍是 Windows／网易云测试版；当前 `main` 包含 U17/U18、DPAPI 助手入包及 PowerShell 5.1 修复，并有 macOS 实验性源码适配，beta.3 正在发布前验收，尚未发布。稳定 v0.1 验收仍未完成。发行确认与摘要见 [beta.2 记录](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/releases/0.1.0-beta.2.md)，源码/发布/实包与验收状态统一见 [开发路线](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/PROJECT_PLAN.md)。
+更新日期：2026-10-13。本说明适用于 **0.1.0-beta.3** Windows／网易云测试版，包含 U17/U18、DPAPI/PowerShell 5.1、模型输出校验和导入重置／退出清理／快照去旧修复。macOS 适配随包提供，仍为未完成真机验收的实验性功能；稳定 v0.1 验收未完成。发行状态与摘要见 [beta.3 记录](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/releases/0.1.0-beta.3.md)，源码/发布/实包与验收状态统一见 [开发路线](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/PROJECT_PLAN.md)。
 
 ## 支持范围
 
 | 项目 | 当前范围 |
 | --- | --- |
-| 系统 | npm beta.2：Windows，真实播放依赖 WPF `MediaPlayer` 与命名管道；当前 `main` 有 macOS 实验性源码适配，使用 AVFoundation、Unix socket 和 Keychain，现场音频/登录/退出仍未完成验收 |
+| 系统 | Windows，真实播放依赖 WPF `MediaPlayer` 与命名管道；macOS 实验性适配使用 AVFoundation、Unix socket 和 Keychain，现场音频/登录/退出仍未完成验收 |
 | Node.js | `>=24.14.0 <25`；使用内置 `node:sqlite` |
 | DSH | 本机官方桌面 `0.2.0-rc.2` 已安装并验证部分真实交互；其他版本需验证 |
 | 网易云 | 扫码、账号校验、导入、点播与自主续播已有真实验证；会员、版权与资源限制由平台决定 |
@@ -16,11 +16,11 @@
 
 ## 安装
 
-FishFM 以 npm 包分发，通过 DSH 安装到当前 profile。在侧栏「插件 → 添加插件」的「包名或地址」中输入 `dsh-feiyufm-core@0.1.0-beta.2`，安装完成后点击「立即启用」；跟随 beta 更新用 `dsh-feiyufm-core@beta`。下载失败可切换「安装源 → npm 官方源」。DSH 会安装 bundle、读取 patch 并登记插件，无需手改 profile；单独 `npm install` 不会完成这一步。机制见 [DSH 官方安装说明](https://deepseek-harness.github.io/deepseek-harness/en/develop/basic/publish)。
+FishFM 以 npm 包分发，通过 DSH 安装到当前 profile。在侧栏「插件 → 添加插件」的「包名或地址」中输入 `dsh-feiyufm-core@0.1.0-beta.3`，安装完成后点击「立即启用」；跟随 beta 更新用 `dsh-feiyufm-core@beta`。下载失败可切换「安装源 → npm 官方源」。DSH 会安装 bundle、读取 patch 并登记插件，无需手改 profile；单独 `npm install` 不会完成这一步。机制见 [DSH 官方安装说明](https://deepseek-harness.github.io/deepseek-harness/en/develop/basic/publish)。
 
-已安装 DSH CLI 的用户可通过 `dsh plugin --profile web add dsh-feiyufm-core@0.1.0-beta.2 --registry https://registry.npmjs.org/` 安装到 Web profile；`web` 要对应实际启动的 profile，安装后重启该实例。桌面版使用上述应用内入口。
+已安装 DSH CLI 的用户可通过 `dsh plugin --profile web add dsh-feiyufm-core@0.1.0-beta.3 --registry https://registry.npmjs.org/` 安装到 Web profile；`web` 要对应实际启动的 profile，安装后重启该实例。桌面版使用上述应用内入口。
 
-已发布 npm beta.2 支持 Windows、DSH 本机验证版本 `0.2.0-rc.2`；桌面宿主自带兼容 Node 24 时无需单独安装 Node。macOS 仅限从 `main` 源码安装，要求 Xcode Command Line Tools 提供 `/usr/bin/swiftc`；首次启动原生后端时会编译 Helper 到 DSH 私有数据目录。此源码移植不代表 beta.2 支持 macOS。QQ 接入暂缓。
+Windows Beta 的 DSH 本机验证版本为 `0.2.0-rc.2`；桌面宿主自带兼容 Node 24 时无需单独安装 Node。beta.3 包含 macOS 实验性适配，要求 Xcode Command Line Tools 提供 `/usr/bin/swiftc`；首次启动原生后端时会编译 Helper 到 DSH 私有数据目录。这不代表 macOS 真机验收完成。QQ 接入暂缓。
 
 在 macOS 桌面 profile 中从源码接入：
 
@@ -36,13 +36,13 @@ dsh plugin --profile desktop add /absolute/path/to/dsh-feiyuFM
 
 ## 首次听歌
 
-beta.2 的角色图下有一枚无文字的小开关，默认位于左侧，可以自行尝试另一侧。素材随包提供，无需 Wallpaper Engine 或手动提取；beta.1 尚无此功能。同源窗口即时同步、高窄面板适配已在 U13 隔离验证，真实生产窗口组合仍待验。
+beta.2 起的角色图下有一枚无文字的小开关，默认位于左侧，可以自行尝试另一侧。素材随包提供，无需 Wallpaper Engine 或手动提取；beta.1 尚无此功能。同源窗口即时同步、高窄面板适配已在 U13 隔离验证，真实生产窗口组合仍待验。
 
 导入后，可直接点播输入曲库中的歌曲。自主听歌与电脑声音是独立开关：静听保留自主听歌但关闭声音，暂停冻结进度且不会被自动事件撤销。「今天停止」还会禁止当日自主行为，可通过「恢复自主听歌」解除。
 
-beta.2 按“参考歌曲 → 网易云推荐 → 模型挑歌”工作。导入后沿用 DSH 已配置模型按批筛选，主界面只显示歌单、理由和换一批；模型选择与用量放在折叠设置。自动播放只来自入选歌单，失败保留同账号有效旧歌单；用户下一首可回退参考曲库，自动续播不走这条回退。beta.1 仍保留当时的模型歌单/核对界面。
+beta.2 起按“参考歌曲 → 网易云推荐 → 模型挑歌”工作。导入后沿用 DSH 已配置模型按批筛选，主界面只显示歌单、理由和换一批；模型选择与用量放在折叠设置。自动播放只来自入选歌单，失败保留同账号有效旧歌单；用户下一首可回退参考曲库，自动续播不走这条回退。beta.1 仍保留当时的模型歌单/核对界面。
 
-主面板、设置页与悬浮条共用 Core。隐藏悬浮条或切换页面继续播放，停用插件会停止其后台服务与播放。模型总结、歌单与候选筛选是低频调用，受开关、每日次数和共享 token 预算约束；逐曲播放不请求模型。当前 `main` 的 U18 取消手动找歌/换批的 15 分钟模型等待，后台自动筛选仍受冷却限制；并发、次数、预算、平台刷新节流和候选缓存保留。npm beta.2 保持原规则。
+主面板、设置页与悬浮条共用 Core。隐藏悬浮条或切换页面继续播放，停用插件会停止其后台服务与播放。模型总结、歌单与候选筛选是低频调用，受开关、每日次数和共享 token 预算约束；逐曲播放不请求模型。beta.3 的 U18 取消手动找歌/换批的 15 分钟模型等待，后台自动筛选仍受冷却限制；并发、次数、预算、平台刷新节流和候选缓存保留。历史 npm beta.2 保持原规则。
 
 ## 更新
 
@@ -59,7 +59,7 @@ DSH `0.2.0-rc.2` 的插件页暂不支持自动更新。先在插件管理器卸
 | 本地记录 | 输入音乐、偏好、反馈、收听历史、成长、约束与模型 token 账本 |
 | 模型事实包 | 有界的歌名、艺人、反馈、关系等；歌单生成不发平台 ID，候选筛选含曲目键；不发 Cookie 或凭据 |
 
-凭据绑定当前 Windows 用户或 macOS 登录 Keychain，不随 Git 同步，也不能依靠复制密文跨设备登录。登出会清理凭据及其引用。偏好重置与输入曲库清空是两个可恢复入口，不用于登出；删除数据库是完整清除本地数据，请先确认是否需要备份。
+凭据绑定当前 Windows 用户或 macOS 登录 Keychain，不随 Git 同步，也不能依靠复制密文跨设备登录。登出始终停用内存会话；只有持久化凭据删除成功后才提示已删除。删除失败时显示清理未完成，保留停用的引用并提供“重试清理凭据”，重启不会复用残留凭据。偏好重置与输入曲库清空是两个可恢复入口，不用于登出；删除数据库是完整清除本地数据，请先确认是否需要备份。
 
 仓库不保存 Cookie、运行数据库或音频。测试 WAV 由脚本现场生成。
 
