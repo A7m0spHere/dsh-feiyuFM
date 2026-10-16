@@ -23,24 +23,36 @@ export function createRuntimeEvidence({ directory = null, component = 'core', mo
   let seq = 0, dropped = 0, closed = false;
   let published = false;
   let hostCollector=null;
-  const report = () => ({ schema: 1, runId, component, mode, pid: process.pid, parentPid: process.ppid, node: process.versions.node, metadata, startedAt, updatedAt: now(), closed, sequence: seq, droppedEvents: dropped, counts: { ...counts }, events: structuredClone(events), samples: [...samples],
+  const report = () => ({ schema: 1, runId, component, mode, pid: process.pid, parentPid: process.ppid, node: process.versions.node, metadata, startedAt, updatedAt: now(), closed, sequence: seq, droppedEvents: dropped, writeHealth: { ...writeHealth }, counts: { ...counts }, events: structuredClone(events), samples: [...samples],
     coverage: { platformRequests: component === 'core' ? 'instrumented' : 'unknown', playbackEvents: component === 'core' ? mode : 'unknown', promptRegistration: component === 'adapter' ? 'instrumented' : 'unknown', musicModelRequests: null, dshModelRequests: hostCollector?.report().attachedAt?'llm_stream_service_calls':null, perTurnContextInjection: 'unknown' },
     host:hostCollector?.report()??null,
     a09: { holds: null, statement: 'A09 also requires real elapsed time, playback and source attribution audit' } });
+  // A dropped write is a fact worth keeping: a silently stale file is
+  // indistinguishable from a wedged process when someone reads it later.
+  const writeHealth = { attempts: 0, failures: 0, skipped: 0, lastError: null, lastFailureAt: null, lastSuccessAt: null };
   const flush = () => {
     if (!directory) return;
+    writeHealth.attempts++;
     try {
       mkdirSync(directory, { recursive: true });
       const target = join(directory, `${component}.json`), temporary = `${target}.${process.pid}.tmp`;
       if (published) {
-        try {
-          if (JSON.parse(readFileSync(target, 'utf8')).runId !== runId) return;
-        } catch { /* retry a missing report, never publish another run's data */ }
+        let existing = null;
+        try { existing = JSON.parse(readFileSync(target, 'utf8')); }
+        catch { /* missing or half-written: this run may publish */ }
+        // Another run owns the file. Skipping is intentional, but it is still a
+        // write that did not happen, so it is counted rather than passed over.
+        if (existing && existing.runId !== runId) { writeHealth.skipped++; return; }
       }
       writeFileSync(temporary, `${JSON.stringify(report())}\n`, 'utf8');
       renameSync(temporary, target);
       published = true;
-    } catch { /* Diagnostics must not interrupt music. */ }
+      writeHealth.lastSuccessAt = now();
+    } catch (error) {
+      writeHealth.failures++;
+      writeHealth.lastError = (error?.code || error?.name || 'error').toString().slice(0, 40);
+      writeHealth.lastFailureAt = now();
+    }
   };
   const event = (raw) => {
     const entry = safeEvidenceEvent(raw);
@@ -65,7 +77,7 @@ export function createRuntimeEvidence({ directory = null, component = 'core', mo
   const timer = directory ? setInterval(sample, intervalMs) : null;
   timer?.unref();
   flush();
-  return { event, report, flush, setHostCollector(collector){hostCollector=collector;}, close() { closed = true; clearInterval(timer); sample(); } };
+  return { event, report, flush, writeHealth:()=>({ ...writeHealth }), setHostCollector(collector){hostCollector=collector;}, close() { clearInterval(timer); const before = writeHealth.failures; sample(); closed = writeHealth.failures === before; } };
 }
 export function readRuntimeEvidence(directory, now = Date.now()) {
   const components = {};
