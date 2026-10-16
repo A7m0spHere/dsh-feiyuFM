@@ -11,7 +11,13 @@ const directory = resolve(value('--directory', join(process.env.DSH_HOME || join
 const seconds = Number(value('--seconds', '0'));
 if (!Number.isFinite(seconds) || seconds < 0) throw new Error('--seconds must be nonnegative');
 const startedAt = Date.now(), initial = readRuntimeEvidence(directory);
-if (!initial.components.core || initial.components.core.stale || initial.components.core.mode !== 'real') throw new Error('No fresh real Core evidence; restart/enable the production plugin first');
+if (!initial.components.core || initial.components.core.stale || initial.components.core.mode !== 'real') {
+  // A missing report has two very different causes; name the real one.
+  const failure = initial.writeFailures?.core;
+  throw new Error(failure
+    ? `The production plugin cannot write its evidence (code=${failure.lastError}, failures=${failure.failures}); fix that before observing`
+    : 'No fresh real Core evidence; restart/enable the production plugin first');
+}
 const deadline = startedAt + seconds * 1000;
 const observation=createObservation(initial,startedAt);
 const out = value('--out', null),stop=new AbortController();
@@ -31,4 +37,4 @@ const final = readRuntimeEvidence(directory);
 observation.accept(final);
 const result={...observation.report(final),status:interrupted?'interrupted':'completed'};
 save(result);
-console.log(JSON.stringify({ mode: result.mode,status:result.status, elapsedMs: result.elapsedMs, sameRun: result.sameRun, uninterruptedEvidence:result.uninterruptedEvidence,coreFresh: Boolean(final.components.core && !final.components.core.stale), counts: final.components.core?.counts, hostCalls:final.components.adapter?.host?.calls??null,a09Passed: null, ...(out ? { report: resolve(out) } : {}) }, null, 2));
+console.log(JSON.stringify({ mode: result.mode,status:result.status, elapsedMs: result.elapsedMs, sameRun: result.sameRun, uninterruptedEvidence:result.uninterruptedEvidence,evidenceWriteFailures:result.evidenceWriteFailures,coreFresh: Boolean(final.components.core && !final.components.core.stale), counts: final.components.core?.counts, hostCalls:final.components.adapter?.host?.calls??null,a09Passed: null, ...(out ? { report: resolve(out) } : {}) }, null, 2));

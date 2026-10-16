@@ -32,7 +32,13 @@ if (!['real', 'fake'].includes(playbackMode)) throw new Error('--playback must b
 if (!['real', 'fake'].includes(providerMode)) throw new Error('--provider must be real or fake');
 if (!['environment', 'queue'].includes(selectionMode)) throw new Error('--selection must be environment or queue');
 
-const evidence = createRuntimeEvidence({ directory: dbPath === ':memory:' ? null : join(dirname(resolve(dbPath)), 'runtime'), mode: playbackMode === 'real' && providerMode === 'real' ? 'real' : 'synthetic' });
+const evidence = createRuntimeEvidence({
+  directory: dbPath === ':memory:' ? null : join(dirname(resolve(dbPath)), 'runtime'),
+  mode: playbackMode === 'real' && providerMode === 'real' ? 'real' : 'synthetic',
+  // The report cannot carry its own failures until a later write lands, so the
+  // live process is told directly. Codes only: no paths, no secrets.
+  onWriteFailure: health => process.stderr.write(`fishfm-core: runtime evidence write failed (code=${health.lastError}, failures=${health.failures})\n`),
+});
 const onLog = (entry) => {
   evidence.event(entry);
   // Diagnostics only; never log credentials or resolved media URLs.

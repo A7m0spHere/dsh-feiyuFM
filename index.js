@@ -106,7 +106,17 @@ export function defaultDatabase(env = process.env) {
 export function apply(ctx, config = {}) {
   const settings = { ...DEFAULT_SETTINGS, ...(config ?? {}) };
   const database = settings.database ?? defaultDatabase();
-  const evidence = createRuntimeEvidence({ directory: database === ':memory:' ? null : join(dirname(database), 'runtime'), component: 'adapter', mode: settings.playback === 'real' ? 'real' : 'synthetic' });
+  const evidence = createRuntimeEvidence({
+    directory: database === ':memory:' ? null : join(dirname(database), 'runtime'),
+    component: 'adapter',
+    mode: settings.playback === 'real' ? 'real' : 'synthetic',
+    // A report can only carry its own failures after a later write lands, so a
+    // live process is told directly. Type-and-code only: no paths, no secrets.
+    onWriteFailure: (health) => {
+      try { ctx.logger?.('fishfm')?.warn?.(JSON.stringify({ type: 'runtime-evidence-write-failed', code: health.lastError, failures: health.failures })); }
+      catch { /* logging is optional */ }
+    },
+  });
   ctx.effect(() => () => evidence.close(), 'fishfm: runtime evidence lifecycle');
   const command = coreCommand({
     coreEntry: settings.coreEntry,

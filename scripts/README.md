@@ -42,4 +42,11 @@
 
 不要为了“整理仓库”执行登录、真实发声、生产观察或长跑。需要这些证据时按 [开发路线](../docs/PROJECT_PLAN.md) 的具体任务运行。
 
+| `node scripts/probes/evidence-failure.mjs` | 复现 REV-04 的日志写失败（合成故障）；只打印观测 JSON，不是测试、不改产品 |
+| `node scripts/probes/evidence-review.mjs` | 复核 REV-04 的永久失败/恢复/回调/接管语义；同上 |
+| `node scripts/probes/evidence-flush-cost.mjs` | 量测同步 flush 成本（合成上限） |
+| `node scripts/probes/evidence-flush-realistic.mjs` | 量测真实事件混合下的 flush 成本 |
+
 `make-tone.mjs`、`client-bundle.mjs` 和 `fixtures/` 是脚本复用模块/替身。早期 P0 探针放在根 [spikes/](../spikes/README.md)，当前流程以本索引和生产源码为准。
+
+`scripts/probes/` 是**审计探针**，不是测试：`test/` 下的一切都会被 `node --test` 执行，因此探针放在这里以免混进套件、虚增测试数。它们只打印观测 JSON 供报告引用。

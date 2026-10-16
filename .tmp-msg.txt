@@ -1,0 +1,28 @@
+fix: 补齐 REV-04 复核发现的三个缺口
+
+对首轮 #6 修复做复核，发现修复本身不完整：
+
+1. 失败记录只能随「成功写」落盘。永久失败时报告写不出去，读者拿到的
+   只是「文件不存在」——失败记录恰在最需要它的场景下不可达。新增失败
+   侧车 <component>.write-failure.json，写入恢复后清除；进程启动时清掉
+   属于别的 runId 的残留（崩溃不走 close，否则陈旧告警永远说谎）。
+   readRuntimeEvidence 以 writeFailures 单独返回，不并入 stale。
+
+2. 活进程要等到下一次成功写才知道出事。新增 onWriteFailure 回调，按
+   错误码去重、同因只报一次、恢复后重新武装；index.js 与
+   bin/fishfm-core.mjs 接入，只输出类型与错误码。
+
+3. 没有任何消费者读这份记录，等于换了个地方沉默。observation.mjs 累积
+   evidenceWriteFailures/lastWriteFailure，有写失败时 uninterruptedEvidence
+   直接为 false；observe-runtime/observe-processes 的前置检查区分「没在跑」
+   与「跑了但写不下去」。
+
+另外：close() 现在把 skipped 也视为未干净收尾；lastError 走与事件文本
+相同的 ^[\w:.-]{1,100}$ 形状校验，异常消息不渗入证据文件；健康路径的
+侧车清理用标志位守卫，避免每次 5 秒 flush 多付一次系统调用。
+
+审计探针从 test/probe/ 迁到 scripts/probes/：test/ 下的一切都会被
+node --test 执行，原先探针混进套件、虚增测试数（462 → 真实 456）。
+
+验证：Windows/Node 24.14.0，467/467 通过、0 失败、0 跳过，138 模块检查。
+REV-04 证据与 PROJECT_PLAN 同步更新。

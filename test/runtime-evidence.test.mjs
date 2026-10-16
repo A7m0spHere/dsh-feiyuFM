@@ -120,3 +120,121 @@ test('close() never labels a run closed when its final write did not land', () =
     assert.equal(evidence.writeHealth().failures >= 1, true);
   } finally { rmSync(directory, { recursive: true, force: true }); }
 });
+
+test('a permanent write failure still reaches a reader through the failure note', () => {
+  const directory = mkdtempSync(join(tmpdir(), 'fishfm-evidence-perm-'));
+  let now = 1_000_000;
+  const evidence = createRuntimeEvidence({ directory, now: () => now });
+  try {
+    evidence.event({ type: 'selected', playInstanceId: 'p1' });
+    evidence.flush();
+    // The report target can never be written again.
+    rmSync(join(directory, 'core.json'), { force: true });
+    mkdirSync(join(directory, 'core.json'));
+    for (let i = 0; i < 3; i++) { now += 5000; evidence.flush(); }
+
+    // Without the note a reader sees only "missing", which is ambiguous.
+    const read = readRuntimeEvidence(directory, now);
+    assert.equal(read.components.core, null);
+    assert.equal(typeof read.writeFailures.core?.lastError, 'string', 'the reason survives even with no report');
+    assert.equal(read.writeFailures.core.failures >= 1, true);
+    assert.equal(read.writeFailures.core.component, 'core');
+  } finally { evidence.close(); rmSync(directory, { recursive: true, force: true }); }
+});
+
+test('a recovered write clears the failure note instead of leaving a stale warning', () => {
+  const directory = mkdtempSync(join(tmpdir(), 'fishfm-evidence-heal-'));
+  const now = 1_000_000;
+  const evidence = createRuntimeEvidence({ directory, now: () => now });
+  try {
+    evidence.event({ type: 'selected', playInstanceId: 'p1' });
+    rmSync(join(directory, 'core.json'), { force: true });
+    mkdirSync(join(directory, 'core.json'));
+    evidence.flush();
+    assert.equal(readRuntimeEvidence(directory, now).writeFailures.core?.lastError, 'EPERM');
+
+    rmSync(join(directory, 'core.json'), { recursive: true, force: true });
+    evidence.flush();
+    const healed = readRuntimeEvidence(directory, now);
+    assert.equal(healed.writeFailures.core, null, 'the note is gone once writing works again');
+    assert.equal(healed.components.core.writeHealth.failures, 1, 'but the history is not erased');
+  } finally { evidence.close(); rmSync(directory, { recursive: true, force: true }); }
+});
+
+test('a live process hears about a write failure without waiting for a later write', () => {
+  const directory = mkdtempSync(join(tmpdir(), 'fishfm-evidence-callback-'));
+  const now = 1_000_000;
+  const seen = [];
+  const evidence = createRuntimeEvidence({ directory, now: () => now, onWriteFailure: health => seen.push(health.lastError) });
+  try {
+    evidence.event({ type: 'selected', playInstanceId: 'p1' });
+    evidence.flush();
+    rmSync(join(directory, 'core.json'), { force: true });
+    mkdirSync(join(directory, 'core.json'));
+    for (let i = 0; i < 4; i++) evidence.flush();
+    assert.deepEqual(seen, ['EPERM'], 'one notice per cause, not one per failed attempt');
+    assert.equal(evidence.writeHealth().failures, 4, 'but every failed attempt is still counted');
+
+    // Once writing works again the notice is armed for the next real cause.
+    rmSync(join(directory, 'core.json'), { recursive: true, force: true });
+    evidence.flush();
+    assert.equal(seen.length, 1, 'recovery does not fire a false notice');
+    rmSync(join(directory, 'core.json'), { force: true });
+    mkdirSync(join(directory, 'core.json'));
+    evidence.flush();
+    assert.deepEqual(seen, ['EPERM', 'EPERM'], 'a failure after recovery is reported again');
+  } finally { evidence.close(); rmSync(directory, { recursive: true, force: true }); }
+});
+
+test('a failed first flush is never reported as a clean shutdown', () => {
+  const directory = mkdtempSync(join(tmpdir(), 'fishfm-evidence-firstfail-'));
+  const now = 1_000_000;
+  const evidence = createRuntimeEvidence({ directory, now: () => now });
+  try {
+    rmSync(join(directory, 'core.json'), { force: true });
+    mkdirSync(join(directory, 'core.json'));
+    evidence.flush();
+    evidence.close();
+    assert.equal(evidence.report().closed, false);
+  } finally { rmSync(directory, { recursive: true, force: true }); }
+});
+
+test('a recorded error is a code, never a free-form message', () => {
+  const directory = mkdtempSync(join(tmpdir(), 'fishfm-evidence-code-'));
+  const now = 1_000_000;
+  const evidence = createRuntimeEvidence({ directory, now: () => now });
+  try {
+    rmSync(join(directory, 'core.json'), { force: true });
+    mkdirSync(join(directory, 'core.json'));
+    evidence.flush();
+    // Simulate a future fs error carrying an unsafe code shape.
+    assert.match(String(evidence.writeHealth().lastError), /^[\w:.-]{1,40}$/);
+    assert.equal(String(evidence.writeHealth().lastError).includes(' '), false);
+  } finally { evidence.close(); rmSync(directory, { recursive: true, force: true }); }
+});
+
+test('a note left by a crashed run does not outlive it', () => {
+  const directory = mkdtempSync(join(tmpdir(), 'fishfm-evidence-crash-'));
+  const now = 1_000_000;
+  const broken = createRuntimeEvidence({ directory, now: () => now });
+  try {
+    broken.event({ type: 'selected', playInstanceId: 'a1' });
+    broken.flush();
+    rmSync(join(directory, 'core.json'), { force: true });
+    mkdirSync(join(directory, 'core.json'));
+    broken.flush();
+    assert.equal(readRuntimeEvidence(directory, now).writeFailures.core?.lastError, 'EPERM');
+
+    // The obstruction is cleared, but the broken run never called close().
+    rmSync(join(directory, 'core.json'), { recursive: true, force: true });
+    const healthy = createRuntimeEvidence({ directory, now: () => now });
+    try {
+      healthy.event({ type: 'selected', playInstanceId: 'b1' });
+      healthy.flush();
+      const read = readRuntimeEvidence(directory, now);
+      assert.equal(read.components.core.runId, healthy.report().runId, 'the healthy run owns the file');
+      assert.equal(read.writeFailures.core, null, 'the dead run no longer warns');
+      assert.equal(read.components.core.writeHealth.failures, 0);
+    } finally { healthy.close(); }
+  } finally { broken.close(); rmSync(directory, { recursive: true, force: true }); }
+});

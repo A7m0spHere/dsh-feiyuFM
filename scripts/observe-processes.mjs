@@ -8,7 +8,9 @@ if(process.platform!=='win32')throw new Error('Windows process metrics require W
 const seconds=Number(value('--seconds','0'));if(!Number.isFinite(seconds)||seconds<0||seconds>43200)throw new Error('Invalid observation duration');
 const directory=resolve(value('--directory',join(homedir(),'.dsh','fishfm','runtime'))),out=value('--out',null);
 const first=readRuntimeEvidence(directory),core=first.components.core,adapter=first.components.adapter;
-if(!core||core.stale||!adapter||adapter.stale)throw new Error('No fresh production runtime');
+if(!core||core.stale||!adapter||adapter.stale){const failure=first.writeFailures?.core??first.writeFailures?.adapter;
+ if(failure)throw new Error(`The production plugin cannot write its evidence (code=${failure.lastError}); fix that before observing`);
+ throw new Error('No fresh production runtime');}
 const roots=[core.pid,adapter.pid,adapter.parentPid];if(!roots.every(n=>Number.isSafeInteger(n)&&n>0))throw new Error('Invalid production process ids');
 const command=`$fishRows=@(Get-CimInstance Win32_Process | Select-Object ProcessId,ParentProcessId,Name,WorkingSetSize); $fishIds=[System.Collections.Generic.HashSet[int]]::new(); @(${roots.join(',')}) | ForEach-Object {[void]$fishIds.Add($_)}; for($fishLevel=0;$fishLevel -lt 20;$fishLevel++){ $fishAdded=0; foreach($fishRow in $fishRows){if($fishIds.Contains([int]$fishRow.ParentProcessId) -and $fishIds.Add([int]$fishRow.ProcessId)){$fishAdded++}}; if($fishAdded -eq 0){break} }; @($fishRows | Where-Object {$fishIds.Contains([int]$_.ProcessId)} | ForEach-Object { $fishCpu=$null; try {$fishCpu=(Get-Process -Id $_.ProcessId -ErrorAction Stop).CPU} catch {}; [pscustomobject]@{pid=[int]$_.ProcessId;parentPid=[int]$_.ParentProcessId;name=$_.Name;rss=[long]$_.WorkingSetSize;cpuSeconds=$fishCpu} }) | ConvertTo-Json -Compress`;
 const startedAt=Date.now(),deadline=startedAt+seconds*1000,samples=[];let failures=0;
