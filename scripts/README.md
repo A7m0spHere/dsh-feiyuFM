@@ -12,6 +12,7 @@
 | `npm test` | 自动化回归；Windows 默认包含静音 WPF 媒体回归，需可用音频环境 |
 | `npm run audit:acceptance` | 验收引用和文档链接核对，只检查证据存在，不替代运行验收 |
 | `npm run verify:lifecycle` | 在隔离临时状态目录验证生命周期，不访问真实 DSH home |
+| `npm run research -- --help` | #7 单批推荐只读导出、离线比较与人工评价；见 [研究说明](../docs/research/README.md)，不调用模型或播放 |
 
 托管 CI 通过 `FISHFM_TEST_REAL_AUDIO=0` 跳过三项真实媒体回归，协议和控制测试仍运行。不要把跳过、引用审计或构建当作生产通过。
 

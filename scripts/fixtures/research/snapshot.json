@@ -1,0 +1,27 @@
+{
+  "version": 1,
+  "kind": "synthetic",
+  "asOf": 1792281600000,
+  "metadataMode": "redacted",
+  "batch": {"revision": "batch-1", "owner": "account-1"},
+  "candidates": [
+    {"id": "c001", "title": "合成歌曲 1", "artist": "艺人 A", "source": "netease_similar", "known": true, "playable": true, "banned": false, "expiresAt": 1792303200000},
+    {"id": "c002", "title": "合成歌曲 2", "artist": "艺人 A", "source": "netease_similar", "known": false, "playable": true, "banned": false, "expiresAt": 1792303200000},
+    {"id": "c003", "title": "合成歌曲 3", "artist": "艺人 B", "source": "netease_daily", "known": false, "playable": null, "banned": false, "expiresAt": 1792303200000},
+    {"id": "c004", "title": "合成歌曲 4", "artist": "艺人 C", "source": "netease_personal_fm", "known": null, "playable": true, "banned": false, "expiresAt": 1792303200000},
+    {"id": "c005", "title": "合成歌曲 5", "artist": "艺人 D", "source": "netease_similar", "known": false, "playable": false, "banned": false, "expiresAt": 1792303200000},
+    {"id": "c006", "title": "合成歌曲 6", "artist": "艺人 E", "source": "unknown", "known": false, "playable": null, "banned": true, "expiresAt": 1792303200000}
+  ],
+  "references": [{"title": "合成参考曲", "artist": "艺人 A"}],
+  "recentIds": ["c001"],
+  "context": {"exploration": 20, "discoveryEnabled": true, "historyScope": "synthetic"},
+  "selection": {"revision": "batch-1", "owner": "account-1", "status": "completed", "reconstructed": false,
+    "response": {"summary": "合成筛选结果", "picks": [
+      {"i": 0, "why": "合成参考关系"}, {"i": 1, "why": "合成相邻候选"}, {"i": 2, "why": "合成每日推荐"},
+      {"i": 3, "why": "合成私人 FM"}, {"i": 4, "why": "合成不可播"}, {"i": 5, "why": "合成禁播"}
+    ]}},
+  "calls": [
+    {"status": "failed", "model": "synthetic-model", "usage": null, "reservedTokens": 512, "errorCode": "model_output_limit"},
+    {"status": "completed", "model": "synthetic-model", "usage": {"inputTokens": 100, "outputTokens": 40, "cacheReadTokens": 20}, "reservedTokens": 512, "errorCode": null}
+  ]
+}
