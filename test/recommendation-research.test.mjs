@@ -96,13 +96,14 @@ test('duplicate votes, unexpected fields and invalid limits are rejected before 
   assert.throws(() => parseArgs(['replay', '--input', 'a', '--out', 'b', '--wat']), /参数/);
 });
 
-function database(directory, {mismatch = false, listenOffset = null} = {}) {
+function database(directory, {mismatch = false, listenOffset = null, recordedEvidence = false} = {}) {
   const path = join(directory, 'source.sqlite'), store = new MusicStore(path), at = fixture().asOf;
   try {
-    const raw = [{key: 'netease:private-song-id', title: 'Public song', artist: 'Public artist'}];
+    const raw = [{key: 'netease:private-song-id', title: 'Public song', artist: 'Public artist', ...(recordedEvidence ? {feedback: 'liked'} : {})}];
     const facts = {candidateRevision: 'private-revision', candidateOwner: 'private-account-digest', candidates: raw,
       references: [['Public song', 'Public artist']], taste: {exploration: 20},
-      localCandidates: [{provider: 'netease', providerTrackId: 'private-song-id', discovery: {source: 'netease_similar', expiresAt: at + 10000}}]};
+      localCandidates: [{provider: 'netease', providerTrackId: 'private-song-id', discovery: {source: 'netease_similar', expiresAt: at + 10000,
+        ...(recordedEvidence ? {seedTrackKey: 'netease:private-seed'} : {})}}]};
     store.db.prepare(`INSERT INTO music_model_calls (call_id,day,provider,model,fact_hash,status,reserved_tokens,started_at,finished_at,purpose,facts_json)
       VALUES ('private-call','2000-01-01','private-provider','test-model','hash','completed',512,?,?,'discovery-filter',?)`).run(at - 10, at, JSON.stringify(facts));
     store.setSetting('discovery_filter_v1', {callId: 'private-call', source: 'llm-discovery-filter', candidateRevision: mismatch ? 'changed' : facts.candidateRevision,
@@ -132,6 +133,16 @@ test('read-only export whitelists one batch and leaves database bytes unchanged'
 
 test('export refuses selection and ledger identity mismatch', () => temporary(directory => {
   assert.throws(() => exportSnapshot(database(directory, {mismatch: true})), /不匹配/);
+}));
+
+test('export retains recorded vote, seed evidence and elapsed time without leaking IDs or inventing controls', () => temporary(directory => {
+  const s = exportSnapshot(database(directory, {recordedEvidence: true}));
+  assert.equal(s.candidates[0].feedback, 'liked');
+  assert.equal(s.candidates[0].seedRelated, true);
+  assert.equal(s.calls[0].elapsedMs, 10);
+  assert.equal(JSON.stringify(s).includes('private-seed'), false);
+  assert.equal(Object.hasOwn(s.context, 'paused'), false);
+  assert.equal(Object.hasOwn(s.context, 'listening'), false);
 }));
 
 test('historical context never leaks listens that occurred during or after the original model call', () => {

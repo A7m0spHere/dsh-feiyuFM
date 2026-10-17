@@ -1,0 +1,30 @@
+{
+  "version": 1,
+  "kind": "synthetic",
+  "asOf": 1792281600000,
+  "metadataMode": "redacted",
+  "batch": {"revision": "batch-1", "owner": "account-1"},
+  "candidates": [
+    {"id": "c001", "title": "合成歌曲 1", "artist": "艺人 A", "source": "netease_similar", "known": true, "feedback": "liked", "seedRelated": true, "playable": true, "banned": false, "expiresAt": 1792303200000},
+    {"id": "c002", "title": "合成歌曲 2", "artist": "艺人 A", "source": "netease_similar", "known": true, "seedRelated": true, "playable": true, "banned": false, "expiresAt": 1792303200000},
+    {"id": "c003", "title": "合成歌曲 3", "artist": "艺人 B", "source": "netease_similar", "known": false, "seedRelated": true, "playable": true, "banned": false, "expiresAt": 1792303200000},
+    {"id": "c004", "title": "合成歌曲 4", "artist": "艺人 C", "source": "netease_similar", "known": false, "seedRelated": true, "playable": null, "banned": false, "expiresAt": 1792303200000},
+    {"id": "c005", "title": "合成歌曲 5", "artist": "艺人 D", "source": "netease_daily", "known": null, "playable": true, "banned": false, "expiresAt": 1792303200000},
+    {"id": "c006", "title": "合成歌曲 6", "artist": "艺人 E", "source": "netease_similar", "known": false, "seedRelated": null, "playable": null, "banned": false, "expiresAt": 1792303200000},
+    {"id": "c007", "title": "合成歌曲 7", "artist": "艺人 F", "source": "netease_similar", "known": false, "seedRelated": true, "playable": true, "banned": true, "expiresAt": 1792303200000},
+    {"id": "c008", "title": "合成歌曲 8", "artist": "艺人 G", "source": "netease_personal_fm", "known": false, "playable": false, "banned": false, "expiresAt": 1792303200000}
+  ],
+  "references": [{"title": "合成参考曲", "artist": "艺人 A"}],
+  "recentIds": ["c001"],
+  "context": {"exploration": 20, "discoveryEnabled": true, "historyScope": "synthetic", "listening": true, "paused": false},
+  "selection": {"revision": "batch-1", "owner": "account-1", "status": "completed", "reconstructed": false,
+    "response": {"summary": "合成筛选结果", "picks": [
+      {"i": 0, "why": "明确喜欢"}, {"i": 1, "why": "合成熟悉"}, {"i": 4, "why": "合成每日推荐"},
+      {"i": 2, "why": "合成种子关系"}, {"i": 3, "why": "合成种子关系"}, {"i": 5, "why": "来源未知"},
+      {"i": 6, "why": "合成禁播"}, {"i": 7, "why": "合成不可播"}
+    ]}},
+  "calls": [
+    {"status": "failed", "model": "synthetic-model", "usage": null, "reservedTokens": 512, "errorCode": "model_output_limit", "elapsedMs": 200},
+    {"status": "completed", "model": "synthetic-model", "usage": {"inputTokens": 100, "outputTokens": 40, "cacheReadTokens": 20}, "reservedTokens": 512, "errorCode": null, "elapsedMs": 1000}
+  ]
+}

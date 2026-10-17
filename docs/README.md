@@ -26,6 +26,7 @@
 | [beta.3 发布记录](releases/0.1.0-beta.3.md) | 2026-10-13 正式实包、三个问题修复、registry 摘要、npm/官方 DSH 安装确认 |
 | [archive](archive/README.md) | 封存的旧交接文字，不作为现行规则或实时状态 |
 | [推荐质量研究与试用](research/README.md) | #7 固定快照、离线比较、指标和人工反馈入口；[#11 操作卡](research/TRIAL.md) 含任务、数据边界与匿名汇总 |
+| [可控探索对照](research/EXPLORATION.md) | #10 来源证据、探索开关/强度边界、排序假设与上线条件；不代表质量提升或生产改造 |
 
 最近推荐流程与界面见 [N22](spikes/N22-platform-first-recommendations.md)，中断恢复见 [N21](spikes/N21-playback-interruption-recovery.md)，macOS 源码移植见 [MACOS_PORT](spikes/MACOS_PORT.md)。素材/彩蛋与布局的历史证据从 [spikes 索引](spikes/README.md) 查阅，源码、发布与生产的区别只看开发路线首页。
 

@@ -6,6 +6,8 @@
 
 #9 的数据所有权、信号语义表、模型反馈传递与固定候选对照见 [用户偏好信号](PREFERENCE_SIGNALS.md)。`npm run research -- signals --out <新目录>` 只跑合成合同检查，不读取真实研究材料。
 
+#10 的探索开关/强度、来源分类、排序假设与收益门槛见 [可控探索](EXPLORATION.md)。`npm run research -- exploration --input <snapshot.json> --out <新目录>` 比较同一冻结输入，不更改生产策略。
+
 ## #7：固定输入的离线比较
 
 从仓库根目录运行，Node 24.14+，无需新增依赖、账号、API key 或模型配置。
@@ -38,7 +40,7 @@ npm run research -- export --database C:/Users/你的用户名/.dsh/fishfm/music
 |---|---|---|
 | `artistDiversity` | 前 k 首有艺人名的曲目中，不同艺人数 / 曲目数；字符串身份 | 无艺人名时 `null`，同时列 `artistCoverage`；不声称平台艺人 ID 等价 |
 | `repeatRate` | 前 k 首在快照 `recentIds` 中的数量 / 前 k 首数量 | 无入选项时 `null`；历史范围有限 |
-| `unfamiliarRate` | 已知熟悉状态曲目中 `known=false` 的比例 | 缺失历史不自动变为陌生；列 `knownStatusCount` |
+| `unfamiliarRate` | 已知熟悉状态曲目中 `known=false` 的比例 | 缺失历史不自动变为陌生；列 `knownStatusCount`。明确喜欢可进入熟悉播放范围，但不将 known 改为已听过 |
 | `unavailableRate` | 已知播放权限曲目中不可播的比例 | 没有权限实测时 `null`，空值不记失败 |
 | `worthRate` | 真人标“值得推荐”的数量 / 非 unknown 的人工评价数 | 没有人工评价时 `null`，同时列 `humanJudged/humanCoverage` |
 | `newDiscoveryRate` | 真人同时标“此前未听过且愿再听”的数量 / 同时提供评价和是否听过的曲目数 | 没有双项评价时 `null`；不等同陌生曲比例 |

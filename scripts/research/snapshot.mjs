@@ -40,9 +40,13 @@ export function exportSnapshot(path, {metadata = false} = {}) {
     const originals = Array.isArray(facts.localCandidates) ? facts.localCandidates : [];
     const candidates = facts.candidates.map((c, i) => {
       const track = originals.find(t => `${t.provider}:${t.providerTrackId}` === c.key);
+      const seedRelated = track?.discovery?.source === 'netease_similar'
+        && [track.discovery.seedTrackKey, ...(track.discovery.seedTrackKeys ?? [])].some(k => typeof k === 'string' && /^netease:[\w.-]{1,80}$/.test(k));
       return {id: rawKeys.get(c.key), title: metadata ? safeText(c.title) : `歌曲 ${i + 1}`, artist: artist(c.artist),
         source: sources.has(track?.discovery?.source) ? track.discovery.source : 'unknown',
         known: known.has(c.key) ? true : null, playable: null, banned: null,
+        ...(['liked', 'reduced'].includes(c.feedback) ? {feedback: c.feedback} : {}),
+        ...(seedRelated ? {seedRelated: true} : {}),
         expiresAt: Number.isSafeInteger(track?.discovery?.expiresAt) ? track.discovery.expiresAt : null};
     });
     const references = (facts.references ?? []).slice(0, 4).map((r, i) => ({title: metadata ? safeText(r[0]) : `参考曲 ${i + 1}`, artist: artist(r[1])}));
@@ -51,11 +55,12 @@ export function exportSnapshot(path, {metadata = false} = {}) {
       if (i < 0) fail('筛选结果包含本批次以外的歌曲');
       return {i, why: metadata ? safeText(p.reason, 40) : '[原理由仅留在本机原记录]'};
     });
-    const rows = db.prepare("SELECT status,model,usage_json,reserved_tokens,error_code FROM music_model_calls WHERE purpose='discovery-filter' AND fact_hash=? AND started_at<=? ORDER BY started_at,call_id LIMIT 101").all(call.fact_hash, asOf);
+    const rows = db.prepare("SELECT status,model,usage_json,reserved_tokens,error_code,started_at,finished_at FROM music_model_calls WHERE purpose='discovery-filter' AND fact_hash=? AND started_at<=? ORDER BY started_at,call_id LIMIT 101").all(call.fact_hash, asOf);
     if (rows.length > 100) fail('同批次账本超过 100 条，需先缩小研究样本');
     const calls = rows.map(r => ({status: r.status, model: safeText(r.model, 100),
       usage: r.usage_json ? measuredUsage(JSON.parse(r.usage_json)) : null,
-      reservedTokens: r.reserved_tokens, errorCode: /^[\w-]{1,60}$/.test(r.error_code ?? '') ? r.error_code : null}));
+      reservedTokens: r.reserved_tokens, errorCode: /^[\w-]{1,60}$/.test(r.error_code ?? '') ? r.error_code : null,
+      elapsedMs: Number.isSafeInteger(r.finished_at) && Number.isSafeInteger(r.started_at) && r.finished_at >= r.started_at ? r.finished_at - r.started_at : null}));
     const result = validateSnapshot({version: 1, kind: 'local-snapshot', asOf, metadataMode: metadata ? 'catalogue' : 'redacted',
       batch: {revision: 'batch-1', owner: 'account-1'}, candidates, references,
       recentIds: [...new Set(recent.map(r => rawKeys.get(r.track_key)).filter(Boolean))],

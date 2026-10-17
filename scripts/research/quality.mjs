@@ -34,16 +34,19 @@ export function validateSnapshot(s) {
   if (!list(s.candidates, 40) || !list(s.references, 4) || !list(s.recentIds, 100)) fail('snapshot 输入数量越界');
   const seen = new Set();
   for (const c of s.candidates) {
-    keys(c, ['id', 'title', 'artist', 'source', 'known', 'playable', 'banned', 'expiresAt'], 'candidate');
+    keys(c, ['id', 'title', 'artist', 'source', 'known', 'playable', 'banned', 'expiresAt', 'feedback', 'seedRelated'], 'candidate');
     if (!id(c.id) || seen.has(c.id) || !text(c.title) || !text(c.artist) || !SOURCES.includes(c.source)
       || !truth(c.known) || !truth(c.playable) || !truth(c.banned) || !(c.expiresAt === null || moment(c.expiresAt))) fail('candidate 内容无效或重复');
+    if (Object.hasOwn(c, 'feedback') && !['liked', 'reduced'].includes(c.feedback)) fail('candidate feedback 无效');
+    if (Object.hasOwn(c, 'seedRelated') && !truth(c.seedRelated)) fail('candidate seedRelated 无效');
     seen.add(c.id);
   }
   for (const r of s.references) { keys(r, ['title', 'artist'], 'reference'); if (!text(r.title) || !text(r.artist)) fail('reference 无效'); }
   if (s.recentIds.some(k => !seen.has(k)) || new Set(s.recentIds).size !== s.recentIds.length) fail('recentIds 不属于本批候选或重复');
-  keys(s.context, ['exploration', 'discoveryEnabled', 'historyScope'], 'context');
+  keys(s.context, ['exploration', 'discoveryEnabled', 'historyScope', 'listening', 'paused'], 'context');
   if (!(s.context.exploration === null || Number.isFinite(s.context.exploration) && s.context.exploration >= 0 && s.context.exploration <= 100)
     || !truth(s.context.discoveryEnabled) || !['recorded-before-call', 'synthetic'].includes(s.context.historyScope)) fail('context 无效');
+  if (['listening', 'paused'].some(k => Object.hasOwn(s.context, k) && !truth(s.context[k]))) fail('context 控制字段无效');
   keys(s.selection, ['revision', 'owner', 'status', 'response', 'reconstructed'], 'selection');
   if (!id(s.selection.revision) || !id(s.selection.owner) || !STATES.includes(s.selection.status) || typeof s.selection.reconstructed !== 'boolean') fail('selection 无效');
   if (s.selection.response !== null) {
@@ -53,10 +56,11 @@ export function validateSnapshot(s) {
   }
   if (!list(s.calls, 100)) fail('calls 数量越界');
   for (const c of s.calls) {
-    keys(c, ['status', 'model', 'usage', 'reservedTokens', 'errorCode'], 'call');
+    keys(c, ['status', 'model', 'usage', 'reservedTokens', 'errorCode', 'elapsedMs'], 'call');
     if (!STATES.includes(c.status) || !text(c.model, 100) || !moment(c.reservedTokens)
       || !(c.errorCode === null || typeof c.errorCode === 'string' && /^[\w-]{1,60}$/.test(c.errorCode))
       || !(c.usage === null || measuredUsage(c.usage) && canonical(measuredUsage(c.usage)) === canonical(c.usage))) fail('call 无效');
+    if (Object.hasOwn(c, 'elapsedMs') && !(c.elapsedMs === null || moment(c.elapsedMs))) fail('call elapsedMs 无效');
   }
   return s;
 }
@@ -95,7 +99,7 @@ function parsedSelection(s) {
     return {code: result.success ? null : result.code ?? 'missing_response', picks: store.getSetting('discovery_filter_v1', {}).picks ?? []};
   } finally { store.close(); }
 }
-function metrics(rows, s, feedback) {
+export function qualityMetrics(rows, s, feedback) {
   const ratings = new Map((feedback?.confirmedHuman ? feedback.ratings : []).map(r => [r.candidateId, r]));
   const votes = rows.map(c => ratings.get(c.id)).filter(Boolean);
   const judged = votes.filter(r => r.rating !== 'unknown');
@@ -125,7 +129,7 @@ export function evaluate(s, {feedback = null, topK = 6} = {}) {
   const exclusions = {banned: 0, unavailable: 0, expired: 0, explorationDisabled: 0};
   const eligible = selection.picks.map(p => ({...candidates.get(p.trackKey), reason: p.reason})).filter(c => {
     const why = c.banned ? 'banned' : c.playable === false ? 'unavailable' : c.expiresAt !== null && c.expiresAt <= s.asOf ? 'expired'
-      : (s.context.discoveryEnabled === false || s.context.exploration === 0) && c.known !== true ? 'explorationDisabled' : null;
+      : (s.context.discoveryEnabled === false || s.context.exploration === 0) && c.known !== true && c.feedback !== 'liked' ? 'explorationDisabled' : null;
     if (why) exclusions[why]++;
     return !why;
   });
@@ -144,9 +148,9 @@ export function evaluate(s, {feedback = null, topK = 6} = {}) {
     reconstructedResponse: s.selection.reconstructed, historicalOnly: true, candidateCount: s.candidates.length,
     invalidPickCount: Math.max(0, (s.selection.response?.picks.length ?? 0) - selection.picks.length),
     selectionCode: selection.code, exclusions,
-    platformPool: {metrics: metrics(s.candidates, s, feedback)},
-    baseline: {ids: baseline.map(c => c.id), metrics: metrics(baseline, s, feedback)},
-    variant: {name: 'distinct-artist-first', ids: variant.map(c => c.id), metrics: metrics(variant, s, feedback)},
+    platformPool: {metrics: qualityMetrics(s.candidates, s, feedback)},
+    baseline: {ids: baseline.map(c => c.id), metrics: qualityMetrics(baseline, s, feedback)},
+    variant: {name: 'distinct-artist-first', ids: variant.map(c => c.id), metrics: qualityMetrics(variant, s, feedback)},
     costs: {recordedCalls: s.calls.length, failedCalls: s.calls.filter(c => c.status !== 'completed').length,
       knownUsage: sums, unknownUsageCalls, reservedForUnknown, replayNewCalls: 0, replayNewTokens: 0},
     humanFeedback: {confirmed: feedback?.confirmedHuman === true, judgedCandidates: feedback?.confirmedHuman ? feedback.ratings.filter(r => r.rating !== 'unknown').length : 0},

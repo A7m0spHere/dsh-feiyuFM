@@ -6,6 +6,7 @@ import {evaluate, feedbackTemplate, qualityMarkdown, fail} from './research/qual
 import {exportSnapshot} from './research/snapshot.mjs';
 import {summarizeTrial, trialFiles, trialMarkdown} from './research/trial.mjs';
 import {runPreferenceSignals, signalsMarkdown} from './research/preference-signals.mjs';
+import {compareExploration, explorationMarkdown} from './research/exploration.mjs';
 
 const HELP = `FishFM 推荐研究（只读导出 / 离线回放，不启动模型或播放器）
   export --database <music.sqlite> --out <新目录> [--metadata]
@@ -13,6 +14,7 @@ const HELP = `FishFM 推荐研究（只读导出 / 离线回放，不启动模�
   trial-init --input <snapshot.json> --participant <匿名标识> --out <新试用包目录> [--study pilot-01]
   trial-report --input <试用包或包含试用包的目录> --out <新汇总目录>
   signals --out <新目录>
+  exploration --input <snapshot.json> --out <新目录> [--feedback <人工反馈.json>] [--top-k 6] [--rates 0,20,70,100]
 默认导出去除歌名、原始理由、平台/账号标识；--metadata 仅保留候选和最多四首参考曲的目录元数据，仍只留本机。
 示例：npm run research -- replay --input scripts/fixtures/research/snapshot.json --out .tmp/research-demo
 说明：docs/research/README.md`;
@@ -20,7 +22,8 @@ export function parseArgs(argv) {
   const [command, ...rest] = argv;
   if (!command || command === '--help') return {command: 'help'};
   const flags = {export: ['--database', '--out', '--metadata'], replay: ['--input', '--out', '--feedback', '--top-k'],
-    'trial-init': ['--input', '--out', '--participant', '--study'], 'trial-report': ['--input', '--out'], signals: ['--out']}[command];
+    'trial-init': ['--input', '--out', '--participant', '--study'], 'trial-report': ['--input', '--out'], signals: ['--out'],
+    exploration: ['--input', '--out', '--feedback', '--top-k', '--rates']}[command];
   if (!flags) fail('未知命令；运行 npm run research -- --help');
   const options = {command};
   for (let i = 0; i < rest.length; i++) {
@@ -76,6 +79,13 @@ export function run(argv) {
   }
   const s = o.command === 'export' ? exportSnapshot(resolve(o['--database']), {metadata: o['--metadata'] === true}) : read(o['--input']);
   const feedback = o['--feedback'] ? read(o['--feedback']) : null;
+  if (o.command === 'exploration') {
+    const rates = o['--rates'] === undefined ? undefined : o['--rates'].split(',').map(v => v.trim() ? Number(v) : NaN);
+    const r = compareExploration(s, {feedback, rates, topK: o['--top-k'] === undefined ? 6 : Number(o['--top-k'])});
+    console.log(JSON.stringify({out: writeBundle(o['--out'], {'snapshot.json': s, 'report.json': r, 'report.md': explorationMarkdown(r), 'feedback.template.json': feedbackTemplate(s)}),
+      evidenceStatus: r.evidenceStatus, decision: r.decision}));
+    return;
+  }
   const r = evaluate(s, {feedback, topK: o['--top-k'] === undefined ? 6 : Number(o['--top-k'])});
   const out = writeBundle(o['--out'], {'snapshot.json': s, 'report.json': r, 'report.md': qualityMarkdown(r), 'feedback.template.json': feedbackTemplate(s)});
   console.log(JSON.stringify({out, inputHash: r.inputHash, decision: r.decision, replayNewCalls: 0}));
