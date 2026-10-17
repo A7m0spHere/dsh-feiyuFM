@@ -14,6 +14,7 @@
 | `npm run verify:lifecycle` | 在隔离临时状态目录验证生命周期，不访问真实 DSH home |
 | `npm run research -- --help` | #7 单批推荐只读导出、离线比较与人工评价；见 [研究说明](../docs/research/README.md)，不调用模型或播放 |
 | `npm run research -- trial-init / trial-report` | #11 生成任务卡与自愿参与材料、校验并匿名汇总本机反馈；完整参数见 [试用操作卡](../docs/research/TRIAL.md) |
+| `npm run research -- signals --out <新目录>` | #9 用固定合成候选检查反馈、成长、重置与切号语义；[语义表与边界](../docs/research/PREFERENCE_SIGNALS.md)，不访问生产数据库或真实模型 |
 
 托管 CI 通过 `FISHFM_TEST_REAL_AUDIO=0` 跳过三项真实媒体回归，协议和控制测试仍运行。不要把跳过、引用审计或构建当作生产通过。
 

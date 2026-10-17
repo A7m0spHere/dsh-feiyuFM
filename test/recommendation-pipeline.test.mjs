@@ -6,6 +6,7 @@ import { importSeedTracks } from '../src/environment.mjs';
 import { createPersonaModelService } from '../src/persona-model.mjs';
 import { createPersonaScheduler, prepareRecommendations } from '../src/persona-scheduler.mjs';
 import { createSettingsHandler } from '../src/ui/dsh-settings.mjs';
+import {setTrackFeedback} from '../src/feedback.mjs';
 
 const route = { provider: 'configured', model: 'picker' };
 const track = id => ({ provider: 'netease', providerTrackId: String(id), title: `Song ${id}`, artist: `Artist ${id}`, durationMs: 180000 });
@@ -72,11 +73,14 @@ function fixture({ output = picked, empty = false, hold = null } = {}) {
 test('reference songs flow through NetEase recall, LLM picks and local playback without generated-title lookup', async () => {
   const f = fixture();
   try {
+    f.store.upsertTrack(track(2), 1000); f.store.upsertTrack(track(3), 1000);
+    setTrackFeedback(f.store, track(2), 1, 1000); setTrackFeedback(f.store, track(3), -1, 1000);
     const result = await f.handler('fishfm/persona-recommendations', route);
     assert.equal(result.ok, true, result.error?.message);
     assert.deepEqual(f.stages, ['netease', 'llm']);
     assert.deepEqual(f.prompts[0].candidates.map(item => item.key), ['netease:2', 'netease:3', 'netease:4']);
     assert.deepEqual(f.prompts[0].references, [['Song 1', 'Artist 1']]);
+    assert.deepEqual(f.prompts[0].candidates.map(item => item.feedback ?? null), ['liked', 'reduced', null]);
     assert.equal('candidateRevision' in f.prompts[0], false, 'batch identity stays local');
     assert.deepEqual(result.value.persona.recommendationPipeline.tracks.map(item => item.providerTrackId), ['2', '4']);
     assert.equal(f.host.snapshot().paused, true, 'preparing songs cannot undo user pause');

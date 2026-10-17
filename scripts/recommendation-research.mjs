@@ -5,12 +5,14 @@ import {fileURLToPath} from 'node:url';
 import {evaluate, feedbackTemplate, qualityMarkdown, fail} from './research/quality.mjs';
 import {exportSnapshot} from './research/snapshot.mjs';
 import {summarizeTrial, trialFiles, trialMarkdown} from './research/trial.mjs';
+import {runPreferenceSignals, signalsMarkdown} from './research/preference-signals.mjs';
 
 const HELP = `FishFM 推荐研究（只读导出 / 离线回放，不启动模型或播放器）
   export --database <music.sqlite> --out <新目录> [--metadata]
   replay --input <snapshot.json> --out <新目录> [--feedback <人工反馈.json>] [--top-k 6]
   trial-init --input <snapshot.json> --participant <匿名标识> --out <新试用包目录> [--study pilot-01]
   trial-report --input <试用包或包含试用包的目录> --out <新汇总目录>
+  signals --out <新目录>
 默认导出去除歌名、原始理由、平台/账号标识；--metadata 仅保留候选和最多四首参考曲的目录元数据，仍只留本机。
 示例：npm run research -- replay --input scripts/fixtures/research/snapshot.json --out .tmp/research-demo
 说明：docs/research/README.md`;
@@ -18,7 +20,7 @@ export function parseArgs(argv) {
   const [command, ...rest] = argv;
   if (!command || command === '--help') return {command: 'help'};
   const flags = {export: ['--database', '--out', '--metadata'], replay: ['--input', '--out', '--feedback', '--top-k'],
-    'trial-init': ['--input', '--out', '--participant', '--study'], 'trial-report': ['--input', '--out']}[command];
+    'trial-init': ['--input', '--out', '--participant', '--study'], 'trial-report': ['--input', '--out'], signals: ['--out']}[command];
   if (!flags) fail('未知命令；运行 npm run research -- --help');
   const options = {command};
   for (let i = 0; i < rest.length; i++) {
@@ -27,7 +29,7 @@ export function parseArgs(argv) {
     if (flag === '--metadata') options[flag] = true;
     else { if (!rest[i + 1] || rest[i + 1].startsWith('--')) fail('参数缺少值'); options[flag] = rest[++i]; }
   }
-  if (!options['--out'] || !options[command === 'export' ? '--database' : '--input']) fail('缺少输入或 --out');
+  if (!options['--out'] || command !== 'signals' && !options[command === 'export' ? '--database' : '--input']) fail('缺少输入或 --out');
   if (command === 'trial-init' && !options['--participant']) fail('需要 --participant 匿名标识');
   return options;
 }
@@ -56,6 +58,12 @@ export function writeBundle(directory, files) {
 export function run(argv) {
   const o = parseArgs(argv);
   if (o.command === 'help') { console.log(HELP); return; }
+  if (o.command === 'signals') {
+    const r = runPreferenceSignals();
+    console.log(JSON.stringify({out: writeBundle(o['--out'], {'report.json': r, 'report.md': signalsMarkdown(r)}), passed: r.passed, checks: r.checkCount}));
+    if (r.passed !== r.checkCount) process.exitCode = 1;
+    return;
+  }
   if (o.command === 'trial-init') {
     const files = trialFiles(read(o['--input']), {participantId: o['--participant'], studyId: o['--study'] ?? 'pilot-01'});
     console.log(JSON.stringify({out: writeBundle(o['--out'], files), trialStarted: false}));
