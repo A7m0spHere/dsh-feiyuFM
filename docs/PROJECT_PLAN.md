@@ -1,6 +1,6 @@
 # 肥鱼电台 FishFM — 开发路线
 
-更新：2026-10-16。已发布 `0.1.0-beta.3`，Windows／网易云 Beta；`beta` 已更新、`latest` 保持 beta.1，正式包及 registry 安装已确认。[N23](spikes/N23-model-route-completion.md) 已补上真实 40 候选→9 入选→WPF 静音播放、日常原生 Desktop 正常退出重开与状态保留，以及 beta.3 快照安装。日常观察实际 54.72 分钟，16 条有效收听、0 播放错误，按用户要求提前结束；**两小时连续观察已由用户于 2026-10-16 取消，不再作为验收手段，也不得记为已通过**；完整 DSH 对照与真实并发仍待验，跨设备按用户要求保留待验。macOS 真机与稳定 v0.1 完整验收仍未完成。发行准备见 [beta.3 发布前验收](releases/0.1.0-beta.3-acceptance.md)。
+更新：2026-10-18。已发布 `0.1.0-beta.3`，Windows／网易云 Beta；`beta` 已更新、`latest` 保持 beta.1，正式包及 registry 安装已确认。[N23](spikes/N23-model-route-completion.md) 已补上真实 40 候选→9 入选→WPF 静音播放、日常原生 Desktop 正常退出重开与状态保留，以及 beta.3 快照安装。日常观察实际 54.72 分钟，16 条有效收听、0 播放错误，按用户要求提前结束；**两小时连续观察已由用户于 2026-10-16 取消，不再作为验收手段，也不得记为已通过**；完整 DSH 对照与真实并发仍待验，跨设备按用户要求保留待验。macOS 真机与稳定 v0.1 完整验收仍未完成。发行准备见 [beta.3 发布前验收](releases/0.1.0-beta.3-acceptance.md)。
 
 | 状态面 | 最新已确认内容 |
 |---|---|
@@ -9,7 +9,7 @@
 | 快照去旧修复 | [REV-03](spikes/REV-03-snapshot-ordering.md)：所有快照入口按 revision 去旧，相等时比较 commandVersion；交错 RPC 与文件 SQLite 重启暂停回归通过，生成 bundle 已同步 |
 | 宿主故障隔离审计 | [REV-04](spikes/REV-04-host-failure-isolation.md)（issue #6）：所有 `onLog` 转发点已包保护，未发现「未捕获异常带走 DSH 宿主」的形态；确认 2 项真实缺陷——`evidence.mjs` 的 flush 写失败被完全吞掉（写不进去的证据文件与卡死进程无法区分），且失败记录**只能随成功写落盘**，永久失败时恰恰不可达。已加入 `writeHealth` 计数、`skipped` 显式化、诚实的 `close()`、失败侧车与 `onWriteFailure` 回调，并让观测/前置检查真正消费该记录；故障注入 11 项回归通过；审计探针迁至 `scripts/probes/` |
 | `main` 源码 | N22/U17/U18、macOS 实验性源码、DPAPI 助手入包/PowerShell 5.1/T8 清理在基线；N23 区分输出耗尽／无最终文本，输出上限可调到 4096，默认与共享预算保留。REV-01–03 修复已入源码，REV-04 的 evidence 写失败可见性已入源码；日常 Desktop 已加载 N23 并正常退出重开，本轮修复未重载；npm beta.3 已发布 |
-| 最近源码验证 | Windows/Node 24.14.0：**467/467 通过、0 失败、0 跳过**（含 REV-04 新增 11 项故障注入回归），含本机真实 WPF 媒体回归；138 模块检查、构建/debug smoke 与包内容验证通过。REV-01–03 使用合成故障与文件 SQLite 重启验证，不新增日常 Desktop 或 macOS 现场结论。N23 已验证真实筛选／入选曲静音播放、日常 Desktop 重开保留、实包四模式／四开关／暂停优先通过。beta.3 补验快照的 npm／官方 DSH 管理器安装、95 项项目文件核对和 DPAPI 矩阵通过；摘要见 N23 证据。本轮正式发布实包重打包后，17 项安装态修复回归、DPAPI 矩阵、95 项项目文件与 npm/官方 DSH 的本地及 registry 安装均通过，公开下载摘要一致；见 [beta.3 发布记录](releases/0.1.0-beta.3.md)，不新增 macOS 或长期质量结论 |
+| 最近源码验证 | 2026-10-18，Windows/Node 24.14.0：**487/487 通过、0 失败、0 跳过**，含既有真实 WPF 媒体回归、REV-04 的 11 项故障注入和 #7/#11 新增 20 项研究回归；144 模块检查、构建/debug smoke 通过，引用审计 10/10、96 份文档零坏链接。研究 CLI 合成演示与空白试用包汇总通过；没有操作生产数据库、账号、真实模型或日常 Desktop，不增加推荐质量、macOS、多会话或长期验收结论。历史 N23 真实筛选/重开/实包验证仍按其记录；beta.3 的安装、DPAPI 矩阵、95 项项目文件和公开摘要核对见 [发布记录](releases/0.1.0-beta.3.md)，本轮不发布 npm |
 | 已发布 npm | `0.1.0-beta.3`，2026-10-13 registry 版本/标签/公开下载摘要及 npm/官方 DSH 重装均已确认；`beta` 指向 beta.3，`latest` 保持 beta.1。包含 N23、U17/U18、DPAPI/PowerShell 5.1 与 REV-01–03；35,132,761 bytes、4,878 文件、95 项项目文件与封存源码一致，见 [本次记录](releases/0.1.0-beta.3.md)。历史 [beta.2](releases/0.1.0-beta.2.md) 和 [beta.1](releases/0.1.0-beta.1.md) 记录保留 |
 | 本地历史实包 | U12 素材阶段 34.83 MB tarball，仅对应当时验证，不含之后的样式、修复或 N22 新推荐流程，不能当作当前源码安装包 |
 | macOS 源码移植 | [移植记录](spikes/MACOS_PORT.md)：DSH 本机 `0.2.0-rc.2`、Apple Silicon、原生 Helper 编译通过；本地源码链接已加入 `desktop` profile 并在重启后可见。真实登录和音频结果待验。npm beta.2 仍只支持 Windows |
@@ -246,10 +246,12 @@ R6（2026-10-07）：`0.1.0-beta.2` 已发布，封存/registry SHA-512/SHA-1 �
 
 | 议题 | 工程交付 | 真实验收与下一步 |
 |---|---|---|
-| [#7](https://github.com/A7m0spHere/dsh-feiyuFM/issues/7) | [研究入口](research/README.md)：单批快照只读脱敏导出、生产解析器离线回放、艺人多样性前缀重排、指标与人工评价模板；10 项专用回归通过 | 尚无本轮真实样本/人工反馈；质量收益未知，保留当前推荐策略，Issue 保持打开 |
-| [#11](https://github.com/A7m0spHere/dsh-feiyuFM/issues/11) | 试用材料与汇总工具本轮继续制作 | 真实参与者 0 人、观察时长 0、有效评价 0；不视为试用完成 |
+| [#7](https://github.com/A7m0spHere/dsh-feiyuFM/issues/7) | [研究入口](research/README.md)：单批快照只读脱敏导出、生产解析器离线回放、平台候选/原排名/艺人多样性前缀重排、指标与人工评价模板；11 项专用回归通过。初始工具提交 `ffec5b2` | 尚无本轮真实样本/人工反馈；质量收益未知，保留当前推荐策略，本轮工具/材料完成，Issue 保持打开 |
+| [#11](https://github.com/A7m0spHere/dsh-feiyuFM/issues/11) | [试用操作卡](research/TRIAL.md)、每人本机试用包和匿名汇总；9 项专用回归通过（与 #7 合计 20 项） | 真实参与者 0 人、观察时长 0、有效评价 0；本轮工具/材料完成，真实试用按用户要求后置，Issue 保持打开 |
 
 本工具回放已保存的推荐名单，不是 Core 完整决策重演、真实音频或模型重新推理；不提升 A01–A10，不新增逐曲模型请求，不要求恢复已取消的两小时观察。
+
+本轮合成 CLI 演示：6 候选、前 3 首原排名艺人多样性 2/3、变体 1；只验证重排与指标，不是质量提升证据。未填写的试用包汇总为 0 人、0 分钟、质量比例 null、`awaiting_real_trial`，不生成三类虚构问题。真实试用前按操作卡生成各人的本机材料；收到真实反馈后再审查 #9/#10 是否值得实施。
 
 ### 既有验收与交付
 

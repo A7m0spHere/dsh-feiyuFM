@@ -33,16 +33,16 @@ export function exportSnapshot(path, {metadata = false} = {}) {
       if (!artistNames.has(value)) artistNames.set(value, `艺人 ${artistNames.size + 1}`);
       return artistNames.get(value);
     };
-    const before = db.prepare('SELECT track_key FROM listen_history WHERE ended_at<=? AND effective_ms>0 ORDER BY ended_at DESC LIMIT 100').all(asOf);
+    const historyAt = call.started_at;
+    const before = db.prepare('SELECT track_key FROM listen_history WHERE ended_at<=? AND effective_ms>0 ORDER BY ended_at DESC LIMIT 100').all(historyAt);
     const known = new Set(before.map(r => r.track_key));
-    const recent = db.prepare('SELECT track_key FROM listen_history WHERE ended_at<=? AND ended_at>? ORDER BY ended_at DESC LIMIT 50').all(asOf, asOf - 30 * 60_000);
+    const recent = db.prepare('SELECT track_key FROM listen_history WHERE ended_at<=? AND ended_at>? ORDER BY ended_at DESC LIMIT 50').all(historyAt, historyAt - 30 * 60_000);
     const originals = Array.isArray(facts.localCandidates) ? facts.localCandidates : [];
     const candidates = facts.candidates.map((c, i) => {
       const track = originals.find(t => `${t.provider}:${t.providerTrackId}` === c.key);
-      const reference = (facts.references ?? []).some(r => r[0] === c.title && r[1] === c.artist);
       return {id: rawKeys.get(c.key), title: metadata ? safeText(c.title) : `歌曲 ${i + 1}`, artist: artist(c.artist),
         source: sources.has(track?.discovery?.source) ? track.discovery.source : 'unknown',
-        known: reference || known.has(c.key) ? true : null, playable: null, banned: null,
+        known: known.has(c.key) ? true : null, playable: null, banned: null,
         expiresAt: Number.isSafeInteger(track?.discovery?.expiresAt) ? track.discovery.expiresAt : null};
     });
     const references = (facts.references ?? []).slice(0, 4).map((r, i) => ({title: metadata ? safeText(r[0]) : `参考曲 ${i + 1}`, artist: artist(r[1])}));

@@ -25,6 +25,9 @@ test('saved selection replay is deterministic, does not mutate input and never i
   assert.equal(r.baseline.metrics.artistDiversity, 2 / 3);
   assert.equal(r.variant.metrics.artistDiversity, 1);
   assert.equal(r.baseline.metrics.worthRate, null);
+  assert.equal(r.platformPool.metrics.count, 6);
+  assert.equal(r.platformPool.metrics.unavailableRate, 1 / 4);
+  assert.equal(r.baseline.metrics.newDiscoveryCount, null);
   assert.equal(r.baseline.metrics.reasonSupportRate, null);
   assert.equal(r.costs.replayNewCalls, 0);
   assert.equal(r.costs.unknownUsageCalls, 1);
@@ -93,7 +96,7 @@ test('duplicate votes, unexpected fields and invalid limits are rejected before 
   assert.throws(() => parseArgs(['replay', '--input', 'a', '--out', 'b', '--wat']), /参数/);
 });
 
-function database(directory, {mismatch = false} = {}) {
+function database(directory, {mismatch = false, listenOffset = null} = {}) {
   const path = join(directory, 'source.sqlite'), store = new MusicStore(path), at = fixture().asOf;
   try {
     const raw = [{key: 'netease:private-song-id', title: 'Public song', artist: 'Public artist'}];
@@ -105,6 +108,9 @@ function database(directory, {mismatch = false} = {}) {
     store.setSetting('discovery_filter_v1', {callId: 'private-call', source: 'llm-discovery-filter', candidateRevision: mismatch ? 'changed' : facts.candidateRevision,
       candidateOwner: facts.candidateOwner, picks: [{trackKey: raw[0].key, rank: 1, reason: 'Public reason'}], summary: 'Saved summary'});
     store.setSetting('provider_cookie', 'NEVER_EXPORT_COOKIE');
+    if (listenOffset !== null) store.db.prepare(`INSERT INTO listen_history
+      (play_instance_id,track_key,selected_by,progress_source,effective_ms,agent_listening,audible,end_reason,ended_at)
+      VALUES ('private-play','netease:private-song-id','user','host',1000,1,1,'ended',?)`).run(at + listenOffset);
     store.db.prepare("INSERT INTO credential_references VALUES ('netease','private-account','NEVER_EXPORT_CREDENTIAL','authorized',?)").run(at);
   } finally { store.close(); }
   return path;
@@ -117,6 +123,7 @@ test('read-only export whitelists one batch and leaves database bytes unchanged'
   for (const privateValue of ['NEVER_EXPORT', 'private-account', 'private-song-id', 'private-call', 'private-provider', 'private-revision', 'Public song', 'Public reason']) assert.equal(serialized.includes(privateValue), false);
   assert.equal(s.selection.reconstructed, true);
   assert.equal(s.candidates[0].playable, null);
+  assert.equal(s.candidates[0].known, null, 'same title and artist do not prove the same recording was heard');
   assert.deepEqual(evaluate(s).baseline.ids, ['c001']);
   const catalogue = exportSnapshot(path, {metadata: true});
   assert.equal(catalogue.candidates[0].title, 'Public song');
@@ -126,6 +133,19 @@ test('read-only export whitelists one batch and leaves database bytes unchanged'
 test('export refuses selection and ledger identity mismatch', () => temporary(directory => {
   assert.throws(() => exportSnapshot(database(directory, {mismatch: true})), /不匹配/);
 }));
+
+test('historical context never leaks listens that occurred during or after the original model call', () => {
+  temporary(directory => {
+    const s = exportSnapshot(database(directory, {listenOffset: -5}));
+    assert.equal(s.candidates[0].known, null);
+    assert.deepEqual(s.recentIds, []);
+  });
+  temporary(directory => {
+    const s = exportSnapshot(database(directory, {listenOffset: -20}));
+    assert.equal(s.candidates[0].known, true);
+    assert.deepEqual(s.recentIds, ['c001']);
+  });
+});
 
 test('CLI writes reviewable reports once and refuses to overwrite human feedback', () => temporary(directory => {
   const out = join(directory, 'replay');

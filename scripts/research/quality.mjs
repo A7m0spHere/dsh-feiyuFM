@@ -112,7 +112,7 @@ function metrics(rows, s, feedback) {
     unavailableRate: ratio(rows.filter(c => c.playable === false).length, rows.filter(c => c.playable !== null).length),
     humanJudged: judged.length, humanCoverage: ratio(judged.length, rows.length),
     worthRate: ratio(judged.filter(r => r.rating === 'worth').length, judged.length),
-    newDiscoveryCount: heard.filter(r => r.heardBefore === false && r.rating === 'worth').length,
+    newDiscoveryCount: heard.length ? heard.filter(r => r.heardBefore === false && r.rating === 'worth').length : null,
     newDiscoveryRate: ratio(heard.filter(r => r.heardBefore === false && r.rating === 'worth').length, heard.length),
     reasonJudged: reasons.length, reasonSupportRate: ratio(reasons.filter(r => r.reasonSupported).length, reasons.length),
     humanPlaybackJudged: playback.length, humanUnavailableRate: ratio(playback.filter(r => r.playback === 'unavailable').length, playback.length)};
@@ -144,6 +144,7 @@ export function evaluate(s, {feedback = null, topK = 6} = {}) {
     reconstructedResponse: s.selection.reconstructed, historicalOnly: true, candidateCount: s.candidates.length,
     invalidPickCount: Math.max(0, (s.selection.response?.picks.length ?? 0) - selection.picks.length),
     selectionCode: selection.code, exclusions,
+    platformPool: {metrics: metrics(s.candidates, s, feedback)},
     baseline: {ids: baseline.map(c => c.id), metrics: metrics(baseline, s, feedback)},
     variant: {name: 'distinct-artist-first', ids: variant.map(c => c.id), metrics: metrics(variant, s, feedback)},
     costs: {recordedCalls: s.calls.length, failedCalls: s.calls.filter(c => c.status !== 'completed').length,
@@ -155,5 +156,5 @@ export function evaluate(s, {feedback = null, topK = 6} = {}) {
 const show = value => value === null ? '未知' : typeof value === 'number' ? String(Number(value.toFixed(4))) : String(value);
 export function qualityMarkdown(r) {
   const metrics = ['count', 'artistDiversity', 'artistCoverage', 'repeatRate', 'unfamiliarRate', 'unavailableRate', 'humanJudged', 'worthRate', 'newDiscoveryRate', 'reasonSupportRate'];
-  return `# 推荐质量离线回放\n\n输入摘要：\`${r.inputHash}\`。样本：${r.kind}；固定时间：${new Date(r.asOf).toISOString()}。\n\n只比较已保存筛选名单的前 ${r.topK} 首与 distinct-artist-first 重排，不代表 Core 自动播放顺序、模型重新推理或生产质量。\n\n| 指标 | 原筛选排名 | 研究变体 |\n|---|---|---|\n${metrics.map(k => `| ${k} | ${show(r.baseline.metrics[k])} | ${show(r.variant.metrics[k])} |`).join('\n')}\n\n筛选状态：${r.selectionCode ?? '已解析'}；排除项：\`${JSON.stringify(r.exclusions)}\`。\n\n历史调用 ${r.costs.recordedCalls} 次，其中非完成 ${r.costs.failedCalls} 次、用量未知 ${r.costs.unknownUsageCalls} 次；实际用量字段见 report.json。预留值不当作实际消耗，不推算价格。回放新增模型调用与 tokens 均为 0。\n\n结论状态：${r.decision}。没有人工评价时质量指标保留未知；合成样本只验证工具。保留生产策略，不据此上线算法或主动分享。\n`;
+  return `# 推荐质量离线回放\n\n输入摘要：\`${r.inputHash}\`。样本：${r.kind}；固定时间：${new Date(r.asOf).toISOString()}。\n\n比较平台原始候选、已保存筛选名单前 ${r.topK} 首与 distinct-artist-first 重排。平台列包含原批次的不可播等项，筛选列共同排除；这不是同等可播集合的因果比较，也不代表 Core 自动播放顺序或模型重新推理。\n\n| 指标 | 平台原始候选 | 原筛选排名 | 研究变体 |\n|---|---|---|---|\n${metrics.map(k => `| ${k} | ${show(r.platformPool.metrics[k])} | ${show(r.baseline.metrics[k])} | ${show(r.variant.metrics[k])} |`).join('\n')}\n\n筛选状态：${r.selectionCode ?? '已解析'}；排除项：\`${JSON.stringify(r.exclusions)}\`。\n\n历史调用 ${r.costs.recordedCalls} 次，其中非完成 ${r.costs.failedCalls} 次、用量未知 ${r.costs.unknownUsageCalls} 次；实际用量字段见 report.json。预留值不当作实际消耗，不推算价格。回放新增模型调用与 tokens 均为 0。\n\n结论状态：${r.decision}。没有人工评价时质量指标保留未知；合成样本只验证工具。保留生产策略，不据此上线算法或主动分享。\n`;
 }
