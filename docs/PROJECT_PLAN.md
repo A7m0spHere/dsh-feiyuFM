@@ -250,7 +250,7 @@ R6（2026-10-07）：`0.1.0-beta.2` 已发布，封存/registry SHA-512/SHA-1 �
 | [#11](https://github.com/A7m0spHere/dsh-feiyuFM/issues/11) | [试用操作卡](research/TRIAL.md)、每人本机试用包和匿名汇总；9 项专用回归通过（与 #7 合计 21 项） | 真实参与者 0 人、观察时长 0、有效评价 0；本轮工具/材料完成，真实试用按用户要求后置，Issue 保持打开 |
 | [#9](https://github.com/A7m0spHere/dsh-feiyuFM/issues/9) | [用户偏好信号语义](research/PREFERENCE_SIGNALS.md)：所有权/优先级/撤销/账号范围及固定候选 16 项对照；补齐模型候选逐曲 liked/reduced 信息，4 项新增回归与既有传输链验证 | 信号路径与可复现缺口修复完成；不新增 DB 迁移、评分权重或模型调用。实际推荐质量和新增长期/情境算法收益仍待 #7/#11，暂无依据扩大实现 |
 | [#10](https://github.com/A7m0spHere/dsh-feiyuFM/issues/10) | [可控探索设计与对照](research/EXPLORATION.md)：熟悉/相邻/未知的证据分类，冻结候选的 0/20/70/100 与三种排名假设；复用 #7 指标、#9 明确反馈，增加历史耗时和来源关系的脱敏导出；9 项专用回归通过 | 设计与离线工具完成，尚无真实推荐收益证据；保留当前 filtered 策略，不新增产品队列/DB/模型调用。#7/#11 真实试用继续后置；不把未知候选包装为跨风格意外发现，Issue 保持打开 |
-| [#4](https://github.com/A7m0spHere/dsh-feiyuFM/issues/4) | [U19 近期发现原型](spikes/U19-recent-discoveries-prototype.md)：当前有效歌单只读投影、共享来源事实、来源 call ID、独立收听状态与默认折叠 UI；12 项新增回归和宽窄/深色浏览器检查 | 原型已可查看，真实用户反馈待验；不增加数据库表、模型调用或主动分享，不记录跨批次永久历史。未重载日常 Desktop、未发布 npm，Issue 保持打开 |
+| [#4](https://github.com/A7m0spHere/dsh-feiyuFM/issues/4) | [U19 近期发现原型](spikes/U19-recent-discoveries-prototype.md)：当前有效歌单只读投影、共享来源事实、来源 call ID、独立收听状态与默认折叠 UI；12 项新增回归和宽窄/深色浏览器检查；提交 `23c542a` 已推送 | 用户于 2026-10-18 指定关闭，已按原型交付关闭 Issue。真实用户反馈仍待收集，不代表正式验收通过；不增加数据库表、模型调用或主动分享，不记录跨批次永久历史。日常 Desktop 未重载、npm 未发布 |
 
 #9 的源码补齐尚未随 npm 包发布，也未重载日常 Desktop。复现确认：原实现对调 A/B 的喜欢与少推荐后事实 hash 相同；修复后可区分，撤销回到原事实包。合成模型传输链确认逐曲标签抵达请求、下一首不新增模型调用。语义对照覆盖临时会话上限 8 次、成长去重、静音弱经历、重置/撤销和切号候选失效；不是用户偏好质量提升证明。本地曲库/反馈/Agent 偏好沿用数据目录范围，未改成账号级分表。
 
