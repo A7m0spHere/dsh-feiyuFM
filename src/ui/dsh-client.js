@@ -125,6 +125,22 @@ window.__ModuleLoader__.load({
       .fishfm h2 small { color:var(--fm-faint); font-size:9px; font-weight:500; letter-spacing:.1em; }
       .fm-card { padding:4px 14px; border:1px solid var(--fm-line); border-radius:9px; background:var(--fm-surface); }
       .fm-persona-card { padding:12px; }
+      .fm-discoveries { margin-top:12px; }
+      .fm-discoveries-card { padding:0 12px; }
+      .fm-discoveries-card>summary { display:flex; align-items:center; justify-content:space-between; gap:10px;
+        padding:12px 0; cursor:pointer; list-style:none; }
+      .fm-discoveries-card>summary::-webkit-details-marker { display:none; }
+      .fm-discoveries-card>summary .fm-label::before { content:'›'; display:inline-block; width:14px; color:var(--fm-faint); }
+      .fm-discoveries-card[open]>summary .fm-label::before { content:'⌄'; }
+      .fm-discoveries-note,.fm-discoveries-empty { padding:0 0 12px; }
+      .fm-discoveries-list { list-style:none; padding:0; margin:0 0 10px; }
+      .fm-discovery-item { padding:10px 0; border-top:1px solid var(--fm-line); }
+      .fm-discovery-heading { display:flex; align-items:flex-start; gap:8px; flex-wrap:wrap; }
+      .fm-discovery-copy { min-width:0; flex:1 1 140px; display:grid; gap:2px; overflow-wrap:anywhere; }
+      .fm-discovery-copy strong { font-size:12px; font-weight:550; }
+      .fm-discovery-badges { display:flex; flex-wrap:wrap; gap:4px; max-width:100%; }
+      .fm-discovery-badges .fm-badge { font-size:10px; white-space:normal; }
+      .fm-discovery-source { padding-top:5px; overflow-wrap:anywhere; }
       .fm-recommendation-status { margin:8px 0!important; padding:7px 9px; border-radius:6px; background:var(--fm-sunken); color:var(--fm-muted); font-size:11px; overflow-wrap:anywhere; }
       .fm-error-details { margin-top:6px; font-size:10px; }
       .fm-picks-head { display:flex; align-items:center; flex-wrap:wrap; gap:8px; }
@@ -486,6 +502,9 @@ window.__ModuleLoader__.load({
         // Apply ordering to every entrance, including polling and command replies.
         const older = incoming && current && (incoming.revision < current.revision
           || (incoming.revision === current.revision && incoming.commandVersion < current.commandVersion));
+        if ((older || libraryVersion !== libraryEpoch) && patch.persona?.discoveryJournal) {
+          patch.persona = {...patch.persona, discoveryJournal: state.persona?.discoveryJournal};
+        }
         if (older || (playbackVersion !== null && playbackVersion !== playbackEpoch)) delete patch.snapshot;
         return patch;
       };
@@ -619,9 +638,8 @@ window.__ModuleLoader__.load({
             const value = result.value;
             const login = Object.hasOwn(value, 'login') ? value.login : state.login;
             if (action === 'poll' && login) login.qrImage = state.login?.qrImage;
-            emit({ ...project({ snapshot: value.snapshot, library: value.library ?? state.library }, libraryVersion, playbackVersion), platforms: value.platforms ?? state.platforms, login,
+            emit({ ...project({ snapshot: value.snapshot, library: value.library ?? state.library, persona: value.persona ?? state.persona }, libraryVersion, playbackVersion), platforms: value.platforms ?? state.platforms, login,
               insights:value.insights??state.insights,
-              persona:value.persona??state.persona,
               playlists: value.playlists??state.playlists,
               imported: action === 'logout' ? null : Object.hasOwn(value, 'imported') ? value.imported : state.imported,
               importAttempts: action === 'import' ? value.attempts ?? [] : state.importAttempts,
@@ -1139,6 +1157,39 @@ window.__ModuleLoader__.load({
             h('p',{className:'fm-note'},'清空后可重新导入参考歌曲。保留最近一次恢复点；撤销会覆盖重置之后的导入和成长。')))));
     }
 
+    // src/ui/client/discoveries.mjs
+    const discoverySources = {netease_similar: '网易云相似推荐', netease_daily: '网易云每日推荐', netease_personal_fm: '网易云私人 FM', platform_recommendation: '平台推荐'};
+    function Discoveries({state}) {
+      const journal = state.persona?.discoveryJournal;
+      if (!journal) return null;
+      const ready = state.connected && journal.status === 'ready';
+      const items = ready ? journal.items ?? [] : [];
+      const message = !state.connected ? '暂时无法读取发现记录，连接恢复后再更新。'
+        : journal.status === 'unavailable' ? '当前模式暂未提供发现记录。'
+        : journal.reason === 'no-input' ? '导入参考歌曲后，这里会留下有依据的发现记录。'
+        : '还没有当前有效歌单的发现记录，找一批歌后再来看看。';
+      return h('section', {className: 'fm-discoveries'},
+        h('details', {className: 'fm-card fm-discoveries-card'},
+          h('summary', null, h('span', {className: 'fm-label'}, '近期发现'), h('span', {className: 'fm-note'}, items.length ? `${items.length} 首 · 当前歌单` : '只记录有依据的发现')),
+          !items.length ? h('p', {className: 'fm-note fm-discoveries-empty'}, message)
+          : h(React.Fragment, null,
+            h('p', {className: 'fm-note fm-discoveries-note'}, journal.retained ? '新一批尚未就绪，以下保留仍有效的上一批记录。' : '来自当前有效歌单；已推荐与实际收听分别记录。'),
+            h('ol', {className: 'fm-discoveries-list'}, ...items.map(item => {
+              const source = item.evidence?.find(f => f.kind === 'platform-source')?.value;
+              const seed = item.evidence?.some(f => f.kind === 'platform-seed-relation');
+              const vote = item.evidence?.find(f => f.kind === 'explicit-feedback')?.value;
+              return h('li', {className: 'fm-discovery-item', key: item.key},
+                h('div', {className: 'fm-discovery-heading'}, h('div', {className: 'fm-discovery-copy'}, h('strong', null, item.title), h('span', {className: 'fm-note'}, item.artist)),
+                  h('div', {className: 'fm-discovery-badges'}, h('span', {className: 'fm-badge'}, '已推荐'),
+                    item.userRequested && h('span', {className: 'fm-badge'}, '本机点播'),
+                    item.audibleHeard ? h('span', {className: 'fm-badge', 'data-ok': true}, '有效听过')
+                      : item.silentExperienced ? h('span', {className: 'fm-badge'}, '静音有效经历')
+                        : item.agentExperienced ? h('span', {className: 'fm-badge'}, '有效经历') : null)),
+                h('p', {className: 'fm-note fm-discovery-source'}, `${discoverySources[source] ?? '来源未确认'}${seed ? ' · 已记录平台种子关系' : ''}${vote === 'liked' ? ' · 筛选前已标记喜欢' : vote === 'reduced' ? ' · 筛选前已标记少推荐' : ''}`));
+            })),
+            h('p', {className: 'fm-note fm-discoveries-note'}, `只展示本批推荐后的可核对记录，不是完整听歌历史。静音经历不算有声听过。${journal.historyLimited ? '近期收听窗口有限，更早状态未确认。' : ''}`))));
+    }
+
     // src/ui/client/panel.mjs
     function Panel({ controller, back, close }) {
       const state = React.useSyncExternalStore(controller.subscribe, controller.getSnapshot);
@@ -1237,6 +1288,7 @@ window.__ModuleLoader__.load({
 
       const preferencesColumn = h('div', {className:'fm-main-column'},
             h(Persona,{state,controller}),
+            h(Discoveries,{state}),
             insights&&close&&h('section',null,h('h2',null,'听歌记录'),h('details',{className:'fm-card fm-profile-details'},h('summary',null,'查看偏好与听歌记录'),
               h('p',{className:'fm-note'},'本地画像 · 来自已保存的独立偏好'),
               ...(insights.profile?.artists?.length?insights.profile.artists.slice(0,5).map(a=>h('div',{className:'fm-row',key:a.key},

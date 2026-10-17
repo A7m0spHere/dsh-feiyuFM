@@ -56,15 +56,16 @@ export function createDiscoveryCache({ registry, store = null, now = () => Date.
   /** LLM 筛选结果按 trackKey 戳到候选上；结果随缓存清理一并失效。 */
   const stamped = (tracks) => {
     if (!store) return tracks;
-    let picks;
-    try { picks = store.getSetting('discovery_filter_v1', null)?.picks; } catch { return tracks; }
+    let picks, filter;
+    try { filter = store.getSetting('discovery_filter_v1', null); picks = filter?.picks; } catch { return tracks; }
     if (!Array.isArray(picks) || !picks.length) return tracks;
     const ranked = new Map(picks.filter(p => p && typeof p.trackKey === 'string').map(p => [p.trackKey, p]));
     if (!ranked.size) return tracks;
     return tracks.map(track => {
       const pick = ranked.get(trackId(track));
       if (!pick) return track;
-      return { ...track, discovery: { ...track.discovery, llmRank: Number.isSafeInteger(pick.rank) ? pick.rank : null, llmReason: typeof pick.reason === 'string' ? pick.reason : '' } };
+      return { ...track, discovery: { ...track.discovery, llmRank: Number.isSafeInteger(pick.rank) ? pick.rank : null, llmReason: typeof pick.reason === 'string' ? pick.reason : '',
+        ...(typeof filter.callId === 'string' && /^[\w-]{1,100}$/.test(filter.callId) ? {modelCallId: filter.callId} : {}) } };
     });
   };
   const status = () => {

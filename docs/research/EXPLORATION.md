@@ -60,7 +60,7 @@ npm run research -- exploration --input .tmp/research-local/snapshot.json --feed
 
 ## 与 #4 共用的来源事实
 
-`describeCandidateEvidence()` 输出候选 ID、研究分类和结构化 facts，种类为 `known-before-batch/explicit-feedback/platform-source/platform-seed-relation`。不附带“听懂”“心情”“跨风格”等新故事；原 LLM 理由即使存在，也不自动视为已验证事实。后续 #4 应沿同一事实合同展示既有 Core/Provider 的来源，证据缺失如实标未知。维护脚本不随 npm 包发布，产品不能直接从 `scripts/` 导入模块；接入产品时复用实际来源数据与合同，而不是复制研究样本。
+`describeCandidateEvidence()` 输出候选 ID、研究分类和结构化 facts，种类为 `known-before-batch/explicit-feedback/platform-source/platform-seed-relation`。不附带“听懂”“心情”“跨风格”等新故事；原 LLM 理由即使存在，也不自动视为已验证事实。U19 已将纯实现提取到 [discovery-facts.mjs](../../src/discovery-facts.mjs)，研究脚本重导出同一函数，#4 原型通过 Core DTO 使用其事实；缺失如实标未知。维护脚本不随 npm 包发布，产品不从 `scripts/` 导入模块，也不复制研究样本。
 
 ## 决策与回退
 

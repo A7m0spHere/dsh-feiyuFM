@@ -5,6 +5,7 @@ import { Svg, StatusMark, PlaybackArtwork, useSmoothProgress } from './component
 import { Library } from './library.mjs';
 import {Persona} from './persona.mjs';
 import {FeedbackSettings} from './feedback.mjs';
+import {Discoveries} from './discoveries.mjs';
 import { DollLayer } from './dolls.mjs';
 export function Panel({ controller, back, close }) {
   const state = React.useSyncExternalStore(controller.subscribe, controller.getSnapshot);
@@ -103,6 +104,7 @@ export function Panel({ controller, back, close }) {
 
   const preferencesColumn = h('div', {className:'fm-main-column'},
         h(Persona,{state,controller}),
+        h(Discoveries,{state}),
         insights&&close&&h('section',null,h('h2',null,'听歌记录'),h('details',{className:'fm-card fm-profile-details'},h('summary',null,'查看偏好与听歌记录'),
           h('p',{className:'fm-note'},'本地画像 · 来自已保存的独立偏好'),
           ...(insights.profile?.artists?.length?insights.profile.artists.slice(0,5).map(a=>h('div',{className:'fm-row',key:a.key},

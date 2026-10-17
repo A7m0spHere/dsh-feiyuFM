@@ -83,9 +83,12 @@ test('reference songs flow through NetEase recall, LLM picks and local playback 
     assert.deepEqual(f.prompts[0].candidates.map(item => item.feedback ?? null), ['liked', 'reduced', null]);
     assert.equal('candidateRevision' in f.prompts[0], false, 'batch identity stays local');
     assert.deepEqual(result.value.persona.recommendationPipeline.tracks.map(item => item.providerTrackId), ['2', '4']);
+    assert.equal(result.value.persona.discoveryJournal.items.length, 2);
+    assert.equal(result.value.persona.discoveryJournal.items[0].audibleHeard, false);
     assert.equal(f.host.snapshot().paused, true, 'preparing songs cannot undo user pause');
     await f.bridge.command({ type: 'resume', commandId: 'listen' }); await f.host.core.waitForIdle();
     assert.ok(['2', '4'].includes(f.host.snapshot().current.track.providerTrackId));
+    assert.equal(f.host.snapshot().current.origin.modelCallId, f.store.getSetting('discovery_filter_v1').callId);
     await f.bridge.command({ type: 'next', commandId: 'listen-next' }); await f.host.core.waitForIdle();
     assert.ok(['2', '4'].includes(f.host.snapshot().current.track.providerTrackId));
     assert.equal(f.calls(), 1, 'play and next make no model requests');

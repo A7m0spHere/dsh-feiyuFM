@@ -94,6 +94,10 @@ U18 的 `recommendationAvailability` 表示手动按钮可用性，不再投影�
 
 #9 在 `discovery-filter` 的候选事实中增加可选 `feedback: "liked" | "reduced"`，只读取 `user_track_feedback` 的明确 +1/-1，0 和缺失不发送该字段。总数不能替代逐曲归属；用户反馈与 Agent 艺人权重仍分别表达，不推断情绪或艺人整体喜恶。已发送的预留不因新反馈自动重试，下一正常批次读取最新值，本地下一首始终读取当前反馈。输入/输出数量、字节和共享 token 预算不变，输出仍为候选序号；禁播在本地硬过滤，reduced 不等于禁播。语义、账号范围与对照见 [用户偏好信号](research/PREFERENCE_SIGNALS.md)。
 
+U19 的 `persona.discoveryJournal` 是只读的 `current-valid-filtered-batch` 投影：`status=ready/empty/unavailable`、空状态 `reason`、`recommendedAt`、`retained`、`historyLimited` 与最多 12 个 `items`。item 仅含曲目安全元数据、结构化 `evidence` 和 `recommended/userRequested/agentExperienced/silentExperienced/audibleHeard/latestListenAt`，不返回原始历史、账号 owner 或未经核实的模型理由。旧宿主缺此字段时客户端隐藏该部分，不新增路由或模型工具。
+
+筛选曲目可携带 `discovery.modelCallId`，Core 将其沿既有 `current.origin` 和历史 JSON 保存，自主经历按本批 call ID 关联。手动点播是推荐后同曲的本机操作，不归为自主成长或推荐转化。有效有声状态要求实测 audibleMs 达阈值；明确零有声计时的有效自主经历才标静音。批次/账号/时效校验、200 条索引历史窗口与更完整的边界见 [U19](spikes/U19-recent-discoveries-prototype.md)。
+
 歌单事实不发平台 ID，筛选事实含候选曲目键用于映射，不发凭据。A09 要求逐曲零模型请求、计划内调用门控及真实两小时对照。
 
 ## 6. Playback 与有效进度

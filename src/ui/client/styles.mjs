@@ -119,6 +119,22 @@ export const css = `
   .fishfm h2 small { color:var(--fm-faint); font-size:9px; font-weight:500; letter-spacing:.1em; }
   .fm-card { padding:4px 14px; border:1px solid var(--fm-line); border-radius:9px; background:var(--fm-surface); }
   .fm-persona-card { padding:12px; }
+  .fm-discoveries { margin-top:12px; }
+  .fm-discoveries-card { padding:0 12px; }
+  .fm-discoveries-card>summary { display:flex; align-items:center; justify-content:space-between; gap:10px;
+    padding:12px 0; cursor:pointer; list-style:none; }
+  .fm-discoveries-card>summary::-webkit-details-marker { display:none; }
+  .fm-discoveries-card>summary .fm-label::before { content:'›'; display:inline-block; width:14px; color:var(--fm-faint); }
+  .fm-discoveries-card[open]>summary .fm-label::before { content:'⌄'; }
+  .fm-discoveries-note,.fm-discoveries-empty { padding:0 0 12px; }
+  .fm-discoveries-list { list-style:none; padding:0; margin:0 0 10px; }
+  .fm-discovery-item { padding:10px 0; border-top:1px solid var(--fm-line); }
+  .fm-discovery-heading { display:flex; align-items:flex-start; gap:8px; flex-wrap:wrap; }
+  .fm-discovery-copy { min-width:0; flex:1 1 140px; display:grid; gap:2px; overflow-wrap:anywhere; }
+  .fm-discovery-copy strong { font-size:12px; font-weight:550; }
+  .fm-discovery-badges { display:flex; flex-wrap:wrap; gap:4px; max-width:100%; }
+  .fm-discovery-badges .fm-badge { font-size:10px; white-space:normal; }
+  .fm-discovery-source { padding-top:5px; overflow-wrap:anywhere; }
   .fm-recommendation-status { margin:8px 0!important; padding:7px 9px; border-radius:6px; background:var(--fm-sunken); color:var(--fm-muted); font-size:11px; overflow-wrap:anywhere; }
   .fm-error-details { margin-top:6px; font-size:10px; }
   .fm-picks-head { display:flex; align-items:center; flex-wrap:wrap; gap:8px; }

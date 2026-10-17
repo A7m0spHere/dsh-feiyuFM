@@ -46,6 +46,9 @@ export function createController(connection) {
     // Apply ordering to every entrance, including polling and command replies.
     const older = incoming && current && (incoming.revision < current.revision
       || (incoming.revision === current.revision && incoming.commandVersion < current.commandVersion));
+    if ((older || libraryVersion !== libraryEpoch) && patch.persona?.discoveryJournal) {
+      patch.persona = {...patch.persona, discoveryJournal: state.persona?.discoveryJournal};
+    }
     if (older || (playbackVersion !== null && playbackVersion !== playbackEpoch)) delete patch.snapshot;
     return patch;
   };
@@ -179,9 +182,8 @@ export function createController(connection) {
         const value = result.value;
         const login = Object.hasOwn(value, 'login') ? value.login : state.login;
         if (action === 'poll' && login) login.qrImage = state.login?.qrImage;
-        emit({ ...project({ snapshot: value.snapshot, library: value.library ?? state.library }, libraryVersion, playbackVersion), platforms: value.platforms ?? state.platforms, login,
+        emit({ ...project({ snapshot: value.snapshot, library: value.library ?? state.library, persona: value.persona ?? state.persona }, libraryVersion, playbackVersion), platforms: value.platforms ?? state.platforms, login,
           insights:value.insights??state.insights,
-          persona:value.persona??state.persona,
           playlists: value.playlists??state.playlists,
           imported: action === 'logout' ? null : Object.hasOwn(value, 'imported') ? value.imported : state.imported,
           importAttempts: action === 'import' ? value.attempts ?? [] : state.importAttempts,

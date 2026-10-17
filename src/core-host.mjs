@@ -24,6 +24,7 @@ import { createQQProvider } from './providers/qq.mjs';
 import { describePlatforms, collectDiscovery, resolveOnOwnPlatform, summarizeSeedRuns } from './providers/coordinator.mjs';
 import { createDiscoveryCache } from './discovery.mjs';
 import {describeMusicFacts,describeMusicInsights} from './insights.mjs';
+import {describeDiscoveryJournal} from './discovery-journal.mjs';
 import {createTrackGraphCache} from './track-graph.mjs';
 import {personaView,reserveSummary,startSummary,finishSummary,recoverSummaryCalls,setSummaryBudget,setSummaryOutputTokens,setSummaryAutomatic,factBundle} from './persona.mjs';
 import {modelRecommendations,modelRecommendationTracks,recommendationMode,createModelRecommendationResolver,STRATEGY_PURPOSE} from './model-recommendations.mjs';
@@ -542,6 +543,7 @@ export function createCoreHost({
             const refused=store.getSetting('recommendation_error_v1',null);
             persona.recommendationPipeline.lastError=refused?.candidateRevision===persona.recommendationPipeline.candidateRevision?refused.code:last?.status==='failed'?last.error_code:null;}
           persona.recommendationRoute=store.getSetting('recommendation_route_v1',null);
+          persona.discoveryJournal=describeDiscoveryJournal({store,pipeline:persona.recommendationPipeline,snapshot:core.snapshot(),now:now()});
           send({type:'result',id,ok:true,persona});return;
         }
         case 'recommendation-route':{

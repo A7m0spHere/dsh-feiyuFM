@@ -10,6 +10,8 @@ beta.3 的模型协议／最终回答与日常原生 Desktop 重启补验见 [N2
 
 本目录存报告与证据；可执行的早期探针在 [根 spikes](../../spikes/README.md)，归档交接文字在 [archive](../archive/README.md)。
 
+[#4 近期发现只读原型](U19-recent-discoveries-prototype.md) 包含当前批次来源与收听状态、宽窄/深色截图、回归和真实用户待验边界。
+
 ## 自主听歌、推荐与后续修复
 
 | 记录 | 主题 |

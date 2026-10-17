@@ -184,6 +184,47 @@ test('failed credential cleanup shows a logged-out account and an actionable ret
 });
 function all(tree) { return !tree || typeof tree !== 'object' ? [] : [tree, ...tree.children.flatMap(all)]; }
 
+test('discovery prototype is collapsed and read-only, separates listening states and hides stale data when disconnected', async () => {
+  let available = true, calls = 0;
+  const journal = {status: 'ready', items: [
+    {key: 'netease:1', title: 'Only recommended', artist: 'A', evidence: [{kind: 'platform-source', value: 'netease_similar'}]},
+    {key: 'netease:2', title: 'Silent experience', artist: 'B', agentExperienced: true, silentExperienced: true, audibleHeard: false, evidence: []},
+    {key: 'netease:3', title: 'Heard', artist: 'C', audibleHeard: true, userRequested: true, evidence: []},
+  ]};
+  const persona = {generatedAt: 1, discoveryJournal: journal, policy: {dailyTokens: 4000, maxOutputTokens: 256},
+    ledger: {today: {knownTokens: 0}, total: {knownTokens: 0}, remainingTokens: 4000, recent: []}};
+  const f = fixture(async () => { calls++; return available ? {ok: true, value: {snapshot: snapshot(1), persona}} : {ok: false, error: {code: 'core_unavailable'}}; });
+  try {
+    await f.controller.refresh();
+    const card = all(f.render()).find(n => n.type === 'details' && n.props.className?.includes('fm-discoveries-card'));
+    assert.ok(card); assert.equal(card.props.open, undefined);
+    const words = all(card).flatMap(n => n.children.filter(c => typeof c === 'string')).join(' ');
+    assert.match(words, /已推荐/); assert.match(words, /静音有效经历/); assert.match(words, /有效听过/); assert.match(words, /本机点播/);
+    assert.equal(all(card).some(n => n.type === 'button'), false);
+    assert.equal(calls, 1, 'rendering the journal cannot issue commands or model requests');
+    available = false; await f.controller.refresh();
+    const disconnected = all(f.render()).find(n => n.props.className?.includes('fm-discoveries-card'));
+    const text = all(disconnected).flatMap(n => n.children.filter(c => typeof c === 'string')).join(' ');
+    assert.match(text, /暂时无法读取/); assert.equal(text.includes('Only recommended'), false);
+  } finally { f.dispose(); }
+});
+
+test('a late platform projection cannot resurrect discoveries cleared by a newer state snapshot', async () => {
+  let release, reads = 0;
+  const oldJournal = {status: 'ready', items: [{key: 'netease:1', title: 'Old account'}]};
+  const make = (revision, journal) => ({ok: true, value: {snapshot: snapshot(revision), platforms: {}, persona: {generatedAt: 1, discoveryJournal: journal}}});
+  const f = fixture(async (_channel, endpoint) => endpoint === 'fishfm/playlists' ? new Promise(resolve => { release = resolve; })
+    : ++reads === 1 ? make(1, oldJournal) : make(2, {status: 'empty', items: []}));
+  try {
+    await f.controller.refresh();
+    const pending = f.controller.platformAction('playlists', 'netease');
+    await f.controller.refresh();
+    release(make(1, oldJournal)); await pending;
+    assert.equal(f.controller.getSnapshot().snapshot.revision, 2);
+    assert.deepEqual(JSON.parse(JSON.stringify(f.controller.getSnapshot().persona.discoveryJournal.items)), []);
+  } finally { f.dispose(); }
+});
+
 test('public playback artwork uses owned state PNGs while playing and paused', async () => {
   let current = { ...snapshot(1), status: 'playing', paused: false,
     current: { playInstanceId: 'public-art', track: { title: 'Song' } } };

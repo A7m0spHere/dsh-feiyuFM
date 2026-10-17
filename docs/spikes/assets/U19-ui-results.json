@@ -1,0 +1,30 @@
+{
+  "mode": "isolated Headless Edge; simulated RPC, no account/audio/model",
+  "results": [
+    {
+      "width": 1280,
+      "overflow": false
+    },
+    {
+      "width": 740,
+      "overflow": false
+    },
+    {
+      "width": 390,
+      "overflow": false
+    },
+    {
+      "width": 320,
+      "overflow": false
+    }
+  ],
+  "keyboard": true,
+  "states": true,
+  "empty": true,
+  "disconnected": true,
+  "retained": true,
+  "settings": true,
+  "longText": true,
+  "openingBusinessRpcDelta": 0,
+  "consoleErrors": []
+}

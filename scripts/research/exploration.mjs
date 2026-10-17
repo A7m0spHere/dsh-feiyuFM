@@ -1,18 +1,9 @@
 // Offline hypotheses over the same saved LLM picks, never a production selector.
 import {digest, evaluate, fail, qualityMetrics, ratio, validateSnapshot, validateFeedback} from './quality.mjs';
+import {describeCandidateEvidence} from '../../src/discovery-facts.mjs';
+export {describeCandidateEvidence};
 
 export const EXPLORATION_PROFILES = ['recorded-rank', 'familiar-first', 'related-diverse'];
-export function describeCandidateEvidence(candidate) {
-  const facts = [];
-  if (candidate.known === true) facts.push({kind: 'known-before-batch'});
-  if (candidate.feedback) facts.push({kind: 'explicit-feedback', value: candidate.feedback});
-  if (candidate.source !== 'unknown') facts.push({kind: 'platform-source', value: candidate.source});
-  if (candidate.source === 'netease_similar' && candidate.seedRelated === true) facts.push({kind: 'platform-seed-relation'});
-  const familiar = candidate.known === true || candidate.feedback === 'liked';
-  const adjacent = candidate.source === 'netease_similar' && candidate.seedRelated === true;
-  return {id: candidate.id, category: familiar ? 'familiar' : adjacent ? 'adjacent' : 'unknown', facts,
-    distance: 'unknown', genre: 'unknown', mood: 'unknown', reasonSupport: 'requires-human-review'};
-}
 const familiar = c => describeCandidateEvidence(c).category === 'familiar';
 function diversify(rows, alreadyPlaced = []) {
   const seen = new Set(alreadyPlaced.map(c => c.artist).filter(Boolean)), first = [], rest = [];
