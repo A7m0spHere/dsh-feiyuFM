@@ -52,6 +52,8 @@ test('settings RPC persists changes through Core restart and preserves pause', a
     }
     // Pause remains a separate user action.
     assert.equal((await api('fishfm/command', { type: 'pause' })).value.snapshot.paused, true);
+    const expression=await api('fishfm/expression-style',{style:'concise',expectedRevision:0});
+    assert.equal(expression.ok,true);assert.equal(expression.value.expression.style,'concise');
     await bridge.stop();
     bridge = makeBridge();
     const restored = await createSettingsHandler(bridge)('fishfm/state');
@@ -59,6 +61,8 @@ test('settings RPC persists changes through Core restart and preserves pause', a
     assert.equal(restored.value.snapshot.settings.humanPlayback, false);
     assert.equal(restored.value.snapshot.settings.strategy, 'focus');
     assert.equal(restored.value.snapshot.paused, true);
+    assert.equal(restored.value.insights.expression.style,'concise');
+    assert.equal(restored.value.insights.expression.revision,1);
   } finally { await bridge.stop(); rmSync(dir, { recursive: true, force: true }); }
 });
 
@@ -106,7 +110,7 @@ test('desktop exact routes coexist with the Gateway and validate RPC envelopes b
       } },
     },
   }, bridge);
-  assert.equal(routes.size, 14);
+  assert.equal(routes.size, 15);
   assert.equal(routes.has('/api/session/create'), false);
   const path = '/api/fishfm/command';
   const request = body => new Request(`http://localhost${path}`, {

@@ -30,6 +30,9 @@ window.__ModuleLoader__={load(def){harnessBundle=def.factory(name=>{if(name!=='r
 </script>
 <script src="/client.js"></script>
 <script type="module">
+import {expressionView,setExpressionStyle,expressionVariants} from '/expression.js';
+const expressionStore={getSetting(key,fallback){try{return JSON.parse(localStorage.getItem('fishfm.preview.'+key))??fallback;}catch{return fallback;}},
+ setSetting(key,value){localStorage.setItem('fishfm.preview.'+key,JSON.stringify(value));},transaction(fn){return fn();}};
 const tracks=Array.from({length:400},(_,i)=>({provider:'netease',providerTrackId:String(i+1),title:`示例歌曲 ${String(i+1).padStart(2,'0')}`,artist:i%2?'夜航乐队':'沿途电台',durationMs:180000+i*1000}));
 const artwork=await fetch('/artwork.json').then(response=>response.json());
 let snapshot={revision:1,settings:{listening:true,humanPlayback:false,discovery:true,discoveryRate:.7,strategy:'normal'},paused:true,status:'paused',queue:[],current:{track:tracks[0],selectedBy:'agent',playInstanceId:'preview-1',positionMs:62000,origin:{source:'netease_similar'}},lastError:null,discovery:{state:'ready',count:34,sources:['netease_similar','netease_daily']}};
@@ -40,6 +43,12 @@ const persona={generatedAt:Date.now(),facts:{artists:[{key:'a1',name:'沿途电�
  ledger:{localDecisionRequests:0,today:{knownTokens:696},total:{knownTokens:696,attempts:2,unknownCalls:0},remainingTokens:3304,recent:[{callId:'preview-1',model:'example-model',status:'completed',startedAt:Date.now(),usage:{inputTokens:166,outputTokens:83}},{callId:'preview-2',model:'example-model',status:'failed',startedAt:Date.now()-60000,usage:{inputTokens:191,outputTokens:256}}]}};
 const insights={feedback:{version:1,current:0,liked:0,reduced:0,resetAt:null,canUndoReset:false},explanation:{text:'从沿途电台的相似候选中选择，避免连续重复同一位艺人。'},reply:{decisionId:'preview-1',text:'这首来自沿途电台的相似推荐。想沿着最近的偏好，听一点没听过的声音。'},profile:{artists:[{key:'a1',name:'沿途电台',affinity:.74,source:'listen_silent'},{key:'a2',name:'夜航乐队',affinity:.69,source:'listen'}],tracks:[{key:'t1',title:'示例歌曲 01',affinity:.53,source:'listen_silent'}]},recentChanges:[{playInstanceId:'preview-1',title:'示例歌曲 01',before:.5,after:.53,audible:false}],statistics:{retainedDecisions:42,explorationAttempts:28,unfamiliarSelections:17,observedStarts:42,validUnfamiliarListens:11,repeatedSelections:3},decisions:[]};
 const votes=new Map();let previewResetBackup=null;
+function syncExpressionPreview(){
+ insights.expression=expressionView(expressionStore);
+ const kind=snapshot.current?.selectedBy==='user'?'user':snapshot.current?.origin?.llmReason?'llm-picked':'related';
+ insights.explanation.variants=expressionVariants(kind,insights.explanation.text,snapshot);
+ insights.reply.variants=expressionVariants(kind,insights.reply.text,snapshot);
+}
 persona.recommendationsSupported=true;persona.referenceCoverage={total:tracks.length,sampled:8};insights.libraryResetSupported=true;insights.recommendationMode='filtered';
 const previewPicks=()=>[1,3,5,7].map((index,rank)=>({...tracks[index],discovery:{source:'netease_similar',llmRank:rank+1,llmReason:rank%2?'想试一点不同的':'和参考歌曲相近'}}));
 persona.recommendationRoute={provider:'preview',model:'example-model'};
@@ -80,6 +89,10 @@ const connection={rpc:{async call(_channel,endpoint,payload){
  await new Promise(r=>setTimeout(r,80));
  if(!connected)return {ok:false,error:{code:'core_unavailable',message:'预览连接中断'}};
  if(endpoint==='fishfm/library')return {ok:true,value:{library:libraryPage(payload)}};
+ if(endpoint==='fishfm/expression-style'){
+  try{return {ok:true,value:{expression:setExpressionStyle(expressionStore,payload.style,payload.expectedRevision)}};}
+  catch(error){return {ok:false,error:{code:error.code,message:error.message}};}
+ }
  if(endpoint==='fishfm/import'){
   const before=structuredClone(snapshot);
   await new Promise(r=>setTimeout(r,3000));
@@ -121,11 +134,12 @@ const connection={rpc:{async call(_channel,endpoint,payload){
   if(type==='setMode'){snapshot.settings.listening=payload.value!=='off';snapshot.settings.humanPlayback=payload.value==='silent'||payload.value==='off'?false:snapshot.settings.humanPlayback;snapshot.settings.strategy=payload.value==='focus'?'focus':'normal';snapshot.paused=payload.value==='off';snapshot.status=snapshot.paused?'paused':'playing'}
   if(type==='stopForToday'){snapshot.paused=true;snapshot.status='paused';snapshot.blockUntil=Date.now()+3600000}
   insights.feedback.current=votes.get(snapshot.current?.track.providerTrackId)??0;insights.feedback.liked=[...votes.values()].filter(v=>v===1).length;insights.feedback.reduced=[...votes.values()].filter(v=>v===-1).length;
-  syncJournalPreview();snapshot.revision++;return {ok:true,value:{snapshot:structuredClone(snapshot),insights:structuredClone(insights),persona:structuredClone(persona),...(payload.library?{library:libraryPage(payload.library)}:{})}};
+  syncExpressionPreview();syncJournalPreview();snapshot.revision++;return {ok:true,value:{snapshot:structuredClone(snapshot),insights:structuredClone(insights),persona:structuredClone(persona),...(payload.library?{library:libraryPage(payload.library)}:{})}};
  }
  persona.recommendationPipeline.referenceCount=empty?0:tracks.length;
  syncPickerScenario();
  syncJournalPreview();
+ syncExpressionPreview();
  return {ok:true,value:{snapshot:structuredClone(snapshot),persona:structuredClone(persona),insights:structuredClone(insights),summaryModels,features:{personaSummary:true,discoveryRefresh:true,importSources:true,artwork},platforms:{netease:{installed:true,account:{status:'authorized'}},qq:{installed:false}},library:libraryPage(payload?.library),playlists:[{id:'preview-list',title:'示例输入歌单'}]}};
 }}};
 const layout={selectPanel(id){active=id;changeActive?.(id)}};

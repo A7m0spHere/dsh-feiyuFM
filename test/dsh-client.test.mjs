@@ -184,6 +184,53 @@ test('failed credential cleanup shows a logged-out account and an actionable ret
 });
 function all(tree) { return !tree || typeof tree !== 'object' ? [] : [tree, ...tree.children.flatMap(all)]; }
 
+test('expression saves do not block pause and stale polling cannot roll back an acknowledged style',async()=>{
+  const view=(style,revision)=>({version:1,style,revision,available:true,examples:{}});
+  let releaseSave,releasePoll,saveCalls=0,holdPoll=false;
+  const response=(expression,paused=false)=>({ok:true,value:{snapshot:{...snapshot(paused?2:1),paused},insights:{expression}}});
+  const f=fixture(async(_channel,endpoint,payload)=>{
+    if(endpoint==='fishfm/expression-style'){
+      saveCalls++;if(saveCalls===1)return new Promise(resolve=>{releaseSave=resolve;});
+      return {ok:true,value:{expression:view(payload.style,2),snapshot:{...snapshot(0),paused:false}}};
+    }
+    if(endpoint==='fishfm/command')return response(view('current',0),true);
+    if(holdPoll)return new Promise(resolve=>{releasePoll=resolve;});
+    return response(view('current',0));
+  });
+  try{
+    await f.controller.refresh();const saving=f.controller.saveExpression('lively',0);
+    assert.equal(f.controller.getSnapshot().expressionBusy,true);assert.equal(f.controller.getSnapshot().busy,false);
+    await f.controller.command('pause');
+    releaseSave({ok:true,value:{expression:view('lively',1)}});await saving;
+    assert.equal(f.controller.getSnapshot().snapshot.paused,true);assert.equal(f.controller.getSnapshot().expression.style,'lively');
+    holdPoll=true;const poll=f.controller.refresh();await f.controller.saveExpression('concise',1);
+    releasePoll(response(view('current',0),true));await poll;
+    assert.equal(f.controller.getSnapshot().expression.style,'concise');assert.equal(f.controller.getSnapshot().expression.revision,2);
+    assert.equal(f.controller.getSnapshot().snapshot.paused,true);
+  }finally{f.dispose();}
+});
+
+test('expression drafts survive polling and conflicts until the user adopts saved settings',async()=>{
+  let remote={version:1,style:'current',revision:0,available:true,examples:{current:'current',concise:'concise',lively:'lively'}};
+  const f=fixture(async(_channel,endpoint)=>{
+    if(endpoint==='fishfm/expression-style'){
+      remote={...remote,style:'lively',revision:1};return {ok:false,error:{code:'expression_conflict',message:'另一窗口已更改表达设置'}};
+    }
+    return {ok:true,value:{snapshot:snapshot(1),insights:{expression:remote}}};
+  });
+  const select=()=>all(f.render()).find(n=>n.props['aria-label']==='表达风格');
+  const button=label=>all(f.render()).find(n=>n.type==='button'&&n.children.includes(label));
+  try{
+    await f.controller.refresh();select().props.onChange({target:{value:'concise'}});
+    await f.controller.refresh();assert.equal(select().props.value,'concise');
+    await button('保存表达方式').props.onClick();
+    assert.equal(select().props.value,'concise');assert.equal(button('保存表达方式').props.disabled,true);
+    assert.equal(f.controller.getSnapshot().expression.style,'lively');
+    await button('读取已保存设置').props.onClick();assert.equal(select().props.value,'lively');
+    assert.equal(f.controller.getSnapshot().expressionError,'');
+  }finally{f.dispose();}
+});
+
 test('discovery prototype is collapsed and read-only, separates listening states and hides stale data when disconnected', async () => {
   let available = true, calls = 0;
   const journal = {status: 'ready', items: [

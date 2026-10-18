@@ -6,6 +6,7 @@ import { Library } from './library.mjs';
 import {Persona} from './persona.mjs';
 import {FeedbackSettings} from './feedback.mjs';
 import {Discoveries} from './discoveries.mjs';
+import {ExpressionSettings} from './expression.mjs';
 import { DollLayer } from './dolls.mjs';
 export function Panel({ controller, back, close }) {
   const state = React.useSyncExternalStore(controller.subscribe, controller.getSnapshot);
@@ -143,6 +144,7 @@ export function Panel({ controller, back, close }) {
           h('details',{className:'fm-platform-details fm-input-library'},h('summary',null,'音乐平台',h('span',{className:'fm-disclosure-meta'},accountHint)),platformSection)),
         h(FeedbackSettings,{state,controller}),
         h('section', null, h('h2', null, '界面选项', h('small', null, 'INTERFACE')), h('details', { className: 'fm-card fm-interface-details' }, h('summary',null,'界面与悬浮条'),
+          h(ExpressionSettings,{state,controller}),
           h('div', { className: 'fm-motion-row' }, h('label', { htmlFor: `${rateId}-motion` }, '动态效果'),
             h('select', { id: `${rateId}-motion`, 'aria-label': '动态效果', value: state.motion || 'full', onChange: event => controller.setMotion(event.target.value) },
               h('option', { value: 'full' }, '完整'), h('option', { value: 'reduced' }, '轻量'), h('option', { value: 'off' }, '关闭'))),
@@ -190,7 +192,7 @@ export function Panel({ controller, back, close }) {
             :insights.feedback.current===1?'已喜欢：提高这首歌的排序权重。再次点击可撤销。'
             :insights.feedback.current===-1?'已少推荐：降低权重，不再作为相似推荐种子。再次点击可撤销。'
             :''),
-        insights?.explanation&&h('div',{className:'fm-reply',role:'status',key:insights.reply?.decisionId},h('p',{className:'fm-label'},'大肥鱼说'),h('p',{className:'fm-reply-text'},insights.reply?.text||insights.explanation.text),
+        insights?.explanation&&h('div',{className:'fm-reply',role:'status',key:insights.reply?.decisionId},h('p',{className:'fm-label'},'大肥鱼说'),h('p',{className:'fm-reply-text'},insights.reply?.variants?.[state.expression?.style??'current']||insights.reply?.text||insights.explanation.variants?.[state.expression?.style??'current']||insights.explanation.text),
           h('details',null,h('summary',null,'展开选歌依据'),h('p',null,`来源：${({llm_recommendation:'大肥鱼推荐歌单',netease_similar:'与你常听的歌相似',netease_daily:'网易云每日推荐',netease_personal_fm:'网易云私人 FM',platform_recommendation:'平台推荐'})[current?.origin?.source]??(current?.selectedBy==='user'?'你点播':'常听歌曲')}`),
             current?.selectedBy==='agent'&&snapshot?.lastSelection?.detail&&h('p',null,`排序得分 ${snapshot.lastSelection.score?.toFixed(3)}；与常听歌曲的关联 ${(snapshot.lastSelection.detail.relationship??0).toFixed(3)}；近期已播 ${snapshot.lastSelection.detail.repeatPlays??0} 次；避免连续同一艺人的调整 -${(snapshot.lastSelection.detail.diversityPenalty??0).toFixed(3)}。`),
             Number.isFinite(snapshot?.lastSelection?.detail?.graphAffinity)&&snapshot.lastSelection.detail.graphAffinity>0&&h('p',null,`与最近常听歌曲的相近度 +${snapshot.lastSelection.detail.graphAffinity.toFixed(3)}。`),

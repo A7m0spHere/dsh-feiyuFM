@@ -139,3 +139,9 @@ Provider 解析最多 3 次；自主不可播替换有有限预算，明确资�
 命令去重及已完成成长作业保留 30 天；未完成成长、历史、反馈、约束和模型账本保留。维护清理最多每小时一次，见 [N17](spikes/N17-p1-retention-a09.md)。数据位置与平台凭据限制见 [使用说明](DELIVERY.md)。
 
 诊断脱敏且有界，观察脚本只读，不能启动另一个 Core 或把模拟事件当生产证据。完整 DSH 请求/上下文和两小时对照仍未通过，状态统一在开发路线。
+
+## 独立表达配置（U20）
+
+`settings.expression_style_v1` 保存 `{version:1,style,revision}`，style 仅为 current/concise/lively；缺省 current/revision=0，不新增表或迁移。`insights.expression` 返回 version/style/revision/available/examples，reply/explanation 同时返回确定性 variants，text 为已保存预设；默认 current 保留原有文案。表达配置与变体不加入任何音乐模型事实或提示。
+
+认证 `fishfm/expression-style` → Core `expression-style`，只接收 style 和 expectedRevision（表达版本，与 Core revision 无关）。事务内冲突拒绝为 expression_conflict，无效值为 invalid_expression，未知持久化版本为 unsupported_expression；同值不增版本，恢复默认保留递增 revision。响应仅返回 expression，不返回或应用播放快照。客户端独立保存、草稿和版本去旧不占用播放 busy；无新工具、模型请求或上下文注入。三类状态所有权、文字优先级、格式取舍及验证见 [U20](spikes/U20-expression-style-prototype.md)。

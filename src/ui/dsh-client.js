@@ -125,6 +125,9 @@ window.__ModuleLoader__.load({
       .fishfm h2 small { color:var(--fm-faint); font-size:9px; font-weight:500; letter-spacing:.1em; }
       .fm-card { padding:4px 14px; border:1px solid var(--fm-line); border-radius:9px; background:var(--fm-surface); }
       .fm-persona-card { padding:12px; }
+      .fm-expression-settings { padding:4px 0 12px; border-bottom:1px solid var(--fm-line); margin-bottom:10px; }
+      .fm-expression-example { display:grid; gap:3px; padding:9px 10px; border-radius:7px; background:var(--fm-sunken); overflow-wrap:anywhere; }
+      .fm-expression-error { color:var(--fm-danger); }
       .fm-discoveries { margin-top:12px; }
       .fm-discoveries-card { padding:0 12px; }
       .fm-discoveries-card>summary { display:flex; align-items:center; justify-content:space-between; gap:10px;
@@ -368,6 +371,7 @@ window.__ModuleLoader__.load({
 
     // src/ui/client/shared.mjs
     const h = React.createElement;
+    const EXPRESSION_LABELS = {current:'保持当前',concise:'更简洁',lively:'更活泼'};
     const minutes = ms => { const seconds = Math.floor(Math.max(0, ms || 0) / 1000); return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`; };
     const progressPercent = current => {
       const duration = current?.track?.durationMs;
@@ -474,16 +478,26 @@ window.__ModuleLoader__.load({
       let state = {
         snapshot: null, platforms: {}, busy: false, platformBusy: false, connected: false, error: '', notice: '',
         libraryBusy: false, libraryError: '', libraryQuery: '',
+        expression: null, expressionBusy: false, expressionError: '', expressionNotice: '',
         login: null, imported: null, importAttempts: [], library: { total: 0, tracks: [] },
         widgetVisible: readPreference(WIDGET_VISIBLE_KEY, true) !== false,
         widgetPosition: readPreference(WIDGET_POSITION_KEY, null),
         playbackEffects: readPreference(PLAYBACK_EFFECTS_KEY, false) === true,
         motion: ['full', 'reduced', 'off'].includes(readPreference(MOTION_KEY, 'full')) ? readPreference(MOTION_KEY, 'full') : 'full',
       };
-      let epoch = 0, playbackEpoch = 0, libraryEpoch = 0, timer, read, write, platformWrite, libraryRead,summaryWrite, disposed = false;
+      let epoch = 0, playbackEpoch = 0, libraryEpoch = 0, timer, read, write, platformWrite, libraryRead,summaryWrite,expressionWrite, disposed = false;
       let libraryOptions = { query: '', offset: 0, limit: 12 };
       const listeners = new Set();
-      const emit = (patch) => { if (!disposed) {if(patch.persona?.generatedAt<state.persona?.generatedAt){patch={...patch};delete patch.persona;} if(patch.error==='')patch={...patch,errorCode:null};state = { ...state, ...patch }; listeners.forEach(fn => fn()); } };
+      const emit = (patch) => { if (!disposed) {
+        if (Object.hasOwn(patch,'expression') || patch.insights?.expression) {
+          const value=patch.expression??patch.insights?.expression;
+          patch={...patch};delete patch.expression;
+          if(value?.version===1&&Object.hasOwn(EXPRESSION_LABELS,value.style)&&Number.isSafeInteger(value.revision)&&value.revision>=0
+            &&(!state.expression||value.revision>=state.expression.revision))patch.expression=value;
+        }
+        if(patch.persona?.generatedAt<state.persona?.generatedAt){patch={...patch};delete patch.persona;}
+        if(patch.error==='')patch={...patch,errorCode:null};state = { ...state, ...patch }; listeners.forEach(fn => fn());
+      } };
       const syncPlaybackEffects = event => {
         if (event.key !== PLAYBACK_EFFECTS_KEY && event.key !== null) return;
         try { if (event.storageArea !== window.localStorage) return; } catch { return; }
@@ -681,6 +695,24 @@ window.__ModuleLoader__.load({
             });
           } finally { clearTimeout(timeout); platformWrite = null; emit({ platformBusy: false }); }
         },
+        clearExpressionFeedback(){emit({expressionError:'',expressionErrorCode:null,expressionNotice:''});},
+        async saveExpression(style,expectedRevision){
+          if(disposed||state.expressionBusy||!state.connected)return {ok:false};
+          expressionWrite=new AbortController();const timeout=setTimeout(()=>expressionWrite?.abort(),15000);
+          emit({expressionBusy:true,expressionError:'',expressionErrorCode:null,expressionNotice:''});
+          try{
+            const result=await connection.rpc.call('/api','fishfm/expression-style',{style,expectedRevision},expressionWrite.signal);
+            if(!result.ok)throw result.error;
+            const expression=result.value?.expression;
+            if(expression?.version!==1||!Object.hasOwn(EXPRESSION_LABELS,expression.style)||!Number.isSafeInteger(expression.revision))throw {code:'invalid_expression',message:'表达设置应答未就绪，请刷新后核对。'};
+            emit({expression,expressionNotice:style==='current'?'已恢复默认表达。':'表达方式已保存。'});
+            return {ok:true,expression};
+          }catch(error){
+            emit({expressionError:error?.message||'表达方式未能保存，请重试。',expressionErrorCode:error?.code??null,...(unreachable(error)?{connected:false}:{})});
+            if(error?.code==='expression_conflict')await refresh();
+            return {ok:false};
+          }finally{clearTimeout(timeout);expressionWrite=null;emit({expressionBusy:false});}
+        },
         async personaAction(action,payload){
           if(disposed||state.summaryBusy||!state.connected)return;
           summaryWrite=new AbortController();const timeout=setTimeout(()=>summaryWrite?.abort(),action==='recommendations'?120000:65000);
@@ -706,7 +738,7 @@ window.__ModuleLoader__.load({
           }
           finally{clearTimeout(timeout);summaryWrite=null;emit({summaryBusy:false});}
         },
-        dispose() { disposed = true; ++epoch; ++libraryEpoch; clearInterval(timer); read?.abort(); write?.abort(); platformWrite?.abort(); libraryRead?.abort();summaryWrite?.abort(); listeners.clear();
+        dispose() { disposed = true; ++epoch; ++libraryEpoch; clearInterval(timer); read?.abort(); write?.abort(); platformWrite?.abort(); libraryRead?.abort();summaryWrite?.abort();expressionWrite?.abort(); listeners.clear();
           window.removeEventListener?.('storage', syncPlaybackEffects); },
       };
     }
@@ -1190,6 +1222,39 @@ window.__ModuleLoader__.load({
             h('p', {className: 'fm-note fm-discoveries-note'}, `只展示本批推荐后的可核对记录，不是完整听歌历史。静音经历不算有声听过。${journal.historyLimited ? '近期收听窗口有限，更早状态未确认。' : ''}`))));
     }
 
+    // src/ui/client/expression.mjs
+    function ExpressionSettings({state,controller}) {
+      const view=state.expression;
+      const [draft,setDraft]=React.useState(view?.style??'current');
+      const [dirty,setDirty]=React.useState(false),[baseRevision,setBaseRevision]=React.useState(view?.revision??0);
+      const id=React.useId();
+      React.useEffect(()=>{if(!dirty&&view){setDraft(view.style);setBaseRevision(view.revision);}},[view?.style,view?.revision,dirty]);
+      const conflict=dirty&&view?.revision!==baseRevision;
+      const unavailable=view?.version!==1||view.available!==true;
+      const disabled=!state.connected||state.expressionBusy||unavailable;
+      async function save(style){
+        const result=await controller.saveExpression(style,dirty?baseRevision:view.revision);
+        if(result?.ok){setDraft(result.expression.style);setBaseRevision(result.expression.revision);setDirty(false);}
+      }
+      return h('div',{className:'fm-expression-settings'},
+        h('div',{className:'fm-motion-row'},h('label',{htmlFor:id},'表达风格'),
+          h('select',{id,'aria-label':'表达风格',value:draft,disabled,onChange:e=>{if(!dirty)setBaseRevision(view.revision);setDraft(e.target.value);setDirty(true);}},
+            ...Object.entries(EXPRESSION_LABELS).map(([value,label])=>h('option',{key:value,value},label)))),
+        h('p',{className:'fm-note'},'只调整本地说明文字，音乐偏好、反馈和听歌控制独立保存。'),
+        unavailable?h('p',{className:'fm-note'},'当前 Core 暂未提供可编辑的表达设置。')
+          :h('p',{className:'fm-expression-example'},h('span',{className:'fm-note'},'固定示例'),h('span',null,view.examples?.[draft]??'示例暂未提供。')),
+        (conflict||state.expressionErrorCode==='expression_conflict')&&h('p',{className:'fm-note',role:'status'},'已保存设置发生变化，当前选择保留；请先读取新设置。'),
+        h('div',{className:'fm-feedback-actions'},
+          h('button',{type:'button',className:'fm-button',disabled:disabled||!dirty||conflict,onClick:()=>save(draft)},state.expressionBusy?'保存中…':'保存表达方式'),
+          h('button',{type:'button',className:'fm-button fm-subtle',disabled:disabled||conflict||(view?.style==='current'&&!dirty),onClick:()=>save('current')},'恢复默认表达'),
+          (dirty||state.expressionErrorCode==='expression_conflict')&&h('button',{type:'button',className:'fm-button fm-subtle',disabled:state.expressionBusy,onClick:async()=>{
+            await controller.refresh();const latest=controller.getSnapshot().expression;if(latest){setDraft(latest.style);setBaseRevision(latest.revision);setDirty(false);controller.clearExpressionFeedback();}
+          }},'读取已保存设置')),
+        state.expressionError&&h('p',{className:'fm-note fm-expression-error',role:'alert'},state.expressionError),
+        dirty&&h('p',{className:'fm-note',role:'status'},'当前选择尚未保存。'),
+        !dirty&&state.expressionNotice&&h('p',{className:'fm-note',role:'status'},state.expressionNotice));
+    }
+
     // src/ui/client/panel.mjs
     function Panel({ controller, back, close }) {
       const state = React.useSyncExternalStore(controller.subscribe, controller.getSnapshot);
@@ -1327,6 +1392,7 @@ window.__ModuleLoader__.load({
               h('details',{className:'fm-platform-details fm-input-library'},h('summary',null,'音乐平台',h('span',{className:'fm-disclosure-meta'},accountHint)),platformSection)),
             h(FeedbackSettings,{state,controller}),
             h('section', null, h('h2', null, '界面选项', h('small', null, 'INTERFACE')), h('details', { className: 'fm-card fm-interface-details' }, h('summary',null,'界面与悬浮条'),
+              h(ExpressionSettings,{state,controller}),
               h('div', { className: 'fm-motion-row' }, h('label', { htmlFor: `${rateId}-motion` }, '动态效果'),
                 h('select', { id: `${rateId}-motion`, 'aria-label': '动态效果', value: state.motion || 'full', onChange: event => controller.setMotion(event.target.value) },
                   h('option', { value: 'full' }, '完整'), h('option', { value: 'reduced' }, '轻量'), h('option', { value: 'off' }, '关闭'))),
@@ -1374,7 +1440,7 @@ window.__ModuleLoader__.load({
                 :insights.feedback.current===1?'已喜欢：提高这首歌的排序权重。再次点击可撤销。'
                 :insights.feedback.current===-1?'已少推荐：降低权重，不再作为相似推荐种子。再次点击可撤销。'
                 :''),
-            insights?.explanation&&h('div',{className:'fm-reply',role:'status',key:insights.reply?.decisionId},h('p',{className:'fm-label'},'大肥鱼说'),h('p',{className:'fm-reply-text'},insights.reply?.text||insights.explanation.text),
+            insights?.explanation&&h('div',{className:'fm-reply',role:'status',key:insights.reply?.decisionId},h('p',{className:'fm-label'},'大肥鱼说'),h('p',{className:'fm-reply-text'},insights.reply?.variants?.[state.expression?.style??'current']||insights.reply?.text||insights.explanation.variants?.[state.expression?.style??'current']||insights.explanation.text),
               h('details',null,h('summary',null,'展开选歌依据'),h('p',null,`来源：${({llm_recommendation:'大肥鱼推荐歌单',netease_similar:'与你常听的歌相似',netease_daily:'网易云每日推荐',netease_personal_fm:'网易云私人 FM',platform_recommendation:'平台推荐'})[current?.origin?.source]??(current?.selectedBy==='user'?'你点播':'常听歌曲')}`),
                 current?.selectedBy==='agent'&&snapshot?.lastSelection?.detail&&h('p',null,`排序得分 ${snapshot.lastSelection.score?.toFixed(3)}；与常听歌曲的关联 ${(snapshot.lastSelection.detail.relationship??0).toFixed(3)}；近期已播 ${snapshot.lastSelection.detail.repeatPlays??0} 次；避免连续同一艺人的调整 -${(snapshot.lastSelection.detail.diversityPenalty??0).toFixed(3)}。`),
                 Number.isFinite(snapshot?.lastSelection?.detail?.graphAffinity)&&snapshot.lastSelection.detail.graphAffinity>0&&h('p',null,`与最近常听歌曲的相近度 +${snapshot.lastSelection.detail.graphAffinity.toFixed(3)}。`),

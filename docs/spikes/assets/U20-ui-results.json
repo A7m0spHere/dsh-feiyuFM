@@ -1,0 +1,30 @@
+{
+  "mode": "isolated Headless Edge; simulated RPC and browser-local preview storage, not production SQLite",
+  "draftSurvivesPolling": true,
+  "unsavedDoesNotApply": true,
+  "save": true,
+  "reload": true,
+  "crossWindowConflict": true,
+  "restoreDefault": true,
+  "keyboard": true,
+  "noMusicOrModelRpc": true,
+  "sizes": [
+    {
+      "width": 1280,
+      "overflow": false
+    },
+    {
+      "width": 740,
+      "overflow": false
+    },
+    {
+      "width": 390,
+      "overflow": false
+    },
+    {
+      "width": 320,
+      "overflow": false
+    }
+  ],
+  "consoleErrors": []
+}

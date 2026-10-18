@@ -2,6 +2,7 @@
 import {qualifiesAsListen} from './growth.mjs';
 import {feedbackView} from './feedback.mjs';
 import {recommendationMode} from './model-recommendations.mjs';
+import {expressionView,expressionVariants} from './expression.mjs';
 export function explainSelection(snapshot) {
  const current=snapshot?.current,choice=snapshot?.lastSelection;
  if(!current)return{kind:'idle',text:choice?.reason==='every candidate was filtered out'?'候选暂时都被约束或冷却过滤，等待可用歌曲。':'电台待命，尚未选择歌曲。'};
@@ -67,7 +68,11 @@ export function describeMusicInsights(store,snapshot,now=Date.now(),facts=null) 
  let observedStarts=f.statistics.observedStarts;
  const currentId=current?.playInstanceId;
  if(Number.isFinite(current?.startedAt)&&currentId&&!f.startedIds.has(currentId)&&f.log.some(d=>d.playInstanceId===currentId))observedStarts+=1;
- return {version:1,generatedAt:now,explanation:explainSelection(snapshot),feedback,recommendationMode:recommendationMode(store),libraryResetSupported:true,
+ const expression=expressionView(store),explanation=explainSelection(snapshot);
+ explanation.variants=expressionVariants(explanation.kind,explanation.text,snapshot);
+ explanation.text=explanation.variants[expression.style];
+ if(reply){reply.variants=expressionVariants(explanation.kind,reply.text,snapshot);reply.text=reply.variants[expression.style];}
+ return {version:1,generatedAt:now,explanation,expression,feedback,recommendationMode:recommendationMode(store),libraryResetSupported:true,
   reply,
   profile:{kind:'agent_preferences',artists:f.profileArtists,tracks:f.profileTracks,coverage:{genres:0,moods:0},modelSummary:false},
   decisions:f.decisions,recentChanges:f.recentChanges,

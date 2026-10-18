@@ -1,5 +1,6 @@
 import React from 'react';
 export const h = React.createElement;
+export const EXPRESSION_LABELS = {current:'保持当前',concise:'更简洁',lively:'更活泼'};
 export const minutes = ms => { const seconds = Math.floor(Math.max(0, ms || 0) / 1000); return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`; };
 export const progressPercent = current => {
   const duration = current?.track?.durationMs;

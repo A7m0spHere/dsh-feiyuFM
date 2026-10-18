@@ -6,12 +6,14 @@ import { assertCommand, normalizeTrack } from '../contracts.mjs';
 import { NETEASE_QR_LOGIN_URL } from '../providers/endpoints/netease.mjs';
 import { prepareRecommendations } from '../persona-scheduler.mjs';
 import { OUTPUT_RANGE } from '../persona.mjs';
+import {validateExpressionInput} from '../expression.mjs';
 
 const ALLOWED = new Set(['pause', 'resume', 'next', 'setListening', 'setHumanPlayback',
   'setDiscovery', 'setDiscoveryRate', 'setMode', 'stopForToday', 'chooseSelf', 'requestTrack', 'setTrackFeedback', 'resetTaste', 'resetLibrary', 'undoTasteReset','setRecommendationMode']);
 const QUICK_LOGIN_PROVIDER = 'netease';
 const STATE_ENDPOINT = 'fishfm/state';
 const LIBRARY_ENDPOINT = 'fishfm/library';
+const EXPRESSION_ENDPOINT = 'fishfm/expression-style';
 const PERSONA_ENDPOINTS=new Set(['fishfm/persona-summary','fishfm/persona-recommendations','fishfm/persona-budget','fishfm/persona-output','fishfm/persona-automatic']);
 const PLATFORM_ENDPOINTS = new Set(['fishfm/login-start', 'fishfm/login-poll', 'fishfm/import', 'fishfm/logout', 'fishfm/discovery-refresh','fishfm/playlists']);
 const SAFE_STAGES = new Set(['login_qr_key', 'login_qr_check', 'login_status', 'user_record', 'likelist', 'user_playlist', 'playlist_detail', 'song_detail',
@@ -74,8 +76,14 @@ async function readSettingsState(bridge, signal, libraryOptions) {
 export function createSettingsHandler(bridge,summaryService={current:null}) {
   return async (endpoint, payload, signal) => {
     try {
-      if (endpoint !== STATE_ENDPOINT && endpoint !== LIBRARY_ENDPOINT && endpoint !== 'fishfm/command' && !PLATFORM_ENDPOINTS.has(endpoint)&&!PERSONA_ENDPOINTS.has(endpoint)) {
+      if (endpoint !== STATE_ENDPOINT && endpoint !== LIBRARY_ENDPOINT && endpoint !== EXPRESSION_ENDPOINT && endpoint !== 'fishfm/command' && !PLATFORM_ENDPOINTS.has(endpoint)&&!PERSONA_ENDPOINTS.has(endpoint)) {
         throw Object.assign(new Error('Unknown FishFM endpoint'), { code: 'not_found' });
+      }
+      if (endpoint === EXPRESSION_ENDPOINT) {
+        validateExpressionInput(payload?.style,payload?.expectedRevision);
+        await bridge.start();
+        const result=await bridge.request({type:'expression-style',style:payload.style,expectedRevision:payload.expectedRevision});
+        return {ok:true,value:{expression:result.expression}};
       }
       if (endpoint === LIBRARY_ENDPOINT) {
         await bridge.start();
@@ -209,7 +217,7 @@ export function registerSettingsApi(ctx, bridge,summaryService) {
   // both the Electron renderer and a Web profile.
   if (typeof ctx.connection.fetch?.register === 'function') {
     ctx.effect(() => {
-      const disposers = [STATE_ENDPOINT, LIBRARY_ENDPOINT, 'fishfm/command', ...PLATFORM_ENDPOINTS,...PERSONA_ENDPOINTS].map(endpoint =>
+      const disposers = [STATE_ENDPOINT, LIBRARY_ENDPOINT, EXPRESSION_ENDPOINT, 'fishfm/command', ...PLATFORM_ENDPOINTS,...PERSONA_ENDPOINTS].map(endpoint =>
         ctx.connection.fetch.register({
           path: `/api/${endpoint}`, methods: ['POST'], requestBody: 'buffered',
           async fetch(request) {
@@ -229,6 +237,6 @@ export function registerSettingsApi(ctx, bridge,summaryService) {
     }, 'fishfm: authenticated settings routes');
   } else {
     ctx.effect(() => ctx.connection.rpc.intercept('/api',
-      endpoint => endpoint === STATE_ENDPOINT || endpoint === LIBRARY_ENDPOINT || endpoint === 'fishfm/command' || PLATFORM_ENDPOINTS.has(endpoint)||PERSONA_ENDPOINTS.has(endpoint), handler));
+      endpoint => endpoint === STATE_ENDPOINT || endpoint === LIBRARY_ENDPOINT || endpoint === EXPRESSION_ENDPOINT || endpoint === 'fishfm/command' || PLATFORM_ENDPOINTS.has(endpoint)||PERSONA_ENDPOINTS.has(endpoint), handler));
   }
 }

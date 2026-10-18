@@ -1,4 +1,4 @@
-import { sourceNames } from './shared.mjs';
+import { sourceNames, EXPRESSION_LABELS } from './shared.mjs';
 import { recommendationFeedback } from './presentation.mjs';
 const WIDGET_VISIBLE_KEY = 'fishfm.widget.visible.v1';
 const WIDGET_POSITION_KEY = 'fishfm.widget.position.v1';
@@ -18,16 +18,26 @@ export function createController(connection) {
   let state = {
     snapshot: null, platforms: {}, busy: false, platformBusy: false, connected: false, error: '', notice: '',
     libraryBusy: false, libraryError: '', libraryQuery: '',
+    expression: null, expressionBusy: false, expressionError: '', expressionNotice: '',
     login: null, imported: null, importAttempts: [], library: { total: 0, tracks: [] },
     widgetVisible: readPreference(WIDGET_VISIBLE_KEY, true) !== false,
     widgetPosition: readPreference(WIDGET_POSITION_KEY, null),
     playbackEffects: readPreference(PLAYBACK_EFFECTS_KEY, false) === true,
     motion: ['full', 'reduced', 'off'].includes(readPreference(MOTION_KEY, 'full')) ? readPreference(MOTION_KEY, 'full') : 'full',
   };
-  let epoch = 0, playbackEpoch = 0, libraryEpoch = 0, timer, read, write, platformWrite, libraryRead,summaryWrite, disposed = false;
+  let epoch = 0, playbackEpoch = 0, libraryEpoch = 0, timer, read, write, platformWrite, libraryRead,summaryWrite,expressionWrite, disposed = false;
   let libraryOptions = { query: '', offset: 0, limit: 12 };
   const listeners = new Set();
-  const emit = (patch) => { if (!disposed) {if(patch.persona?.generatedAt<state.persona?.generatedAt){patch={...patch};delete patch.persona;} if(patch.error==='')patch={...patch,errorCode:null};state = { ...state, ...patch }; listeners.forEach(fn => fn()); } };
+  const emit = (patch) => { if (!disposed) {
+    if (Object.hasOwn(patch,'expression') || patch.insights?.expression) {
+      const value=patch.expression??patch.insights?.expression;
+      patch={...patch};delete patch.expression;
+      if(value?.version===1&&Object.hasOwn(EXPRESSION_LABELS,value.style)&&Number.isSafeInteger(value.revision)&&value.revision>=0
+        &&(!state.expression||value.revision>=state.expression.revision))patch.expression=value;
+    }
+    if(patch.persona?.generatedAt<state.persona?.generatedAt){patch={...patch};delete patch.persona;}
+    if(patch.error==='')patch={...patch,errorCode:null};state = { ...state, ...patch }; listeners.forEach(fn => fn());
+  } };
   const syncPlaybackEffects = event => {
     if (event.key !== PLAYBACK_EFFECTS_KEY && event.key !== null) return;
     try { if (event.storageArea !== window.localStorage) return; } catch { return; }
@@ -225,6 +235,24 @@ export function createController(connection) {
         });
       } finally { clearTimeout(timeout); platformWrite = null; emit({ platformBusy: false }); }
     },
+    clearExpressionFeedback(){emit({expressionError:'',expressionErrorCode:null,expressionNotice:''});},
+    async saveExpression(style,expectedRevision){
+      if(disposed||state.expressionBusy||!state.connected)return {ok:false};
+      expressionWrite=new AbortController();const timeout=setTimeout(()=>expressionWrite?.abort(),15000);
+      emit({expressionBusy:true,expressionError:'',expressionErrorCode:null,expressionNotice:''});
+      try{
+        const result=await connection.rpc.call('/api','fishfm/expression-style',{style,expectedRevision},expressionWrite.signal);
+        if(!result.ok)throw result.error;
+        const expression=result.value?.expression;
+        if(expression?.version!==1||!Object.hasOwn(EXPRESSION_LABELS,expression.style)||!Number.isSafeInteger(expression.revision))throw {code:'invalid_expression',message:'表达设置应答未就绪，请刷新后核对。'};
+        emit({expression,expressionNotice:style==='current'?'已恢复默认表达。':'表达方式已保存。'});
+        return {ok:true,expression};
+      }catch(error){
+        emit({expressionError:error?.message||'表达方式未能保存，请重试。',expressionErrorCode:error?.code??null,...(unreachable(error)?{connected:false}:{})});
+        if(error?.code==='expression_conflict')await refresh();
+        return {ok:false};
+      }finally{clearTimeout(timeout);expressionWrite=null;emit({expressionBusy:false});}
+    },
     async personaAction(action,payload){
       if(disposed||state.summaryBusy||!state.connected)return;
       summaryWrite=new AbortController();const timeout=setTimeout(()=>summaryWrite?.abort(),action==='recommendations'?120000:65000);
@@ -250,7 +278,7 @@ export function createController(connection) {
       }
       finally{clearTimeout(timeout);summaryWrite=null;emit({summaryBusy:false});}
     },
-    dispose() { disposed = true; ++epoch; ++libraryEpoch; clearInterval(timer); read?.abort(); write?.abort(); platformWrite?.abort(); libraryRead?.abort();summaryWrite?.abort(); listeners.clear();
+    dispose() { disposed = true; ++epoch; ++libraryEpoch; clearInterval(timer); read?.abort(); write?.abort(); platformWrite?.abort(); libraryRead?.abort();summaryWrite?.abort();expressionWrite?.abort(); listeners.clear();
       window.removeEventListener?.('storage', syncPlaybackEffects); },
   };
 }

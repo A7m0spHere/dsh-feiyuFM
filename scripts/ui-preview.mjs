@@ -16,6 +16,8 @@ const routes = new Map([
   ['/react.js', [join(reactRoot, 'react', 'umd', 'react.development.js'), 'text/javascript']],
   ['/react-dom.js', [join(reactRoot, 'react-dom', 'umd', 'react-dom.development.js'), 'text/javascript']],
   ['/client.js', [join(root, 'src', 'ui', 'dsh-client.js'), 'text/javascript']],
+  ['/expression.js', [join(root, 'src', 'expression.mjs'), 'text/javascript']],
+  ['/contracts.mjs', [join(root, 'src', 'contracts.mjs'), 'text/javascript']],
 ]);
 for (const [path, file] of clientArtwork().files) routes.set(path, [file, file.endsWith('.gif') ? 'image/gif' : 'image/png']);
 routes.set('/artwork.json', [null, 'application/json']);

@@ -119,6 +119,9 @@ export const css = `
   .fishfm h2 small { color:var(--fm-faint); font-size:9px; font-weight:500; letter-spacing:.1em; }
   .fm-card { padding:4px 14px; border:1px solid var(--fm-line); border-radius:9px; background:var(--fm-surface); }
   .fm-persona-card { padding:12px; }
+  .fm-expression-settings { padding:4px 0 12px; border-bottom:1px solid var(--fm-line); margin-bottom:10px; }
+  .fm-expression-example { display:grid; gap:3px; padding:9px 10px; border-radius:7px; background:var(--fm-sunken); overflow-wrap:anywhere; }
+  .fm-expression-error { color:var(--fm-danger); }
   .fm-discoveries { margin-top:12px; }
   .fm-discoveries-card { padding:0 12px; }
   .fm-discoveries-card>summary { display:flex; align-items:center; justify-content:space-between; gap:10px;
