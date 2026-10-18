@@ -74,6 +74,96 @@ const snapshot = (revision, humanPlayback = true) => ({ revision, settings: {
 const state = value => ({ ok: true, value: { snapshot: value, platforms: {} } });
 const tick = () => new Promise(resolve => setImmediate(resolve));
 
+const managedFeedback=(revision,current=1,playInstanceId='feedback-song')=>({version:1,managementVersion:1,revision,current,playInstanceId,liked:current===1?1:0,reduced:current===-1?1:0});
+const feedbackItem={key:'netease:feedback',track:{provider:'netease',providerTrackId:'feedback',title:'反馈歌曲',artist:'艺人'},score:1,updatedAt:1000};
+const feedbackPage=(revision,options={})=>({version:1,revision,query:'',filter:'all',offset:0,limit:12,total:1,matched:1,counts:{liked:1,reduced:0},items:[feedbackItem],...options});
+const managedState=(revision,feedback=managedFeedback(revision))=>({ok:true,value:{snapshot:{...snapshot(revision),paused:false,status:'playing',
+  current:{playInstanceId:'feedback-song',track:feedbackItem.track}},insights:{feedback}}});
+
+test('feedback management is capability-gated and collapsed; opening queries through its own endpoint',async()=>{
+  let capable=false;const calls=[];
+  const f=fixture(async(_c,endpoint,payload)=>{calls.push(endpoint);return endpoint==='fishfm/feedback-list'
+    ?{ok:true,value:{feedbackPage:feedbackPage(1)}}:managedState(1,capable?managedFeedback(1):{version:1,liked:1,reduced:0});});
+  try{
+    await f.controller.refresh();assert.equal(all(f.render()).some(n=>n.children.includes('管理反馈')),false);
+    capable=true;await f.controller.refresh();
+    const details=all(f.render()).find(n=>n.type==='details'&&n.props.className?.includes('fm-feedback-manager'));
+    assert.ok(details);assert.equal(details.props.open,undefined);assert.equal(calls.includes('fishfm/feedback-list'),false);
+    details.props.onToggle({currentTarget:{open:true}});await tick();
+    assert.equal(f.controller.getSnapshot().feedbackPage.total,1);
+    assert.ok(all(f.render()).some(n=>n.props['aria-label']==='撤销 反馈歌曲 的推荐反馈'));
+  }finally{f.dispose();}
+});
+
+test('feedback search generations reject older results and independent reads allow pause',async()=>{
+  let finishOld;const f=fixture(async(_c,endpoint,payload)=>{
+    if(endpoint==='fishfm/feedback-list')return payload.query==='old'?new Promise(resolve=>{finishOld=resolve;})
+      :{ok:true,value:{feedbackPage:feedbackPage(1,{query:payload.query,filter:payload.filter,offset:payload.offset})}};
+    return managedState(endpoint==='fishfm/command'?2:1,managedFeedback(1));
+  });
+  try{
+    await f.controller.refresh();const old=f.controller.queryFeedback('old');
+    assert.equal(f.controller.getSnapshot().busy,false);await f.controller.command('pause');
+    await f.controller.queryFeedback('new','reduced',12);
+    finishOld({ok:true,value:{feedbackPage:feedbackPage(1,{query:'old'})}});await old;
+    assert.equal(f.controller.getSnapshot().feedbackPage.query,'new');assert.equal(f.controller.getSnapshot().feedbackListBusy,false);
+  }finally{f.dispose();}
+});
+
+test('a delayed feedback clear and old poll cannot overwrite newer playback or acknowledged feedback',async()=>{
+  let finishClear,finishPoll,reads=0;const calls=[];
+  const f=fixture(async(_c,endpoint,payload)=>{
+    calls.push({endpoint,payload});
+    if(endpoint==='fishfm/feedback-list')return{ok:true,value:{feedbackPage:feedbackPage(1)}};
+    if(endpoint==='fishfm/feedback-clear')return new Promise(resolve=>{finishClear=resolve;});
+    if(endpoint==='fishfm/command')return{ok:true,value:{...managedState(3,managedFeedback(2,-1,'new-song')).value,
+      snapshot:{...snapshot(3),paused:true,current:{playInstanceId:'new-song',track:{provider:'netease',providerTrackId:'new'}}}}};
+    if(++reads>1)return new Promise(resolve=>{finishPoll=resolve;});
+    return managedState(1);
+  });
+  try{
+    await f.controller.refresh();await f.controller.queryFeedback();const poll=f.controller.refresh();
+    const clearing=f.controller.clearFeedback(feedbackItem);assert.equal(f.controller.getSnapshot().busy,false);
+    await f.controller.command('pause');assert.equal(f.controller.getSnapshot().snapshot.paused,true);
+    finishClear({ok:true,value:{feedbackPage:feedbackPage(3,{items:[],matched:0,total:0}),feedback:managedFeedback(3,0),snapshot:managedState(0).value.snapshot}});await clearing;
+    finishPoll(managedState(1));await poll;
+    const current=f.controller.getSnapshot();assert.equal(current.snapshot.current.playInstanceId,'new-song');assert.equal(current.snapshot.paused,true);
+    assert.equal(current.insights.feedback.revision,3);assert.equal(current.insights.feedback.current,-1);
+    assert.equal(current.feedbackPage.total,0);
+    assert.equal(calls.some(c=>c.endpoint.startsWith('fishfm/persona-')),false);
+  }finally{f.dispose();}
+});
+
+test('feedback conflicts refresh the latest page without replaying the destructive action',async()=>{
+  let pageRevision=1,writes=0;const f=fixture(async(_c,endpoint)=>{
+    if(endpoint==='fishfm/feedback-list')return{ok:true,value:{feedbackPage:feedbackPage(pageRevision)}};
+    if(endpoint==='fishfm/feedback-clear'){writes++;pageRevision=2;return{ok:false,error:{code:'feedback_conflict',message:'另一个窗口已更新'}};}
+    return managedState(1);
+  });
+  try{
+    await f.controller.refresh();await f.controller.queryFeedback();await f.controller.clearFeedback(feedbackItem);
+    assert.equal(writes,1);assert.equal(f.controller.getSnapshot().feedbackPage.revision,2);
+    assert.match(f.controller.getSnapshot().feedbackNotice,/核对最新/);assert.equal(f.controller.getSnapshot().connected,true);
+  }finally{f.dispose();}
+});
+
+test('an uncertain feedback clear retries the same command id and accepts server page clamping',async()=>{
+  const ids=[];let attempt=0;
+  const f=fixture(async(_c,endpoint,payload)=>{
+    if(endpoint==='fishfm/feedback-list')return{ok:true,value:{feedbackPage:feedbackPage(1,{offset:12,matched:13,total:13})}};
+    if(endpoint==='fishfm/feedback-clear'){
+      ids.push(payload.commandId);if(++attempt===1)throw new Error('网络中断');
+      return{ok:true,value:{feedbackPage:feedbackPage(2,{offset:0}),feedback:managedFeedback(2,0)}};
+    }
+    return managedState(1);
+  });
+  try{
+    await f.controller.refresh();await f.controller.queryFeedback('', 'all',12);
+    await f.controller.clearFeedback(feedbackItem);assert.match(f.controller.getSnapshot().feedbackError,/网络中断/);
+    await f.controller.clearFeedback(feedbackItem);assert.equal(ids[0],ids[1]);assert.equal(f.controller.getSnapshot().feedbackPage.offset,0);
+  }finally{f.dispose();}
+});
+
 test('all snapshot entrances reject older revisions across platform, polling and command responses', async t => {
   const playing = revision => ({ ...snapshot(revision), paused: false, status: 'playing',
     current: { playInstanceId: 'new', track: { title: 'New track' } } });

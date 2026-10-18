@@ -1,0 +1,86 @@
+{
+  "scope": "isolated-headless-edge-synthetic-rpc",
+  "results": [
+    {
+      "width": 1280,
+      "dark": false,
+      "overflow": false,
+      "search": true,
+      "filter": true,
+      "pagination": true,
+      "clear": true,
+      "keyboard": true
+    },
+    {
+      "width": 1280,
+      "dark": true,
+      "overflow": false,
+      "search": true,
+      "filter": true,
+      "pagination": true,
+      "clear": true,
+      "keyboard": true
+    },
+    {
+      "width": 740,
+      "dark": false,
+      "overflow": false,
+      "search": true,
+      "filter": true,
+      "pagination": true,
+      "clear": true,
+      "keyboard": true
+    },
+    {
+      "width": 740,
+      "dark": true,
+      "overflow": false,
+      "search": true,
+      "filter": true,
+      "pagination": true,
+      "clear": true,
+      "keyboard": true
+    },
+    {
+      "width": 390,
+      "dark": false,
+      "overflow": false,
+      "search": true,
+      "filter": true,
+      "pagination": true,
+      "clear": true,
+      "keyboard": true
+    },
+    {
+      "width": 390,
+      "dark": true,
+      "overflow": false,
+      "search": true,
+      "filter": true,
+      "pagination": true,
+      "clear": true,
+      "keyboard": true
+    },
+    {
+      "width": 320,
+      "dark": false,
+      "overflow": false,
+      "search": true,
+      "filter": true,
+      "pagination": true,
+      "clear": true,
+      "keyboard": true
+    },
+    {
+      "width": 320,
+      "dark": true,
+      "overflow": false,
+      "search": true,
+      "filter": true,
+      "pagination": true,
+      "clear": true,
+      "keyboard": true
+    }
+  ],
+  "errors": []
+}

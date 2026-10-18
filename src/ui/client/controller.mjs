@@ -19,6 +19,7 @@ export function createController(connection) {
     snapshot: null, platforms: {}, busy: false, platformBusy: false, connected: false, error: '', notice: '',
     libraryBusy: false, libraryError: '', libraryQuery: '',
     expression: null, expressionBusy: false, expressionError: '', expressionNotice: '',
+    feedbackPage: null, feedbackListBusy: false, feedbackClearBusy: false, feedbackError: '', feedbackNotice: '',
     login: null, imported: null, importAttempts: [], library: { total: 0, tracks: [] },
     widgetVisible: readPreference(WIDGET_VISIBLE_KEY, true) !== false,
     widgetPosition: readPreference(WIDGET_POSITION_KEY, null),
@@ -27,8 +28,25 @@ export function createController(connection) {
   };
   let epoch = 0, playbackEpoch = 0, libraryEpoch = 0, timer, read, write, platformWrite, libraryRead,summaryWrite,expressionWrite, disposed = false;
   let libraryOptions = { query: '', offset: 0, limit: 12 };
+  let feedbackOptions = { query: '', filter: 'all', offset: 0, limit: 12 };
+  let feedbackOpen = false, feedbackEpoch = 0, feedbackRead, feedbackWrite, feedbackRetry;
+  let feedbackRevision = -1, feedbackRequestedRevision = -1, feedbackRefreshQueued = false;
   const listeners = new Set();
   const emit = (patch) => { if (!disposed) {
+    if (patch.insights?.feedback) {
+      patch = { ...patch, insights: { ...patch.insights } };
+      let feedback = patch.insights.feedback;
+      if (Number.isSafeInteger(feedback.revision)) {
+        if (feedback.revision < feedbackRevision) feedback = state.insights?.feedback ?? feedback;
+        else feedbackRevision = feedback.revision;
+      }
+      const instance = (patch.snapshot ?? state.snapshot)?.current?.playInstanceId ?? null;
+      if (feedback.playInstanceId !== undefined && feedback.playInstanceId !== instance) {
+        feedback = { ...feedback, playInstanceId: instance,
+          current: state.insights?.feedback?.playInstanceId === instance ? state.insights.feedback.current : 0 };
+      }
+      patch.insights.feedback = feedback;
+    }
     if (Object.hasOwn(patch,'expression') || patch.insights?.expression) {
       const value=patch.expression??patch.insights?.expression;
       patch={...patch};delete patch.expression;
@@ -37,6 +55,12 @@ export function createController(connection) {
     }
     if(patch.persona?.generatedAt<state.persona?.generatedAt){patch={...patch};delete patch.persona;}
     if(patch.error==='')patch={...patch,errorCode:null};state = { ...state, ...patch }; listeners.forEach(fn => fn());
+    if (feedbackOpen && state.insights?.feedback?.managementVersion === 1 && !state.feedbackListBusy
+      && !state.feedbackClearBusy && feedbackRequestedRevision < feedbackRevision && !feedbackRefreshQueued) {
+      feedbackRefreshQueued = true;
+      Promise.resolve().then(() => { feedbackRefreshQueued = false;
+        if (!disposed && feedbackOpen && !state.feedbackListBusy && !state.feedbackClearBusy) void queryFeedback(); });
+    }
   } };
   const syncPlaybackEffects = event => {
     if (event.key !== PLAYBACK_EFFECTS_KEY && event.key !== null) return;
@@ -62,6 +86,36 @@ export function createController(connection) {
     if (older || (playbackVersion !== null && playbackVersion !== playbackEpoch)) delete patch.snapshot;
     return patch;
   };
+  function applyFeedbackPage(page, version) {
+    if (version !== feedbackEpoch || page?.version !== 1 || !Number.isSafeInteger(page.revision)) return;
+    if (page.revision < feedbackRevision) { feedbackRequestedRevision = page.revision; return; }
+    feedbackRevision = page.revision;
+    feedbackRequestedRevision = page.revision;
+    feedbackOptions = { ...feedbackOptions, offset: page.offset };
+    emit({ feedbackPage: page });
+  }
+  async function queryFeedback(query = feedbackOptions.query, filter = feedbackOptions.filter, offset = feedbackOptions.offset) {
+    if (disposed || state.insights?.feedback?.managementVersion !== 1) return;
+    const version = ++feedbackEpoch;
+    feedbackOptions = { query, filter, offset, limit: 12 };
+    feedbackRead?.abort();
+    const request = new AbortController(); feedbackRead = request;
+    const timeout = setTimeout(() => request.abort(), 18000);
+    feedbackRequestedRevision = feedbackRevision;
+    emit({ feedbackListBusy: true, feedbackError: '' });
+    try {
+      const result = await connection.rpc.call('/api', 'fishfm/feedback-list', feedbackOptions, request.signal);
+      if (version !== feedbackEpoch) return;
+      if (!result.ok) throw result.error;
+      if (result.value?.feedbackPage?.version !== 1) throw { message: '反馈列表应答未就绪，请重试。' };
+      applyFeedbackPage(result.value.feedbackPage, version);
+    } catch (error) {
+      if (version === feedbackEpoch) emit({ feedbackError: error?.message || '反馈列表未能读取，请重试。' });
+    } finally {
+      clearTimeout(timeout);
+      if (feedbackRead === request) { feedbackRead = null; emit({ feedbackListBusy: false }); }
+    }
+  }
   async function refresh() {
     if (disposed || state.busy || read) return;
     const version = ++epoch;
@@ -114,6 +168,46 @@ export function createController(connection) {
       return () => { listeners.delete(fn); if (!listeners.size) { clearInterval(timer); ++epoch; read?.abort(); read = null; } };
     },
     refresh,
+    setFeedbackOpen(open) {
+      feedbackOpen = Boolean(open);
+      if (feedbackOpen) void queryFeedback();
+      else { ++feedbackEpoch; feedbackRead?.abort(); feedbackRead = null; emit({ feedbackListBusy: false }); }
+    },
+    queryFeedback,
+    async clearFeedback(item) {
+      if (disposed || !state.connected || state.feedbackListBusy || state.feedbackClearBusy
+        || state.insights?.feedback?.managementVersion !== 1 || !state.feedbackPage) return;
+      const version = ++feedbackEpoch;
+      feedbackRead?.abort(); feedbackRead = null;
+      const operation = feedbackRetry?.key === item.key ? feedbackRetry : { key: item.key,
+        commandId: `feedback-${Date.now()}-${Math.random().toString(36).slice(2)}`, expectedRevision: state.feedbackPage.revision };
+      feedbackRetry = operation;
+      const request = new AbortController(); feedbackWrite = request;
+      const timeout = setTimeout(() => request.abort(), 18000);
+      emit({ feedbackClearBusy: true, feedbackError: '', feedbackNotice: '' });
+      try {
+        const result = await connection.rpc.call('/api', 'fishfm/feedback-clear', {
+          track: { provider: item.track.provider, providerTrackId: item.track.providerTrackId },
+          commandId: operation.commandId, expectedRevision: operation.expectedRevision, view: feedbackOptions,
+        }, request.signal);
+        if (!result.ok) throw result.error;
+        feedbackRetry = null;
+        const summary = result.value?.feedback;
+        if (summary) emit({ insights: { ...state.insights, feedback: summary } });
+        applyFeedbackPage(result.value?.feedbackPage, version);
+        emit({ feedbackNotice: '已撤销这首歌的推荐反馈。' });
+      } catch (error) {
+        if (error?.code) feedbackRetry = null;
+        emit({ feedbackError: error?.message || '撤销结果未确认，请刷新核对或重试。' });
+        if (error?.code === 'feedback_conflict') {
+          await queryFeedback();
+          emit({ feedbackNotice: '反馈已更新，请核对最新列表后重新操作。' });
+        }
+      } finally {
+        clearTimeout(timeout); feedbackWrite = null;
+        emit({ feedbackClearBusy: false });
+      }
+    },
     async queryLibrary(query = libraryOptions.query, offset = 0) {
       if (disposed) return;
       const version = ++libraryEpoch;
@@ -278,7 +372,7 @@ export function createController(connection) {
       }
       finally{clearTimeout(timeout);summaryWrite=null;emit({summaryBusy:false});}
     },
-    dispose() { disposed = true; ++epoch; ++libraryEpoch; clearInterval(timer); read?.abort(); write?.abort(); platformWrite?.abort(); libraryRead?.abort();summaryWrite?.abort();expressionWrite?.abort(); listeners.clear();
+    dispose() { disposed = true; ++epoch; ++libraryEpoch; ++feedbackEpoch; feedbackRead?.abort(); feedbackWrite?.abort(); clearInterval(timer); read?.abort(); write?.abort(); platformWrite?.abort(); libraryRead?.abort();summaryWrite?.abort();expressionWrite?.abort(); listeners.clear();
       window.removeEventListener?.('storage', syncPlaybackEffects); },
   };
 }

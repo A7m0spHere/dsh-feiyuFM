@@ -8,10 +8,11 @@
 |---|---|
 | 产品路径 | 默认 `filtered`：参考歌曲 → 网易云候选 → LLM 筛选 → 本地播放。自动播放只取入选曲；QQ 暂缓，Last.fm 富化未开工 |
 | 已发布包 | `0.1.0-beta.3`，Windows／网易云 Beta。2026-10-13 已确认 `beta` 指向 beta.3、`latest` 保持 beta.1，公开下载摘要及 npm／官方 DSH 安装一致；范围、文件数和摘要只查 [发布记录](releases/0.1.0-beta.3.md) |
-| `main` 源码 | 已包含 beta.3 的 N23、U17/U18、DPAPI／PowerShell 5.1、REV-01–03；另有尚未随 npm 发布的 [REV-04](spikes/REV-04-host-failure-isolation.md)、推荐研究工具、逐曲反馈补齐和 U19/U20 原型 |
+| `main` 源码 | 已包含 beta.3 的 N23、U17/U18、DPAPI／PowerShell 5.1、REV-01–03；另有尚未随 npm 发布的 [REV-04](spikes/REV-04-host-failure-isolation.md)、推荐研究工具、逐曲反馈补齐、U19/U20 原型与 [U21 反馈管理](spikes/U21-feedback-management.md) |
 | 日常 Desktop | [N23](spikes/N23-model-route-completion.md) 证实原生正常退出重开及曲库、位置、暂停和模型选择保留。后续修复和原型未重载；源码存在不代表日常实例已加载 |
-| 最近功能验证 | 2026-10-18，Windows／Node 24.14.0：**524/524 通过、0 失败、0 跳过**，含既有真实 WPF 回归；155 模块检查、构建/debug smoke、包白名单通过。U20 浏览器与真实 CoreBridge 重开验证见 [报告](spikes/U20-expression-style-prototype.md)；不新增生产账号、真实模型或音频结论 |
-| 本次文档维护 | 2026-10-18 蒸馏：构建/debug smoke、155 模块检查及引用审计通过（102 份文档零坏链接，10/10 证据齐全）；归档与原文机械比对一致。未重跑全量功能测试，未操作生产／账号／模型，验收等级不变 |
+| 最近功能验证 | 2026-10-18，Windows／Node 24.14.0：**538 项，535 通过、0 失败、3 项真实媒体跳过**（CI 配置），含 U21 新增 14 项；156 模块检查、构建/debug smoke、包白名单通过。此前 524/524 含 WPF 的结果仍按 U20 记录，不把本轮跳过当音频通过 |
+| DSH 插件验证 | [U21](spikes/U21-feedback-management.md)：真实 CoreBridge／隔离 SQLite 重开通过；Headless Edge 8 组宽窄／浅深色及键盘通过；本机 DSH `0.2.1-rc.2` 独立 Web profile 经官方 CLI 离线安装源码 bundle，启用／认证查询／撤销／去重／冲突／暂停通过，模型调用 0。替身播放与合成数据，不新增平台音频结论；日常 Desktop 不作为本轮前置 |
+| 最近引用审计 | 2026-10-18：103 份文档零坏链接、10/10 证据齐全。引用存在不等于验收通过；文档蒸馏的原文比对与归档边界保留 |
 | 真实推荐与观察 | N23：40 候选 → 9 入选 → WPF 静音进度通过；日常观察 54.72 分钟、16 条有效收听、0 播放错误，按用户要求提前结束。成长应用标记与请求归因尚未闭环；两个真实 DSH 会话为串行，不能算并发或启停对照 |
 | macOS | [移植记录](spikes/MACOS_PORT.md) 仅确认 Helper 编译与本地 desktop profile 加载；适配随 beta.3 提供，真实登录、平台音频和退出生命周期待真机验收 |
 
@@ -58,6 +59,8 @@
 5. 下一次发布按 [脚本索引](../scripts/README.md) 重打包并核对最终摘要和安装内容；npm 发布／Release／标签需另行安排，不把 beta.1/beta.2 或 U12 历史 tarball 当作当前包。
 
 ## 更新与交接
+
+U21 源码已补历史反馈管理，未发布 npm；范围、验证和截图见报告。查询和撤销不改变推荐权重或播放，不提升 A01–A10。DSH 独立 profile 的源码链接验证不等同已发布 tarball 安装验收。
 
 修改行为或接口时同步 MVP／契约，改变取舍时更新 [决策摘要](DECISIONS.md) 并链接证据。报告记录实际环境、命令、结果和未验项，证据缺失用 `unknown`。离线、浏览器、隔离安装、原生 Desktop 和生产验收分别标明。
 

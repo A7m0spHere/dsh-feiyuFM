@@ -1,0 +1,19 @@
+{
+  "date": "2026-10-18",
+  "scope": "real-dsh-isolated-source-profile",
+  "dsh": "0.2.1-rc.2",
+  "installed": true,
+  "enabled": true,
+  "authenticatedRoutes": true,
+  "list": true,
+  "clear": true,
+  "deduplication": true,
+  "conflict": true,
+  "pause": true,
+  "modelCalls": 0,
+  "playback": "fake",
+  "database": "isolated-synthetic",
+  "hostStopped": true,
+  "temporaryScriptsRemoved": true,
+  "temporaryProfileCleanup": "blocked_by_policy"
+}

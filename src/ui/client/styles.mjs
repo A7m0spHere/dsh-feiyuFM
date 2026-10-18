@@ -344,6 +344,14 @@ export const css = `
   .fm-handle { display:grid; place-items:center; width:100%; height:24px; padding:0;
     border:0; background:transparent; touch-action:none; cursor:grab!important; }
   .fm-handle-bar { width:30px; height:3px; border-radius:9px; background:var(--fm-line-strong); }
+  .fm-feedback-filters { display:flex; flex-wrap:wrap; gap:8px; margin:10px 0; }
+  .fm-feedback-filters .fm-library-search { flex:1 1 140px; min-width:0; width:auto; }
+  .fm-feedback-filters select { max-width:100%; }
+  .fm-feedback-records { list-style:none; margin:0; padding:0; max-height:360px; overflow-y:auto; scrollbar-gutter:stable; }
+  .fm-feedback-record { display:flex; flex-wrap:wrap; align-items:center; gap:8px; padding:10px 0; border-bottom:1px solid var(--fm-line); }
+  .fm-feedback-record-copy { display:grid; gap:4px; flex:1 1 140px; min-width:0; overflow-wrap:anywhere; }
+  .fm-feedback-record-copy strong { font-size:13px; }
+  .fm-feedback-record .fm-button { flex-shrink:0; }
   @keyframes fm-page-in { from{opacity:0;transform:translateY(var(--fm-motion-shift));filter:blur(1px)} to{opacity:1;transform:none;filter:none} }
   @keyframes fm-rise { from{opacity:0;transform:translateY(var(--fm-motion-shift))} to{opacity:1;transform:none} }
   @keyframes fm-swap { from{opacity:0;transform:translateY(var(--fm-motion-shift))} to{opacity:1;transform:none} }

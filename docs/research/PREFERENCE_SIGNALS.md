@@ -10,7 +10,7 @@
 | 用户明确反馈及硬约束 | `user_track_feedback/constraints`；[feedback.mjs](../../src/feedback.mjs)、[core.mjs](../../src/core.mjs) | +1 喜欢、-1 少推荐、0 撤销；禁播单独存约束。反馈是用户规则，不覆盖 Agent 的 affinity。撤销反馈不解除禁播，反过来也不等价 |
 | Agent 自主经历 | `agent_preferences/listen_history/growth_jobs/session_influence`；[taste.mjs](../../src/taste.mjs)、[growth.mjs](../../src/growth.mjs) | 自主有效进度产生的有界倾向，含来源与时间；不是用户“明确喜欢”的替身。可重置、在单个检查点范围内撤销；时间衰减不是新证据 |
 
-已有设置与字段足够表达本轮语义，没有新增数据库字段、迁移或独立“用户人格”表。表达风格仍属于 #5 的后续范围。
+已有设置与字段足够表达本轮语义，没有新增数据库字段、迁移或独立“用户人格”表。表达风格由 [U20](../spikes/U20-expression-style-prototype.md) 独立保存；[U21](../spikes/U21-feedback-management.md) 增加历史反馈管理，不改变本表的评分权重和数据所有权。
 
 ## 信号语义表
 
@@ -35,7 +35,7 @@
 
 ## 从操作到下一首、到模型筛选
 
-当前播放实例校验 → `setTrackFeedback()` → `user_track_feedback`。这是同一事实来源的三条读取路径：
+当前歌曲反馈先校验播放实例，历史反馈仅可通过独立管理入口撤销；两者最终写同一 `user_track_feedback`，撤销保留 score=0。独立反馈版本保护多窗口并在重置／恢复后继续递增。这是同一事实来源的三条读取路径：
 
 1. [本地选择](../../src/selection.mjs) 将 +0.25/-0.75 加入评分，禁播/不可播/冷却/排除当前先处理。喜欢是软优先级，不保证盖过其他合法因素。既有 LLM 排名加分、偏好与去重仍有效。
 2. [种子选择](../../src/recommendation.mjs) 接收喜欢，排除少推荐和禁播，以真实平台关系召回候选。

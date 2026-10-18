@@ -42,7 +42,24 @@ const persona={generatedAt:Date.now(),facts:{artists:[{key:'a1',name:'沿途电�
  policy:{dailyTokens:4000,maxOutputTokens:256,outputMaximumTokens:256,minOutputTokens:64,maxPromptBytes:1500,factsBytes:682,automatic:false,automaticDue:false,automaticBlockedBy:'disabled',autoMinNewListens:50,automaticNewListens:2},
  ledger:{localDecisionRequests:0,today:{knownTokens:696},total:{knownTokens:696,attempts:2,unknownCalls:0},remainingTokens:3304,recent:[{callId:'preview-1',model:'example-model',status:'completed',startedAt:Date.now(),usage:{inputTokens:166,outputTokens:83}},{callId:'preview-2',model:'example-model',status:'failed',startedAt:Date.now()-60000,usage:{inputTokens:191,outputTokens:256}}]}};
 const insights={feedback:{version:1,current:0,liked:0,reduced:0,resetAt:null,canUndoReset:false},explanation:{text:'从沿途电台的相似候选中选择，避免连续重复同一位艺人。'},reply:{decisionId:'preview-1',text:'这首来自沿途电台的相似推荐。想沿着最近的偏好，听一点没听过的声音。'},profile:{artists:[{key:'a1',name:'沿途电台',affinity:.74,source:'listen_silent'},{key:'a2',name:'夜航乐队',affinity:.69,source:'listen'}],tracks:[{key:'t1',title:'示例歌曲 01',affinity:.53,source:'listen_silent'}]},recentChanges:[{playInstanceId:'preview-1',title:'示例歌曲 01',before:.5,after:.53,audible:false}],statistics:{retainedDecisions:42,explorationAttempts:28,unfamiliarSelections:17,observedStarts:42,validUnfamiliarListens:11,repeatedSelections:3},decisions:[]};
-const votes=new Map();let previewResetBackup=null;
+// Synthetic feedback fixtures for UI checks; no production database is read.
+const votes=new Map(Array.from({length:25},(_,i)=>[String(i+1),i%2?-1:1]));
+let feedbackRevision=0;const feedbackTimes=new Map([...votes.keys()].map((key,i)=>[key,1700000000000-i*1000]));
+const clearedFeedbackCommands=new Set();let previewResetBackup=null;
+function syncFeedbackPreview(){
+ Object.assign(insights.feedback,{managementVersion:1,revision:feedbackRevision,playInstanceId:snapshot.current?.playInstanceId??null,
+  current:votes.get(snapshot.current?.track.providerTrackId)??0,liked:[...votes.values()].filter(v=>v===1).length,reduced:[...votes.values()].filter(v=>v===-1).length});
+}
+function feedbackPage(options={}){
+ syncFeedbackPreview();const query=(options.query??'').trim(),filter=options.filter??'all',limit=options.limit??12;
+ const all=tracks.filter(t=>votes.get(t.providerTrackId)===1||votes.get(t.providerTrackId)===-1);
+ const found=all.filter(t=>(filter==='all'||votes.get(t.providerTrackId)===(filter==='liked'?1:-1))
+  &&`${t.title} ${t.artist} ${t.providerTrackId}`.toLowerCase().includes(query.toLowerCase()))
+  .sort((a,b)=>(feedbackTimes.get(b.providerTrackId)??0)-(feedbackTimes.get(a.providerTrackId)??0)||a.providerTrackId.localeCompare(b.providerTrackId));
+ const offset=Math.min(options.offset??0,Math.max(0,Math.ceil(found.length/limit)-1)*limit);
+ return{version:1,revision:feedbackRevision,query,filter,limit,offset,total:all.length,matched:found.length,
+  counts:{liked:insights.feedback.liked,reduced:insights.feedback.reduced},items:found.slice(offset,offset+limit).map(track=>({key:`netease:${track.providerTrackId}`,track,score:votes.get(track.providerTrackId),updatedAt:feedbackTimes.get(track.providerTrackId)}))};
+}
 function syncExpressionPreview(){
  insights.expression=expressionView(expressionStore);
  const kind=snapshot.current?.selectedBy==='user'?'user':snapshot.current?.origin?.llmReason?'llm-picked':'related';
@@ -89,6 +106,14 @@ const connection={rpc:{async call(_channel,endpoint,payload){
  await new Promise(r=>setTimeout(r,80));
  if(!connected)return {ok:false,error:{code:'core_unavailable',message:'预览连接中断'}};
  if(endpoint==='fishfm/library')return {ok:true,value:{library:libraryPage(payload)}};
+ if(endpoint==='fishfm/feedback-list')return{ok:true,value:{feedbackPage:feedbackPage(payload)}};
+ if(endpoint==='fishfm/feedback-clear'){
+  if(!clearedFeedbackCommands.has(payload.commandId)){
+   if(payload.expectedRevision!==feedbackRevision)return{ok:false,error:{code:'feedback_conflict',message:'反馈已更新，请核对最新列表。'}};
+   votes.set(payload.track.providerTrackId,0);feedbackTimes.set(payload.track.providerTrackId,Date.now());feedbackRevision++;clearedFeedbackCommands.add(payload.commandId);
+  }
+  const page=feedbackPage(payload.view);return{ok:true,value:{feedbackPage:page,feedback:structuredClone(insights.feedback)}};
+ }
  if(endpoint==='fishfm/expression-style'){
   try{return {ok:true,value:{expression:setExpressionStyle(expressionStore,payload.style,payload.expectedRevision)}};}
   catch(error){return {ok:false,error:{code:error.code,message:error.message}};}
@@ -118,7 +143,8 @@ const connection={rpc:{async call(_channel,endpoint,payload){
  }
  if(endpoint==='fishfm/command'){
   const type=payload.type;
-  if(type==='setTrackFeedback')votes.set(payload.track.providerTrackId,payload.value);
+  if(type==='setTrackFeedback'){votes.set(payload.track.providerTrackId,payload.value);feedbackTimes.set(payload.track.providerTrackId,Date.now());feedbackRevision++;}
+  if(['resetTaste','resetLibrary','undoTasteReset'].includes(type))feedbackRevision++;
   if(type==='setRecommendationMode')insights.recommendationMode=payload.value;
   if(type==='resetTaste'||type==='resetLibrary'){
    previewResetBackup={votes:[...votes],summary:structuredClone(persona.summary),empty,recommendations:persona.recommendations};
@@ -133,13 +159,14 @@ const connection={rpc:{async call(_channel,endpoint,payload){
   const field={setListening:'listening',setHumanPlayback:'humanPlayback',setDiscovery:'discovery',setDiscoveryRate:'discoveryRate'}[type];if(field)snapshot.settings[field]=payload.value;
   if(type==='setMode'){snapshot.settings.listening=payload.value!=='off';snapshot.settings.humanPlayback=payload.value==='silent'||payload.value==='off'?false:snapshot.settings.humanPlayback;snapshot.settings.strategy=payload.value==='focus'?'focus':'normal';snapshot.paused=payload.value==='off';snapshot.status=snapshot.paused?'paused':'playing'}
   if(type==='stopForToday'){snapshot.paused=true;snapshot.status='paused';snapshot.blockUntil=Date.now()+3600000}
-  insights.feedback.current=votes.get(snapshot.current?.track.providerTrackId)??0;insights.feedback.liked=[...votes.values()].filter(v=>v===1).length;insights.feedback.reduced=[...votes.values()].filter(v=>v===-1).length;
+  syncFeedbackPreview();
   syncExpressionPreview();syncJournalPreview();snapshot.revision++;return {ok:true,value:{snapshot:structuredClone(snapshot),insights:structuredClone(insights),persona:structuredClone(persona),...(payload.library?{library:libraryPage(payload.library)}:{})}};
  }
  persona.recommendationPipeline.referenceCount=empty?0:tracks.length;
  syncPickerScenario();
  syncJournalPreview();
  syncExpressionPreview();
+ syncFeedbackPreview();
  return {ok:true,value:{snapshot:structuredClone(snapshot),persona:structuredClone(persona),insights:structuredClone(insights),summaryModels,features:{personaSummary:true,discoveryRefresh:true,importSources:true,artwork},platforms:{netease:{installed:true,account:{status:'authorized'}},qq:{installed:false}},library:libraryPage(payload?.library),playlists:[{id:'preview-list',title:'示例输入歌单'}]}};
 }}};
 const layout={selectPanel(id){active=id;changeActive?.(id)}};

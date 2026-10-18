@@ -350,6 +350,14 @@ window.__ModuleLoader__.load({
       .fm-handle { display:grid; place-items:center; width:100%; height:24px; padding:0;
         border:0; background:transparent; touch-action:none; cursor:grab!important; }
       .fm-handle-bar { width:30px; height:3px; border-radius:9px; background:var(--fm-line-strong); }
+      .fm-feedback-filters { display:flex; flex-wrap:wrap; gap:8px; margin:10px 0; }
+      .fm-feedback-filters .fm-library-search { flex:1 1 140px; min-width:0; width:auto; }
+      .fm-feedback-filters select { max-width:100%; }
+      .fm-feedback-records { list-style:none; margin:0; padding:0; max-height:360px; overflow-y:auto; scrollbar-gutter:stable; }
+      .fm-feedback-record { display:flex; flex-wrap:wrap; align-items:center; gap:8px; padding:10px 0; border-bottom:1px solid var(--fm-line); }
+      .fm-feedback-record-copy { display:grid; gap:4px; flex:1 1 140px; min-width:0; overflow-wrap:anywhere; }
+      .fm-feedback-record-copy strong { font-size:13px; }
+      .fm-feedback-record .fm-button { flex-shrink:0; }
       @keyframes fm-page-in { from{opacity:0;transform:translateY(var(--fm-motion-shift));filter:blur(1px)} to{opacity:1;transform:none;filter:none} }
       @keyframes fm-rise { from{opacity:0;transform:translateY(var(--fm-motion-shift))} to{opacity:1;transform:none} }
       @keyframes fm-swap { from{opacity:0;transform:translateY(var(--fm-motion-shift))} to{opacity:1;transform:none} }
@@ -479,6 +487,7 @@ window.__ModuleLoader__.load({
         snapshot: null, platforms: {}, busy: false, platformBusy: false, connected: false, error: '', notice: '',
         libraryBusy: false, libraryError: '', libraryQuery: '',
         expression: null, expressionBusy: false, expressionError: '', expressionNotice: '',
+        feedbackPage: null, feedbackListBusy: false, feedbackClearBusy: false, feedbackError: '', feedbackNotice: '',
         login: null, imported: null, importAttempts: [], library: { total: 0, tracks: [] },
         widgetVisible: readPreference(WIDGET_VISIBLE_KEY, true) !== false,
         widgetPosition: readPreference(WIDGET_POSITION_KEY, null),
@@ -487,8 +496,25 @@ window.__ModuleLoader__.load({
       };
       let epoch = 0, playbackEpoch = 0, libraryEpoch = 0, timer, read, write, platformWrite, libraryRead,summaryWrite,expressionWrite, disposed = false;
       let libraryOptions = { query: '', offset: 0, limit: 12 };
+      let feedbackOptions = { query: '', filter: 'all', offset: 0, limit: 12 };
+      let feedbackOpen = false, feedbackEpoch = 0, feedbackRead, feedbackWrite, feedbackRetry;
+      let feedbackRevision = -1, feedbackRequestedRevision = -1, feedbackRefreshQueued = false;
       const listeners = new Set();
       const emit = (patch) => { if (!disposed) {
+        if (patch.insights?.feedback) {
+          patch = { ...patch, insights: { ...patch.insights } };
+          let feedback = patch.insights.feedback;
+          if (Number.isSafeInteger(feedback.revision)) {
+            if (feedback.revision < feedbackRevision) feedback = state.insights?.feedback ?? feedback;
+            else feedbackRevision = feedback.revision;
+          }
+          const instance = (patch.snapshot ?? state.snapshot)?.current?.playInstanceId ?? null;
+          if (feedback.playInstanceId !== undefined && feedback.playInstanceId !== instance) {
+            feedback = { ...feedback, playInstanceId: instance,
+              current: state.insights?.feedback?.playInstanceId === instance ? state.insights.feedback.current : 0 };
+          }
+          patch.insights.feedback = feedback;
+        }
         if (Object.hasOwn(patch,'expression') || patch.insights?.expression) {
           const value=patch.expression??patch.insights?.expression;
           patch={...patch};delete patch.expression;
@@ -497,6 +523,12 @@ window.__ModuleLoader__.load({
         }
         if(patch.persona?.generatedAt<state.persona?.generatedAt){patch={...patch};delete patch.persona;}
         if(patch.error==='')patch={...patch,errorCode:null};state = { ...state, ...patch }; listeners.forEach(fn => fn());
+        if (feedbackOpen && state.insights?.feedback?.managementVersion === 1 && !state.feedbackListBusy
+          && !state.feedbackClearBusy && feedbackRequestedRevision < feedbackRevision && !feedbackRefreshQueued) {
+          feedbackRefreshQueued = true;
+          Promise.resolve().then(() => { feedbackRefreshQueued = false;
+            if (!disposed && feedbackOpen && !state.feedbackListBusy && !state.feedbackClearBusy) void queryFeedback(); });
+        }
       } };
       const syncPlaybackEffects = event => {
         if (event.key !== PLAYBACK_EFFECTS_KEY && event.key !== null) return;
@@ -522,6 +554,36 @@ window.__ModuleLoader__.load({
         if (older || (playbackVersion !== null && playbackVersion !== playbackEpoch)) delete patch.snapshot;
         return patch;
       };
+      function applyFeedbackPage(page, version) {
+        if (version !== feedbackEpoch || page?.version !== 1 || !Number.isSafeInteger(page.revision)) return;
+        if (page.revision < feedbackRevision) { feedbackRequestedRevision = page.revision; return; }
+        feedbackRevision = page.revision;
+        feedbackRequestedRevision = page.revision;
+        feedbackOptions = { ...feedbackOptions, offset: page.offset };
+        emit({ feedbackPage: page });
+      }
+      async function queryFeedback(query = feedbackOptions.query, filter = feedbackOptions.filter, offset = feedbackOptions.offset) {
+        if (disposed || state.insights?.feedback?.managementVersion !== 1) return;
+        const version = ++feedbackEpoch;
+        feedbackOptions = { query, filter, offset, limit: 12 };
+        feedbackRead?.abort();
+        const request = new AbortController(); feedbackRead = request;
+        const timeout = setTimeout(() => request.abort(), 18000);
+        feedbackRequestedRevision = feedbackRevision;
+        emit({ feedbackListBusy: true, feedbackError: '' });
+        try {
+          const result = await connection.rpc.call('/api', 'fishfm/feedback-list', feedbackOptions, request.signal);
+          if (version !== feedbackEpoch) return;
+          if (!result.ok) throw result.error;
+          if (result.value?.feedbackPage?.version !== 1) throw { message: '反馈列表应答未就绪，请重试。' };
+          applyFeedbackPage(result.value.feedbackPage, version);
+        } catch (error) {
+          if (version === feedbackEpoch) emit({ feedbackError: error?.message || '反馈列表未能读取，请重试。' });
+        } finally {
+          clearTimeout(timeout);
+          if (feedbackRead === request) { feedbackRead = null; emit({ feedbackListBusy: false }); }
+        }
+      }
       async function refresh() {
         if (disposed || state.busy || read) return;
         const version = ++epoch;
@@ -574,6 +636,46 @@ window.__ModuleLoader__.load({
           return () => { listeners.delete(fn); if (!listeners.size) { clearInterval(timer); ++epoch; read?.abort(); read = null; } };
         },
         refresh,
+        setFeedbackOpen(open) {
+          feedbackOpen = Boolean(open);
+          if (feedbackOpen) void queryFeedback();
+          else { ++feedbackEpoch; feedbackRead?.abort(); feedbackRead = null; emit({ feedbackListBusy: false }); }
+        },
+        queryFeedback,
+        async clearFeedback(item) {
+          if (disposed || !state.connected || state.feedbackListBusy || state.feedbackClearBusy
+            || state.insights?.feedback?.managementVersion !== 1 || !state.feedbackPage) return;
+          const version = ++feedbackEpoch;
+          feedbackRead?.abort(); feedbackRead = null;
+          const operation = feedbackRetry?.key === item.key ? feedbackRetry : { key: item.key,
+            commandId: `feedback-${Date.now()}-${Math.random().toString(36).slice(2)}`, expectedRevision: state.feedbackPage.revision };
+          feedbackRetry = operation;
+          const request = new AbortController(); feedbackWrite = request;
+          const timeout = setTimeout(() => request.abort(), 18000);
+          emit({ feedbackClearBusy: true, feedbackError: '', feedbackNotice: '' });
+          try {
+            const result = await connection.rpc.call('/api', 'fishfm/feedback-clear', {
+              track: { provider: item.track.provider, providerTrackId: item.track.providerTrackId },
+              commandId: operation.commandId, expectedRevision: operation.expectedRevision, view: feedbackOptions,
+            }, request.signal);
+            if (!result.ok) throw result.error;
+            feedbackRetry = null;
+            const summary = result.value?.feedback;
+            if (summary) emit({ insights: { ...state.insights, feedback: summary } });
+            applyFeedbackPage(result.value?.feedbackPage, version);
+            emit({ feedbackNotice: '已撤销这首歌的推荐反馈。' });
+          } catch (error) {
+            if (error?.code) feedbackRetry = null;
+            emit({ feedbackError: error?.message || '撤销结果未确认，请刷新核对或重试。' });
+            if (error?.code === 'feedback_conflict') {
+              await queryFeedback();
+              emit({ feedbackNotice: '反馈已更新，请核对最新列表后重新操作。' });
+            }
+          } finally {
+            clearTimeout(timeout); feedbackWrite = null;
+            emit({ feedbackClearBusy: false });
+          }
+        },
         async queryLibrary(query = libraryOptions.query, offset = 0) {
           if (disposed) return;
           const version = ++libraryEpoch;
@@ -738,7 +840,7 @@ window.__ModuleLoader__.load({
           }
           finally{clearTimeout(timeout);summaryWrite=null;emit({summaryBusy:false});}
         },
-        dispose() { disposed = true; ++epoch; ++libraryEpoch; clearInterval(timer); read?.abort(); write?.abort(); platformWrite?.abort(); libraryRead?.abort();summaryWrite?.abort();expressionWrite?.abort(); listeners.clear();
+        dispose() { disposed = true; ++epoch; ++libraryEpoch; ++feedbackEpoch; feedbackRead?.abort(); feedbackWrite?.abort(); clearInterval(timer); read?.abort(); write?.abort(); platformWrite?.abort(); libraryRead?.abort();summaryWrite?.abort();expressionWrite?.abort(); listeners.clear();
           window.removeEventListener?.('storage', syncPlaybackEffects); },
       };
     }
@@ -1165,6 +1267,35 @@ window.__ModuleLoader__.load({
     }
 
     // src/ui/client/feedback.mjs
+    function FeedbackManager({state,controller}) {
+      const [query,setQuery]=React.useState(''),[filter,setFilter]=React.useState('all');
+      const page=state.feedbackPage,waiting=state.feedbackListBusy,blocked=waiting||state.feedbackClearBusy||!state.connected;
+      const pages=page?Math.max(1,Math.ceil(page.matched/page.limit)):1,currentPage=page?Math.floor(page.offset/page.limit):0;
+      return h('details',{className:'fm-disclosure fm-feedback-manager',onToggle:event=>controller.setFeedbackOpen(event.currentTarget.open)},
+        h('summary',null,'管理反馈'),h('div',{className:'fm-disclosure-body'},
+          h('div',{className:'fm-feedback-filters'},
+            h('input',{type:'search',className:'fm-library-search',value:query,maxLength:200,'aria-label':'搜索推荐反馈',
+              placeholder:'搜索歌曲、艺人或 ID',onChange:event=>{setQuery(event.target.value);void controller.queryFeedback(event.target.value,filter,0);}}),
+            h('select',{value:filter,'aria-label':'筛选推荐反馈',onChange:event=>{setFilter(event.target.value);void controller.queryFeedback(query,event.target.value,0);}},
+              h('option',{value:'all'},'全部反馈'),h('option',{value:'liked'},'喜欢'),h('option',{value:'reduced'},'少推荐'))),
+          state.feedbackError&&h('div',{className:'fm-notice',role:'alert'},state.feedbackError,
+            h('button',{type:'button',className:'fm-button',disabled:waiting||state.feedbackClearBusy,onClick:()=>controller.queryFeedback(query,filter,page?.offset??0)},'重新查询')),
+          state.feedbackNotice&&h('p',{className:'fm-note',role:'status','aria-live':'polite'},state.feedbackNotice),
+          waiting||!page||state.feedbackError?h('p',{className:'fm-note',role:'status'},state.feedbackError?'反馈列表未确认，请重新查询。':'正在读取反馈…')
+            :!page.items.length?h('p',{className:'fm-note',role:'status'},page.total?'没有匹配的反馈，试试其他条件。':'还没有喜欢或少推荐的歌曲。')
+            :h('ul',{className:'fm-feedback-records'},...page.items.map(item=>h('li',{key:item.key,className:'fm-feedback-record'},
+              h('div',{className:'fm-feedback-record-copy'},h('strong',null,item.track.title||item.track.providerTrackId),
+                h('span',{className:'fm-note'},`${item.track.artist||'未知艺人'} · ${item.track.provider==='netease'?'网易云音乐':'QQ 音乐'}`),
+                h('span',{className:'fm-note'},`${item.score===1?'喜欢':'少推荐'} · ${new Date(item.updatedAt).toLocaleString()}`)),
+              h('button',{type:'button',className:'fm-button',disabled:blocked,'aria-label':`撤销 ${item.track.title||item.track.providerTrackId} 的推荐反馈`,onClick:()=>controller.clearFeedback(item)},'撤销反馈')))),
+          h('div',{className:'fm-library-foot'},h('span',{className:'fm-note',role:'status'},page&&!waiting?`${page.matched} 条匹配 · 共 ${page.total} 条反馈`:''),
+            page&&!waiting&&!state.feedbackError&&pages>1&&h('div',{className:'fm-library-pages'},
+              h('button',{type:'button',className:'fm-button',disabled:blocked||currentPage===0,'aria-label':'上一页反馈',onClick:()=>controller.queryFeedback(query,filter,page.offset-page.limit)},'上一页'),
+              h('span',null,`${currentPage+1} / ${pages}`),
+              h('button',{type:'button',className:'fm-button',disabled:blocked||currentPage===pages-1,'aria-label':'下一页反馈',onClick:()=>controller.queryFeedback(query,filter,page.offset+page.limit)},'下一页'))),
+          h('p',{className:'fm-note'},'只管理肥鱼电台内的明确反馈；撤销不影响播放、禁播或已积累的成长。')));
+    }
+
     function FeedbackSettings({state,controller}) {
       const [confirm,setConfirm]=React.useState(null),[clearFeedback,setClearFeedback]=React.useState(false);
       const feedback=state.insights?.feedback,available=feedback?.version===1;
@@ -1173,6 +1304,7 @@ window.__ModuleLoader__.load({
         h('div',{className:'fm-card'},
           available?h('p',{className:'fm-note'},`输入曲库 ${state.library?.total??0} 首 · 喜欢 ${feedback.liked} 首 · 少推荐 ${feedback.reduced} 首。`)
             :h('p',{className:'fm-note'},'当前 Core 尚未提供反馈功能，重新加载新版插件后可用。'),
+          feedback?.managementVersion===1&&h(FeedbackManager,{state,controller}),
           h('details',{className:'fm-disclosure'},h('summary',null,'偏好重置与恢复'),h('div',{className:'fm-disclosure-body'},
             h('p',{className:'fm-note'},'清空曲库会移除输入名单和积累偏好；仅重置成长会保留输入歌曲。账号、播放历史和 token 账本保留。'),
             feedback?.resetAt&&h('p',{className:'fm-note'},`最近重置：${new Date(feedback.resetAt).toLocaleString()}`),

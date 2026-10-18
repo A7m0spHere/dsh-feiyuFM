@@ -59,5 +59,6 @@
 | 2026-10-07 | 用户要求 GIF、静态衍生图与六张 doll PNG 一起打包，取代最初仅本地提取方案；开关无文字／无悬停说明、默认关闭，保留键盘／无障碍语义及本机同步。打包指令不改变素材许可 | [U12](spikes/U12-playback-dolls.md)、[U13](spikes/U13-easter-review-fixes.md)、[第三方声明](../THIRD_PARTY_NOTICES.md) |
 | 2026-10-18 | U19 先做当前有效批次只读投影，沿用历史 JSON、以 modelCallId 关联经历；有声听过须实测 audibleMs 达阈值。不增表／发送／通知／模型调用或永久跨批历史 | [U19](spikes/U19-recent-discoveries-prototype.md) |
 | 2026-10-18 | U20 用 settings 的结构化预设与独立 revision，避免 persona.md／自由指令的额外范围。仅改变有依据的本地说明，音乐状态优先；不进入模型事实，保存不阻塞播放 | [U20](spikes/U20-expression-style-prototype.md) |
+| 2026-10-18 | 用户选择反馈管理首版仅查看与逐条撤销。沿用反馈表、增加独立递增版本；撤销留中立行以防重置恢复复活旧票，保留当前歌曲实例校验。以 DSH 插件及隔离 profile 验证，不以日常 Desktop 为前置 | [U21](spikes/U21-feedback-management.md) |
 
 第三方来源、版本、文件范围与许可只维护在 [THIRD_PARTY_NOTICES](../THIRD_PARTY_NOTICES.md) 和 [依赖许可清单](../DEPENDENCY_LICENSES.md)，不在决策表重复许可结论。未核实的参考项目仍保留在归档，不能当作已获授权或已验证接口。

@@ -16,6 +16,8 @@ beta.3 的模型协议／最终回答与日常原生 Desktop 重启补验见 [N2
 
 ## 自主听歌、推荐与后续修复
 
+[U21 反馈管理](U21-feedback-management.md) 提供查询／筛选／分页／逐条撤销、独立版本与防复活中立记录；隔离 DSH Web profile 的源码安装、启用和认证 RPC 单列记录。
+
 | 记录 | 主题 |
 |---|---|
 | [N0](N0-runtime-evidence.md) | N0 真实运行采集 |

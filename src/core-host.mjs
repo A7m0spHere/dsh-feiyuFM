@@ -26,6 +26,7 @@ import { createDiscoveryCache } from './discovery.mjs';
 import {describeMusicFacts,describeMusicInsights} from './insights.mjs';
 import {describeDiscoveryJournal} from './discovery-journal.mjs';
 import {setExpressionStyle} from './expression.mjs';
+import {listTrackFeedback,clearTrackFeedback,validateFeedbackQuery,feedbackView} from './feedback.mjs';
 import {createTrackGraphCache} from './track-graph.mjs';
 import {personaView,reserveSummary,startSummary,finishSummary,recoverSummaryCalls,setSummaryBudget,setSummaryOutputTokens,setSummaryAutomatic,factBundle} from './persona.mjs';
 import {modelRecommendations,modelRecommendationTracks,recommendationMode,createModelRecommendationResolver,STRATEGY_PURPOSE} from './model-recommendations.mjs';
@@ -535,6 +536,15 @@ export function createCoreHost({
         case 'insights': {
           send({type:'result',id,ok:true,insights:describeMusicInsights(store,core.snapshot(),now(),profileInputs().insightsFacts)});return;
         }
+        case 'feedback-list': {
+          send({type:'result',id,ok:true,feedbackPage:listTrackFeedback(store,message)});return;
+        }
+        case 'feedback-clear': {
+          const query=validateFeedbackQuery(message.view??{});
+          clearTrackFeedback(store,message,now());
+          invalidateProfile();
+          send({type:'result',id,ok:true,feedbackPage:listTrackFeedback(store,query),feedback:feedbackView(store,core.snapshot())});return;
+        }
         case 'expression-style': {
           const expression=setExpressionStyle(store,message.style,message.expectedRevision);
           send({type:'result',id,ok:true,expression});return;
@@ -865,7 +875,7 @@ export function createCoreHost({
     // long account/import work so a slow media request cannot hold up pause.
     handle: (message) => {
       const inputVersion = inputEpoch;
-      return ['command','snapshot','platforms','library','account','environment','insights','expression-style','persona','recommendation-route','persona-budget','persona-output','persona-automatic','persona-reserve','persona-start','persona-finish','sessions','discovery','discovery-filter-status','shutdown','wait','autonomous','session-event','setQueue'].includes(message.type)
+      return ['command','snapshot','platforms','library','account','environment','insights','expression-style','feedback-list','feedback-clear','persona','recommendation-route','persona-budget','persona-output','persona-automatic','persona-reserve','persona-start','persona-finish','sessions','discovery','discovery-filter-status','shutdown','wait','autonomous','session-event','setQueue'].includes(message.type)
         ? handle(message, inputVersion) : enqueue(() => handle(message, inputVersion));
     },
     close,
