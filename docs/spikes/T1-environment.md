@@ -25,7 +25,7 @@
 
 ## 人格（A06）
 
-首版参数（[DECISIONS 第 11 节](../DECISIONS.md) 记录理由，后续按数据调整）：
+首版参数（[DECISIONS 原文第 11 节](../archive/decisions-through-2026-10-18.md) 记录理由，后续按数据调整）：
 
 | 参数 | 值 | 含义 |
 |---|---|---|

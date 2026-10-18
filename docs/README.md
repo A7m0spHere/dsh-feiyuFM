@@ -1,40 +1,30 @@
-# 文档索引
+# 开发文档入口
 
-当前文档与历史实验分开阅读。安装使用从 DELIVERY 开始，接续开发先看 PROJECT_PLAN；设计提案不能代替当前规格，历史报告中的账号、版本、性能和验收状态按记录日期理解。
+接续开发先看 [PROJECT_PLAN](PROJECT_PLAN.md) 的当前基线、验收缺口和下一步，再按改动读取规格或契约。安装使用看 [DELIVERY](DELIVERY.md)，命令看 [贡献指南](../CONTRIBUTING.md)／[脚本索引](../scripts/README.md)。
 
-## 当前文档
+## 现行文档：各维护一类事实
 
-| 文档 | 维护内容 |
+| 要查或修改什么 | 文档 |
 |---|---|
-| [交付与使用说明](DELIVERY.md) | 安装、更新、数据位置、控制和排障 |
-| [产品规格](MVP.md) | 用户行为、推荐范围和 A01–A10 验收标准 |
-| [开发路线](PROJECT_PLAN.md) | 任务状态、加载版本、测试基线、验收缺口与下一步；状态唯一入口 |
-| [技术架构](ARCHITECTURE.md) | 进程、模块职责、数据流与维护入口 |
-| [内部控制契约](CORE_CONTRACT.md) | 命令、状态、RPC、资源、记账、预算与存储语义 |
-| [技术验证方法](PHASE_0.md) | 探针通过条件、证据格式和真实验证要求 |
-| [决策记录](DECISIONS.md) | 按日期保留取舍、来源和被后续修订的规则 |
-| [仓库结构与维护入口](REPOSITORY.md) | 文件位置、生成物/本机数据边界、脚本和原型入口 |
+| 源码／发布／日常 Desktop、测试基线、任务状态和待验项 | [PROJECT_PLAN](PROJECT_PLAN.md) |
+| 产品范围、用户行为、A01–A10 标准 | [MVP](MVP.md) |
+| 进程、职责、数据流和代码入口 | [ARCHITECTURE](ARCHITECTURE.md) |
+| 命令、RPC、版本、推荐缓存、模型预算、播放与存储契约 | [CORE_CONTRACT](CORE_CONTRACT.md) |
+| 选择理由、被替代规则和证据 | [DECISIONS](DECISIONS.md) |
+| 文件位置、生成物与本机资料边界 | [REPOSITORY](REPOSITORY.md) |
+| 安装、更新、数据位置与排障 | [DELIVERY](DELIVERY.md) |
+| 技术实验的问题、证据格式和通过边界 | [PHASE_0](PHASE_0.md) |
 
-## 设计与证据
+## 按需查证
 
-| 目录 | 用法 |
+| 入口 | 内容与阅读边界 |
 |---|---|
-| [design](design/README.md) | 自主听歌、透明人格、模型筛选、画像缓存与相似图的原始设计；最新行为看 MVP/契约，状态看 PROJECT_PLAN |
-| [spikes](spikes/README.md) | N/U/P/T/I/R/A 各轮实现与实测报告，含截图和元数据附件；不作为实时账号或部署探针 |
-| [releases](releases/README.md) | 公开包的范围、摘要、安装/界面验证与发布确认 |
-| [beta.3 发布前验收](releases/0.1.0-beta.3-acceptance.md) | 2026-10-12 隔离实包、Windows 真人扫码/播放、PowerShell 矩阵、缺陷与发布决定 |
-| [beta.3 发布记录](releases/0.1.0-beta.3.md) | 2026-10-13 正式实包、三个问题修复、registry 摘要、npm/官方 DSH 安装确认 |
-| [archive](archive/README.md) | 封存的旧交接文字，不作为现行规则或实时状态 |
-| [推荐质量研究与试用](research/README.md) | #7 固定快照、离线比较、指标和人工反馈入口；[#11 操作卡](research/TRIAL.md) 含任务、数据边界与匿名汇总 |
-| [可控探索对照](research/EXPLORATION.md) | #10 来源证据、探索开关/强度边界、排序假设与上线条件；不代表质量提升或生产改造 |
+| [research](research/README.md) | 冻结候选的离线比较、[信号语义](research/PREFERENCE_SIGNALS.md)、[探索对照](research/EXPLORATION.md) 和 [真实试用卡](research/TRIAL.md)；不代表质量收益 |
+| [spikes](spikes/README.md) | 按轮次保留实现／实测报告与附件。默认推荐看 [N22](spikes/N22-platform-first-recommendations.md)，真实补验看 [N23](spikes/N23-model-route-completion.md)，近期原型看 U19/U20 |
+| [releases](releases/README.md) | 公开包范围、摘要与安装确认；[beta.3 发布前验收](releases/0.1.0-beta.3-acceptance.md) 和 [最终记录](releases/0.1.0-beta.3.md) 分开保留 |
+| [design](design/README.md) | 原始提案和参数建议，可能被后续修订，不作现行规格或进度表 |
+| [archive](archive/README.md) | 旧任务表、决策原文与交接，只供追溯，不维护实时状态 |
 
-最近推荐流程与界面见 [N22](spikes/N22-platform-first-recommendations.md)，中断恢复见 [N21](spikes/N21-playback-interruption-recovery.md)，macOS 源码移植见 [MACOS_PORT](spikes/MACOS_PORT.md)。素材/彩蛋与布局的历史证据从 [spikes 索引](spikes/README.md) 查阅，源码、发布与生产的区别只看开发路线首页。
+行为变更同步 MVP，接口变更同步契约，取舍变更更新 DECISIONS 并链接证据；状态只更新 PROJECT_PLAN。历史证据保留日期／环境和原结论，不因文档精简提升验收。新增设计或报告补对应索引；不要再建一份完整规格或进度表。
 
-## 维护约定
-
-- 修改产品行为同步 MVP；修改内部接口同步 CORE_CONTRACT；改变取舍追加 DECISIONS 并链接证据。
-- 任务状态、生产加载边界和未验项统一维护在 PROJECT_PLAN，其他文档引用它，避免复制多份进度表。
-- 新设计放入 design，新实验放入 spikes，并补对应索引。实验记录保留执行环境和剩余限制；历史事实不改写成当前已通过。
-- 运行 `npm run audit:acceptance` 检查全部 docs Markdown 的本地链接和验收证据引用。审计检查引用存在，不执行真实验收。
-
-仓库外入口：[项目首页](../README.md)、[贡献指南](../CONTRIBUTING.md)、[协作规则](../AGENTS.md)、[第三方声明](../THIRD_PARTY_NOTICES.md)。
+`npm run audit:acceptance` 检查维护文档的本地链接与验收引用，只验证存在性。协作规则见 [AGENTS.md](../AGENTS.md)，第三方来源与许可见 [THIRD_PARTY_NOTICES](../THIRD_PARTY_NOTICES.md)。

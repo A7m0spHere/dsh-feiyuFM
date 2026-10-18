@@ -55,7 +55,7 @@ const EVIDENCE = [
       { file: 'test/core.test.mjs', name: 'mode and switch combinations preserve explicit mute and pause' },
       { file: 'test/ui-panel.test.mjs', name: 'the four switch combinations are all named, and the mode is derived, not stored twice' },
     ],
-    unverified: '真实暂停/恢复/换曲已验；四开关组合、全部模式和到期约束完整真机覆盖仍未完成',
+    unverified: 'N23 实包四开关组合、四模式与暂停优先已验；到期约束完整现场覆盖仍缺',
   },
   {
     id: 'A04', claim: '用户点歌/下一首优先；禁播、暂停不会被自动事件覆盖',
@@ -79,7 +79,7 @@ const EVIDENCE = [
       { file: 'test/recommendation-pipeline.test.mjs', name: 'reference songs flow through NetEase recall, LLM picks and local playback without generated-title lookup' },
       { file: 'test/recommendation-pipeline.test.mjs', name: 'a model cannot introduce a song that NetEase did not return' },
     ],
-    unverified: '历史网易云发现/播放已接通；N22 真实账号候选与模型筛选质量、完整长跑及双平台未验',
+    unverified: 'N23 已验真实平台候选→模型入选→播放；筛选质量、按批补充完整现场覆盖、长期体验与 QQ 未验',
   },
   {
     id: 'A06', claim: '用户环境与 Agent 偏好分离，重启后保留；Session 不覆盖长期偏好',
@@ -116,14 +116,14 @@ const EVIDENCE = [
     unverified: '真实并发的 DSH 会话未验；真实会话标识字段名未确认',
   },
   {
-    id: 'A09', claim: '连续两小时自动听歌；逐曲零模型请求，计划内低频调用受开关、冷却、预算约束并入账',
+    id: 'A09', claim: '逐曲零模型请求；计划内低频调用受各自门控和共享预算约束并入账，不持续注入音乐状态',
     status: 'not-passed',
     files: ['src/runtime/recorder.mjs', 'scripts/soak.mjs', 'test/recorder.test.mjs', 'docs/spikes/R2-soak.md', 'src/runtime/evidence.mjs', 'scripts/observe-runtime.mjs', 'docs/spikes/N0-runtime-evidence.md'],
     tests: [
       { file: 'test/recorder.test.mjs', name: 'the recorder counts requests by kind and proves a zero model count' },
       { file: 'test/dsh-adapter.test.mjs', name: 'translates only the allowlisted session events' },
     ],
-    unverified: '两小时真实运行与 DSH 侧请求对照未做',
+    unverified: '两小时连续观察已由用户取消，不记为通过；完整 DSH 启停请求/上下文对照与归因仍缺',
   },
   {
     id: 'A10', claim: '静音、暂停、播放失败、进程重启不会伪增听歌次数或偏好',

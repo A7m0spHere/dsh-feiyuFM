@@ -1,6 +1,6 @@
 # 内部控制契约
 
-更新：2026-10-07，含 N22 默认推荐流程。本文描述 FishFM 内部契约，DSH 外部接口经 Adapter 映射。职责见 [架构](ARCHITECTURE.md)，用户行为见 [MVP](MVP.md)，现场状态见 [开发路线](PROJECT_PLAN.md)；历史变化见 [决策记录](DECISIONS.md) 与 [实验记录](spikes/README.md)。
+更新：2026-10-18。本文只维护内部字段、命令与边界，DSH 外部接口经 Adapter 映射；职责见 [架构](ARCHITECTURE.md)，用户行为见 [MVP](MVP.md)，实现／部署／验收状态只看 [开发状态](PROJECT_PLAN.md)。历史理由查 [决策摘要](DECISIONS.md) 与 [实验记录](spikes/README.md)。
 
 ## 1. 曲目、账号与资源
 
@@ -8,7 +8,7 @@ Track key 为 `(provider, providerTrackId)`，`provider` 仅为 `netease/qq`，�
 
 Provider 暴露账号和能力状态，`resolve(track, {signal, version})` 返回 `{handle, expiresAt?}`。handle 仅交 Playback，不进 SQLite、Core/UI 快照或模型输入。缺能力、过期账号、无可播资源和空候选分别报告。
 
-网易云导入可指定 `source/playlistId`，保留实际来源、sourceRef、数量及失败尝试。核对 `login_status` 账号 ID 后才保存平台凭据引用（Windows DPAPI，macOS Keychain）；退出删除凭据及引用。QQ 真实登录/播放未验证，不显示未核实的扫码入口。
+网易云导入可指定 `source/playlistId`，保留实际来源、sourceRef、数量及失败尝试。核对 `login_status` 账号 ID 后才保存平台凭据引用（Windows DPAPI，macOS Keychain）；退出先停用会话，再按第 3 节的失败／重试规则清理。QQ 不显示未核实的扫码入口。
 
 ## 2. 用户命令
 
@@ -57,6 +57,7 @@ UI 经宿主认证 `/api` 调用；完整白名单见 [dsh-settings.mjs](../src/
 | `fishfm/discovery-refresh` | 后台刷新状态，可补跑一次有预算的筛选 |
 | `fishfm/persona-summary/persona-recommendations` | 旧展示总结 / 平台召回后模型筛选；后者不生成歌名 |
 | `fishfm/persona-budget/persona-output/persona-automatic` | 预算、输出上限与自动更新设置 |
+| `fishfm/expression-style` | 独立表达配置，参数和版本规则见第 8 节；不返回播放快照 |
 
 `logout` 分离会话停用与持久化清理：清理失败返回 `credential_cleanup_failed`（可重试），带 `cleanupPending/sessionDisabled`；内存 secret、cookie jar、扫码会话与发现缓存仍清空。数据库保留 `revoked` 引用，重启不复用残留凭据；账号显示 `login_required/cleanupPending`，再次退出可重试删除。只有删除完成或凭据已不存在才移除引用并提示清理成功。
 
@@ -76,6 +77,12 @@ Host `library` 接收 `query/offset/limit`：关键词最多 200 字符，offset
 
 `fishfm/persona-recommendations` 现在先保存已配置模型路线、触发并等待平台推荐，再运行 `discovery-filter`；不调用直接生成歌名的用途。内部 `recommendation-route` 保存路线并进入 filtered 模式；启动/导入/候选变化/歌单低水位按需筛选，首次可沿用已配置模型，不要求先生成总结。推荐 DTO 使用 `persona.recommendationPipeline`（状态、歌曲、理由、剩余数量）与 `recommendationRoute`。见 [N22](spikes/N22-platform-first-recommendations.md)。
 
+### 当前批次只读投影
+
+`persona.discoveryJournal` 为 `current-valid-filtered-batch`：含 `status=ready/empty/unavailable`、空状态 `reason`、`recommendedAt/retained/historyLimited` 和最多 12 个 `items`。item 仅含安全曲目元数据、结构化 `evidence` 及 `recommended/userRequested/agentExperienced/silentExperienced/audibleHeard/latestListenAt`，不返回原始历史、账号 owner 或未核实的模型理由；旧宿主缺字段时隐藏，不新增路由或模型工具。
+
+筛选曲目的 `discovery.modelCallId` 沿 `current.origin` 和历史 JSON 保存，自主经历按本批 call ID 关联。手动点播只记推荐后的同曲操作，不归为自主成长或推荐转化。有效有声须实测 audibleMs 达阈值；有效自主经历且明确零有声才标静音。批次／账号／时效和 200 条索引历史窗口边界见 [U19](spikes/U19-recent-discoveries-prototype.md)。
+
 ## 5. 模型预留与账本
 
 用途为 `persona-summary/model-recommendations/discovery-filter`，经 `persona-reserve → persona-start → persona-finish`，用预留时的事实映射和同一 token 账本。逐曲执行和解释不调用模型。
@@ -84,9 +91,9 @@ Host `library` 接收 `query/offset/limit`：关键词最多 200 字符，offset
 
 总结/歌单遵循日尝试上限 3，当前查询覆盖当日全部音乐模型调用；筛选单独计数，每日最多 12 次。普通用途冷却 1 小时，后台自动筛选冷却 15 分钟；手动 `discovery-filter` 不受模型冷却限制，失败/中断仍入账，预算与次数限制继续生效。精确门控见 [persona.mjs](../src/persona.mjs)。
 
-U16 在 `persona` 视图增加 `recommendationAvailability`：`reason/serverNow/retryAt/retryAfterMs/resetAt/remainingAttempts/dailyAttempts/runningPurpose`。时间为服务端毫秒时间戳，日界线按服务端本地日历计算。预算耗尽可预告，非零余额是否足以容纳本批仍在预留时检查。手动挑歌在平台刷新前读取门控，预留事务最终复验；预留/启动使调用投影缓存失效。门控错误的 RPC `details` 只转发有效计时/次数字段。缺少新字段的旧宿主仍走后端门控与普通提示。
+`persona.recommendationAvailability` 含 `reason/serverNow/retryAt/retryAfterMs/resetAt/remainingAttempts/dailyAttempts/runningPurpose`，表示手动按钮可用性；`retryAt=null/retryAfterMs=0`，不投影后台冷却，仅任务占用、次数和预算可阻塞。时间为服务端毫秒时间戳，日界线按服务端本地日历计算；非零余额能否容纳本批仍由预留检查。门控错误的 RPC `details` 只转发有效计时／次数字段，旧宿主缺字段或返回冷却时用普通提示，不显示分钟倒计时。
 
-U18 的 `recommendationAvailability` 表示手动按钮可用性，不再投影后台自动筛选冷却：`retryAt=null/retryAfterMs=0`，仅任务占用、次数和预算可阻塞。`persona-reserve` 根据真实 `automatic` 参数在事务内区分手动/自动，后台仍验证冷却。旧宿主返回冷却时客户端只显示普通等待提示，不显示分钟倒计时。平台刷新本身仍有 1 分钟节流，过密的手动请求可复用同批缓存，不重复扣费。
+手动挑歌在平台刷新前读取门控，预留事务按真实 `automatic` 参数区分手动／自动并最终复验；预留／启动使调用投影缓存失效。平台保留 1 分钟刷新节流，过密请求可复用同批缓存、不重复扣费，见 [U18](spikes/U18-manual-picking-without-countdown.md)。
 
 旧画像自动总结仍保留内部契约，filtered 模式不再调度这条独立展示任务。自动候选筛选作为推荐流程按需运行，不要求自动总结开关，仍受 due、15 分钟冷却、每日 12 次和共享预算限制；播放/下一首不调用模型。默认输出 256 时提示最多六首，低上限减少数量；结构解析最多保留十二个有效去重序号，明确空筛选不循环。
 
@@ -94,11 +101,7 @@ U18 的 `recommendationAvailability` 表示手动按钮可用性，不再投影�
 
 #9 在 `discovery-filter` 的候选事实中增加可选 `feedback: "liked" | "reduced"`，只读取 `user_track_feedback` 的明确 +1/-1，0 和缺失不发送该字段。总数不能替代逐曲归属；用户反馈与 Agent 艺人权重仍分别表达，不推断情绪或艺人整体喜恶。已发送的预留不因新反馈自动重试，下一正常批次读取最新值，本地下一首始终读取当前反馈。输入/输出数量、字节和共享 token 预算不变，输出仍为候选序号；禁播在本地硬过滤，reduced 不等于禁播。语义、账号范围与对照见 [用户偏好信号](research/PREFERENCE_SIGNALS.md)。
 
-U19 的 `persona.discoveryJournal` 是只读的 `current-valid-filtered-batch` 投影：`status=ready/empty/unavailable`、空状态 `reason`、`recommendedAt`、`retained`、`historyLimited` 与最多 12 个 `items`。item 仅含曲目安全元数据、结构化 `evidence` 和 `recommended/userRequested/agentExperienced/silentExperienced/audibleHeard/latestListenAt`，不返回原始历史、账号 owner 或未经核实的模型理由。旧宿主缺此字段时客户端隐藏该部分，不新增路由或模型工具。
-
-筛选曲目可携带 `discovery.modelCallId`，Core 将其沿既有 `current.origin` 和历史 JSON 保存，自主经历按本批 call ID 关联。手动点播是推荐后同曲的本机操作，不归为自主成长或推荐转化。有效有声状态要求实测 audibleMs 达阈值；明确零有声计时的有效自主经历才标静音。批次/账号/时效校验、200 条索引历史窗口与更完整的边界见 [U19](spikes/U19-recent-discoveries-prototype.md)。
-
-歌单事实不发平台 ID，筛选事实含候选曲目键用于映射，不发凭据。A09 要求逐曲零模型请求、计划内调用门控及真实两小时对照。
+歌单事实不发平台 ID，筛选事实含候选曲目键用于映射，不发凭据。A09 的逐曲零请求、低频调用门控和 DSH 对照标准统一见 [MVP](MVP.md)，不要求连续计时观察。
 
 ## 6. Playback 与有效进度
 
@@ -138,9 +141,9 @@ Provider 解析最多 3 次；自主不可播替换有有限预算，明确资�
 
 命令去重及已完成成长作业保留 30 天；未完成成长、历史、反馈、约束和模型账本保留。维护清理最多每小时一次，见 [N17](spikes/N17-p1-retention-a09.md)。数据位置与平台凭据限制见 [使用说明](DELIVERY.md)。
 
-诊断脱敏且有界，观察脚本只读，不能启动另一个 Core 或把模拟事件当生产证据。完整 DSH 请求/上下文和两小时对照仍未通过，状态统一在开发路线。
+诊断脱敏且有界，观察脚本只读，不启动另一个 Core、不把模拟事件当生产证据；无法采集的请求／上下文指标保持 `unknown`，验收缺口只在开发状态维护。
 
-## 独立表达配置（U20）
+## 8. 独立表达配置
 
 `settings.expression_style_v1` 保存 `{version:1,style,revision}`，style 仅为 current/concise/lively；缺省 current/revision=0，不新增表或迁移。`insights.expression` 返回 version/style/revision/available/examples，reply/explanation 同时返回确定性 variants，text 为已保存预设；默认 current 保留原有文案。表达配置与变体不加入任何音乐模型事实或提示。
 

@@ -2,7 +2,7 @@
 
 这些记录保留执行当时的环境、步骤、结果和未验范围。历史账号、版本、测试数量与性能不是实时状态；当前进度和生产加载边界统一见 [开发路线](../PROJECT_PLAN.md)，现行行为见 [MVP](../MVP.md) 与 [控制契约](../CORE_CONTRACT.md)。
 
-N7/R2 的短跑或合成演练不能替代 A09 两小时验收；U3/U4 等 PHL 记录按其日期阅读；N19 的旧预热阈值以 [N20](N20-review-fixes.md) 后续复测为准。
+用户已于 2026-10-16 取消两小时连续观察；N7/R2 的短跑或合成演练也不能补齐 A09 的 DSH 请求／上下文对照。U3/U4 等 PHL 记录按日期阅读；N19 的旧预热阈值以 [N20](N20-review-fixes.md) 后续复测为准。
 
 最新推荐与界面从 [N22](N22-platform-first-recommendations.md) 读起，播放中断修复见 [N21](N21-playback-interruption-recovery.md)，macOS 源码移植见 [MACOS_PORT](MACOS_PORT.md)，此前紧凑布局与素材/彩蛋见 U14、U12/U13。各报告的测试数量和安装包均按日期理解，当前状态统一看开发路线。
 

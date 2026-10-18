@@ -1,36 +1,31 @@
 # 项目协作规则
 
-本文件只补充本项目规则，不复制全局沟通规范。
+本文件只维护稳定的协作约束与事实入口；部署、测试数量和待验项只在 PROJECT_PLAN 更新。
 
-## 开发分支
+## 开发与交接
 
-- 2026-10-02 用户指定：后续日常开发直接在 `main` 进行。每项完成的任务形成独立提交，保持检查、测试和构建可运行。
-- 跨设备串行接续；工作区干净时先 `git pull --ff-only`，完成后推送 `main` 再交接。产品未完成的验收继续如实记录。
-- 2026-10-03 用户指定：后续提交标题和说明使用简体中文，技术标识与代码名称保留原文。
-- 2026-10-04 用户补充：提交保留 `feat:`、`fix:`、`docs:` 等英文类型前缀，后面的标题与说明使用简体中文。
+- 用户指定日常直接在 `main` 开发；跨设备串行接续，工作区干净时先 `git pull --ff-only`。每项完成任务独立提交并推送 `main`，保持检查、测试和构建可运行。
+- 提交保留 `feat:`、`fix:`、`docs:` 等英文类型前缀，标题与说明使用简体中文，技术标识与代码名称保留原文。
+- 修改行为同步产品规格和验收条目；修改接口同步契约；改变既有决策记录理由、修订关系与证据，不复制多份完整规格或进度表。
 
-## 当前事实与维护入口
+## 事实与维护入口
 
-- 当前实现为 N22：参考歌曲 → 网易云候选 → LLM 筛选 → 本地播放；默认 `filtered`，自动播放只取入选歌曲。模型与用量收入推荐设置，保留用户控制和旧数据。见 `docs/spikes/N22-platform-first-recommendations.md`。
-- beta.3 发布前状态见 `docs/releases/0.1.0-beta.3-acceptance.md`，最终发行确认见 `docs/releases/0.1.0-beta.3.md`：T1/PowerShell 5.1/T8 与模型能力修复在基线；不将隔离 profile 的结果当作日常生产或 macOS 真机通过。
-- N23 已补上真实模型筛选／入选曲播放与日常原生 Desktop 正常退出重开；模型输出耗尽不应用截断结果，单次输出可设 64–4096，默认与预算保留。beta.3 已发布并包含 REV-01–03 导入取消、凭据清理与快照去旧；两小时／多会话／跨设备等实时状态只看 PROJECT_PLAN，不将运行中观察提前算作通过。见 `docs/spikes/N23-model-route-completion.md`。
-- U17 已修复慢平台请求阻塞播放、曲库 300 首展示限制与平台断连反馈，见 `docs/spikes/U17-control-library-fixes.md`。最新测试数量与真实音频基线统一见 `docs/PROJECT_PLAN.md`；离线和模拟浏览器结果不算新增音频、模型质量或生产验收。
-- npm `0.1.0-beta.3` 已上架，`beta` 指向 beta.3、`latest` 保持 beta.1；registry 下载摘要与封存包一致，npm/官方 DSH registry 安装均已确认，见 `docs/releases/0.1.0-beta.3.md`。日常 Desktop 本轮未重载；beta.2 和 U12 的 34.83 MB tarball 是历史实包，不能当最新安装包。具体版本/数据/未验项只在 `docs/PROJECT_PLAN.md` 维护。
-- 用户 2026-10-02 指定 QQ 接入暂缓，优先网易云与 UI；保留 QQ 代码与后续范围。Last.fm 富化需要用户 API key，尚未开工。
-- N21 中断恢复保留原曲一次预算与暂停/换曲优先。U12/U13 彩蛋保持无文字、无悬停说明的左右小开关、默认关闭和本机偏好同步；完整 GIF/静态图/六张 doll PNG 随源码打包。边界与证据按对应报告阅读。
-- 当前进度和接续入口：`docs/PROJECT_PLAN.md`；产品行为：`docs/MVP.md`；模块职责：`docs/ARCHITECTURE.md`；内部接口：`docs/CORE_CONTRACT.md`；取舍：`docs/DECISIONS.md`。
-- 仓库结构与维护入口见 `docs/REPOSITORY.md`，文档导航见 `docs/README.md`。设计在 `docs/design/`，证据在 `docs/spikes/`，发行记录在 `docs/releases/`；根目录 `spikes/` 只放早期可执行探针，不是生产入口。
-- 界面维护 `src/ui/client/`，`src/ui/dsh-client.js` 是生成的 DSH 单文件 bundle；改后运行 `npm run build:client` 或 `npm run build` 并提交同步结果。
-- 三张自有状态 PNG 的唯一文件位置是 `src/ui/assets/`；预览复用生产资源路由。新增或维护素材先核对 `THIRD_PARTY_NOTICES.md` 和对应 hash/提取记录，不复制相同资源到原型目录。
-- 修改产品行为同步相关验收条目；改变既有决策记录理由和证据，不维护多份完整规格。
-- 历史交接原文归档在 `docs/archive/handoff-2026-10-07.md`。这些是过去的事实与指令记录，不是现在的账号、部署或性能保证。
+| 内容 | 唯一维护入口 |
+|---|---|
+| 源码／发布／日常 Desktop、测试基线、验收缺口与下一步 | [docs/PROJECT_PLAN.md](docs/PROJECT_PLAN.md) |
+| 用户行为与 A01–A10 标准 | [docs/MVP.md](docs/MVP.md) |
+| 模块职责／数据流、内部命令／RPC／存储 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)、[docs/CORE_CONTRACT.md](docs/CORE_CONTRACT.md) |
+| 取舍、文档导航、文件／脚本位置 | [docs/DECISIONS.md](docs/DECISIONS.md)、[docs/README.md](docs/README.md)、[docs/REPOSITORY.md](docs/REPOSITORY.md) |
+| 原始设计、实测证据、发行确认、旧记录 | [design](docs/design/README.md)、[spikes](docs/spikes/README.md)、[releases](docs/releases/README.md)、[archive](docs/archive/README.md) |
 
-## 实现边界
+`src/ui/client/` 是界面维护源；`src/ui/dsh-client.js` 是受 Git 管理的生成 bundle，改后运行 `npm run build:client` 或 `npm run build` 并同步提交。运行素材唯一位置为 `src/ui/assets/`，预览复用生产资源路由，不复制到原型目录；来源、hash 与许可按 [第三方声明](THIRD_PARTY_NOTICES.md) 和对应报告核对。根 `spikes/` 是早期可执行探针，`docs/spikes/` 是报告。
 
-- 双平台 v0.1 的 QQ 支持范围保留；按用户 2026-10-02 指令暂缓接入，当前优先完成网易云与 UI。QQ 近期记录失败可降级数据来源，不能据此删除 QQ 支持。
-- 逐曲执行不新增 LLM 请求，不在每轮主对话注入音乐状态；计划内低频调用（画像总结、模型歌单、发现候选筛选）共用 token 预算、受冷却与每日上限约束并全部入账本。
-- 用户命令优先；暂停不能被自动事件撤销。用户约束与 Agent 长期偏好分开保存。
-- Provider 管平台接入，Playback 管音频播放，Core 管队列和决策；可见窗口不能是播放服务的唯一宿主。
-- 先验证 DSH 真正提供的接口，再落地适配器。文档中的事件名称都是内部目标语义。
-- 不提前生成空代码包、安装依赖或承诺未经实测的兼容性、性能和许可证。
-- 复用第三方代码或素材前，记录具体来源、版本、文件范围与许可；凭据、音频和运行数据库不入库。
+## 实现与验证边界
+
+- 默认 `filtered`：参考歌曲 → 网易云候选 → LLM 筛选 → 本地播放，自动播放只取入选曲；旧数据和内部兼容保留，见 [N22](docs/spikes/N22-platform-first-recommendations.md)。用户指定 QQ 暂缓，优先网易云与 UI，保留 QQ 代码及双平台范围；Last.fm 需用户 key，未开工。
+- Provider 管平台、Playback 管音频、Core 管队列和决策；可见页面不能是播放服务唯一宿主。先验证 DSH 真实接口再适配，内部事件名不能当作宿主已提供的 API。
+- 用户命令优先，暂停不能被自动事件撤销；用户约束与 Agent 长期偏好分开保存。中断恢复保持每实例原曲一次预算、暂停／换曲可取消。
+- 逐曲执行不新增 LLM 请求，不逐轮注入音乐状态。计划内总结／歌单／筛选共用预算、门控和账本；手动筛选已取消模型冷却，后台自动筛选仍限频，精确规则见契约。
+- U12/U13 彩蛋保持无文字、无悬停说明的左右开关，默认关闭并同步本机偏好；GIF／静态图／六张 doll PNG 随包提供，许可边界不变。
+- 两小时连续观察已由用户 2026-10-16 取消，不恢复、不记为通过。离线回归、模拟浏览器、隔离安装和日常原生 Desktop 分别记录，不能相互代替；未采集用 `unknown`，未验仍写未验。
+- 不提前创建空代码包、安装依赖或承诺未经实测的兼容性、性能和许可。第三方复用先记来源／版本／文件范围／许可；凭据、音频和运行数据库不入库。

@@ -1,6 +1,6 @@
 # 交付与使用说明
 
-更新日期：2026-10-13。本说明适用于 **0.1.0-beta.3** Windows／网易云测试版，包含 U17/U18、DPAPI/PowerShell 5.1、模型输出校验和导入重置／退出清理／快照去旧修复。macOS 适配随包提供，仍为未完成真机验收的实验性功能；稳定 v0.1 验收未完成。发行状态与摘要见 [beta.3 记录](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/releases/0.1.0-beta.3.md)，源码/发布/实包与验收状态统一见 [开发路线](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/PROJECT_PLAN.md)。
+更新：2026-10-18，发行基线为 **0.1.0-beta.3** Windows／网易云测试版。macOS 适配随包提供，真机验收未完成，稳定 v0.1 也未完成验收。版本范围与摘要见 [beta.3 记录](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/releases/0.1.0-beta.3.md)，源码／发布／日常加载及待验项只看 [开发状态](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/PROJECT_PLAN.md)。
 
 ## 支持范围
 
@@ -78,7 +78,7 @@ DSH `0.2.0-rc.2` 的插件页暂不支持自动更新。先在插件管理器卸
 
 当前默认从 5 个持有者开始，按实际 Open 耗时最多补齐到 8 个；独立实测用了 6 个，后续加载 484ms。首曲仍冷，预热/打开时间随环境变化。`FISHFM_PLAYBACK_WARM_HOLDERS=0..8` 可指定固定数量，0 关闭。
 
-macOS 历史移植记录确认 Helper 编译和本地 profile 加载；真实登录、平台音频和退出生命周期仍待真机验收，本轮 Windows 不补写这些项目通过。完整窗口组合、两小时、DSH 请求/上下文对照、多会话和模型筛选质量也仍待验证。当前状态统一见 [开发路线](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/PROJECT_PLAN.md)，短跑证据见 [N7](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/spikes/N7-short-run.md)。模拟预览和引用审计不能替代真实验收。
+macOS 真机、完整窗口组合、DSH 请求／上下文对照、多会话和筛选质量仍待验证。两小时连续观察已由用户 2026-10-16 取消，不记为通过；逐曲零模型请求及 DSH 对照要求保留。当前状态统一见开发状态，短跑按 [N7](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/spikes/N7-short-run.md) 的日期和范围阅读；模拟预览和引用审计不能替代真实验收。
 
 ## 许可
 

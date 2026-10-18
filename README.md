@@ -90,7 +90,7 @@ dsh plugin --profile web add dsh-feiyufm-core@0.1.0-beta.3 --registry https://re
 
 beta.3 包含模型最终回答校验、可调输出额度、DPAPI／PowerShell 5.1 修复、全库搜索与手动换批优化，并修复旧导入写回、退出清理误报和迟到快照覆盖问题。完整变更见 [发布记录](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/releases/0.1.0-beta.3.md)。
 
-真实模型筛选、入选曲播放与日常 Desktop 正常退出重开已有证据。两小时、完整 DSH 对照、并发多会话、跨设备及 macOS 真机仍待验；当前 Beta 不代表稳定 v0.1 验收完成。最新结果统一见 [开发路线](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/PROJECT_PLAN.md)。
+真实模型筛选、入选曲播放与日常 Desktop 正常退出重开已有证据；完整 DSH 对照、并发多会话、跨设备及 macOS 真机仍待验。当前 Beta 不代表稳定 v0.1 验收完成，当前源码与日常加载边界统一见 [开发状态](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/PROJECT_PLAN.md)。
 
 ## 数据、开发与许可
 

@@ -25,19 +25,7 @@ npm run build
 
 `npm test` 在本机 Windows 默认包含 3 项静音 WPF 媒体打开/预热回归，需要可用的音频环境。托管 CI 无法打开这些 WAV，设置 `FISHFM_TEST_REAL_AUDIO=0` 只跳过这 3 项；管道、取消控制和 fake-backend 测试仍运行。真实音频应在 Windows 工作站执行并单独记录，本机测试通过不能替代 runner 的硬件验证，反之亦然。
 
-### 目录入口
-
-| 目录 / 文件 | 职责 |
-| --- | --- |
-| `index.js` / `cordis.patch.yml` | DSH 插件与 bundle 注册 |
-| `src/core*.mjs` | 状态、队列、命令与宿主服务 |
-| `src/providers/` | 平台账号、来源读取与资源解析 |
-| `src/playback/` | 独立播放服务与 WPF 后端 |
-| `src/ui/client/` | 主面板、设置页与悬浮条源码 |
-| `test/` | 自动化测试 |
-| `docs/spikes/` | 实验与验收证据 |
-
-`src/ui/dsh-client.js` 是生成文件，请修改 `src/ui/client/` 后执行 `npm run build:client`，并提交同步后的 bundle。
+源码位置和生成物规则统一查 [仓库入口](docs/REPOSITORY.md)。UI 改动须同步生成的 `src/ui/dsh-client.js`；文档改动运行 `npm run audit:acceptance` 与 `git diff --check`，不需要为静态文字重跑账号、音频或生产验收。
 
 ### 隔离 UI 预览
 
@@ -51,9 +39,7 @@ npm run preview:ui -- --react-root "C:/path/to/existing/node_modules" --port 417
 
 ## 提交改动
 
-维护者日常直接在 `main` 开发，每项任务独立提交；跨设备串行接续，工作区干净时先 `git pull --ff-only`，完成后推送再交接。外部贡献者可从 fork 的功能分支提交 PR。
-
-提交标题保留 `feat:`、`fix:`、`docs:` 等英文类型前缀，后面的标题与说明使用简体中文，代码和技术标识保持原文。
+维护者遵循 [AGENTS.md](AGENTS.md) 的 `main` 串行接续与中文提交规则；外部贡献者从 fork 的功能分支提交 PR。
 
 请说明解决的问题、最终行为和验证范围。修改产品行为时同步相关验收条目；改变既有决策时更新 [DECISIONS](docs/DECISIONS.md)。跑与改动相称的检查，真实宿主未验的部分如实记录，不把离线通过写成现场通过。
 
