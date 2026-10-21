@@ -15,7 +15,7 @@ function collect(folder) {
   for (const entry of readdirSync(folder, { withFileTypes: true })) {
     if (entry.isDirectory()) {
       if (!SKIP.has(entry.name)) collect(join(folder, entry.name));
-    } else if (/\.(mjs|js)$/.test(entry.name)) {
+    } else if (/\.(mjs|cjs|js)$/.test(entry.name)) {
       files.push(join(folder, entry.name));
     }
   }

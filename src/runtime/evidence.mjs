@@ -50,7 +50,7 @@ export function createRuntimeEvidence({ directory = null, component = 'core', mo
   const report = () => ({ schema: 1, runId, component, mode, pid: process.pid, parentPid: process.ppid, node: process.versions.node, metadata, startedAt, updatedAt: now(), closed, sequence: seq, droppedEvents: dropped, writeHealth: { ...writeHealth }, counts: { ...counts }, events: structuredClone(events), samples: [...samples],
     coverage: { platformRequests: component === 'core' ? 'instrumented' : 'unknown', playbackEvents: component === 'core' ? mode : 'unknown', promptRegistration: component === 'adapter' ? 'instrumented' : 'unknown', musicModelRequests: null, dshModelRequests: hostCollector?.report().attachedAt?'llm_stream_service_calls':null, perTurnContextInjection: 'unknown' },
     host:hostCollector?.report()??null,
-    a09: { holds: null, statement: 'A09 also requires real elapsed time, playback and source attribution audit' } });
+    a09: { holds: null, statement: 'A09 requires request/context comparison and source attribution; runtime samples alone are insufficient' } });
   const flush = () => {
     if (!directory) return;
     writeHealth.attempts++;
@@ -110,7 +110,15 @@ export function createRuntimeEvidence({ directory = null, component = 'core', mo
   const timer = directory ? setInterval(sample, intervalMs) : null;
   timer?.unref();
   flush();
-  return { event, report, flush, writeHealth:()=>({ ...writeHealth }), setHostCollector(collector){hostCollector=collector;}, close() { clearInterval(timer); const before = writeHealth.failures + writeHealth.skipped; sample(); closed = writeHealth.failures + writeHealth.skipped === before; } };
+  return { event, report, flush, writeHealth:()=>({ ...writeHealth }), setHostCollector(collector){hostCollector=collector;}, close() {
+    clearInterval(timer);
+    const before = writeHealth.failures + writeHealth.skipped;
+    // The final report must carry the closed flag in the same atomic write.
+    // A failed/refused write cannot publish it and is not a clean close.
+    closed = true;
+    sample();
+    if (writeHealth.failures + writeHealth.skipped !== before) closed = false;
+  } };
 }
 export function readRuntimeEvidence(directory, now = Date.now()) {
   const components = {}, writeFailures = {};

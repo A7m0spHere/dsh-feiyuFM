@@ -1,5 +1,7 @@
 # N7 宿主采集契约与真实长跑入口
 
+后续证据：2026-10-21 已完成一轮 [N24 后台隔离 DSH 启停／请求／上下文对照](N24-dsh-background-acceptance.md)。下文保留 2026-10-03 的采集契约与当时状态；当前缺口以 [PROJECT_PLAN](../PROJECT_PLAN.md) 为准，不恢复已取消的两小时观察。
+
 2026-10-03：根据本机官方 DSH `0.2.0-rc.2` ASAR 内的 `@deepseek-ai/dsh-llm`、`cordis`、`dsh-agent-loop`、`dsh-token-meter` 实现核对契约，不复制宿主代码。
 
 `llm.stream` 和 prepared call 均进入 `llm/stream` waterfall；监听器接收 `(options, next)`，调用原 `next()` 后逐块原样转发，不修改请求或返回块。计数指宿主 LLM 服务调用，供应商内部 HTTP 重试不在覆盖范围。usage 只累计平台返回的 input/output/cacheRead/cacheWrite 数字，缺失单独统计。

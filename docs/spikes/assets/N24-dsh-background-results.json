@@ -1,0 +1,327 @@
+{
+  "schema": 1,
+  "date": "2026-10-21",
+  "environment": {
+    "platform": "win32",
+    "driverNode": "24.14.0",
+    "hostNode": "v24.21.0",
+    "dsh": "0.2.1-rc.2"
+  },
+  "scope": {
+    "installation": "official CLI offline source bundle",
+    "surface": "isolated Web profile without browser",
+    "audio": "real WPF with generated zero-amplitude local PCM",
+    "provider": "synthetic local fixtures",
+    "recommendationMode": "legacy with discovery disabled",
+    "nativeDesktop": "not_executed",
+    "realPlatformAudio": "not_executed",
+    "humanListening": "not_executed",
+    "macOS": "not_applicable"
+  },
+  "checks": [
+    {
+      "name": "isolated host started without opening a browser",
+      "status": "passed"
+    },
+    {
+      "name": "authenticated FishFM RPC and Core ready",
+      "status": "passed"
+    },
+    {
+      "name": "two real host Sessions expose distinct stable id fields",
+      "status": "passed"
+    },
+    {
+      "name": "native muted playback starts",
+      "status": "passed"
+    },
+    {
+      "name": "local next pause resume add zero LLM service calls",
+      "status": "passed"
+    },
+    {
+      "name": "playback continues with no browser client connected",
+      "status": "passed"
+    },
+    {
+      "name": "two real Agent turns overlap and finish with final text",
+      "status": "passed"
+    },
+    {
+      "name": "real concurrent Sessions do not replace current playback",
+      "status": "passed"
+    },
+    {
+      "name": "pause remains after real Session turn",
+      "status": "passed"
+    },
+    {
+      "name": "native measured progress produces one bounded silent growth application",
+      "status": "passed"
+    },
+    {
+      "name": "instant switch does not create qualifying growth",
+      "status": "passed"
+    },
+    {
+      "name": "native growth keeps the real transient Session attribution and reduced weight",
+      "status": "passed"
+    },
+    {
+      "name": "explicit summary success or failure is attributed to exactly one ledger entry and model call",
+      "status": "passed"
+    },
+    {
+      "name": "native media failure creates no positive growth",
+      "status": "passed"
+    },
+    {
+      "name": "disabling the real plugin stops Core and all native audio children",
+      "status": "passed"
+    },
+    {
+      "name": "normal plugin teardown persists closed runtime evidence",
+      "status": "passed"
+    },
+    {
+      "name": "disabled plugin contributes no music tools to an equivalent real task",
+      "status": "passed"
+    },
+    {
+      "name": "enabled tools remain static and dynamic music state is absent",
+      "status": "passed"
+    },
+    {
+      "name": "reenabling retains user pause and persisted growth",
+      "status": "passed"
+    },
+    {
+      "name": "reenabling creates one fresh Core",
+      "status": "passed"
+    },
+    {
+      "name": "isolated host shuts down",
+      "status": "passed"
+    }
+  ],
+  "hostRequests": {
+    "finalRunServiceCalls": 5,
+    "taskCalls": 4,
+    "explicitMusicCalls": 1,
+    "localPlaybackAddedCalls": 0,
+    "networkRetries": "unobserved",
+    "actualCurrencyCost": null,
+    "calls": [
+      {
+        "startedAt": 1792580823059,
+        "finishedAt": 1792580825246,
+        "finalText": true,
+        "finish": "stop",
+        "usage": {
+          "inputTokens": 934,
+          "outputTokens": 2,
+          "totalTokens": 9640,
+          "cacheReadTokens": 8704
+        },
+        "musicToolCount": 3,
+        "musicToolBytes": 1054,
+        "musicToolFingerprint": "927afb9333027b5ac0d7f46b2c238d44460d80f58c9f4b4a94bb06ae7b19e2c5",
+        "context": [
+          {
+            "role": "system",
+            "bytes": 5975,
+            "fingerprint": "6ebdd41e342faf6c3a7586f23d663fd5071928284def67923ad5ee9a90fd51ac",
+            "dynamicMusicMarkers": false
+          }
+        ]
+      },
+      {
+        "startedAt": 1792580823305,
+        "finishedAt": 1792580825404,
+        "finalText": true,
+        "finish": "stop",
+        "usage": {
+          "inputTokens": 934,
+          "outputTokens": 2,
+          "totalTokens": 9640,
+          "cacheReadTokens": 8704
+        },
+        "musicToolCount": 3,
+        "musicToolBytes": 1054,
+        "musicToolFingerprint": "927afb9333027b5ac0d7f46b2c238d44460d80f58c9f4b4a94bb06ae7b19e2c5",
+        "context": [
+          {
+            "role": "system",
+            "bytes": 5975,
+            "fingerprint": "c0a3c64de42404e6b87acdf088f14901834eb65967497d04f0dfa527d31bcd5e",
+            "dynamicMusicMarkers": false
+          }
+        ]
+      },
+      {
+        "startedAt": 1792580825657,
+        "finishedAt": 1792580827557,
+        "finalText": true,
+        "finish": "stop",
+        "usage": {
+          "inputTokens": 183,
+          "outputTokens": 2,
+          "totalTokens": 9657,
+          "cacheReadTokens": 9472
+        },
+        "musicToolCount": 3,
+        "musicToolBytes": 1054,
+        "musicToolFingerprint": "927afb9333027b5ac0d7f46b2c238d44460d80f58c9f4b4a94bb06ae7b19e2c5",
+        "context": [
+          {
+            "role": "system",
+            "bytes": 5975,
+            "fingerprint": "c0a3c64de42404e6b87acdf088f14901834eb65967497d04f0dfa527d31bcd5e",
+            "dynamicMusicMarkers": false
+          }
+        ]
+      },
+      {
+        "startedAt": 1792580839614,
+        "finishedAt": 1792580842186,
+        "finalText": true,
+        "finish": "stop",
+        "usage": {
+          "inputTokens": 154,
+          "outputTokens": 159,
+          "totalTokens": 313
+        },
+        "musicToolCount": 0,
+        "musicToolBytes": 2,
+        "musicToolFingerprint": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "context": [
+          {
+            "role": "system",
+            "bytes": 427,
+            "fingerprint": "e9b513b6f25b2c2fd45847d49b31232128b03fb25540ab1ab1a2e0aef1408c08",
+            "dynamicMusicMarkers": false
+          }
+        ]
+      },
+      {
+        "startedAt": 1792580848379,
+        "finishedAt": 1792580850756,
+        "finalText": true,
+        "finish": "stop",
+        "usage": {
+          "inputTokens": 8474,
+          "outputTokens": 2,
+          "totalTokens": 9372,
+          "cacheReadTokens": 896
+        },
+        "musicToolCount": 0,
+        "musicToolBytes": 2,
+        "musicToolFingerprint": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "context": [
+          {
+            "role": "system",
+            "bytes": 5975,
+            "fingerprint": "b8e552d13ce7908c662149e8e079b22103dac7bf5e71e879eb48d23c600a0151",
+            "dynamicMusicMarkers": false
+          }
+        ]
+      }
+    ],
+    "debuggingCalls": 7,
+    "totalServiceCallsIncludingDebugging": 12,
+    "earlierOutputLimit": {
+      "status": "failed",
+      "errorCode": "model_output_limit",
+      "usage": {
+        "inputTokens": 154,
+        "outputTokens": 256
+      }
+    }
+  },
+  "sessions": {
+    "identityField": "id",
+    "distinctSessions": 2,
+    "overlapVerified": true,
+    "playingInstanceUnchanged": true,
+    "pausedAfterFollowup": true
+  },
+  "growth": {
+    "newUpdatedJobs": 1,
+    "effectiveMs": 9418,
+    "durationMs": 16000,
+    "audible": false,
+    "sessionMatchesHost": true,
+    "transient": true,
+    "delta": 0.0044999999999999485,
+    "instantSwitchUpdated": false,
+    "mediaFailureUpdated": false,
+    "jobCountUnchangedAcrossRestart": true
+  },
+  "manualSummary": {
+    "returned": true,
+    "callCount": 1,
+    "status": "completed",
+    "usage": {
+      "inputTokens": 154,
+      "outputTokens": 159
+    },
+    "outputLimitForTest": 2048
+  },
+  "lifecycle": {
+    "trackedProcesses": [
+      {
+        "name": "DeepSeek Harness.exe",
+        "pid": 64068
+      },
+      {
+        "name": "pwsh.exe",
+        "pid": 51156
+      },
+      {
+        "name": "conhost.exe",
+        "pid": 63552
+      }
+    ],
+    "allTrackedChildrenExited": true,
+    "closedOnDisk": true,
+    "pauseRetained": true,
+    "newCoreOnReenable": true,
+    "hostExitCode": 0
+  },
+  "isolation": {
+    "modelHomeUnchanged": true,
+    "productionProfileReloaded": false,
+    "productionMusicDatabaseOpened": false,
+    "browserOpened": false,
+    "soundAudible": false,
+    "copiedSelectedCredentialRemoved": true,
+    "generatedMediaRemoved": true,
+    "temporaryProfilesRemoved": true,
+    "sourceAndGitUnchangedDuringCleanup": true
+  },
+  "regression": {
+    "tests": 539,
+    "passed": 536,
+    "failed": 0,
+    "skippedRealMedia": 3,
+    "concurrency": 2
+  },
+  "standaloneLifecycle": {
+    "passed": 14,
+    "total": 14
+  },
+  "localOnlyRunner": {
+    "passed": 14,
+    "total": 14,
+    "modelComparison": "not_executed_no_model_home",
+    "error": null
+  },
+  "validation": {
+    "checkedModules": 160,
+    "build": "passed",
+    "packageWhitelist": "passed",
+    "documentCount": 104,
+    "brokenLinks": 0,
+    "acceptanceReferences": "10/10"
+  }
+}

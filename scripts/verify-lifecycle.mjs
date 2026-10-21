@@ -122,7 +122,7 @@ if (existsSync(dbPath)) {
   tables = probe.prepare("SELECT name FROM sqlite_master WHERE type='table'").all().map((row) => row.name);
   probe.close();
 }
-check('schema is at the current version', schemaVersion === 3, `user_version=${schemaVersion}`);
+check('schema is at the current version', schemaVersion === 11, `user_version=${schemaVersion}`);
 check('expected tables exist',
   ['user_environment', 'agent_preferences', 'listen_history', 'credential_references', 'session_influence'].every((name) => tables.includes(name)),
   `${tables.length} tables`);

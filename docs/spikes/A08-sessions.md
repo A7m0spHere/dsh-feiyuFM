@@ -1,5 +1,7 @@
 # A08 多 Session 不抢占 与 A06 Session 不覆盖长期偏好
 
+后续证据：2026-10-21 的 [N24](N24-dsh-background-acceptance.md) 已在隔离真实 DSH 中确认 `session.id`、实际 Agent 并发／不抢播／暂停与停用清理。下文保留首轮离线实现及当时未验项，当前缺口只看 [PROJECT_PLAN](../PROJECT_PLAN.md)。
+
 - 日期 / 环境：2026-09-27，Windows 11，Node 24.14.0。
 - 状态：**离线实现并通过 8 项专项测试**；宿主级行为在隔离真实宿主中确认可激活，真实多会话并发与真实 session 标识字段**未验证**。
 - 相关任务：[PROJECT_PLAN](../PROJECT_PLAN.md) I1/A08/A06；验收关联 A08（多 Session 不抢占）、A06（Session 不覆盖长期偏好）。

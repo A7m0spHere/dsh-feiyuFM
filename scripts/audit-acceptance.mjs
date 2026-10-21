@@ -84,12 +84,12 @@ const EVIDENCE = [
   {
     id: 'A06', claim: '用户环境与 Agent 偏好分离，重启后保留；Session 不覆盖长期偏好',
     status: 'offline-passed',
-    files: ['test/taste.test.mjs', 'test/sessions.test.mjs', 'test/migration.test.mjs', 'docs/spikes/T1-environment.md'],
+    files: ['test/taste.test.mjs', 'test/sessions.test.mjs', 'test/migration.test.mjs', 'docs/spikes/T1-environment.md', 'docs/spikes/N24-dsh-background-acceptance.md', 'docs/spikes/assets/N24-dsh-background-results.json'],
     tests: [
       { file: 'test/sessions.test.mjs', name: 'a transient session precipitates less, and its influence is capped' }
       , { file: 'test/taste.test.mjs', name: 'a restart keeps the same personality instead of reshuffling it' },
     ],
-    unverified: '真实导入/重启与 N1 五条成长对照已验；完整多会话与长期差异未验',
+    unverified: 'N1 与 N24 已验成长来源/重启和真实短会话减权；平台组合及长期差异未验',
   },
   {
     id: 'A07', claim: 'DSH 内嵌音乐设置与 shell.overlay 悬浮条共用 Core；显示状态同步，隐藏/页面切换不停止播放',
@@ -108,27 +108,28 @@ const EVIDENCE = [
   {
     id: 'A08', claim: '多 Session 不抢占播放；插件退出停止音乐，DSH 正常工作',
     status: 'partial',
-    files: ['test/sessions.test.mjs', 'test/dsh-adapter.test.mjs', 'test/plugin-bundle.test.mjs', 'docs/spikes/A08-sessions.md'],
+    files: ['test/sessions.test.mjs', 'test/dsh-adapter.test.mjs', 'test/plugin-bundle.test.mjs', 'docs/spikes/A08-sessions.md', 'test/runtime-evidence.test.mjs', 'docs/spikes/N24-dsh-background-acceptance.md', 'docs/spikes/assets/N24-dsh-background-results.json'],
     tests: [
       { file: 'test/sessions.test.mjs', name: 'two concurrent sessions do not let the inactive one start music' },
       { file: 'test/dsh-adapter.test.mjs', name: 'stopping the bridge stops the core process, which is what unload does' },
+      { file: 'test/runtime-evidence.test.mjs', name: 'a successful close persists its final state and is immediately read as closed' },
     ],
-    unverified: '真实并发的 DSH 会话未验；真实会话标识字段名未确认',
+    unverified: 'N24 隔离 Web 已验真实并发、session.id、停用清理与重启；原生 Desktop、macOS 和真实平台组合未验',
   },
   {
     id: 'A09', claim: '逐曲零模型请求；计划内低频调用受各自门控和共享预算约束并入账，不持续注入音乐状态',
-    status: 'not-passed',
-    files: ['src/runtime/recorder.mjs', 'scripts/soak.mjs', 'test/recorder.test.mjs', 'docs/spikes/R2-soak.md', 'src/runtime/evidence.mjs', 'scripts/observe-runtime.mjs', 'docs/spikes/N0-runtime-evidence.md'],
+    status: 'partial',
+    files: ['src/runtime/recorder.mjs', 'scripts/soak.mjs', 'test/recorder.test.mjs', 'docs/spikes/R2-soak.md', 'src/runtime/evidence.mjs', 'scripts/observe-runtime.mjs', 'docs/spikes/N0-runtime-evidence.md', 'scripts/verify-dsh-integration.mjs', 'docs/spikes/N24-dsh-background-acceptance.md', 'docs/spikes/assets/N24-dsh-background-results.json'],
     tests: [
       { file: 'test/recorder.test.mjs', name: 'the recorder counts requests by kind and proves a zero model count' },
       { file: 'test/dsh-adapter.test.mjs', name: 'translates only the allowlisted session events' },
     ],
-    unverified: '两小时连续观察已由用户取消，不记为通过；完整 DSH 启停请求/上下文对照与归因仍缺',
+    unverified: 'N24 已验隔离真实启停对照、逐曲零请求及显式总结归因；默认 filtered 平台补批/自动调用组合与供应商内部重试未覆盖；两小时观察已取消',
   },
   {
     id: 'A10', claim: '静音、暂停、播放失败、进程重启不会伪增听歌次数或偏好',
     status: 'offline-passed',
-    files: ['test/faults.test.mjs', 'test/growth.test.mjs', 'test/core.test.mjs', 'docs/spikes/R1-faults.md', 'test/autonomous-accounting.test.mjs', 'docs/spikes/N1-autonomous-accounting.md'],
+    files: ['test/faults.test.mjs', 'test/growth.test.mjs', 'test/core.test.mjs', 'docs/spikes/R1-faults.md', 'test/autonomous-accounting.test.mjs', 'docs/spikes/N1-autonomous-accounting.md', 'docs/spikes/N24-dsh-background-acceptance.md', 'docs/spikes/assets/N24-dsh-background-results.json'],
     tests: [
       { file: 'test/faults.test.mjs', name: 'a login that expired mid-session stops music honestly instead of pretending' },
       { file: 'test/faults.test.mjs', name: 'a failed recovery load records the already heard segment exactly once' },

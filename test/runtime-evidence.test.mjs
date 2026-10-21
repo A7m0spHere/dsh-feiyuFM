@@ -121,6 +121,20 @@ test('close() never labels a run closed when its final write did not land', () =
   } finally { rmSync(directory, { recursive: true, force: true }); }
 });
 
+test('a successful close persists its final state and is immediately read as closed', () => {
+  const directory = mkdtempSync(join(tmpdir(), 'fishfm-evidence-final-'));
+  const evidence = createRuntimeEvidence({ directory, now: () => 1000 });
+  try {
+    evidence.event({ type: 'selected', playInstanceId: 'last-instance' });
+    evidence.close();
+    const read = readRuntimeEvidence(directory, 1000).components.core;
+    assert.equal(read.closed, true);
+    assert.equal(read.stale, true, 'a stopped process cannot look live for another 20 seconds');
+    assert.equal(read.events.at(-1).playInstanceId, 'last-instance');
+    assert.equal(evidence.report().closed, true);
+  } finally { rmSync(directory, { recursive: true, force: true }); }
+});
+
 test('a permanent write failure still reaches a reader through the failure note', () => {
   const directory = mkdtempSync(join(tmpdir(), 'fishfm-evidence-perm-'));
   let now = 1_000_000;
