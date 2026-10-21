@@ -40,6 +40,7 @@
 | 2026-10-07 | 用户收拢为“参考歌曲 → 平台候选 → LLM 严格筛选 → 本地播放”。取代 N11 直接生成歌名和 N15 仅加分不排空的默认路径；旧数据／内部兼容保留。失败仅保留同账号有效旧歌单 | [N22](spikes/N22-platform-first-recommendations.md) |
 | 2026-10-08 | 平台工作与播放控制分开排队；曲库全库搜索／后端分页，迟到平台和查询结果不可覆盖新状态。清空／重置／撤销另以输入代次取消旧导入，快照以 revision／commandVersion 去旧 | [U17](spikes/U17-control-library-fixes.md)、[REV-01](spikes/REV-01-import-reset-race.md)、[REV-03](spikes/REV-03-snapshot-ordering.md) |
 | 2026-10-18 | 固定输入证明反馈总数会丢失歌曲归属，补候选逐曲 `liked/reduced`，撤销移除；不改权重、迁移或调用次数。本地偏好仍按数据目录保存，不能宣称账号级画像隔离 | [#9 信号语义](research/PREFERENCE_SIGNALS.md) |
+| 2026-10-21 | 实际记录出现同批歌曲隔 5 首重播，30 分钟时间门控不足；用户选择最近 50 次开始优先避重复、最多 100 首多批有效入选池、缺歌时最久未播续播并允许放宽时间冷却。修订早期只按时间过滤／评分的重复策略，保留严格入选、账号／到期和预算边界 | [N25](spikes/N25-recent-playback-and-approved-pool.md) |
 
 ## 模型与验证口径
 

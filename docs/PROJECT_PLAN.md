@@ -8,11 +8,11 @@
 |---|---|
 | 产品路径 | 默认 `filtered`：参考歌曲 → 网易云候选 → LLM 筛选 → 本地播放。自动播放只取入选曲；QQ 暂缓，Last.fm 富化未开工 |
 | 已发布包 | `0.1.0-beta.3`，Windows／网易云 Beta。2026-10-13 已确认 `beta` 指向 beta.3、`latest` 保持 beta.1，公开下载摘要及 npm／官方 DSH 安装一致；范围、文件数和摘要只查 [发布记录](releases/0.1.0-beta.3.md) |
-| `main` 源码 | 已包含 beta.3 的 N23、U17/U18、DPAPI／PowerShell 5.1、REV-01–03；另有尚未随 npm 发布的 [REV-04](spikes/REV-04-host-failure-isolation.md)、推荐研究工具、逐曲反馈补齐、U19/U20 原型、[U21 反馈管理](spikes/U21-feedback-management.md) 与 [N24 退出证据修复／后台验收入口](spikes/N24-dsh-background-acceptance.md) |
-| 日常 Desktop | [N23](spikes/N23-model-route-completion.md) 证实原生正常退出重开及曲库、位置、暂停和模型选择保留。后续修复和原型未重载；源码存在不代表日常实例已加载 |
-| 最近功能验证 | 2026-10-21，Windows／Node 24.14.0：**539 项，536 通过、0 失败、3 项真实媒体跳过**（CI 配置），新增正常关闭证据落盘回归；160 模块检查（含 `.cjs`）、构建/debug smoke、包白名单通过。真实静音 WPF 另按 N24 记录，不把套件跳过当音频通过 |
-| DSH 插件验证 | [N24](spikes/N24-dsh-background-acceptance.md)：官方 DSH `0.2.1-rc.2` 隔离 Web profile 后台安装与认证 RPC、真实 Session 身份／并发／不抢播／暂停、启停请求／上下文对照、静音 WPF 成长与停用／重启共 **21/21 通过**；最终流程 5 次真实模型请求，音乐总结 1 次并入账。生成媒体／替身 Provider／关闭探索的本地兼容路径，未验真实平台和完整 filtered。U21 的界面及反馈证据保留；日常 Desktop 未重载 |
-| 最近引用审计 | 2026-10-21：104 份文档零坏链接、10/10 证据齐全。引用存在不等于验收通过；文档蒸馏的原文比对与归档边界保留 |
+| `main` 源码 | beta.3 之后的 REV-04、研究工具、反馈补齐、U19/U20 原型、U21 反馈管理、N24 退出证据修复，以及 [N25 最近 50 次播放窗口／100 首多批入选池](spikes/N25-recent-playback-and-approved-pool.md) 尚未随 npm 发布 |
+| 日常 Desktop | [N23](spikes/N23-model-route-completion.md) 曾验原生正常退出重开。N25 本轮未主动重载；只读观察到日常进程期间重启且已有新窗口和 17 首待播池设置，但最终提交完整加载状态仍为 unknown，不据此补记 Desktop 退出验收 |
+| 最近功能验证 | 2026-10-21，Windows／Node 24.14.0：**561 项，558 通过、0 失败、3 项真实媒体跳过**（CI 配置），N25 新增 22 项；164 模块检查（含 `.cjs`）、构建/debug smoke、包白名单通过。真实静音 WPF 另按 N25 记录，不把套件跳过当音频通过 |
+| DSH 插件验证 | [N25](spikes/N25-recent-playback-and-approved-pool.md)：官方 DSH `0.2.1-rc.2` 隔离 Web profile，受控 filtered／两批合成批准／本地静音 WPF 的窗口、失败、重启、12 首累计池／6 首当前批次和清理 **20/20 通过**，真实模型请求 0。[N24](spikes/N24-dsh-background-acceptance.md) 的真实模型并发／启停对照、U21 的界面／反馈证据保留；真实平台补批／音频及完整 filtered 现场组合未验 |
+| 最近引用审计 | 2026-10-21：105 份文档零坏链接、10/10 证据齐全。引用存在不等于验收通过；文档蒸馏的原文比对与归档边界保留 |
 | 真实推荐与观察 | N23：40 候选 → 9 入选 → WPF 静音进度通过；日常观察 54.72 分钟、16 条有效收听、0 播放错误，按用户要求提前结束。N24 已补隔离真实并发、启停对照、9418 ms 原生有效进度与一次 0.0045 的短会话静音成长；日常真实平台的成长应用与归因仍未补验 |
 | macOS | [移植记录](spikes/MACOS_PORT.md) 仅确认 Helper 编译与本地 desktop profile 加载；适配随 beta.3 提供，真实登录、平台音频和退出生命周期待真机验收 |
 
@@ -43,12 +43,12 @@
 | A02 导入数量与真实来源 | 离线通过＋网易云局部实测 | [N4](spikes/N4-environment-profile.md) 三种来源 UI 更新已验；自动降级的完整失败／空结果／权限轨迹与 QQ 待验 |
 | A03 开关／模式／暂停／期限 | 离线通过＋实包局部实测 | [N23](spikes/N23-model-route-completion.md) 已验四组开关、四模式和暂停优先；到期约束的完整现场覆盖仍缺 |
 | A04 用户优先与约束 | 离线通过 | [REV-01](spikes/REV-01-import-reset-race.md) 取消旧导入、[REV-03](spikes/REV-03-snapshot-ordering.md) 快照去旧及慢请求回归通过；真实会话事件与完整冲突轨迹待验 |
-| A05 候选／筛选／探索／重复 | 离线通过＋真实链路局部实测 | [N22](spikes/N22-platform-first-recommendations.md) 严格筛选边界及 N23 真实链路已有证据；模型筛选质量、按批补充的完整现场覆盖、长期体验与 QQ 待验 |
+| A05 候选／筛选／探索／重复 | 离线通过＋真实链路局部实测 | N22／N23 的严格筛选和真实链路证据保留；[N25](spikes/N25-recent-playback-and-approved-pool.md) 已验 50 次窗口、100 首池、200 次加速模拟、降级及隔离 filtered 持久化。真实平台补批完整组合、长期推荐体验与 QQ 待验 |
 | A06 环境／偏好／Session 分离 | 离线通过＋真实成长局部实测 | [N1](spikes/N1-autonomous-accounting.md) 及 [N24](spikes/N24-dsh-background-acceptance.md) 已验成长来源／重启、真实短会话身份与减权；旧导入取消有回归，长期差异及平台场景待验 |
 | A07 DSH 音乐控制 UI | 部分通过 | [U5](spikes/U5-official-desktop.md) 基础入口、P3 离开面板续播及 [U7](spikes/U7-phl-ui-motion.md) 浏览器覆盖已验；日常宿主完整主题／窄窗口／键盘和播放中浮层组合待验 |
 | A08 多 Session 与退出清理 | 部分通过 | [N24](spikes/N24-dsh-background-acceptance.md) 已补真实 Session `id`、实际模型请求并发／不抢播／暂停、Loader 停用后的 Core 与 WPF 子进程清理和重启；原生 Desktop、macOS 与真实平台组合仍待验 |
 | A09 逐曲零模型请求／低频账本 | 部分通过 | 门控／账本／故障回归与 [N24](spikes/N24-dsh-background-acceptance.md) 的真实启停任务、静态工具、逐曲零请求及显式总结归因通过；默认 filtered 平台补批／自动调用完整现场组合、供应商内部重试仍未覆盖。两小时观察已取消 |
-| A10 不伪增收听或成长 | 离线通过＋隔离原生进度实测 | [N1](spikes/N1-autonomous-accounting.md)、[REV-03](spikes/REV-03-snapshot-ordering.md) 与 [N24](spikes/N24-dsh-background-acceptance.md) 覆盖有效进度、瞬间切歌／媒体失败不成长、重启保持暂停且不重复结算；真实平台长期行为待验 |
+| A10 不伪增收听或成长 | 离线通过＋隔离原生进度实测 | N1／REV-03／N24 及 [N25](spikes/N25-recent-playback-and-approved-pool.md) 覆盖有效进度、失败不入播放窗口／不成长、重启保持暂停且不重复结算；短暂开始只影响防重复，不改变成长门槛。真实平台长期行为待验 |
 
 ## 接续顺序与所需输入
 
@@ -60,7 +60,7 @@
 
 ## 更新与交接
 
-U21 历史反馈管理与 N24 退出证据修复／验收入口均未发布 npm；范围和证据见各报告。N24 只补齐相应隔离宿主场景，将 A09 更新为部分通过，不提升完整通过数。DSH 独立 profile 的源码链接验证不等同已发布 tarball 安装验收。
+U21、N24 和 N25 均未发布 npm；范围和证据见各报告。N25 不自动重载日常插件，日常进程期间发生重启的观察不等于最终提交已完整加载。A09 保持部分通过，不提升完整通过数；独立 profile 的源码链接验证不等同已发布 tarball 安装验收。
 
 修改行为或接口时同步 MVP／契约，改变取舍时更新 [决策摘要](DECISIONS.md) 并链接证据。报告记录实际环境、命令、结果和未验项，证据缺失用 `unknown`。离线、浏览器、隔离安装、原生 Desktop 和生产验收分别标明。
 

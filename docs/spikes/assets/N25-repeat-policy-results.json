@@ -1,0 +1,178 @@
+{
+  "schema": 1,
+  "date": "2026-10-21",
+  "environment": {
+    "driverNode": "24.14.0",
+    "dsh": "0.2.1-rc.2",
+    "hostNode": "v24.21.0",
+    "platform": "win32"
+  },
+  "diagnosis": {
+    "interveningSongs": 5,
+    "elapsedMinutes": 56.7,
+    "samePlatformId": true,
+    "sameFilterBatch": true,
+    "referenceTracksAtDiagnosis": 233,
+    "currentPicksAtDiagnosis": 10
+  },
+  "policy": {
+    "recentInstances": 50,
+    "approvedPoolCapacity": 100,
+    "timeCooldownMinutes": 30,
+    "relaxation": "outside-window-first-then-least-recent",
+    "identity": "platform-track-id",
+    "schemaVersionUnchanged": true
+  },
+  "regression": {
+    "tests": 561,
+    "passed": 558,
+    "failed": 0,
+    "skippedRealMedia": 3,
+    "concurrency": 2
+  },
+  "offlineScenarios": {
+    "candidateTracks": 100,
+    "noRepeatInsideLast50": true,
+    "smallPoolTracks": 3,
+    "smallPoolRotation": "least-recent-first",
+    "newTests": 22,
+    "simulatedStartEvents": 200
+  },
+  "host": {
+    "scope": "isolated-real-dsh-web-native-repeat-policy",
+    "passed": 20,
+    "total": 20,
+    "checks": [
+      {
+        "name": "isolated host started without opening a browser",
+        "status": "passed"
+      },
+      {
+        "name": "authenticated FishFM RPC and Core ready",
+        "status": "passed"
+      },
+      {
+        "name": "two approved batches form a 12-track pool while the current batch stays at six",
+        "status": "passed"
+      },
+      {
+        "name": "two real host Sessions expose distinct stable id fields",
+        "status": "passed"
+      },
+      {
+        "name": "native muted playback starts",
+        "status": "passed"
+      },
+      {
+        "name": "local next pause resume add zero LLM service calls",
+        "status": "passed"
+      },
+      {
+        "name": "real playback starts advance the window while pause resume keeps the same instance once",
+        "status": "passed"
+      },
+      {
+        "name": "playback continues with no browser client connected",
+        "status": "passed"
+      },
+      {
+        "name": "native measured progress produces one bounded silent growth application",
+        "status": "passed"
+      },
+      {
+        "name": "instant switch does not create qualifying growth",
+        "status": "passed"
+      },
+      {
+        "name": "native media failure creates no positive growth",
+        "status": "passed"
+      },
+      {
+        "name": "a failed native media load does not advance the repeat window",
+        "status": "passed"
+      },
+      {
+        "name": "disabling the real plugin stops Core and all native audio children",
+        "status": "passed"
+      },
+      {
+        "name": "normal plugin teardown persists closed runtime evidence",
+        "status": "passed"
+      },
+      {
+        "name": "reenabling retains user pause and persisted growth",
+        "status": "passed"
+      },
+      {
+        "name": "the repeat window survives real Core restart unchanged",
+        "status": "passed"
+      },
+      {
+        "name": "both approved batches survive real Core restart",
+        "status": "passed"
+      },
+      {
+        "name": "repeat policy and pool maintenance make zero real model requests",
+        "status": "passed"
+      },
+      {
+        "name": "reenabling creates one fresh Core",
+        "status": "passed"
+      },
+      {
+        "name": "isolated host shuts down",
+        "status": "passed"
+      }
+    ],
+    "syntheticApprovals": true,
+    "initialApprovedTracks": 12,
+    "currentBatchTracks": 6,
+    "actualStartsAfterResume": 2,
+    "distinctInstancesAfterResume": 2,
+    "retainedTracksAfterRestart": 12,
+    "currentBatchTracksAfterRestart": 6,
+    "recentInstancesAfterRestart": 3,
+    "modelRequests": 0,
+    "originalPlatformAudio": "not_executed",
+    "nativeDesktop": "not_executed",
+    "macOS": "not_applicable"
+  },
+  "isolation": {
+    "browserOpened": false,
+    "audibleSound": false,
+    "generatedSilentMedia": true,
+    "provider": "local-fixture",
+    "dailyPluginReloadedByTask": false,
+    "copiedModelCredentials": false,
+    "hostExitCode": 0,
+    "temporaryProfilesRemoved": true,
+    "directProductionDatabaseWrites": false,
+    "sourceAndGitUnchangedDuringCleanup": true
+  },
+  "sourceHashes": {
+    "src/recent-playback.mjs": "04846ad991fcbf6f1ab2a873602f9a682a797b89f326b4d695eeca0bad7bd1e6",
+    "src/approved-pool.mjs": "b0b33b9cdcb111733a92665a5b303a2afdab9992b6c5cd80dda62cfb400ff788",
+    "src/selection.mjs": "089ac267d9a0fe8f95feb8fda198a5ee7a3eb85839812442c7ac29c60a5de8fa",
+    "src/core.mjs": "74994e3bbae1d96e102e7fc3164a03d926478267a3cafc98fdb0b3115dbd3eea",
+    "src/discovery.mjs": "77809e88bad92c67fdd3775e5797fe1d39de679b1c8eb0ee6c0247ffb8890b4a",
+    "src/persona.mjs": "2fb20f26fe25b00bb15309031afbcac05ddac7f53576916b0794cb1a8839b277"
+  },
+  "productionReadOnlyProjection": {
+    "access": "read-only",
+    "schema": 11,
+    "recentPlaybackProjection": 50,
+    "recentSettingAlreadyPresent": true,
+    "approvedPoolSettingAlreadyPresent": true,
+    "approvedTrackProjection": 17,
+    "loadedFinalSource": "unknown",
+    "runtimeRestartObserved": true
+  },
+  "validation": {
+    "checkedModules": 164,
+    "build": "passed",
+    "packageWhitelist": "passed",
+    "packageFiles": 4885,
+    "documentCount": 105,
+    "brokenDocumentLinks": 0
+  }
+}

@@ -14,8 +14,10 @@ if(!runtimeNode||!runtime||!output)throw new Error('Pass --runtime-node <Electro
 const root=resolve(import.meta.dirname,'..'),out=resolve(output),home=join(out,'home'),workspace=join(out,'workspace');
 if(existsSync(out))throw new Error('Acceptance output must be a new directory');
 const modelHome=arg('--model-home',null),fixture=join(root,'scripts/fixtures/dsh-acceptance');
+const repeatPolicy=process.argv.includes('--repeat-policy');
+if(repeatPolicy&&modelHome)throw new Error('--repeat-policy uses synthetic approvals and must not receive --model-home');
 mkdirSync(workspace,{recursive:true});
-const report={schema:1,startedAt:new Date().toISOString(),scope:'isolated-real-dsh-web-native-muted-local-media',
+const report={schema:1,startedAt:new Date().toISOString(),scope:repeatPolicy?'isolated-real-dsh-web-native-repeat-policy':'isolated-real-dsh-web-native-muted-local-media',
  realPlatformAudio:'not_executed',nativeDesktop:'not_executed',checks:[],phases:[],modelHomeUnchanged:null};
 const digest=p=>existsSync(p)?createHash('sha256').update(readFileSync(p)).digest('hex'):null;
 const protectedPaths=modelHome?[join(modelHome,'profiles/desktop/cordis.patch.yml'),join(modelHome,'.credentials.yaml')]:[];
@@ -23,7 +25,7 @@ const before=protectedPaths.map(digest);
 const save=()=>writeFileSync(join(out,'report.json'),JSON.stringify(report,null,2)+'\n');
 const check=(name,ok,detail)=>{report.checks.push({name,status:ok?'passed':'failed',detail});save();if(!ok)process.exitCode=1;console.log(`${ok?'PASS':'FAIL'} ${name}`);};
 const env={...process.env,ELECTRON_RUN_AS_NODE:'1',DSH_HOME:home,DSH_DESKTOP_NODE_EXECUTABLE:runtimeNode,
- FISHFM_ACCEPTANCE_MEDIA:join(out,'silent.wav'),FISHFM_ACCEPTANCE_WORKSPACE:workspace,FISHFM_PLAYBACK_WARM_HOLDERS:'0'};
+ FISHFM_ACCEPTANCE_MEDIA:join(out,'silent.wav'),FISHFM_ACCEPTANCE_WORKSPACE:workspace,FISHFM_PLAYBACK_WARM_HOLDERS:'0',FISHFM_ACCEPTANCE_REPEAT_POLICY:repeatPolicy?'1':'0'};
 function command(args,{timeout=60000}={}){
  const r=spawnSync(runtimeNode,args,{env,windowsHide:true,encoding:'utf8',timeout,maxBuffer:4*1024*1024});
  if(r.status!==0)throw new Error(`Acceptance subprocess failed (${r.status??r.error?.code}); inspect private logs`);
@@ -46,6 +48,7 @@ function dbSummary(){
  return JSON.parse(command(['-e',code]));
 }
 const alive=pid=>{try{process.kill(pid,0);return true;}catch{return false;}};
+const recentState=()=>JSON.parse(command(['-e',`const{DatabaseSync}=require('node:sqlite');const d=new DatabaseSync(${JSON.stringify(join(home,'fishfm/music.sqlite'))},{readOnly:true});const r=d.prepare("SELECT value_json FROM settings WHERE key='recent_playback_v1'").get();console.log(r?.value_json??'null');d.close();`]));
 function processTree(parent){
  const r=spawnSync('powershell.exe',['-NoProfile','-NonInteractive','-Command',
   'Get-CimInstance Win32_Process | Select-Object ProcessId,ParentProcessId,Name | ConvertTo-Json -Compress'],{windowsHide:true,encoding:'utf8',timeout:15000});
@@ -70,6 +73,11 @@ try{
  if(!cookie)throw new Error('DSH launch-token exchange returned no authenticated cookie');
  const ready=await until(async()=>{try{return await state();}catch(e){report.lastRpcError=e.message;save();return null;}},{timeout:45000});
  check('authenticated FishFM RPC and Core ready',Boolean(ready.snapshot));
+ if(repeatPolicy){
+  const pipeline=ready.persona?.recommendationPipeline;
+  report.repeatPolicy={syntheticApprovals:true,initial: pipeline};
+  check('two approved batches form a 12-track pool while the current batch stays at six',pipeline?.playbackPool?.total===12&&pipeline.tracks.length===6);
+ }
  report.initialProbe=await probe({op:'status'});save();
  console.log('READY_FOR_ACCEPTANCE');
  // The remainder is deliberately driven by real RPCs and Session objects.
@@ -84,6 +92,10 @@ try{
  await control('next');await until(async()=>(await state()).snapshot.status==='playing',{timeout:45000});
  await control('pause');await control('resume');await until(async()=>(await state()).snapshot.status==='playing',{timeout:15000});
  check('local next pause resume add zero LLM service calls',(await probe({op:'status'})).calls.length===quietBefore);
+ if(repeatPolicy){
+  const recent=recentState();report.repeatPolicy.afterResume=recent;
+  check('real playback starts advance the window while pause resume keeps the same instance once',recent.entries.length===2&&new Set(recent.entries.map(e=>e.playInstanceId)).size===2&&recent.entries[0].trackKey!==recent.entries[1].trackKey);
+ }
  const beforeHidden=(await state()).snapshot.current.playInstanceId;await pause(1500);
  check('playback continues with no browser client connected',(await state()).snapshot.current.playInstanceId===beforeHidden);
  if(modelHome){
@@ -127,17 +139,20 @@ try{
  }
  // A missing native media file must not create a positive listening signal.
  const failureBefore=dbSummary();
+ const recentBeforeFailure=repeatPolicy?recentState():null;
  await rpc('fishfm/command',{type:'requestTrack',track:{provider:'netease',providerTrackId:'acceptance-broken',title:'Missing fixture',artist:'Fixture',durationMs:16000}});
  await control('resume');
  await until(async()=>{const s=(await state()).snapshot;return s.lastError||s.status==='error';},{timeout:20000});
  await control('pause');
  const failureAfter=dbSummary();report.nativeFailure={beforeJobs:failureBefore.jobs.length,afterJobs:failureAfter.jobs.length,error:(await state()).snapshot.lastError};save();
  check('native media failure creates no positive growth',failureAfter.jobs.filter(j=>j.result?.updated).length===failureBefore.jobs.filter(j=>j.result?.updated).length);
+ if(repeatPolicy)check('a failed native media load does not advance the repeat window',JSON.stringify(recentState())===JSON.stringify(recentBeforeFailure));
  // Disable through the real Loader, then inspect processes and on-disk evidence.
  await until(()=>{const p=join(home,'fishfm/runtime/core.json');return existsSync(p);});
  const corePid=JSON.parse(readFileSync(join(home,'fishfm/runtime/core.json'))).pid;
  const ownedProcesses=processTree(corePid);report.ownedProcesses=ownedProcesses;save();
  const beforeDisable=dbSummary();
+ const recentBeforeDisable=repeatPolicy?recentState():null;
  await probe({op:'toggle',disabled:true});
  await until(()=>ownedProcesses.every(p=>!alive(p.pid)),{timeout:20000});
  check('disabling the real plugin stops Core and all native audio children',ownedProcesses.length>=2&&ownedProcesses.every(p=>!alive(p.pid)));
@@ -155,6 +170,12 @@ try{
  await probe({op:'toggle',disabled:false});
  const reopened=await until(async()=>{try{return await state();}catch{return null;}},{timeout:30000});
  check('reenabling retains user pause and persisted growth',reopened.snapshot.paused===true&&dbSummary().jobs.length===beforeDisable.jobs.length);
+ if(repeatPolicy){
+  report.repeatPolicy.afterRestart={recent:recentState(),pipeline:reopened.persona?.recommendationPipeline};
+  check('the repeat window survives real Core restart unchanged',JSON.stringify(recentState())===JSON.stringify(recentBeforeDisable));
+  check('both approved batches survive real Core restart',reopened.persona?.recommendationPipeline?.playbackPool?.total===12&&reopened.persona.recommendationPipeline.tracks.length===6);
+  check('repeat policy and pool maintenance make zero real model requests',(await probe({op:'status'})).calls.length===0&&dbSummary().calls.length===0);
+ }
  const newCorePid=JSON.parse(readFileSync(join(home,'fishfm/runtime/core.json'))).pid;
  check('reenabling creates one fresh Core',newCorePid!==corePid&&alive(newCorePid));
  report.beforeShutdown=dbSummary();save();

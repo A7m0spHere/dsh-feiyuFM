@@ -2,6 +2,8 @@ import { randomUUID } from 'node:crypto';
 import { assertCommand, MusicError, normalizeTrack, trackId } from './contracts.mjs';
 import {setTrackFeedback,resetRecommendationTaste,undoRecommendationReset} from './feedback.mjs';
 import {modelRecommendations} from './model-recommendations.mjs';
+import {createSelector} from './selection.mjs';
+import {initializeRecentPlayback,recordPlaybackStart} from './recent-playback.mjs';
 
 async function resolveWithTimeout(provider, track, signal, version, timeoutMs) {
   const attempt = new AbortController();
@@ -58,8 +60,8 @@ export class MusicCore {
     this.store = store;
     this.provider = provider;
     this.playback = playback;
-    // Optional local selector. It is only consulted for autonomous playback;
-    // explicit user commands never go through it.
+    // Ordinary next and autonomy share the policy; an explicit point request
+    // remains the user's intentional replay exception.
     this.selector = selector;
     /**
      * The session currently being used, set by the host from session events.
@@ -79,6 +81,7 @@ export class MusicCore {
     this.onListened = onListened;
     this.onLog = onLog;
     this.clock = clock;
+    this.queueSelector=createSelector({store,isPlayable:track=>store.isTrackAvailable(track,clock.now()),now:()=>clock.now()});
     const saved = store.getCoreState();
     this.state = saved ? {
       ...saved,
@@ -100,6 +103,7 @@ export class MusicCore {
     this.autoFailures = 0;
     this.abortController = null;
     this.tasks = new Set();
+    initializeRecentPlayback(store);
     this.store.setCoreState(this.state);
   }
 
@@ -343,14 +347,6 @@ export class MusicCore {
     await stage('play', () => this.playback.play({ playInstanceId: current.playInstanceId, version }));
   }
 
-  _takeNext() {
-    while (this.state.queue.length) {
-      const next = this.state.queue.shift();
-      if (!this._blockedTrack(next)) return next;
-    }
-    return null;
-  }
-
   dispatch(rawCommand) {
     const command = assertCommand(rawCommand);
     if (this.store.hasCommand(command.commandId)) return this.snapshot();
@@ -372,27 +368,26 @@ export class MusicCore {
         }
         break;
       case 'next': {
-        const queued = this._takeNext();
         const exclude = this.state.current ? [trackId(this.state.current.track)] : [];
         const rate = this.state.settings.discovery ? this.state.settings.discoveryRate : 0;
-        let decision = queued ? {track:queued,pool:'queue',attemptedDiscovery:false} : this.selector?.next({
-          discoveryRate: rate,
-          at: now,
-          excludeTrackKeys: exclude,
-        });
+        const selector=this.selector??this.queueSelector;
+        const options={discoveryRate:rate,at:now,excludeTrackKeys:exclude,queuedTracks:this.state.queue};
+        let decision = selector.next({...options,allowRepeatFallback:false});
         // 用户明确要求换曲：模型歌单没有可播曲目（未核对/冷却/不可用）时
         // 回退到输入曲库，而不是报错收场；自主续播不受此影响。
-        if (!queued && !decision?.track) {
+        if (this.selector&&!decision?.track) {
           decision = this.selector?.next({
-            discoveryRate: rate,
-            at: now,
-            excludeTrackKeys: exclude,
-            libraryFallback: true,
+            ...options,libraryFallback:true,allowRepeatFallback:false,
           });
           if (decision?.track) {
             decision = { ...decision, fellBack: true,
               fallbackReason: '模型歌单暂时没有可播的曲目，已回退你的输入曲库' };
           }
+        }
+        if(!decision?.track)decision=selector.next(options);
+        if(this.selector&&!decision?.track){
+          decision=this.selector.next({...options,libraryFallback:true});
+          if(decision?.track)decision={...decision,fellBack:true,fallbackReason:'模型歌单暂时没有可播的曲目，已回退你的输入曲库'};
         }
         if (!decision?.track) {
           throw new MusicError('no_candidates', this._noCandidatesReason(true));
@@ -530,8 +525,8 @@ export class MusicCore {
       if (!playlist) return '还没有模型歌单，请先根据歌曲推荐一批。';
       if (!playlist.verified.length) return '推荐歌单还没有确认可播放的歌曲，请查看各首状态后重新确认。';
       return fallbackAttempted
-        ? '模型歌单和输入曲库都没有可播的歌曲：候选是正在播的这首、刚播过（30 分钟内不重复）或被播放规则排除了，请稍后再试或更新歌单。'
-        : '模型歌曲都是正在播的这首、刚播过（30 分钟内不重复）或被播放规则排除了，请稍后再试或更新歌单。';
+        ? '模型歌单和输入曲库都没有其他可播歌曲：当前曲目、禁播和不可播限制不能放宽，请稍后再试或更新歌单。'
+        : '模型歌单暂时没有其他可播歌曲：当前曲目、禁播和不可播限制不能放宽，请稍后再试或更新歌单。';
     }
     return '现在没有可自动播放的歌曲：曲库为空或候选刚播过、被规则排除。';
   }
@@ -543,10 +538,11 @@ export class MusicCore {
     // environment and platform candidates; otherwise the fixed debug queue is
     // used. Either way, no user command is involved and nothing is retried
     // when there is nothing to play.
-    const decision = this.selector ? this.selector.next({
+    const decision = (this.selector??this.queueSelector).next({
         discoveryRate: this.state.settings.discovery ? this.state.settings.discoveryRate : 0,
         at: this.clock.now(),
-      }) : {track:this._takeNext(),pool:'queue',attemptedDiscovery:false};
+        queuedTracks:this.selector?[]:this.state.queue,
+      });
     return this._applyRecommendation(decision,{trigger:'automatic',keepPaused:false});
   }
 
@@ -570,7 +566,10 @@ export class MusicCore {
       };
     this.onLog({ type: 'selection', ...this.state.lastSelection });
     this.store.transaction(()=>{
-      if(next)this._select(next,'agent',keepPaused);else this._commit();
+      if(next){
+        if(decision.pool==='queue'){const index=this.state.queue.findIndex(t=>trackId(t)===trackId(next));if(index>=0)this.state.queue.splice(index,1);}
+        this._select(next,'agent',keepPaused);
+      }else this._commit();
       if(decision){
         const log=this.store.getSetting('decision_history_v1',[]);
         log.push({...this.state.lastSelection,playInstanceId:next?this.state.current.playInstanceId:null});
@@ -592,7 +591,7 @@ export class MusicCore {
       // 播放真正开始即证明解析层错误已过时：过期句柄重解析成功后若保留
       // lastError，界面会在音乐正常播放时继续显示「播放未成功」。
       this.state.lastError = null;
-      this._commit();
+      this.store.transaction(()=>{recordPlaybackStart(this.store,current,current.startedAt);this._commit();});
       return true;
     }
     if (event.type === 'progress') {
@@ -603,6 +602,10 @@ export class MusicCore {
       const positionalDelta = nextPosition - current.positionMs;
       const delta = Number.isFinite(event.effectiveDeltaMs)
         ? Math.max(0, Math.min(positionalDelta, event.effectiveDeltaMs)) : positionalDelta;
+      // A measured advance also proves playback started if its start event was
+      // missing; a seek/position-only update with zero effective delta does not.
+      const firstAdvance=delta>0&&!Number.isFinite(current.startedAt);
+      if(firstAdvance)current.startedAt=this.clock.now();
       current.effectiveMs = (current.effectiveMs ?? 0) + delta;
       if (current.selectedBy === 'agent' && this.state.settings.listening) current.agentEffectiveMs = (current.agentEffectiveMs ?? 0) + delta;
       if (event.progressSource !== 'logical' && this.state.settings.humanPlayback) current.audibleMs = (current.audibleMs ?? 0) + delta;
@@ -611,7 +614,8 @@ export class MusicCore {
       current.progressSource = event.progressSource === 'logical' ? 'logical' : 'audio';
       current.agentListening ||= current.selectedBy === 'agent' && this.state.settings.listening;
       current.audible ||= current.progressSource === 'audio' && this.state.settings.humanPlayback;
-      this._commit();
+      if(firstAdvance)this.store.transaction(()=>{recordPlaybackStart(this.store,current,current.startedAt);this._commit();});
+      else this._commit();
       return true;
     }
     if ((event.type === 'ended' || event.type === 'error') && this.state.paused) return false;

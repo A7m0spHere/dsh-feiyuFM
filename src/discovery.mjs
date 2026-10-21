@@ -4,6 +4,7 @@ import { collectDiscovery } from './providers/coordinator.mjs';
 import {selectRecommendationSeeds} from './recommendation.mjs';
 import {trackFeedback} from './feedback.mjs';
 import { randomUUID, createHash } from 'node:crypto';
+import {APPROVED_POOL_KEY,approvedPlaybackTracks} from './approved-pool.mjs';
 export const DISCOVERY_PARAMETERS = Object.freeze({ limit: 40, capacity: 200, ttlMs: 6 * 60 * 60_000,
   lowWater: 10, intervalMs: 30 * 60_000, manualIntervalMs: 60_000, retryMs: 5 * 60_000 });
 export function createDiscoveryCache({ registry, store = null, now = () => Date.now(), onLog = () => {}, parameters = DISCOVERY_PARAMETERS } = {}) {
@@ -34,7 +35,7 @@ export function createDiscoveryCache({ registry, store = null, now = () => Date.
     if (key === owner) return;
     owner = key; generation++; candidateRevision = randomUUID(); controller?.abort(); entries = []; lastSuccessAt = null;
     lastAttemptAt = null; nextAttemptAt = 0; reason = null; state = enabled ? 'idle' : 'disabled';
-    try { store?.removeSetting?.('discovery_filter_v1'); } catch { /* a lost filter result is the safe direction */ }
+    try { store?.removeSetting?.('discovery_filter_v1');store?.removeSetting?.(APPROVED_POOL_KEY); } catch { /* a lost filter result is the safe direction */ }
     persist(); notify();
   };
   owner = accountKey();
@@ -135,6 +136,7 @@ export function createDiscoveryCache({ registry, store = null, now = () => Date.
     tracks() { synchronizeAccount(); return enabled ? stamped(usable()) : []; }, status, refresh,
     candidates() { synchronizeAccount(); return enabled ? candidates() : []; },
     recommendations() { synchronizeAccount(); return enabled ? recommendations() : []; },
+    playbackRecommendations() {synchronizeAccount();return enabled&&store?approvedPlaybackTracks(store,createHash('sha256').update(owner??'').digest('hex'),now()):[];},
     setEnabled(value) {
       if (enabled === Boolean(value)) return;
       enabled = Boolean(value); generation++;
@@ -147,7 +149,7 @@ export function createDiscoveryCache({ registry, store = null, now = () => Date.
       if (enabled && !inflight && now() >= nextAttemptAt && (usable().length < parameters.lowWater || entries.some(t => t.discovery.expiresAt <= now()))) void refresh();
     },
     clear() { generation++; candidateRevision = randomUUID(); controller?.abort(); entries = []; lastSuccessAt = null; nextAttemptAt = 0; state = enabled ? 'idle' : 'disabled';
-      try { store?.removeSetting?.('discovery_filter_v1'); } catch { /* nothing to keep */ }
+      try { store?.removeSetting?.('discovery_filter_v1');store?.removeSetting?.(APPROVED_POOL_KEY); } catch { /* nothing to keep */ }
       persist(); notify(); },
     onChange(fn) { listeners.add(fn); return () => listeners.delete(fn); },
     close() { generation++; enabled = false; controller?.abort(); listeners.clear(); },

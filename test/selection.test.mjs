@@ -132,7 +132,7 @@ test('nothing to play returns a decision with no track so the caller waits', () 
   }
 });
 
-test('a recent play is penalised and then excluded by its cooldown', () => {
+test('recent playback order survives time cooldown and only exhaustion permits a replay', () => {
   const store = storeWithTracks(['1', '2']);
   try {
     // Realistic epoch-scale timestamps: a window subtraction must stay positive.
@@ -143,24 +143,25 @@ test('a recent play is penalised and then excluded by its cooldown', () => {
     const decision = selector.decide({ discoveryRate: 0, at: now });
     assert.equal(decision.track.providerTrackId, '2', 'the just-played track must lose to a fresh one');
     assert.equal(decision.detail.repeatPlays, 0);
-    assert.deepEqual(decision.considered, { familiar: 2, discovery: 0, offered: 2 });
+    assert.deepEqual(decision.considered, { familiar: 1, discovery: 0, offered: 2 });
 
-    // Track 2 played 5 minutes ago: inside cooldown, so it is not a candidate.
-    // Track 1's own 30-minute cooldown has already expired, so it is back.
+    // With no song outside the count window, choose the oldest one.
     recordPlay(store, n('2'), now - 5 * 60 * 1000);
     const cooled = selector.decide({ discoveryRate: 0, at: now });
     assert.equal(cooled.track?.providerTrackId, '1', 'the cooling track is excluded, the expired one is available');
     assert.deepEqual(cooled.considered, { familiar: 1, discovery: 0, offered: 2 });
+    assert.equal(cooled.detail.repeat.reason,'recent-exhausted');
 
-    // With both cooling down there is genuinely nothing to play.
+    // Both cooling: keep playing the oldest non-current song, visibly relaxed.
     recordPlay(store, n('1'), now - 5 * 60 * 1000);
     const bothCooling = selector.decide({ discoveryRate: 0, at: now });
-    assert.equal(bothCooling.track, null, 'both candidates are cooling down');
-    assert.equal(bothCooling.reason, 'every candidate was filtered out');
+    assert.equal(bothCooling.track.providerTrackId,'2');
+    assert.equal(bothCooling.detail.repeat.reason,'recent-exhausted');
 
     // 31 minutes later the cooldown has passed for both again.
     const later = selector.decide({ discoveryRate: 0, at: now + 31 * 60 * 1000 });
     assert.ok(later.track, 'after the cooldown window a track is selectable again');
+    assert.equal(later.detail.repeat.reason,'recent-exhausted','elapsed time does not clear the playback-count window');
   } finally {
     store.close();
   }

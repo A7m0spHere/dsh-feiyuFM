@@ -14,6 +14,7 @@ import { MusicStore } from './storage.mjs';
 import { MusicCore } from './core.mjs';
 import { FakePlayback } from './fakes.mjs';
 import { createSelector } from './selection.mjs';
+import {repeatContext} from './recent-playback.mjs';
 import { createRng, readAgentSeed, initializeAgentPreferences, describeTaste } from './taste.mjs';
 import { importSeedTracks, describeEnvironment, describeEnvironmentProfile } from './environment.mjs';
 import { applyListenGrowth, decayPreferences, describeGrowth } from './growth.mjs';
@@ -170,7 +171,7 @@ export function buildSelector({ store, now = () => Date.now(), rng = null, listD
     // can play. Keep novelty accounting without treating the playlist as two
     // unrelated pools that can randomly produce "no candidates".
     const decision=selector.next(options);
-    if(recommendationMode(store)==='filtered'&&decision.track&&!options.libraryFallback){
+    if(recommendationMode(store)==='filtered'&&decision.track&&decision.pool!=='queue'&&!options.libraryFallback){
       const unfamiliar=!familiar(decision.track);
       return {...decision,pool:unfamiliar?'discovery':'familiar',fellBack:false,fallbackReason:null,attemptedDiscovery:unfamiliar};
     }
@@ -227,9 +228,11 @@ export function createProviderFacade({ registry, store = null, now = () => Date.
   const discovery = createDiscoveryCache({ registry, store, now, onLog });
   const modelResolver=createModelRecommendationResolver({store,registry,now,onChange:()=>listeners.forEach(fn=>fn())});
   const listeners=new Set();
-  const consumed=new Map((store?.db.prepare('SELECT track_key,ended_at FROM listen_history WHERE ended_at>? ORDER BY ended_at DESC LIMIT 500').all(now()-30*60_000)??[])
-    .map(row=>[row.track_key,row.ended_at]));
-  const fresh = track => (consumed.get(`${track.provider}:${track.providerTrackId}`)??-Infinity)<=now()-30*60_000;
+  const freshTracks = tracks => {
+    const recent=repeatContext(store),current=store?.getCoreState()?.current?.track;
+    const currentKey=current?`${current.provider}:${current.providerTrackId}`:recent.lastTrackKey;
+    return tracks.filter(track=>{const key=`${track.provider}:${track.providerTrackId}`;return !recent.keys.has(key)&&key!==currentKey;});
+  };
 
   return {
     registry,
@@ -243,25 +246,24 @@ export function createProviderFacade({ registry, store = null, now = () => Date.
 
     /** Synchronous, cache-only: the selector must not perform network I/O. */
     discoveryTracks: () => recommendationMode(store)==='filtered'
-      ? discovery.recommendations().filter(track=>track.provider==='netease') : discovery.tracks(),
-    recommendationCandidates: () => {const current=store?.getCoreState()?.current?.track;
-      return discovery.candidates().filter(track=>track.provider==='netease'&&fresh(track)
-        &&(!current||track.provider!==current.provider||track.providerTrackId!==current.providerTrackId));},
-    markRecommendationConsumed: (track,endedAt=now()) => {
-      for(const [key,at] of consumed)if(at<=now()-30*60_000)consumed.delete(key);
-      const at=Number.isFinite(endedAt)?Math.min(now(),endedAt):now();
-      if(at>now()-30*60_000)consumed.set(`${track.provider}:${track.providerTrackId}`,at);
-    },
+      ? discovery.playbackRecommendations().filter(track=>track.provider==='netease') : discovery.tracks(),
+    recommendationCandidates: () => freshTracks(discovery.candidates().filter(track=>track.provider==='netease')),
     // LLM 模式下平台候选同样进入缓存，供 LLM 筛选（探索池）；歌单核对信息单列。
     discoveryStatus: () => {
       const status = discovery.status();
       if(recommendationMode(store)==='filtered'){
         const picks=discovery.recommendations().filter(track=>track.provider==='netease');
         const filter=store.getSetting('discovery_filter_v1',null);
+        const approved=discovery.playbackRecommendations(),recent=repeatContext(store);
+        const settings=store.getCoreState()?.settings;
+        const liked=new Set(settings&&(settings.discovery===false||settings.discoveryRate===0)?store.listLikedTracks().map(r=>r.track_key):[]);
+        const permitted=settings&&(settings.discovery===false||settings.discoveryRate===0)
+          ?approved.filter(t=>store.getEnvironmentEntry(t)||store.hasEffectiveListen(t)||liked.has(`${t.provider}:${t.providerTrackId}`)):approved;
         const selectionComplete=filter?.source==='llm-discovery-filter'&&filter.candidateRevision===status.candidateRevision;
         return {...status,pipeline:'platform-filter',count:discovery.candidates().filter(track=>track.provider==='netease').length,
-          picked:picks.length,remaining:picks.filter(fresh).length,filterCallId:filter?.callId??null,
+          picked:picks.length,remaining:freshTracks(picks).length,filterCallId:filter?.callId??null,
           tracks:picks.slice(0,12),summary:selectionComplete||picks.length?filter?.text??'':'',selectionComplete,
+          playbackPool:{total:approved.length,available:freshTracks(permitted).length,recentBlocked:approved.filter(t=>recent.keys.has(`${t.provider}:${t.providerTrackId}`)).length},
           referenceCount:store.countEnvironment(),playlist:null};
       }
       if (recommendationMode(store) !== 'llm') return status;
@@ -597,7 +599,7 @@ export function createCoreHost({
           return;
         }
         case 'persona-start':{const started=startSummary(store,message.callId);profileCache.valid=false;send({type:'result',id,ok:true,started});return;}
-        case 'persona-finish':{const result=finishSummary({store,...message,now:now(),candidateRevision:platformsFacade?.discoveryStatus?.().candidateRevision??null});invalidateProfile();
+        case 'persona-finish':{const status=platformsFacade?.discoveryStatus?.();const result=finishSummary({store,...message,now:now(),candidateRevision:status?.candidateRevision??null,candidateOwner:status?.candidateOwner});invalidateProfile();
           if(result.success)store.removeSetting('recommendation_error_v1');
           platformsFacade?.setDiscoveryEnabled(core.snapshot().settings.discovery&&core.snapshot().settings.discoveryRate>0);
           if(message.status==='completed'&&result.success&&recommendationMode(store)==='filtered')core.selectAutonomously();
@@ -834,7 +836,6 @@ export function createCoreHost({
         // A finished listen is reported here; growth policy decides what, if
         // anything, it changes about the agent's preferences.
         onListened: (entry) => {
-          platformsFacade?.markRecommendationConsumed?.(entry.track,entry.endedAt);
           const sessionId = entry.sessionId ?? null;
           const report = applyListenGrowth({
             store, entry, durationMs: entry.durationMs, now: now(),

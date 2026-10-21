@@ -1192,6 +1192,8 @@ window.__ModuleLoader__.load({
       const { ledger, policy } = view;
       const pipeline = view.recommendationPipeline ?? state.snapshot?.discovery ?? {};
       const tracks = pipeline.pipeline === 'platform-filter' ? pipeline.tracks ?? [] : [];
+      const playbackPool=pipeline.playbackPool;
+      const repeatFallback=state.snapshot?.current?.selectedBy==='agent'&&state.snapshot?.lastSelection?.detail?.repeat?.reason==='recent-exhausted';
       const routes = state.summaryModels ?? [], key = route => JSON.stringify([route.provider, route.model]);
       const saved = view.recommendationRoute ?? view.lastModelRoute;
       const previous = saved && routes.find(route => route.provider === saved.provider && route.model === saved.model);
@@ -1229,6 +1231,8 @@ window.__ModuleLoader__.load({
       return h('section', { 'aria-label': '大肥鱼的歌单' },
         h('h2', null, '大肥鱼的歌单'),
         h('div', { className: 'fm-card fm-persona-card', 'aria-busy':Boolean(busy) },
+          state.connected&&playbackPool&&h('p',{className:'fm-note'},`待播池 ${playbackPool.total} 首 · 窗口外可选 ${playbackPool.available} 首 · 近期暂避 ${playbackPool.recentBlocked} 首`),
+          state.connected&&repeatFallback&&h('p',{className:'fm-note'},'可用新曲不足，先重播较早的歌曲。'),
           h('div', { className: 'fm-picks-head' }, h('p', { className: 'fm-note', role: 'status', 'aria-live': 'polite' }, status),
             h('button', { type: 'button', className: 'fm-button fm-primary', disabled: disabled || busy || action.disabled || !route || !referenceCount || !state.features?.personaSummary,
               onClick: () => controller.personaAction('recommendations', { provider: route.provider, model: route.model }) }, busy ? filtering?'正在挑歌…':'正在找歌…' : action.label|| (state.summaryError?'再试一次':tracks.length ? '换一批' : '找一批歌'))),

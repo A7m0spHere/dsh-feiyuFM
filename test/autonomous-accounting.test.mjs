@@ -72,7 +72,8 @@ test('an unplayable autonomous candidate is excluded and replacement has a finit
 });
 test('a restarted selector continues the persisted random stream', async () => {
   const store = new MusicStore(), playback = new FakePlayback(), provider = new FakeProvider();
-  importSeedTracks({ store, provider: 'netease', source: 'recent', requested: 1, tracks: [track] });
+  importSeedTracks({ store, provider: 'netease', source: 'recent', requested: 3,
+    tracks: [track,{...track,providerTrackId:'rng-2'},{...track,providerTrackId:'rng-3'}] });
   initializeAgentPreferences({ store, seed: 123 });
   const selector = buildSelector({ store });
   const core = new MusicCore({ store, provider, playback, selector });

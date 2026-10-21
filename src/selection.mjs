@@ -16,6 +16,7 @@ import { createRng, getArtistAffinity } from './taste.mjs';
 import {describeEnvironmentProfile} from './environment.mjs';
 import {artistKeys} from './recommendation.mjs';
 import {feedbackScore,trackFeedback} from './feedback.mjs';
+import {repeatContext,repeatTier,RECENT_PLAYBACK_LIMIT} from './recent-playback.mjs';
 
 /**
  * First-pass parameters, recorded here and in docs/DECISIONS.md section 12.
@@ -32,7 +33,7 @@ export const SELECTION_PARAMETERS = Object.freeze({
   repeatPenalty: 0.45,
   /** How far back a play still counts as a repeat. */
   repeatWindowMs: 6 * 60 * 60 * 1000,
-  /** Tracks played inside this window are excluded outright. */
+  /** Preferred time cooldown; relaxed only when no normal candidate remains. */
   cooldownMs: 30 * 60 * 1000,
   /** Size of the random tie-breaking term. */
   randomWeight: 0.1,
@@ -62,7 +63,7 @@ export function bannedTrackKeys(store, now) {
  */
 export function recentPlays(store, { now, windowMs, limit }) {
   const rows = store.db.prepare(
-    'SELECT track_key, ended_at FROM listen_history WHERE ended_at > ? ORDER BY ended_at DESC LIMIT ?',
+    'SELECT track_key, ended_at FROM listen_history WHERE ended_at > ? AND effective_ms>0 ORDER BY ended_at DESC,rowid DESC LIMIT ?',
   ).all(now - windowMs, limit);
   const plays = new Map();
   for (const row of rows) {
@@ -120,7 +121,7 @@ export function scoreCandidate({
     repeatPenalty,
     freshness,
     randomValue,
-    relationship,seedAffinity,environment,diversityPenalty,userFeedback,feedback,llmRank,llmBoost,graphAffinity,algorithm:'local-v5',
+    relationship,seedAffinity,environment,diversityPenalty,userFeedback,feedback,llmRank,llmBoost,graphAffinity,algorithm:'local-v6',
   };
 }
 
@@ -150,6 +151,10 @@ export function createSelector({
     const rate = clampRate(discoveryRate);
     const banned = bannedTrackKeys(store, at);
     const excluded = new Set(excludeTrackKeys);
+    const recent=repeatContext(store);
+    const current=store.getCoreState()?.current?.track;
+    const currentKey=current?trackId(current):recent.lastTrackKey;
+    if(currentKey)excluded.add(currentKey);
     const plays = recentPlays(store, { now: at, windowMs: parameters.repeatWindowMs, limit: parameters.historyWindow });
     // 最近自然听完的歌驱动相似图关联项；与 plays（含跳过）不同源。
     const recentPositive=store.db.prepare("SELECT track_key FROM listen_history WHERE end_reason='ended' ORDER BY ended_at DESC LIMIT 5").all().map(r=>r.track_key);
@@ -161,23 +166,26 @@ export function createSelector({
     }
 
     const prepare = (tracks) => {
-      const all = tracks.map((track) => ({ track, key: trackId(track) }));
+      const all = [...new Map(tracks.map(track=>[trackId(track),{track,key:trackId(track)}])).values()];
       const usable = all
-        .filter(({ track, key }) => !banned.has(key) && !excluded.has(key) && isPlayable(track))
-        // A track inside its cooldown is deliberately not a candidate at all.
-        .filter(({ key }) => {
-          const play = plays.get(key);
-          return !play || at - play.lastPlayedAt >= parameters.cooldownMs;
-        });
+        .filter(({ track, key }) => !banned.has(key) && !excluded.has(key) && store.isTrackAvailable(track,at) && isPlayable(track));
       return { all, usable };
     };
 
     const familiarPool = prepare(listFamiliar(options));
     const discoveryPool = prepare(listDiscovery(options));
-    const familiar = familiarPool.usable;
-    const discovery = discoveryPool.usable;
-    const offered = familiarPool.all.length + discoveryPool.all.length;
+    const queuePool=prepare(options.queuedTracks??[]);
+    const offered = familiarPool.all.length + discoveryPool.all.length+queuePool.all.length;
     const wantsDiscovery = rate > 0 && (rate >= 1 || rng() < rate);
+    const tierOf=key=>repeatTier(key,{recent,plays,at,cooldownMs:parameters.cooldownMs});
+    const maxTier=options.allowRepeatFallback===false?1:2;
+    let tier=0,familiar=[],discovery=[],queue=[];
+    for(;tier<=maxTier;tier++){
+      familiar=familiarPool.usable.filter(c=>tierOf(c.key)===tier);
+      discovery=rate>0?discoveryPool.usable.filter(c=>tierOf(c.key)===tier):[];
+      queue=queuePool.usable.filter(c=>tierOf(c.key)===tier);
+      if(familiar.length||discovery.length||queue.length)break;
+    }
 
     const pick = (pool) => {
       let best = null;
@@ -191,29 +199,31 @@ export function createSelector({
       return best;
     };
 
-    const considered = { familiar: familiar.length, discovery: discovery.length, offered };
+    const considered = { familiar: familiar.length, discovery: discovery.length, offered,...(queuePool.all.length?{queue:queue.length}:{}) };
+    const finish=(best,pool)=>({track:best.track,pool,fellBack:pool!=='discovery'&&wantsDiscovery,
+      fallbackReason:pool!=='discovery'&&wantsDiscovery?'discovery pool had no usable track':null,
+      score:best.detail.score,detail:{...best.detail,repeat:{window:RECENT_PLAYBACK_LIMIT,
+        relaxed:tier>0,reason:tier===2?'recent-exhausted':tier===1?'cooldown-exhausted':null,
+        distance:recent.positions.has(best.key)?recent.entries.length-recent.positions.get(best.key).index:null}},
+      considered,discoveryRate:rate,attemptedDiscovery:wantsDiscovery});
+
+    if(tier===2&&(queue.length||familiar.length||discovery.length)){
+      const candidates=[...queue.map(c=>({...c,pool:'queue'})),...familiar.map(c=>({...c,pool:'familiar'})),...discovery.map(c=>({...c,pool:'discovery'}))];
+      // Last playback order wins before affinity, LLM rank or pool preference.
+      const oldest=Math.min(...candidates.map(c=>recent.positions.get(c.key).index));
+      const candidate=candidates.find(c=>recent.positions.get(c.key).index===oldest);
+      return finish({...candidate,detail:scoreCandidate({track:candidate.track,store,now:at,plays,context,randomValue:0,parameters})},candidate.pool);
+    }
+    if(queue.length){const best=queue[0];return finish({...best,detail:scoreCandidate({track:best.track,store,now:at,plays,context,randomValue:0,parameters})},'queue');}
 
     if (wantsDiscovery && discovery.length) {
       const best = pick(discovery);
-      return {
-        track: best.track, pool: 'discovery', fellBack: false,
-        score: best.detail.score, detail: best.detail,
-        considered,
-        discoveryRate: rate,
-        attemptedDiscovery:wantsDiscovery,
-      };
+      return finish(best,'discovery');
     }
 
     if (familiar.length) {
       const best = pick(familiar);
-      return {
-        track: best.track, pool: 'familiar', fellBack: wantsDiscovery,
-        fallbackReason: wantsDiscovery ? 'discovery pool had no usable track' : null,
-        score: best.detail.score, detail: best.detail,
-        considered,
-        discoveryRate: rate,
-        attemptedDiscovery:wantsDiscovery,
-      };
+      return finish(best,'familiar');
     }
 
     // Nothing usable: the caller waits instead of retrying in a loop. The reason

@@ -7,6 +7,9 @@ import { createPersonaModelService } from '../src/persona-model.mjs';
 import { createPersonaScheduler, prepareRecommendations } from '../src/persona-scheduler.mjs';
 import { createSettingsHandler } from '../src/ui/dsh-settings.mjs';
 import {setTrackFeedback} from '../src/feedback.mjs';
+import {finishSummary} from '../src/persona.mjs';
+import {APPROVED_POOL_KEY,mergeApprovedFilter} from '../src/approved-pool.mjs';
+import {recentPlayback} from '../src/recent-playback.mjs';
 
 const route = { provider: 'configured', model: 'picker' };
 const track = id => ({ provider: 'netease', providerTrackId: String(id), title: `Song ${id}`, artist: `Artist ${id}`, durationMs: 180000 });
@@ -15,7 +18,7 @@ async function waitForPick(f){const deadline=Date.now()+2000;while(f.calls()===0
 
 function fixture({ output = picked, empty = false, hold = null } = {}) {
   const store = new MusicStore(), messages = [], prompts = [], stages = [];
-  let now = 1000, account = 'test-account', id = 0, calls = 0, searches = 0;
+  let now = 1000, account = 'test-account', id = 0, calls = 0, searches = 0,candidateIds=[2,3,4];
   store.setSetting('recommendation_mode_v1', 'filtered');
   store.setSetting('summary_daily_tokens', 100000);
   // A former model-authored playlist must not enter the new default pool.
@@ -28,7 +31,7 @@ function fixture({ output = picked, empty = false, hold = null } = {}) {
     async getDiscoveryTracks(options) {
       stages.push('netease');
       assert.ok(options.seeds.some(seed => seed.providerTrackId === '1'), 'reference songs drive platform recall');
-      return empty ? [] : [2, 3, 4].map(id => ({ ...track(id), discovery: { source: 'netease_similar', seedTrackKey: 'netease:1' } }));
+      return empty ? [] : candidateIds.map(id => ({ ...track(id), discovery: { source: 'netease_similar', seedTrackKey: 'netease:1' } }));
     },
     search() { searches++; throw new Error('The filter pipeline must not search model-authored titles'); },
     resolve: async item => ({ handle: `fake:${item.providerTrackId}` }),
@@ -66,7 +69,7 @@ function fixture({ output = picked, empty = false, hold = null } = {}) {
   const service = createPersonaModelService({ llm, bridge });
   const handler = createSettingsHandler(bridge, { current: service });
   return { store, host, facade, bridge, service, handler, prompts, stages, calls: () => calls, searches: () => searches,
-    time: value => { now = value; }, account: value => { account = value; },
+    time: value => { now = value; }, account: value => { account = value; },candidates:value=>{candidateIds=value;},
     async close() { service.dispose(); await host.close(); store.close(); } };
 }
 
@@ -145,6 +148,7 @@ test('a candidate refresh rejects a late model response but keeps measured usage
     f.facade.clearDiscovery(); gate.resolve(); await pending;
     assert.deepEqual(f.facade.discoveryTracks(), []);
     assert.equal(f.store.db.prepare('SELECT status FROM music_model_calls').get().status, 'failed');
+    assert.equal(f.store.getSetting(APPROVED_POOL_KEY,null),null);
   } finally { gate.resolve();await pending?.catch(()=>{}); await f.close(); }
 });
 
@@ -272,6 +276,87 @@ test('the first real-host upgrade changes the default pipeline without clearing 
   assert.equal(host.snapshot().settings.discoveryRate,.7);assert.equal(host.snapshot().settings.strategy,'focus');
   assert.equal(host.playback.supervisor.pid,null,'migration requires no audio process or sound');
   await facade.refreshDiscovery();
-  assert.ok(facade.recommendationCandidates().some(track=>track.providerTrackId==='8'),'replaying an old pending history is not a new 30-minute cooldown');
+  assert.equal(facade.recommendationCandidates().some(track=>track.providerTrackId==='8'),false,'measured legacy history initializes the count window even after 30 minutes');
  }finally{await host?.close();store.close();}
+});
+
+test('successful batches retain old approvals while the journal stays on the newest batch and repeats stay blocked',async()=>{
+ const f=fixture();
+ try{
+  await prepareRecommendations({...f,route});
+  const first=f.store.getSetting('discovery_filter_v1');
+  await f.bridge.command({type:'requestTrack',track:track(2),commandId:'played-first'});await f.host.core.waitForIdle();
+  await f.bridge.command({type:'pause',commandId:'pause'});await f.host.core.waitForIdle();
+  f.time(62000);f.candidates([5,6,7]);await prepareRecommendations({...f,route});
+  assert.deepEqual(f.facade.discoveryTracks().map(t=>t.providerTrackId).sort(),['2','4','5','7']);
+  assert.equal(f.facade.discoveryTracks().find(t=>t.providerTrackId==='2').discovery.modelCallId,first.callId);
+  const view=(await f.bridge.request({type:'persona'})).persona;
+  assert.deepEqual(view.recommendationPipeline.tracks.map(t=>t.providerTrackId),['5','7']);
+  assert.equal(view.discoveryJournal.items.length,2);
+  assert.deepEqual(view.recommendationPipeline.playbackPool,{total:4,available:3,recentBlocked:1});
+  assert.equal(recentPlayback(f.store).length,1);
+  f.candidates([2,8,9]);f.time(123000);await f.facade.refreshDiscovery({manual:true});
+  assert.equal(f.facade.recommendationCandidates().some(t=>t.providerTrackId==='2'),false);
+  const before=JSON.stringify(f.store.getSetting(APPROVED_POOL_KEY));
+  const second=f.store.getSetting('discovery_filter_v1');
+  const duplicate=await f.bridge.request({type:'persona-finish',callId:second.callId,status:'completed',text:JSON.stringify(picked),usage:{inputTokens:100,outputTokens:40}});
+  assert.equal(duplicate.result.duplicate,true);
+  assert.equal(JSON.stringify(f.store.getSetting(APPROVED_POOL_KEY)),before);
+ }finally{await f.close();}
+});
+
+test('reset and undo clear the approved pool but preserve actual playback order',async()=>{
+ const f=fixture();
+ try{
+  await prepareRecommendations({...f,route});
+  const approved=f.store.getSetting('discovery_filter_v1');
+  await f.bridge.command({type:'requestTrack',track:track(2),commandId:'start'});await f.host.core.waitForIdle();
+  await f.bridge.command({type:'pause',commandId:'pause'});await f.host.core.waitForIdle();
+  const recent=JSON.stringify(recentPlayback(f.store));
+  for(const type of['resetTaste','undoTasteReset','resetLibrary']){
+   mergeApprovedFilter(f.store,approved,1000);
+   await f.bridge.command({type,value:{clearFeedback:false},commandId:`reset-${type}`});
+   assert.equal(f.store.getSetting(APPROVED_POOL_KEY,null),null);
+   assert.equal(JSON.stringify(recentPlayback(f.store)),recent);
+  }
+ }finally{await f.close();}
+});
+
+test('a same-revision completion for a different account cannot approve any songs',async()=>{
+ const f=fixture();
+ try{
+  await f.bridge.start();await f.facade.refreshDiscovery();
+  const {plan}=await f.bridge.request({type:'persona-reserve',...route,purpose:'discovery-filter'});
+  const status=f.facade.discoveryStatus();
+  const result=finishSummary({store:f.store,callId:plan.callId,status:'completed',text:JSON.stringify(picked),usage:{inputTokens:100,outputTokens:40},now:1001,
+   candidateRevision:status.candidateRevision,candidateOwner:'other-account'});
+  assert.equal(result.success,false);assert.equal(result.code,'stale_candidates');
+  assert.equal(f.store.getSetting(APPROVED_POOL_KEY,null),null);
+  assert.equal(f.store.db.prepare('SELECT status,usage_json FROM music_model_calls').get().status,'failed');
+ }finally{await f.close();}
+});
+
+test('an account change rejects an in-flight filter without retaining cross-account approvals',async()=>{
+ const gate=Promise.withResolvers(),f=fixture({hold:gate.promise});let pending;
+ try{
+  pending=assert.rejects(prepareRecommendations({...f,route}),{code:'stale_candidates'});pending.catch(()=>{});
+  await waitForPick(f);f.account('changed-account');f.facade.discoveryStatus();gate.resolve();await pending;
+  assert.equal(f.store.getSetting(APPROVED_POOL_KEY,null),null);
+  assert.equal(f.facade.discoveryTracks().length,0);
+ }finally{gate.resolve();await pending?.catch(()=>{});await f.close();}
+});
+
+test('a failed pool write rolls back approval, current batch and completion accounting together',async()=>{
+ const f=fixture();
+ try{
+  await f.bridge.start();await f.facade.refreshDiscovery();
+  const {plan}=await f.bridge.request({type:'persona-reserve',...route,purpose:'discovery-filter'});
+  const status=f.facade.discoveryStatus();
+  f.store.db.exec("CREATE TRIGGER reject_approved_pool BEFORE INSERT ON settings WHEN NEW.key='filtered_playback_pool_v1' BEGIN SELECT RAISE(ABORT,'fixture-pool-write'); END");
+  assert.throws(()=>finishSummary({store:f.store,callId:plan.callId,status:'completed',text:JSON.stringify(picked),usage:{inputTokens:100,outputTokens:40},now:1001,
+   candidateRevision:status.candidateRevision,candidateOwner:status.candidateOwner}),/fixture-pool-write/);
+  assert.equal(f.store.getSetting(APPROVED_POOL_KEY,null),null);
+  assert.equal(f.store.getSetting('discovery_filter_v1',null),null);
+  assert.equal(f.store.db.prepare('SELECT status FROM music_model_calls').get().status,'reserved');
+ }finally{await f.close();}
 });

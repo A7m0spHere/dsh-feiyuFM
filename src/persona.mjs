@@ -4,6 +4,7 @@ import {describeMusicInsights} from './insights.mjs';
 import {qualifiesAsListen} from './growth.mjs';
 import {STRATEGY_KEY,STRATEGY_PURPOSE,parseModelRecommendations,modelRecommendations,recommendationMode} from './model-recommendations.mjs';
 import {trackFeedback} from './feedback.mjs';
+import {mergeApprovedFilter} from './approved-pool.mjs';
 
 // A summary may only start when the profile is newer than the last one, there is
 // enough fresh evidence, and a real cooldown has passed. The thresholds are part
@@ -269,7 +270,7 @@ function parseDiscoveryFilterPicks(text,facts){
  return{summary:String(typeof value.summary==='string'?value.summary.trim():'').slice(0,FILTER_POLICY.maxSummaryLength),picks};
 }
 
-export function finishSummary({store,callId,status='failed',usage=null,text='',code=null,now=Date.now(),validListens=null,candidateRevision=null}){
+export function finishSummary({store,callId,status='failed',usage=null,text='',code=null,now=Date.now(),validListens=null,candidateRevision=null,candidateOwner=undefined}){
  return store.transaction(()=>{
   const row=store.db.prepare('SELECT * FROM music_model_calls WHERE call_id=?').get(callId);
   if(!row||!['reserved','running'].includes(row.status))return{duplicate:true};
@@ -281,14 +282,18 @@ export function finishSummary({store,callId,status='failed',usage=null,text='',c
    let reservedRevision;try{reservedRevision=JSON.parse(row.facts_json??'null')?.candidateRevision;}catch{success=false;safeCode='invalid_recommendations';}
    if(reservedRevision&&reservedRevision!==candidateRevision){success=false;safeCode='stale_candidates';}
    if(strategy&&reservedRevision){const local=JSON.parse(row.facts_json);
+    if(candidateOwner!==undefined&&local.candidateOwner!==candidateOwner){success=false;safeCode='stale_candidates';}
     strategy.candidateRevision=reservedRevision;strategy.candidateOwner=local.candidateOwner;
     strategy.tracks=strategy.picks.map(pick=>local.localCandidates?.find(track=>`${track.provider}:${track.providerTrackId}`===pick.trackKey)).filter(Boolean);}}
   store.db.prepare('UPDATE music_model_calls SET status=?,finished_at=?,usage_json=?,error_code=? WHERE call_id=?')
    .run(success?'completed':status==='cancelled'?'cancelled':'failed',now,actual?JSON.stringify(actual):null,safeCode,callId);
-  if(success)store.setSetting(row.purpose===STRATEGY_PURPOSE?STRATEGY_KEY:row.purpose===DISCOVERY_FILTER_PURPOSE?'discovery_filter_v1':'persona_summary_v1',{...strategy,callId,factHash:row.fact_hash,provider:row.provider,model:row.model,
+  if(success){const completed={...strategy,callId,factHash:row.fact_hash,provider:row.provider,model:row.model,
    text:strategy?.summary??strategy?.text??text.trim().slice(0,1200),generatedAt:now,usage:actual,source:strategy&&row.purpose===STRATEGY_PURPOSE?'llm-recommendations':row.purpose===DISCOVERY_FILTER_PURPOSE?'llm-discovery-filter':'llm_summary',trigger:row.trigger??'manual',
    validListens:Number.isSafeInteger(row.valid_listens)?row.valid_listens:null,
-   growthWatermark:Number.isSafeInteger(row.baseline_growth_rowid)?row.baseline_growth_rowid:null});
+   growthWatermark:Number.isSafeInteger(row.baseline_growth_rowid)?row.baseline_growth_rowid:null};
+   if(row.purpose===DISCOVERY_FILTER_PURPOSE)mergeApprovedFilter(store,completed,now);
+   store.setSetting(row.purpose===STRATEGY_PURPOSE?STRATEGY_KEY:row.purpose===DISCOVERY_FILTER_PURPOSE?'discovery_filter_v1':'persona_summary_v1',completed);
+  }
   if(success&&row.purpose===STRATEGY_PURPOSE&&store.getSetting('recommendation_pipeline_v1',null)!==1)store.setSetting('recommendation_mode_v1','llm');
   if(success&&(row.purpose===STRATEGY_PURPOSE||store.getSetting('summary_automatic_purpose',null)===null))store.setSetting('summary_automatic_purpose',row.purpose??'persona-summary');
   return{duplicate:false,usage:actual,success,code:safeCode};

@@ -83,7 +83,15 @@ Host 的 `feedback-list/feedback-clear` 越过慢平台队列；撤销只使投�
 
 旧直接生成歌名的记录继续保留原有搜索匹配与有界核对契约，filtered 模式不调用这条核对路径，也不把旧歌名记录加入默认播放池。
 
-`local-v5` 的真实评分保存在决策中，解释只读事实。新版 filtered 模式从平台候选中严格取 LLM 入选歌曲，`llmRank/llmReason` 参与本地执行；未入选歌曲不进入默认自动池。N15 的“只加分、不排空”保留旧兼容模式。默认 30 分钟曲目冷却，精确参数见 [selection.mjs](../src/selection.mjs)。
+`local-v6` 的真实评分保存在决策中，解释只读事实。filtered 模式只播放 LLM 入选曲，`llmRank/llmReason` 参与正常本地评分；未入选歌曲不进入默认自动池。N15 的“只加分、不排空”保留旧兼容模式。
+
+`recent_playback_v1` 为 `{version:1,entries:[{playInstanceId,trackKey,startedAt}]}`，按实际开始顺序从旧到新保留最近 50 个实例；旧库只由有进度历史及已开始当前实例回填。`started` 或首个有效进度确认开始，零有效增量的位置变化不算开始；同实例恢复不再次登记。此设置与历史一起保留，不因偏好重置／换批清空，不增加收听或成长。普通 next 的队列与曲库回退也不能绕过策略，只有明确 `requestTrack` 保留重播例外。
+
+选择依次使用：窗口外且满足 30 分钟冷却 → 窗口外但放宽时间冷却 → 最近窗口内最久未播的允许曲目。最后一级按最近开始的顺序决定，偏好／模型排名不能抢先；当前或刚播完同曲、禁播和不可播不放宽。`lastSelection.detail.repeat` 含 `window=50`、`relaxed`、`reason=null/cooldown-exhausted/recent-exhausted` 与最近窗口内的 `distance`。只有一首刚播完的可用曲目时等待，用户仍可明确点播。
+
+`filtered_playback_pool_v1` 为 `{version:1,owner,entries:[{approvedAt,track}]}`，owner 沿用候选账号指纹。成功且仍属当前账号／候选代次的筛选完成时，与账本和当前批次同事务合并最多 100 首，同平台 ID 采用最新批准信息并保留来源、rank/reason、modelCallId 和原 expiry；先去过期，再淘汰最早批准。旧库只从当前有效且可核验批次兼容读取，下一成功批次一起落盘；不由旧候选账本反推批准。账号变化、清缓存及现有重置／撤销重置流程清理池，迟到／取消／失败结果不入池。数据仍在 settings，schema 版本不变。
+
+`snapshot.discovery`／`persona.recommendationPipeline` 可选增加 `playbackPool:{total,available,recentBlocked}`：有效入选总数、窗口外且探索设置允许的可选数、近期窗口内暂避数；当前曲目不计 available，计数不要求相加相等。原 `picked/tracks/summary/filterCallId` 继续描述当前批次，`remaining` 按播放窗口排除当前批次已播曲。候选送 LLM 前使用同一窗口，不新增逐曲调用或提高自动调用上限。详见 [N25](spikes/N25-recent-playback-and-approved-pool.md)。
 
 `fishfm/persona-recommendations` 现在先保存已配置模型路线、触发并等待平台推荐，再运行 `discovery-filter`；不调用直接生成歌名的用途。内部 `recommendation-route` 保存路线并进入 filtered 模式；启动/导入/候选变化/歌单低水位按需筛选，首次可沿用已配置模型，不要求先生成总结。推荐 DTO 使用 `persona.recommendationPipeline`（状态、歌曲、理由、剩余数量）与 `recommendationRoute`。见 [N22](spikes/N22-platform-first-recommendations.md)。
 
