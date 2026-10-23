@@ -1,6 +1,6 @@
 # 肥鱼电台 FishFM — 开发状态与下一步
 
-更新：2026-10-21。本文是源码、发布、日常 Desktop、验收缺口和接续任务的唯一状态入口。产品规则见 [MVP](MVP.md)，接口见 [控制契约](CORE_CONTRACT.md)，操作命令见 [贡献指南](../CONTRIBUTING.md) 和 [脚本索引](../scripts/README.md)。
+更新：2026-10-23。本文是源码、发布、日常 Desktop、验收缺口和接续任务的唯一状态入口。产品规则见 [MVP](MVP.md)，接口见 [控制契约](CORE_CONTRACT.md)，操作命令见 [贡献指南](../CONTRIBUTING.md) 和 [脚本索引](../scripts/README.md)。
 
 ## 当前基线
 
@@ -8,11 +8,11 @@
 |---|---|
 | 产品路径 | 默认 `filtered`：参考歌曲 → 网易云候选 → LLM 筛选 → 本地播放。自动播放只取入选曲；QQ 暂缓，Last.fm 富化未开工 |
 | 已发布包 | `0.1.0-beta.3`，Windows／网易云 Beta。2026-10-13 已确认 `beta` 指向 beta.3、`latest` 保持 beta.1，公开下载摘要及 npm／官方 DSH 安装一致；范围、文件数和摘要只查 [发布记录](releases/0.1.0-beta.3.md) |
-| `main` 源码 | beta.3 之后的 REV-04、研究工具、反馈补齐、U19/U20 原型、U21 反馈管理、N24 退出证据修复，以及 [N25 最近 50 次播放窗口／100 首多批入选池](spikes/N25-recent-playback-and-approved-pool.md) 尚未随 npm 发布 |
+| `main` 源码 | beta.3 之后的 REV-04、研究工具、反馈补齐、U19/U20 原型、U21 反馈管理、N24 退出证据修复、[N25 最近播放窗口与多批入选池](spikes/N25-recent-playback-and-approved-pool.md)，以及 [REV-05 HTTP 凭据边界](spikes/REV-05-http-transport-boundaries.md) 尚未随 npm 发布 |
 | 日常 Desktop | [N23](spikes/N23-model-route-completion.md) 曾验原生正常退出重开。N25 本轮未主动重载；只读观察到日常进程期间重启且已有新窗口和 17 首待播池设置，但最终提交完整加载状态仍为 unknown，不据此补记 Desktop 退出验收 |
-| 最近功能验证 | 2026-10-21，Windows／Node 24.14.0：**561 项，558 通过、0 失败、3 项真实媒体跳过**（CI 配置），N25 新增 22 项；164 模块检查（含 `.cjs`）、构建/debug smoke、包白名单通过。真实静音 WPF 另按 N25 记录，不把套件跳过当音频通过 |
+| 最近功能验证 | 2026-10-23，Windows／Node 24.22.1：**580 项，577 通过、0 失败、3 项真实媒体跳过**（CI 配置），REV-05 新增 19 项；165 模块检查、构建/debug smoke、包白名单通过（4885 文件，34.78 MB）。真实静音 WPF 沿用 N25 证据，本轮未重跑，不把套件跳过当音频通过 |
 | DSH 插件验证 | [N25](spikes/N25-recent-playback-and-approved-pool.md)：官方 DSH `0.2.1-rc.2` 隔离 Web profile，受控 filtered／两批合成批准／本地静音 WPF 的窗口、失败、重启、12 首累计池／6 首当前批次和清理 **20/20 通过**，真实模型请求 0。[N24](spikes/N24-dsh-background-acceptance.md) 的真实模型并发／启停对照、U21 的界面／反馈证据保留；真实平台补批／音频及完整 filtered 现场组合未验 |
-| 最近引用审计 | 2026-10-21：105 份文档零坏链接、10/10 证据齐全。引用存在不等于验收通过；文档蒸馏的原文比对与归档边界保留 |
+| 最近引用审计 | 2026-10-23：106 份文档零坏链接、10/10 证据齐全。引用存在不等于验收通过；文档蒸馏的原文比对与归档边界保留 |
 | 真实推荐与观察 | N23：40 候选 → 9 入选 → WPF 静音进度通过；日常观察 54.72 分钟、16 条有效收听、0 播放错误，按用户要求提前结束。N24 已补隔离真实并发、启停对照、9418 ms 原生有效进度与一次 0.0045 的短会话静音成长；日常真实平台的成长应用与归因仍未补验 |
 | macOS | [移植记录](spikes/MACOS_PORT.md) 仅确认 Helper 编译与本地 desktop profile 加载；适配随 beta.3 提供，真实登录、平台音频和退出生命周期待真机验收 |
 
@@ -20,10 +20,11 @@
 
 ## 本轮工程交付与反馈入口
 
-议题状态按 2026-10-18 仓库记录；真实试用由用户指定后置。离线指标和原型可运行不构成推荐收益或正式验收通过。
+2026-10-23 已重查 GitHub，#12 工程修复与本地安全验收完成；其余研究／原型状态沿用下表，真实试用由用户指定后置。离线指标和原型可运行不构成推荐收益或正式验收通过。
 
 | 议题 | 已交付 | 剩余工作 |
 |---|---|---|
+| [#12 HTTP 凭据边界](https://github.com/A7m0spHere/dsh-feiyuFM/issues/12) | [REV-05](spikes/REV-05-http-transport-boundaries.md)：实际端点与接口包盘点、单 origin 与路径 Cookie、同源跳转、正文／Cookie 限额、新扫码隔离、错误脱敏；新增安全回归 19/19 与既有平台／登录回归 72/72 通过 | 原生 Node 跨端口跳转未复现 Cookie 转发，不记为泄露；本地模拟完成，不补记真实账号／平台／Desktop，接口包内部 Axios 未重写 |
 | [#7 推荐质量](https://github.com/A7m0spHere/dsh-feiyuFM/issues/7) | [研究入口](research/README.md)：只读脱敏单批快照、生产解析器回放、冻结候选重排、指标与人工评价模板；12 项回归，初始提交 `ffec5b2` | 无真实样本／人工反馈，保留当前策略，Issue 打开 |
 | [#11 真实试用](https://github.com/A7m0spHere/dsh-feiyuFM/issues/11) | [操作卡](research/TRIAL.md)、每人本机材料与匿名汇总；9 项回归 | 当前 0 人、0 分钟、0 有效评价，质量比例 `null`、`awaiting_real_trial`；Issue 打开 |
 | [#9 偏好信号](https://github.com/A7m0spHere/dsh-feiyuFM/issues/9) | [语义与对照](research/PREFERENCE_SIGNALS.md)：16 项固定输入对照；候选逐曲 `liked/reduced` 进入筛选事实，撤销移除；4 项新增回归 | 传递缺口已修，不改权重／迁移／模型调用；质量与新算法收益待 #7/#11 |
@@ -60,7 +61,7 @@
 
 ## 更新与交接
 
-U21、N24 和 N25 均未发布 npm；范围和证据见各报告。N25 不自动重载日常插件，日常进程期间发生重启的观察不等于最终提交已完整加载。A09 保持部分通过，不提升完整通过数；独立 profile 的源码链接验证不等同已发布 tarball 安装验收。
+U21、N24、N25 和 REV-05 均未发布 npm；范围和证据见各报告。REV-05 未操作日常账号或重载插件。N25 不自动重载日常插件，日常进程期间发生重启的观察不等于最终提交已完整加载。A09 保持部分通过，不提升完整通过数；独立 profile 的源码链接验证不等同已发布 tarball 安装验收。
 
 修改行为或接口时同步 MVP／契约，改变取舍时更新 [决策摘要](DECISIONS.md) 并链接证据。报告记录实际环境、命令、结果和未验项，证据缺失用 `unknown`。离线、浏览器、隔离安装、原生 Desktop 和生产验收分别标明。
 

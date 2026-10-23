@@ -20,6 +20,7 @@ import { importSeedTracks, describeEnvironment, describeEnvironmentProfile } fro
 import { applyListenGrowth, decayPreferences, describeGrowth } from './growth.mjs';
 import { createSessionRegistry, mayStartPlayback } from './sessions.mjs';
 import { createHttpTransport } from './providers/transport.mjs';
+import { NETEASE_ORIGIN } from './providers/endpoints/netease.mjs';
 import { createNetEaseProvider } from './providers/netease.mjs';
 import { createQQProvider } from './providers/qq.mjs';
 import { describePlatforms, collectDiscovery, resolveOnOwnPlatform, summarizeSeedRuns } from './providers/coordinator.mjs';
@@ -196,6 +197,9 @@ export function buildProviderRegistry({ adapters = {}, credentials = null, store
       ?? (config?.endpoints
         ? createHttpTransport({
           endpoints: config.endpoints,
+          trustedOrigin: name === 'netease' ? NETEASE_ORIGIN : config.trustedOrigin,
+          maxResponseBytes: config.maxResponseBytes,
+          maxCookieBytes: config.maxCookieBytes,
           fetchImpl: config.fetchImpl,
           timeoutMs: config.timeoutMs,
           onLog,

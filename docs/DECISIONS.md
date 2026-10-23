@@ -41,6 +41,7 @@
 | 2026-10-08 | 平台工作与播放控制分开排队；曲库全库搜索／后端分页，迟到平台和查询结果不可覆盖新状态。清空／重置／撤销另以输入代次取消旧导入，快照以 revision／commandVersion 去旧 | [U17](spikes/U17-control-library-fixes.md)、[REV-01](spikes/REV-01-import-reset-race.md)、[REV-03](spikes/REV-03-snapshot-ordering.md) |
 | 2026-10-18 | 固定输入证明反馈总数会丢失歌曲归属，补候选逐曲 `liked/reduced`，撤销移除；不改权重、迁移或调用次数。本地偏好仍按数据目录保存，不能宣称账号级画像隔离 | [#9 信号语义](research/PREFERENCE_SIGNALS.md) |
 | 2026-10-21 | 实际记录出现同批歌曲隔 5 首重播，30 分钟时间门控不足；用户选择最近 50 次开始优先避重复、最多 100 首多批有效入选池、缺歌时最久未播续播并允许放宽时间冷却。修订早期只按时间过滤／评分的重复策略，保留严格入选、账号／到期和预算边界 | [N25](spikes/N25-recent-playback-and-approved-pool.md) |
+| 2026-10-23 | #12 将项目 HTTP transport 从无来源 Cookie 与自动跳转改为显式单 origin、路径／安全属性 Cookie、受控同源跳转及有界正文。Node 原生跨端口跳转未复现 Cookie 转发，不记为泄露事件；固定版本接口包内部 HTTP 不随此次重写。移除新登录借用旧 jar 的回退，CLI 模拟必须使用回环与内存凭据 | [REV-05](spikes/REV-05-http-transport-boundaries.md) |
 
 ## 模型与验证口径
 

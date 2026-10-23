@@ -164,7 +164,8 @@ store.setCredentialReference({
 });
 let logoutAccount = null;
 {
-  const transport = createHttpTransport({ endpoints: neteaseEndpoints({ base: 'http://127.0.0.1:1' }) });
+  const transport = createHttpTransport({ trustedOrigin: 'http://127.0.0.1:1', allowInsecureLoopback: true,
+    endpoints: neteaseEndpoints({ base: 'http://127.0.0.1:1' }) });
   const provider = createNetEaseProvider({ transport, credentials, store, accountRef: 'fishfm/netease' });
   const before = provider.getAccount().status;
   await provider.logout();
@@ -183,7 +184,8 @@ let logoutAccount = null;
   await new Promise((done) => server.listen(0, '127.0.0.1', done));
   const base = `http://127.0.0.1:${server.address().port}/api`;
   try {
-    const transport = createHttpTransport({ endpoints: neteaseEndpoints({ base }) });
+    const transport = createHttpTransport({ trustedOrigin: new URL(base).origin, allowInsecureLoopback: true,
+      endpoints: neteaseEndpoints({ base }) });
     const provider = createNetEaseProvider({ transport, communityLogin: false, credentials, store, accountRef: 'fishfm/netease' });
     const started = await provider.beginLogin();
     check('a new sign-in can be started after signing out', Boolean(started.key), `key=${String(started.key).slice(0, 12)}…`);

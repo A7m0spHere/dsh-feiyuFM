@@ -1,6 +1,6 @@
 # 内部控制契约
 
-更新：2026-10-18。本文只维护内部字段、命令与边界，DSH 外部接口经 Adapter 映射；职责见 [架构](ARCHITECTURE.md)，用户行为见 [MVP](MVP.md)，实现／部署／验收状态只看 [开发状态](PROJECT_PLAN.md)。历史理由查 [决策摘要](DECISIONS.md) 与 [实验记录](spikes/README.md)。
+更新：2026-10-23。本文只维护内部字段、命令与边界，DSH 外部接口经 Adapter 映射；职责见 [架构](ARCHITECTURE.md)，用户行为见 [MVP](MVP.md)，实现／部署／验收状态只看 [开发状态](PROJECT_PLAN.md)。历史理由查 [决策摘要](DECISIONS.md) 与 [实验记录](spikes/README.md)。
 
 ## 1. 曲目、账号与资源
 
@@ -9,6 +9,14 @@ Track key 为 `(provider, providerTrackId)`，`provider` 仅为 `netease/qq`，�
 Provider 暴露账号和能力状态，`resolve(track, {signal, version})` 返回 `{handle, expiresAt?}`。handle 仅交 Playback，不进 SQLite、Core/UI 快照或模型输入。缺能力、过期账号、无可播资源和空候选分别报告。
 
 网易云导入可指定 `source/playlistId`，保留实际来源、sourceRef、数量及失败尝试。核对 `login_status` 账号 ID 后才保存平台凭据引用（Windows DPAPI，macOS Keychain）；退出先停用会话，再按第 3 节的失败／重试规则清理。QQ 不显示未核实的扫码入口。
+
+项目 HTTP transport 必须显式提供独立于端点表的单一 `trustedOrigin`。Core 将网易云固定为 `https://music.163.com`；QQ 无生产端点，未来自定义 HTTP profile 必须声明自己的 origin。URL 中不接受用户名／密码，默认只允许 HTTPS；`allowInsecureLoopback` 仅供显式 IP 回环测试。端点在构造与每次请求前校验，`redirect: manual` 最多跟随 5 次同源跳转，跨源（含端口／子域变化）和 HTTPS→HTTP 在发下一次请求前拒绝；301/302 的 POST 与 303 按 GET 续接，307/308 保留方法与表单。
+
+每个 transport 独有 Cookie jar，不再支持注入共享 jar。`useSecret` 清空旧会话后，将已有原始凭据头绑定至本 origin 的 `/`；HTTP `Set-Cookie` 按来源校验 Domain，并保留 Path／Secure／到期与删除语义。origin 始终精确匹配，父域 Cookie 也不扩大可访问站点；`toSecret(url)` 只输出该 URL 可发送的 Cookie。`loginQr/loginPoll` 使用请求内新 jar，既不发送旧 Cookie，也不从旧 jar 补全登录结果；共用 Provider 状态机同样不允许该回退。`includeCookies: false` 不发送、不吸收、不返回本地会话；描述符不能自行附加 Cookie／Authorization 或 Host 头。
+
+`HTTP_LIMITS` 默认正文 4 MiB、Cookie 16 KiB；`maxResponseBytes/maxCookieBytes` 可在 transport／内部 adapter 配置调整，`maxRedirects` 在 transport 调整。正文同时检查 Content-Length 和解压后实际流字节，超限取消流；Cookie 输入与全 jar（含路径）均受限，更新失败不部分写入。边界错误为 `endpoint_untrusted/redirect_blocked/redirect_limit/response_too_large/cookie_too_large/invalid_cookie`；网络失败只暴露固定描述和 `ETIMEDOUT/ECONNRESET`，不携带原始错误 URL、凭据或 cause。CLI 的 `FISHFM_NETEASE_BASE` 只接受 `--dry-run` 的 IP 回环模拟端点，不读取持久化凭据。
+
+以上 HTTP 跳转／流式限额不改写固定版本网易云接口包内部的 Axios 请求；接口包调用、固定域名与验证边界见 [REV-05](spikes/REV-05-http-transport-boundaries.md)，不能据此宣称所有第三方 HTTP 路径都已受同一限额保护。
 
 ## 2. 用户命令
 

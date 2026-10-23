@@ -17,7 +17,8 @@ test('HTTP timeout covers a stalled response body and removes the external abort
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
   const controller = new AbortController();
   const guard = setTimeout(() => controller.abort(), 1500);
-  const transport = createHttpTransport({ endpoints: { resolve: { url: `http://127.0.0.1:${server.address().port}` } }, timeoutMs: 200 });
+  const transport = createHttpTransport({ trustedOrigin: `http://127.0.0.1:${server.address().port}`, allowInsecureLoopback: true,
+    endpoints: { resolve: { url: `http://127.0.0.1:${server.address().port}` } }, timeoutMs: 200 });
   try {
     await assert.rejects(transport.request({ role: 'resolve', signal: controller.signal }), error => error.code === 'ETIMEDOUT');
     assert.equal(controller.signal.aborted, false, 'transport timeout must fire before the test guard');
@@ -63,6 +64,7 @@ test('the transport builds requests from an endpoint map and returns parsed bodi
     res.end(JSON.stringify({ ok: true, songs: [{ id: 1 }] }));
   }, async ({ origin, seen }) => {
     const transport = createHttpTransport({
+      trustedOrigin: origin, allowInsecureLoopback: true,
       endpoints: { search: { url: `${origin}/api/search`, query: ({ keywords, limit }) => ({ s: keywords, n: limit }) } },
     });
     const response = await transport.request({ role: 'search', params: { keywords: '德彪西', limit: 5 } });
@@ -101,6 +103,7 @@ test('a POST body is form encoded and cookies are carried both ways', async () =
     res.end(JSON.stringify({ accountId: 42 }));
   }, async ({ origin, seen }) => {
     const transport = createHttpTransport({
+      trustedOrigin: origin, allowInsecureLoopback: true,
       endpoints: {
         login: { url: `${origin}/login`, body: ({ key }) => ({ key }) },
         accountInfo: { url: `${origin}/me` },
@@ -119,7 +122,8 @@ test('a POST body is form encoded and cookies are carried both ways', async () =
     assert.equal(seen[1].headers.cookie, 'MUSIC_U=session-value');
 
     // A restart can restore the session from the credential store.
-    const fresh = createHttpTransport({ endpoints: { accountInfo: { url: `${origin}/me` } } });
+    const fresh = createHttpTransport({ trustedOrigin: origin, allowInsecureLoopback: true,
+      endpoints: { accountInfo: { url: `${origin}/me` } } });
     assert.equal(fresh.jar.size(), 0);
     assert.equal(fresh.useSecret('MUSIC_U=session-value'), 1);
     assert.equal(fresh.jar.header(), 'MUSIC_U=session-value');
@@ -142,7 +146,8 @@ test('HTTP failures and timeouts surface with a transport-level code', async () 
     res.statusCode = 500;
     res.end('boom');
   }, async ({ origin }) => {
-    const transport = createHttpTransport({ endpoints: { bad: { url: `${origin}/bad` } } });
+    const transport = createHttpTransport({ trustedOrigin: origin, allowInsecureLoopback: true,
+      endpoints: { bad: { url: `${origin}/bad` } } });
     const response = await transport.request({ role: 'bad' });
     // The status is returned, not thrown: the adapter maps it, so one place
     // decides what a 500 means.
@@ -151,7 +156,8 @@ test('HTTP failures and timeouts surface with a transport-level code', async () 
   });
 
   await withServer(() => { /* never responds */ }, async ({ origin }) => {
-    const transport = createHttpTransport({ endpoints: { slow: { url: `${origin}/slow` } }, timeoutMs: 120 });
+    const transport = createHttpTransport({ trustedOrigin: origin, allowInsecureLoopback: true,
+      endpoints: { slow: { url: `${origin}/slow` } }, timeoutMs: 120 });
     await assert.rejects(
       () => transport.request({ role: 'slow' }),
       (error) => {

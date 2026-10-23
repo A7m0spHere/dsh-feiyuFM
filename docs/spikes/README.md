@@ -12,6 +12,8 @@ beta.3 的模型协议／最终回答与日常原生 Desktop 重启补验见 [N2
 
 [N25 最近播放窗口与多批待播池](N25-recent-playback-and-approved-pool.md) 记录短周期重复的实测线索、50 次播放窗口、100 首入选池和缺歌降级，以及隔离 DSH 的验证边界。
 
+[REV-05 HTTP 凭据与跳转边界](REV-05-http-transport-boundaries.md) 记录 #12 的实际端点／接口包调用盘点、单 origin Cookie 与流式大小限制、本地服务器安全回归，以及未证实的泄露假设和现场未验范围。
+
 本目录存报告与证据；可执行的早期探针在 [根 spikes](../../spikes/README.md)，归档交接文字在 [archive](../archive/README.md)。
 
 [#4 近期发现只读原型](U19-recent-discoveries-prototype.md) 包含当前批次来源与收听状态、宽窄/深色截图、回归和真实用户待验边界。

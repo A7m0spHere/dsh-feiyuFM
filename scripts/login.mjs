@@ -14,7 +14,7 @@ import { spawn } from 'node:child_process';
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
-import { neteaseEndpoints, NETEASE_ENDPOINT_PROVENANCE, NETEASE_QR_LOGIN_URL } from '../src/providers/endpoints/netease.mjs';
+import { neteaseEndpoints, NETEASE_ENDPOINT_PROVENANCE, NETEASE_QR_LOGIN_URL, NETEASE_ORIGIN } from '../src/providers/endpoints/netease.mjs';
 import { createHttpTransport } from '../src/providers/transport.mjs';
 import { createNetEaseProvider } from '../src/providers/netease.mjs';
 import { createPlatformCredentials } from '../src/providers/credentials.mjs';
@@ -34,6 +34,17 @@ const probe = hasFlag('--probe');
 if (providerName !== 'netease') {
   console.error(`Only netease is wired for sign-in so far; ${providerName} has no confirmed endpoint profile.`);
   process.exit(2);
+}
+
+// A diagnostic override is a loopback fixture, not a replacement platform.
+// Require memory-only credentials so it cannot receive a real stored account.
+let testBase = null;
+try { if (process.env.FISHFM_NETEASE_BASE) testBase = new URL(process.env.FISHFM_NETEASE_BASE); }
+catch { throw new Error('FISHFM_NETEASE_BASE requires --dry-run and an IP loopback URL'); }
+if (testBase && (!dryRun || !['http:', 'https:'].includes(testBase.protocol)
+  || testBase.username || testBase.password || testBase.search || testBase.hash
+  || !['127.0.0.1', '[::1]'].includes(testBase.hostname))) {
+  throw new Error('FISHFM_NETEASE_BASE requires --dry-run and an IP loopback URL');
 }
 
 // Credentials live beside the Harness home, never in the repository.
@@ -65,6 +76,8 @@ function removeLoginArtifacts() {
 }
 
 const transport = createHttpTransport({
+  trustedOrigin: testBase?.origin ?? NETEASE_ORIGIN,
+  allowInsecureLoopback: Boolean(testBase),
   // An override keeps diagnostics and tests off the live service.
   endpoints: neteaseEndpoints(process.env.FISHFM_NETEASE_BASE ? { base: process.env.FISHFM_NETEASE_BASE } : {}),
   onLog: (entry) => {

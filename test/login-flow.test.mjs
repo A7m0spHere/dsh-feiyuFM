@@ -75,7 +75,8 @@ async function qrServer({ codes = [801, 802, 803], qrImage = true, failRoles = {
 }
 
 function providerAgainst(origin, { credentials = createMemoryCredentials(), store = null } = {}) {
-  const transport = createHttpTransport({ endpoints: neteaseEndpoints({ base: `${origin}/api` }) });
+  const transport = createHttpTransport({ trustedOrigin: origin, allowInsecureLoopback: true,
+    endpoints: neteaseEndpoints({ base: `${origin}/api` }) });
   const rows = store ?? new Map();
   const credentialRows = {
     getCredentialReference: (name) => rows.get(name) ?? null,

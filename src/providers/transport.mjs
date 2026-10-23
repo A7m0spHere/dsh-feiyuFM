@@ -1,159 +1,254 @@
-// The real HTTP transport the platform adapters run on.
-//
-// Endpoints are *configuration*, never defaults: this file contains no platform
-// URL, so it cannot be mistaken for a verified integration. P3 supplies the
-// endpoint map together with a signed-in account, and everything here has been
-// exercised against a local HTTP server in the tests.
-//
-// Session material flows one way: responses may carry `Set-Cookie`, the
-// transport keeps it in a jar and hands the caller a `cookie` string. The
-// adapter decides to store it in the credential store; the transport itself
-// persists nothing.
+// HTTP API transport. Each instance owns one explicitly trusted origin; media
+// URLs belong to Playback and are never fetched with this account cookie jar.
+import { isIP } from 'node:net';
 import { MusicError } from '../contracts.mjs';
 
-/** A minimal cookie jar: enough for a single signed-in user, nothing more. */
-export function createCookieJar() {
-  const cookies = new Map();
-  return {
-    /** Accepts `a=1; b=2` as well as a list of cookie objects. */
-    absorb(input) {
-      if (!input) return;
-      if (Array.isArray(input)) {
-        for (const item of input) absorbOne(item);
-        return;
-      }
-      if (typeof input === 'string') {
-        for (const part of input.split(';')) absorbOne(part.trim());
-      }
-    },
-    header() {
-      if (!cookies.size) return null;
-      return [...cookies.entries()].map(([name, value]) => `${name}=${value}`).join('; ');
-    },
-    toSecret() { return this.header() ?? ''; },
-    clear() { cookies.clear(); },
-    size() { return cookies.size; },
-  };
+export const HTTP_LIMITS = Object.freeze({ responseBytes: 4 * 1024 * 1024, cookieBytes: 16 * 1024, redirects: 5 });
+const ATTRIBUTES = /^(path|domain|expires|max-age|httponly|secure|samesite)$/i;
+const REDIRECTS = new Set([301, 302, 303, 307, 308]);
+const fail = (code, message) => new MusicError(code, message);
 
-  function absorbOne(item) {
-    if (!item) return;
-    const pair = typeof item === 'string' ? item : String(item);
-    const index = pair.indexOf('=');
-    if (index <= 0) return;
-    const name = pair.slice(0, index).trim();
-    // Attributes such as Path/HttpOnly are not part of the value.
-    const value = pair.slice(index + 1).split(';')[0].trim();
-    if (!name || /^(path|domain|expires|max-age|httponly|secure|samesite)$/i.test(name)) return;
-    cookies.set(name, value);
-  }
+function positiveLimit(value) {
+  if (!Number.isSafeInteger(value) || value < 1) throw new TypeError('HTTP limits must be positive safe integers');
+  return value;
 }
 
-/**
- * Creates the transport.
- *
- * @param {object} options
- * @param {Record<string, object>} options.endpoints role → descriptor:
- *   `{ url, method?, query?(params), body?(params), headers?, includeCookies? }`
- * @param {Function} [options.fetchImpl]
- * @param {number} [options.timeoutMs]
- */
+function parseUrl(value) {
+  let url;
+  try { url = new URL(value); } catch { throw fail('endpoint_untrusted', 'Platform endpoint URL is invalid'); }
+  if (!['https:', 'http:'].includes(url.protocol) || url.username || url.password) {
+    throw fail('endpoint_untrusted', 'Platform endpoint requires an http(s) URL without user information');
+  }
+  return url;
+}
+
+function pathMatches(path, cookiePath) {
+  return path === cookiePath || (path.startsWith(cookiePath) && (cookiePath.endsWith('/') || path[cookiePath.length] === '/'));
+}
+
+/** Raw credential headers remain supported; an origin-bound jar also scopes
+ * Set-Cookie to its response path, Domain, Secure and expiry attributes. It is
+ * intentionally narrower than a browser jar: cookies never cross origins. */
+export function createCookieJar({ origin = null, maxBytes = HTTP_LIMITS.cookieBytes } = {}) {
+  positiveLimit(maxBytes);
+  const bound = origin === null ? null : parseUrl(origin);
+  let cookies = new Map();
+  const live = record => record.expiresAt === null || record.expiresAt > Date.now();
+  return {
+    origin: bound?.origin ?? null,
+    absorb(input, responseUrl = bound) {
+      if (!input) return;
+      const parts = Array.isArray(input) ? input : String(input).split(';');
+      if (parts.reduce((n, part) => n + Buffer.byteLength(String(part)) + 2, 0) > maxBytes) {
+        throw fail('cookie_too_large', 'Platform cookies exceed the configured size limit');
+      }
+      const url = bound ? parseUrl(responseUrl) : null;
+      if (bound && url.origin !== bound.origin) throw fail('endpoint_untrusted', 'Cookie response origin is not trusted');
+      const next = new Map([...cookies].filter(([, record]) => live(record)));
+      for (const part of parts) {
+        const [pair, ...attributes] = String(part).split(';');
+        const index = pair.indexOf('=');
+        if (index <= 0) continue;
+        const name = pair.slice(0, index).trim(), value = pair.slice(index + 1).trim();
+        if (ATTRIBUTES.test(name)) continue;
+        if (!/^[!#$%&'*+.^_`|~\w-]+$/.test(name) || /[\x00-\x20\x7f;,]/.test(value)) {
+          throw fail('invalid_cookie', 'Platform cookie contains invalid characters');
+        }
+        let path = '/', secure = false, expiresAt = null;
+        if (url && Array.isArray(input)) {
+          const slash = url.pathname.lastIndexOf('/');
+          path = slash > 0 ? url.pathname.slice(0, slash) : '/';
+          const attrs = new Map(attributes.map(attribute => {
+            const split = attribute.indexOf('=');
+            return split < 0 ? [attribute.trim().toLowerCase(), '']
+              : [attribute.slice(0, split).trim().toLowerCase(), attribute.slice(split + 1).trim()];
+          }));
+          if (attrs.has('domain')) {
+            const domain = attrs.get('domain').replace(/^\./, '').toLowerCase();
+            if (!domain || (domain !== url.hostname && (isIP(url.hostname) || !url.hostname.endsWith(`.${domain}`)))) continue;
+          }
+          if (attrs.get('path')?.startsWith('/')) path = attrs.get('path');
+          secure = attrs.has('secure');
+          const expires = Date.parse(attrs.get('expires'));
+          if (Number.isFinite(expires)) expiresAt = expires;
+          if (/^-?\d+$/.test(attrs.get('max-age') ?? '')) {
+            const seconds = Number(attrs.get('max-age'));
+            expiresAt = seconds <= 0 ? 0 : Date.now() + Math.min(seconds * 1000, Number.MAX_SAFE_INTEGER - Date.now());
+          }
+        }
+        const key = `${path}\0${name}`;
+        const record = { name, value, path, secure, expiresAt };
+        if (live(record)) next.set(key, record);
+        else next.delete(key);
+      }
+      // Count all paths, not just the current request. Updates are atomic.
+      const size = [...next.values()].reduce((n, row) => n + Buffer.byteLength(`${row.name}=${row.value}; ${row.path}`), 0);
+      if (size > maxBytes) throw fail('cookie_too_large', 'Platform cookies exceed the configured size limit');
+      cookies = next;
+    },
+    header(requestUrl = bound) {
+      const url = bound ? parseUrl(requestUrl) : null;
+      if (bound && url.origin !== bound.origin) return null;
+      const selected = [...cookies.values()].filter(record => live(record)
+        && (!url || (pathMatches(url.pathname, record.path) && (!record.secure || url.protocol === 'https:'))));
+      selected.sort((a, b) => b.path.length - a.path.length);
+      return selected.map(({ name, value }) => `${name}=${value}`).join('; ') || null;
+    },
+    toSecret(url = bound) { return this.header(url) ?? ''; },
+    clear() { cookies.clear(); },
+    size() { return [...cookies.values()].filter(live).length; },
+  };
+}
+
+async function readBoundedBody(response, maxBytes) {
+  if (Number(response.headers.get('content-length')) > maxBytes) {
+    await response.body?.cancel();
+    throw fail('response_too_large', 'Platform response exceeds the configured size limit');
+  }
+  if (!response.body) return '';
+  const reader = response.body.getReader();
+  const chunks = [];
+  let bytes = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      bytes += value.byteLength;
+      if (bytes > maxBytes) {
+        await reader.cancel();
+        throw fail('response_too_large', 'Platform response exceeds the configured size limit');
+      }
+      chunks.push(value);
+    }
+    return Buffer.concat(chunks, bytes).toString('utf8');
+  } finally { reader.releaseLock(); }
+}
+
+/** Endpoint configuration cannot grant trust. HTTP is only allowed for explicit
+ * IP loopback fixtures, never for a production platform or downgrade redirect. */
 export function createHttpTransport({
-  endpoints = {},
-  fetchImpl = globalThis.fetch,
-  timeoutMs = 15_000,
+  endpoints = {}, trustedOrigin = null, allowInsecureLoopback = false,
+  fetchImpl = globalThis.fetch, timeoutMs = 15_000,
   userAgent = 'FishFM/0.1 (+local music persona)',
-  jar = createCookieJar(),
-  onLog = () => {},
+  maxResponseBytes = HTTP_LIMITS.responseBytes, maxCookieBytes = HTTP_LIMITS.cookieBytes,
+  maxRedirects = HTTP_LIMITS.redirects, onLog = () => {},
 } = {}) {
   if (typeof fetchImpl !== 'function') throw new Error('A fetch implementation is required');
+  positiveLimit(maxResponseBytes); positiveLimit(maxCookieBytes); positiveLimit(timeoutMs);
+  if (!Number.isSafeInteger(maxRedirects) || maxRedirects < 0) throw new TypeError('Invalid redirect limit');
+  const trusted = trustedOrigin === null ? null : parseUrl(trustedOrigin);
+  if (trusted && (trusted.pathname !== '/' || trusted.search || trusted.hash)) {
+    throw fail('endpoint_untrusted', 'Trust configuration must be an origin');
+  }
+  function validateTarget(value) {
+    const url = parseUrl(value);
+    const loopback = ['127.0.0.1', '[::1]'].includes(url.hostname);
+    if (!trusted || url.origin !== trusted.origin
+      || (url.protocol !== 'https:' && !(allowInsecureLoopback && loopback))) {
+      throw fail('endpoint_untrusted', 'Platform endpoint is outside the trusted HTTPS origin');
+    }
+    return url;
+  }
+  for (const descriptor of Object.values(endpoints)) validateTarget(descriptor.url);
+  const jar = createCookieJar({ origin: trusted?.origin ?? null, maxBytes: maxCookieBytes });
 
-  const transport = {
+  return {
     jar,
-
-    /** Loads a stored session back into the jar after a restart. */
     useSecret(secret) {
       jar.clear();
       jar.absorb(secret);
       return jar.size();
     },
-
     hasEndpoint(role) { return Boolean(endpoints[role]); },
-
     roles() { return Object.keys(endpoints); },
-
     async request({ role, params = {}, signal = null } = {}) {
-      if (signal?.aborted) throw new MusicError('cancelled', 'Platform request was cancelled');
+      if (signal?.aborted) throw fail('cancelled', 'Platform request was cancelled');
       const descriptor = endpoints[role];
-      if (!descriptor) {
-        // Naming the missing role is the honest answer: it means this build was
-        // not configured for that operation, not that the platform failed.
-        throw new MusicError('endpoint_unconfigured', `No endpoint is configured for role "${role}"`);
-      }
-
-      const url = new URL(descriptor.url);
+      if (!descriptor) throw fail('endpoint_unconfigured', `No endpoint is configured for role "${role}"`);
+      let url = validateTarget(descriptor.url);
       const query = descriptor.query ? descriptor.query(params) : params;
       for (const [key, value] of Object.entries(query ?? {})) {
-        if (value === undefined || value === null || typeof value === 'object') continue;
-        url.searchParams.set(key, String(value));
+        if (value !== undefined && value !== null && typeof value !== 'object') url.searchParams.set(key, String(value));
       }
-
-      const method = (descriptor.method ?? (descriptor.body ? 'POST' : 'GET')).toUpperCase();
-      onLog({ type: 'platform-request', role, provider: 'http' });
-      const headers = { 'user-agent': userAgent, accept: 'application/json', ...(descriptor.headers ?? {}) };
-      const cookie = jar.header();
-      if (cookie && descriptor.includeCookies !== false) headers.cookie = cookie;
-
+      let method = (descriptor.method ?? (descriptor.body ? 'POST' : 'GET')).toUpperCase();
+      const baseHeaders = new Headers({ 'user-agent': userAgent, accept: 'application/json', ...(descriptor.headers ?? {}) });
+      for (const name of ['cookie', 'cookie2', 'authorization', 'proxy-authorization', 'host']) {
+        if (baseHeaders.has(name)) throw fail('endpoint_untrusted', 'Platform credentials must use the scoped cookie jar');
+      }
+      const qr = role === 'loginQr' || role === 'loginPoll';
+      const cookieEnabled = descriptor.includeCookies !== false;
+      const requestJar = qr ? createCookieJar({ origin: trusted.origin, maxBytes: maxCookieBytes }) : jar;
       let payload;
       if (descriptor.body) {
-        payload = descriptor.body(params);
-        if (payload !== null && payload !== undefined) {
+        const body = descriptor.body(params);
+        if (body !== null && body !== undefined) {
           const encoded = new URLSearchParams();
-          for (const [key, value] of Object.entries(payload)) {
-            if (value === undefined || value === null) continue;
-            encoded.set(key, String(value));
+          for (const [key, value] of Object.entries(body)) {
+            if (value !== undefined && value !== null) encoded.set(key, String(value));
           }
           payload = encoded.toString();
-          headers['content-type'] = 'application/x-www-form-urlencoded';
+          baseHeaders.set('content-type', 'application/x-www-form-urlencoded');
         }
       }
-
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), timeoutMs);
       const onAbort = () => controller.abort();
       signal?.addEventListener('abort', onAbort, { once: true });
       if (signal?.aborted) onAbort();
-
       try {
-        const response = await fetchImpl(url, { method, headers, body: payload, signal: controller.signal, redirect: 'follow' });
-
-        // Capture the session before parsing, so a login response cannot be lost
-        // because its body shape was unexpected.
-        const setCookie = response.headers?.getSetCookie?.() ?? [];
-        if (setCookie.length) {
-          jar.absorb(setCookie);
-          onLog({ type: 'transport', role, cookies: setCookie.length });
+        onLog({ type: 'platform-request', role, provider: 'http' });
+        for (let hop = 0; ; hop++) {
+          const headers = new Headers(baseHeaders);
+          const cookie = cookieEnabled && !qr ? requestJar.header(url) : null;
+          if (cookie) headers.set('cookie', cookie);
+          const response = await fetchImpl(url, { method, headers, body: payload, signal: controller.signal, redirect: 'manual', credentials: 'omit' });
+          if (response.redirected) {
+            await response.body?.cancel();
+            throw fail('redirect_blocked', 'Platform fetch followed an unexpected redirect');
+          }
+          if (response.url) {
+            try { validateTarget(response.url); }
+            catch (error) { await response.body?.cancel(); throw error; }
+          }
+          const location = response.headers.get('location');
+          let next = null;
+          if (REDIRECTS.has(response.status) && location !== null) {
+            try {
+              next = validateTarget(new URL(location, url));
+              if (hop >= maxRedirects) throw fail('redirect_limit', 'Platform redirect limit exceeded');
+            } catch (error) { await response.body?.cancel(); throw error; }
+          }
+          const setCookie = cookieEnabled ? response.headers.getSetCookie() : [];
+          if (next) {
+            await response.body?.cancel();
+            requestJar.absorb(setCookie, url);
+            if ((response.status === 303 && method !== 'HEAD') || ([301, 302].includes(response.status) && method === 'POST')) {
+              method = 'GET'; payload = undefined; baseHeaders.delete('content-type');
+            }
+            url = next;
+            continue;
+          }
+          const text = await readBoundedBody(response, maxResponseBytes);
+          let body = text;
+          if ((response.headers.get('content-type') ?? '').includes('json') || /^\s*[[{]/.test(text)) {
+            try { body = JSON.parse(text); } catch { /* preserve platform failures */ }
+          }
+          if (body && typeof body === 'object' && body.cookie) {
+            const candidate = createCookieJar({ maxBytes: maxCookieBytes });
+            candidate.absorb(body.cookie);
+          }
+          requestJar.absorb(setCookie, url);
+          if (setCookie.length) onLog({ type: 'transport', role, cookies: setCookie.length });
+          const secret = cookieEnabled ? requestJar.toSecret(url) : '';
+          if (body && typeof body === 'object' && !body.cookie && secret) body.cookie = secret;
+          return { status: response.status, body, url: url.toString(), cookies: secret };
         }
-
-        // The same timeout covers headers AND the complete response body.
-        const text = await response.text();
-        let body = text;
-        const contentType = response.headers?.get?.('content-type') ?? '';
-        if (contentType.includes('json') || /^\s*[[{]/.test(text)) {
-          try { body = JSON.parse(text); } catch { /* keep the raw text */ }
-        }
-
-        // A confirmed sign-in arrives as a cookie; expose it the same way a body
-        // field would be, so the adapter's parser has one shape to handle.
-        if (typeof body === 'object' && body !== null && !body.cookie && jar.size()) {
-          body.cookie = jar.toSecret();
-        }
-
-        return { status: response.status, body, url: url.toString(), cookies: jar.toSecret() };
       } catch (error) {
-        if (signal?.aborted) throw new MusicError('cancelled', 'Platform request was cancelled', { cause: error });
-        throw Object.assign(new Error(`request to ${role} failed: ${error.message}`), {
-          code: controller.signal.aborted || error.name === 'AbortError' ? 'ETIMEDOUT' : (error.code ?? 'ECONNRESET'),
-          cause: error,
+        if (signal?.aborted) throw fail('cancelled', 'Platform request was cancelled');
+        if (error instanceof MusicError) throw error;
+        // Discard raw fetch errors: they may include a URL or credential.
+        throw Object.assign(new Error('Platform HTTP request failed'), {
+          code: controller.signal.aborted || error.name === 'AbortError' ? 'ETIMEDOUT' : 'ECONNRESET',
         });
       } finally {
         clearTimeout(timer);
@@ -161,14 +256,9 @@ export function createHttpTransport({
       }
     },
   };
-
-  return transport;
 }
 
-/**
- * Endpoint maps are deployment data. This validates a map before use so a
- * misconfiguration fails at startup instead of mid-song.
- */
+/** Syntactic map validation; trust is checked separately by the transport. */
 export function assertEndpointMap(endpoints, { provider, required = [] } = {}) {
   if (!endpoints || typeof endpoints !== 'object') throw new Error(`${provider}: an endpoint map is required`);
   for (const role of required) {
@@ -177,6 +267,7 @@ export function assertEndpointMap(endpoints, { provider, required = [] } = {}) {
     if (typeof descriptor.url !== 'string' || !/^https?:\/\//.test(descriptor.url)) {
       throw new Error(`${provider}: endpoint role "${role}" needs an http(s) url`);
     }
+    parseUrl(descriptor.url);
   }
   return true;
 }

@@ -243,9 +243,6 @@ export function createPlatformProvider({
         return { status: state.status, code: state.code ?? null };
       }
       if (!state.secret) {
-        state.secret = transport.jar?.toSecret?.() ?? null;
-      }
-      if (!state.secret) {
         throw new MusicError('provider_failure', `${displayName} confirmed the sign-in but sent no session material`);
       }
       // Keep confirmed session material private while verifying it. Failed
