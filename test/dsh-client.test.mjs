@@ -597,38 +597,32 @@ test('the floating player selects the active panel from the host hook and return
   } finally { f.dispose(); }
 });
 
-test('the ASCII spectrum strip ships enabled, hides inside the FishFM panel and stores its own preferences', () => {
+test('the ASCII spectrum background ships enabled, fixed and hides inside the FishFM panel', () => {
   const f = fixture(async () => state(snapshot(1)));
   try {
     const strip = f.renderSpectrum();
-    assert.ok(strip, 'the conversation area shows the spectrum strip by default');
+    assert.ok(strip, 'the conversation area shows the spectrum background by default');
     assert.equal(strip.props.className, 'fm-spectrum-strip');
-    assert.equal(strip.props.role, 'slider');
-    assert.equal(strip.props['aria-label'], '频谱细带左边界');
-    assert.match(strip.props.title, /模拟律动/);
+    assert.equal(strip.props['aria-hidden'], 'true', 'the background band stays out of the accessibility tree');
+    assert.equal(strip.props.role, undefined, 'the fixed band is not a control');
     assert.equal(strip.props['data-active'], false, 'an idle snapshot shows the standby baseline');
-    assert.equal(strip.props.style.left, '348px', 'defaults at the left edge of a typical conversation area');
-    assert.equal(strip.props.style.width, '14px', 'the strip is a narrow accent, not a full backdrop');
-    assert.equal(f.renderSpectrum({ activePanelId: 'fishfm' }), null, 'the full panel hides the strip');
-    assert.ok(f.renderSpectrum({ activePanelId: 'plugins' }), 'the strip returns outside the panel');
+    assert.equal(f.renderSpectrum({ activePanelId: 'fishfm' }), null, 'the full panel hides the band');
+    assert.ok(f.renderSpectrum({ activePanelId: 'plugins' }), 'the band returns outside the panel');
 
     f.controller.setSpectrumVisible(false);
-    assert.equal(f.renderSpectrum(), null, 'the interface toggle hides the strip');
+    assert.equal(f.renderSpectrum(), null, 'the interface toggle hides the band');
     assert.equal(f.storage.get('fishfm.spectrum.visible.v1'), 'false');
-
     f.controller.setSpectrumVisible(true);
-    f.controller.setSpectrumInset(412.4);
-    assert.equal(f.storage.get('fishfm.spectrum.inset.v1'), '{"left":412}');
-    assert.equal(f.renderSpectrum().props.style.left, '412px', 'a dragged position persists');
+    assert.ok(f.renderSpectrum(), 'the band returns when re-enabled');
   } finally { f.dispose(); }
 });
 
-test('a fresh fixture restores the saved spectrum strip preferences', () => {
+test('a fresh fixture restores the saved spectrum visibility preference', () => {
   const storage = new Map([['fishfm.spectrum.visible.v1', 'false'], ['fishfm.spectrum.inset.v1', '{"left":77}']]);
   const f = fixture(async () => state(snapshot(1)), storage);
   try {
     assert.equal(f.controller.getSnapshot().spectrumVisible, false);
-    assert.equal(f.controller.getSnapshot().spectrumInset.left, 77);
+    assert.equal(f.controller.getSnapshot().spectrumInset, undefined, 'the fixed band no longer stores a position');
     assert.equal(f.renderSpectrum(), null);
   } finally { f.dispose(); }
 });
@@ -637,12 +631,12 @@ test('the panel exposes a spectrum switch that flips the stored preference', asy
   const f = fixture(async () => state(snapshot(1)));
   const off = f.controller.subscribe(() => {});
   try {
-    const toggle = all(f.render()).find(n => n.props['aria-label'] === '频谱细带');
-    assert.ok(toggle, 'the interface settings list the spectrum strip');
+    const toggle = all(f.render()).find(n => n.props['aria-label'] === '背景频谱');
+    assert.ok(toggle, 'the interface settings list the spectrum background');
     assert.equal(toggle.props['aria-checked'], true);
     toggle.props.onClick();
     assert.equal(f.storage.get('fishfm.spectrum.visible.v1'), 'false');
-    assert.equal(all(f.render()).find(n => n.props['aria-label'] === '频谱细带').props['aria-checked'], false);
+    assert.equal(all(f.render()).find(n => n.props['aria-label'] === '背景频谱').props['aria-checked'], false);
   } finally { off(); f.dispose(); }
 });
 

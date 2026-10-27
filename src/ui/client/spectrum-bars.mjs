@@ -1,13 +1,11 @@
-// 工作区左缘 ASCII 频谱细带：本地动画时钟驱动的模拟频谱，不是 WPF 音频的
-// 测量值，也不是歌词或节拍识别。音频由原生宿主进程播放，媒体句柄不进 UI
+// 对话区左缘 ASCII 频谱背景带：本地动画时钟驱动的模拟频谱，不是 WPF 音频
+// 的测量值，也不是歌词或节拍识别。音频由原生宿主进程播放，媒体句柄不进 UI
 // （见 ARCHITECTURE），网页端拿不到真实 FFT，也没有歌词数据流；观感借鉴
 // audioMotion-analyzer 的对数分频、峰值保持与重力下落、快起慢落包络，以及
-// soundscape 静默时的"呼吸"待机，全部离线生成。字符按亮度映射到经典 ASCII
-// 字符集（参考 ASCIIText 的 asciify 思路，不引入 Three.js 或第三方代码）。
-// 引擎与渲染为纯函数便于离线测试；组件只负责计时和写 DOM。
+// soundscape 静默时的"呼吸"待机，全部离线生成。柱体字符按亮度映射到经典
+// ASCII 字符集（参考 ASCIIText 的 asciify 思路，不引入 Three.js 或第三方
+// 代码）。引擎与渲染为纯函数便于离线测试；组件只负责计时和写 DOM。
 
-export const INSET_DEFAULT = 348; // 常见 DSH 侧栏宽度之后；宿主未提供布局 API，可拖动微调
-export const STRIP_WIDTH = 14;
 export const STRIP_BANDS = 64;
 export const ROW_HEIGHT = 13;
 export const BAND_MIN = 8;
@@ -109,10 +107,11 @@ export function createSpectrumEngine({ bands = 24, seed = 0 } = {}) {
   return { bands: count, reseed, step };
 }
 
-// 把频段值铺成细带字符：每行一个频段（低频在底），两列字符分别是当前
-// 振幅与峰值像素；亮度映射到经典 ASCII 字符集，得到印刷网点般的纹理。
-export function renderSpectrumStrip(values, peaks, rows, { ramp = FIELD_RAMP } = {}) {
+// 把频段值铺成横向 ASCII 柱：每行一个频段（低频在底），柱体从左侧生长，
+// 柱内字符沿长度由疏到密（ASCII 滤镜的亮度梯度），悬空的峰值用最亮的 @/$ 标记。
+export function renderSpectrumStrip(values, peaks, rows, columns, { ramp = FIELD_RAMP } = {}) {
   const rowCount = Math.max(8, Math.min(96, Math.round(Number(rows) || 0)));
+  const colCount = Math.max(2, Math.min(24, Math.round(Number(columns) || 0)));
   const bands = values?.length ?? 0;
   if (!bands) return [];
   const rampMax = Math.max(1, ramp.length - 1);
@@ -124,13 +123,19 @@ export function renderSpectrumStrip(values, peaks, rows, { ramp = FIELD_RAMP } =
     const band = Math.min(bands - 1, Math.round(position * (bands - 1)));
     const value = clamp01(Number(values[band]) || 0);
     const peak = clamp01(Number(peaks?.[band]) || 0);
-    const head = pick(0.12 + 0.88 * value);
-    const tail = peak > value + 0.06 ? pick(0.12 + 0.6 * peak) : ' ';
-    lines.push(head + tail);
+    const filled = Math.round(value * colCount);
+    const cells = new Array(colCount).fill(' ');
+    for (let cell = 0; cell < filled; cell++) {
+      const towardTip = filled <= 1 ? 1 : cell / (filled - 1);
+      cells[cell] = pick(0.35 + 0.6 * towardTip);
+    }
+    const peakCell = peak > value + 0.06 ? Math.min(colCount - 1, Math.round(peak * colCount) - 1) : -1;
+    if (peakCell >= filled) cells[peakCell] = ramp[rampMax];
+    lines.push(cells.join(''));
   }
   return lines;
 }
 
-export function renderSpectrumStripText(values, peaks, rows, options) {
-  return renderSpectrumStrip(values, peaks, rows, options).join('\n');
+export function renderSpectrumStripText(values, peaks, rows, columns, options) {
+  return renderSpectrumStrip(values, peaks, rows, columns, options).join('\n');
 }

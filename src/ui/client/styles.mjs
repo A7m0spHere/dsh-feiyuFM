@@ -45,7 +45,7 @@ export const css = `
   :is(.fishfm,.fm-float) select { font:inherit; }
   :is(.fishfm,.fm-float) button { cursor:pointer; }
   :is(.fishfm,.fm-float) button:disabled { opacity:.45; cursor:default; }
-  :is(.fishfm,.fm-float) :focus-visible,.fm-spectrum-strip:focus-visible { outline:2px solid var(--fm-accent); outline-offset:-2px; }
+  :is(.fishfm,.fm-float) :focus-visible { outline:2px solid var(--fm-accent); outline-offset:3px; }
   .fishfm { container-type:inline-size; container-name:fishfm; width:100%;
     max-width:1120px; margin:auto; padding:16px; background:var(--fm-canvas);
     height:100%; min-height:0; overflow:auto; overscroll-behavior:contain;
@@ -295,16 +295,13 @@ export const css = `
   .fm-library-pages { display:flex; align-items:center; gap:7px; }
   .fm-library-pages .fm-button { min-height:28px; padding:3px 8px; font-size:11px; }
   .fm-float { position:absolute; z-index:25; pointer-events:auto; width:310px; max-width:calc(100% - 24px); }
-  .fm-spectrum-strip { position:absolute; top:0; bottom:0; z-index:1; overflow:hidden;
-    display:flex; justify-content:center; pointer-events:auto; touch-action:none;
-    cursor:ew-resize; user-select:none; border-radius:3px;
-    transition:background-color var(--fm-fast) var(--fm-ease); }
-  .fm-spectrum-strip:hover { background:color-mix(in srgb,var(--fm-accent) 7%,transparent); }
+  .fm-spectrum-strip { position:absolute; top:0; bottom:0; left:348px; width:56px; z-index:1; overflow:hidden;
+    display:flex; justify-content:center; pointer-events:none; }
   .fm-spectrum-strip pre { margin:0; pointer-events:none; letter-spacing:0; white-space:pre; overflow:hidden;
     font-family:ui-monospace,SFMono-Regular,Consolas,'Cascadia Mono',Menlo,monospace;
-    font-size:10px; line-height:var(--fm-row,13px); color:var(--fm-accent-ink); opacity:.4;
+    font-size:10px; line-height:var(--fm-row,13px); color:var(--fm-accent-ink); opacity:.3;
     transition:opacity var(--fm-base) var(--fm-ease); }
-  .fm-spectrum-strip[data-active=false] pre { opacity:.22; }
+  .fm-spectrum-strip[data-active=false] pre { opacity:.16; }
   .fm-float-pill { display:flex; align-items:center; gap:6px; padding:6px;
     border:1px solid var(--fm-line); border-radius:11px; background:var(--fm-raised); box-shadow:var(--fm-popup-shadow); }
   .fm-float-art { display:grid; place-items:center; width:34px; height:38px; flex:none;

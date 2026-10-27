@@ -149,11 +149,11 @@ export function Panel({ controller, back, close }) {
             h('select', { id: `${rateId}-motion`, 'aria-label': '动态效果', value: state.motion || 'full', onChange: event => controller.setMotion(event.target.value) },
               h('option', { value: 'full' }, '完整'), h('option', { value: 'reduced' }, '轻量'), h('option', { value: 'off' }, '关闭'))),
           h('p', { className: 'fm-note' }, '同时遵循系统的减少动态效果设置。'),
-          h('div', { className: 'fm-motion-row' }, h('label', { htmlFor: `${rateId}-spectrum` }, '频谱细带'),
+          h('div', { className: 'fm-motion-row' }, h('label', { htmlFor: `${rateId}-spectrum` }, '背景频谱'),
             h('button', { type: 'button', id: `${rateId}-spectrum`, className: 'fm-toggle', role: 'switch',
-              'aria-label': '频谱细带', 'aria-checked': Boolean(state.spectrumVisible),
+              'aria-label': '背景频谱', 'aria-checked': Boolean(state.spectrumVisible),
               onClick: () => controller.setSpectrumVisible(!state.spectrumVisible) }, h('span'))),
-          h('p', { className: 'fm-note' }, '对话区左缘的 ASCII 频谱细带；模拟观感，非音频测量。可整体拖动或用方向键调整位置。'),
+          h('p', { className: 'fm-note' }, '对话区左缘的 ASCII 频谱背景带；模拟观感，非音频测量，位置固定。'),
           h('div', { className: 'fm-widget-note' }, h(Svg, { type: 'grip' }),
             h('span', null, state.widgetVisible ? '离开面板后显示，可拖动吸附。' : '悬浮条已隐藏，可随时显示。')))));
   const grid = h('div', { className: 'fm-grid' }, ...(close?[controlsColumn,preferencesColumn]:[preferencesColumn,controlsColumn]));

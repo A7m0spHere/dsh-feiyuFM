@@ -23,7 +23,7 @@ export function apply(ctx) {
   ctx.slots.inject('settings.section', () => ctx.slots.register({ name: 'settings.section', id: 'fishfm', order: 65, label: () => '肥鱼电台', inject }, Panel));
   ctx.slots.inject('shell.overlay', () => ctx.slots.register({ name: 'shell.overlay', id: 'fishfm.player', order: 30,
     inject: () => ({ controller, layout: ctx.layout }) }, FloatingPlayer));
-  // 同一槽位的第二个条目：工作区对话区左缘的 ASCII 频谱细带。
+  // 同一槽位的第二个条目：对话区左缘的 ASCII 频谱背景带（固定位置、不参与互动）。
   // 真实宿主对同槽多条目的渲染行为待隔离 profile 验证（见 PROJECT_PLAN）。
   ctx.slots.inject('shell.overlay', () => ctx.slots.register({ name: 'shell.overlay', id: 'fishfm.spectrum', order: 31,
     inject: () => ({ controller }) }, SpectrumStrip));

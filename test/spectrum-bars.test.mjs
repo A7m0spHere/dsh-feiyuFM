@@ -3,8 +3,6 @@ import assert from 'node:assert/strict';
 import { createSpectrumEngine, renderSpectrumStrip, renderSpectrumStripText, spectrumEnergy,
   hashSeed, mulberry32, BAND_MIN, BAND_MAX, FIELD_RAMP } from '../src/ui/client/spectrum-bars.mjs';
 
-const PICK = brightness => FIELD_RAMP[Math.min(FIELD_RAMP.length - 1,
-  Math.max(0, Math.floor(brightness * (FIELD_RAMP.length - 1))))];
 
 const stepFor = (engine, seconds, options) => {
   let frame;
@@ -75,34 +73,41 @@ test('band count clamps to the supported range', () => {
   assert.equal(createSpectrumEngine({}).bands, 24);
 });
 
-test('strip rows keep two cells, clamp their count and stay inside the charset', () => {
+const filled = line => [...line].filter(char => char !== ' ').length;
+
+test('strip rows span the requested width, clamp their count and stay inside the charset', () => {
   const values = new Array(16).fill(0.6), peaks = new Array(16).fill(0.8);
-  const lines = renderSpectrumStrip(values, peaks, 32);
+  const lines = renderSpectrumStrip(values, peaks, 32, 9);
   assert.equal(lines.length, 32);
   for (const line of lines) {
-    assert.equal(line.length, 2, 'every row is a two-cell strip segment');
+    assert.equal(line.length, 9, 'every row spans the measured column count');
     for (const char of line) assert.ok(char === ' ' || FIELD_RAMP.includes(char), `unexpected char ${char}`);
   }
-  assert.equal(renderSpectrumStrip(values, peaks, 1).length, 8, 'row count clamps up');
-  assert.equal(renderSpectrumStrip(values, peaks, 1000).length, 96, 'row count clamps down');
-  assert.deepEqual(renderSpectrumStrip([], [], 12), [], 'no bands means no texture');
+  assert.equal(renderSpectrumStrip(values, peaks, 1, 9).length, 8, 'row count clamps up');
+  assert.equal(renderSpectrumStrip(values, peaks, 1000, 9).length, 96, 'row count clamps down');
+  assert.equal(renderSpectrumStrip(values, peaks, 32, 100)[0].length, 24, 'column count clamps down');
+  assert.equal(renderSpectrumStrip(values, peaks, 32, 1)[0].length, 2, 'column count clamps up');
+  assert.deepEqual(renderSpectrumStrip([], [], 12, 9), [], 'no bands means no texture');
 });
 
-test('low frequencies sit at the bottom and louder bands print denser characters', () => {
-  const lines = renderSpectrumStrip([1, 0], [1, 0], 8);
-  assert.equal(lines.at(-1), `${PICK(1)} `, 'the loud low band is the last row and reaches the densest head');
-  assert.equal(lines[0], `${PICK(0.12)} `, 'the silent high band is the first row');
-  const quiet = renderSpectrumStrip([0.1], [0.1], 8)[0][0];
-  const loud = renderSpectrumStrip([0.95], [0.95], 8)[0][0];
-  assert.ok(FIELD_RAMP.indexOf(loud) > FIELD_RAMP.indexOf(quiet), 'higher amplitude prints a denser glyph');
+test('low frequencies sit at the bottom and louder bands fill more columns', () => {
+  const lines = renderSpectrumStrip([1, 0], [1, 0], 8, 6);
+  assert.equal(lines.at(-1).trim().length, 6, 'the loud low band fills the last row');
+  assert.equal(lines[0], '      ', 'the silent high band leaves the first row empty');
+  assert.ok(filled(renderSpectrumStrip([0.9], [0.9], 8, 6)[0]) > filled(renderSpectrumStrip([0.3], [0.3], 8, 6)[0]),
+    'higher amplitude fills more cells');
+  const bar = renderSpectrumStrip([1], [1], 8, 6)[0];
+  assert.ok(bar.trim().length === 6 && !bar.includes(' '), 'a full bar leaves no gaps');
 });
 
-test('the trailing cell marks a peak that has not fallen back yet', () => {
-  const rising = renderSpectrumStrip([0.2], [0.9], 8);
-  const settled = renderSpectrumStrip([0.9], [0.9], 8);
-  assert.equal(rising[0][1], PICK(0.12 + 0.6 * 0.9), 'a held peak leaves a dimmer trailing glyph');
-  assert.equal(settled[0][1], ' ', 'the trailing cell clears once the bar catches the peak');
-  assert.equal(renderSpectrumStripText([0.5], [0.5], 8), renderSpectrumStrip([0.5], [0.5], 8).join('\n'));
+test('a held peak marks its cell with the densest glyph until the bar catches up', () => {
+  const rising = renderSpectrumStrip([0.2], [0.9], 8, 6);
+  const settled = renderSpectrumStrip([0.9], [0.9], 8, 6);
+  assert.equal(rising[0][4], FIELD_RAMP.at(-1), 'a held peak leaves the densest glyph at its column');
+  assert.equal(rising[0][0].trim().length, 1, 'the bar itself still stops at its own amplitude');
+  assert.equal(settled[0].includes(FIELD_RAMP.at(-1)), false, 'a caught-up peak needs no extra glyph');
+  assert.equal(settled[0][5], ' ', 'nothing is drawn beyond the bar');
+  assert.equal(renderSpectrumStripText([0.5], [0.5], 8, 6), renderSpectrumStrip([0.5], [0.5], 8, 6).join('\n'));
 });
 
 test('energy arc is fuller in the middle of a song than at the edges', () => {

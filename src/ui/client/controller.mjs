@@ -5,7 +5,6 @@ const WIDGET_POSITION_KEY = 'fishfm.widget.position.v1';
 const MOTION_KEY = 'fishfm.motion.v1';
 const PLAYBACK_EFFECTS_KEY = 'fishfm.playback.effects.v1';
 const SPECTRUM_VISIBLE_KEY = 'fishfm.spectrum.visible.v1';
-const SPECTRUM_INSET_KEY = 'fishfm.spectrum.inset.v1';
 const readPreference = (key, fallback) => {
   try {
     const value = window.localStorage.getItem(key);
@@ -15,8 +14,6 @@ const readPreference = (key, fallback) => {
 const writePreference = (key, value) => {
   try { window.localStorage.setItem(key, JSON.stringify(value)); } catch { /* storage can be disabled */ }
 };
-const normalizeSpectrumInset = value => value && Number.isFinite(value.left)
-  ? { left: Math.round(Math.max(0, Math.min(4096, value.left))) } : null;
 
 export function createController(connection) {
   let state = {
@@ -29,7 +26,6 @@ export function createController(connection) {
     widgetPosition: readPreference(WIDGET_POSITION_KEY, null),
     playbackEffects: readPreference(PLAYBACK_EFFECTS_KEY, false) === true,
     spectrumVisible: readPreference(SPECTRUM_VISIBLE_KEY, true) !== false,
-    spectrumInset: normalizeSpectrumInset(readPreference(SPECTRUM_INSET_KEY, null)),
     motion: ['full', 'reduced', 'off'].includes(readPreference(MOTION_KEY, 'full')) ? readPreference(MOTION_KEY, 'full') : 'full',
   };
   let epoch = 0, playbackEpoch = 0, libraryEpoch = 0, timer, read, write, platformWrite, libraryRead,summaryWrite,expressionWrite, disposed = false;
@@ -244,11 +240,6 @@ export function createController(connection) {
       const next = Boolean(visible);
       writePreference(SPECTRUM_VISIBLE_KEY, next);
       emit({ spectrumVisible: next });
-    },
-    setSpectrumInset(left) {
-      const next = normalizeSpectrumInset({ left });
-      writePreference(SPECTRUM_INSET_KEY, next);
-      emit({ spectrumInset: next });
     },
     setWidgetPosition(position) {
       const next = position && ['left', 'right'].includes(position.edge) && Number.isFinite(position.top)
