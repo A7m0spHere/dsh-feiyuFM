@@ -8,9 +8,9 @@
 |---|---|
 | 产品路径 | 默认 `filtered`：参考歌曲 → 网易云候选 → LLM 筛选 → 本地播放。自动播放只取入选曲；QQ 暂缓，Last.fm 富化未开工 |
 | 已发布包 | `0.1.0-beta.3`，Windows／网易云 Beta。2026-10-13 已确认 `beta` 指向 beta.3、`latest` 保持 beta.1，公开下载摘要及 npm／官方 DSH 安装一致；范围、文件数和摘要只查 [发布记录](releases/0.1.0-beta.3.md) |
-| `main` 源码 | beta.3 之后的 REV-04、研究工具、反馈补齐、U19/U20 原型、U21 反馈管理、N24 退出证据修复、[N25 最近播放窗口与多批入选池](spikes/N25-recent-playback-and-approved-pool.md)、[REV-05 HTTP 凭据边界](spikes/REV-05-http-transport-boundaries.md) 与 [U22 首页 ASCII 频谱律动条](spikes/U22-ascii-spectrum-rail.md) 尚未随 npm 发布 |
+| `main` 源码 | beta.3 之后的 REV-04、研究工具、反馈补齐、U19/U20 原型、U21 反馈管理、N24 退出证据修复、[N25 最近播放窗口与多批入选池](spikes/N25-recent-playback-and-approved-pool.md)、[REV-05 HTTP 凭据边界](spikes/REV-05-http-transport-boundaries.md) 与 [U22 对话区 ASCII 频谱细带](spikes/U22-ascii-spectrum-strip.md) 尚未随 npm 发布 |
 | 日常 Desktop | [N23](spikes/N23-model-route-completion.md) 曾验原生正常退出重开。N25 本轮未主动重载；只读观察到日常进程期间重启且已有新窗口和 17 首待播池设置，但最终提交完整加载状态仍为 unknown，不据此补记 Desktop 退出验收 |
-| 最近功能验证 | 2026-10-28，Windows／Node 24.22.1：U22 新增纯逻辑 10 项与客户端 3 项，全量 **593 项，593 通过、0 失败、0 跳过**（本机含 Windows 媒体环境），168 模块检查与 client 构建通过；U22 另做模拟浏览器深浅主题、拖动持久化与开关验证，截图仅存本机。构建／debug smoke、包白名单与真实媒体沿用 2026-10-23 记录，本轮未重跑 |
+| 最近功能验证 | 2026-10-28，Windows／Node 24.22.1：U22 新增纯逻辑 11 项与客户端 3 项，全量 **594 项，594 通过、0 失败、0 跳过**（本机含 Windows 媒体环境），168 模块检查与 client 构建通过；U22 另做模拟浏览器深浅主题、拖动持久化与开关验证，截图仅存本机。构建／debug smoke、包白名单与真实媒体沿用 2026-10-23 记录，本轮未重跑 |
 | DSH 插件验证 | [N25](spikes/N25-recent-playback-and-approved-pool.md)：官方 DSH `0.2.1-rc.2` 隔离 Web profile，受控 filtered／两批合成批准／本地静音 WPF 的窗口、失败、重启、12 首累计池／6 首当前批次和清理 **20/20 通过**，真实模型请求 0。[N24](spikes/N24-dsh-background-acceptance.md) 的真实模型并发／启停对照、U21 的界面／反馈证据保留；真实平台补批／音频及完整 filtered 现场组合未验 |
 | 最近引用审计 | 2026-10-23：106 份文档零坏链接、10/10 证据齐全。引用存在不等于验收通过；文档蒸馏的原文比对与归档边界保留 |
 | 真实推荐与观察 | N23：40 候选 → 9 入选 → WPF 静音进度通过；日常观察 54.72 分钟、16 条有效收听、0 播放错误，按用户要求提前结束。N24 已补隔离真实并发、启停对照、9418 ms 原生有效进度与一次 0.0045 的短会话静音成长；日常真实平台的成长应用与归因仍未补验 |

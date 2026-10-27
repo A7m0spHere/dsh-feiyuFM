@@ -6,7 +6,7 @@ window.__ModuleLoader__.load({
     // src/ui/client/styles.mjs
     // PHL-inspired tokens and timing. Source/provenance: THIRD_PARTY_NOTICES.md.
     const css = `
-      .fishfm,.fm-float,.fm-spectrum {
+      .fishfm,.fm-float,.fm-spectrum-strip {
         --fm-canvas:hsl(220 20% 96%); --fm-surface:hsl(0 0% 100%);
         --fm-raised:hsl(0 0% 100%); --fm-sunken:hsl(220 20% 97%);
         --fm-hover:hsl(220 24% 95.5%); --fm-line:hsl(220 16% 90%);
@@ -25,8 +25,8 @@ window.__ModuleLoader__.load({
         box-sizing:border-box; color:var(--fm-ink); font-family:inherit; font-size:13px; line-height:1.5;
         color-scheme:light;
       }
-      :is([data-ds-dark-theme],.dark,[data-theme=dark]) :is(.fishfm,.fm-float,.fm-spectrum),
-      :is(.fishfm,.fm-float,.fm-spectrum)[data-theme=dark] {
+      :is([data-ds-dark-theme],.dark,[data-theme=dark]) :is(.fishfm,.fm-float,.fm-spectrum-strip),
+      :is(.fishfm,.fm-float,.fm-spectrum-strip)[data-theme=dark] {
         --fm-canvas:hsl(224 18% 8%); --fm-surface:hsl(222 16% 12.5%);
         --fm-raised:hsl(222 15% 15%); --fm-sunken:hsl(224 18% 10%);
         --fm-hover:hsl(222 14% 18%); --fm-line:hsl(222 12% 21%);
@@ -51,7 +51,7 @@ window.__ModuleLoader__.load({
       :is(.fishfm,.fm-float) select { font:inherit; }
       :is(.fishfm,.fm-float) button { cursor:pointer; }
       :is(.fishfm,.fm-float) button:disabled { opacity:.45; cursor:default; }
-      :is(.fishfm,.fm-float) :focus-visible,.fm-spectrum:focus-visible { outline:2px solid var(--fm-accent); outline-offset:3px; }
+      :is(.fishfm,.fm-float) :focus-visible,.fm-spectrum-strip:focus-visible { outline:2px solid var(--fm-accent); outline-offset:-2px; }
       .fishfm { container-type:inline-size; container-name:fishfm; width:100%;
         max-width:1120px; margin:auto; padding:16px; background:var(--fm-canvas);
         height:100%; min-height:0; overflow:auto; overscroll-behavior:contain;
@@ -301,15 +301,16 @@ window.__ModuleLoader__.load({
       .fm-library-pages { display:flex; align-items:center; gap:7px; }
       .fm-library-pages .fm-button { min-height:28px; padding:3px 8px; font-size:11px; }
       .fm-float { position:absolute; z-index:25; pointer-events:auto; width:310px; max-width:calc(100% - 24px); }
-      .fm-spectrum { position:absolute; top:18px; bottom:18px; z-index:24; display:flex; align-items:center;
-        justify-content:center; pointer-events:auto; touch-action:none; cursor:grab; user-select:none;
-        border:1px solid var(--fm-line); border-radius:10px; background:color-mix(in srgb,var(--fm-surface) 78%,transparent);
-        color:var(--fm-accent-ink); opacity:.78; transition:opacity var(--fm-base) var(--fm-ease); }
-      .fm-spectrum:active { cursor:grabbing; }
-      .fm-spectrum[data-active=false] { color:var(--fm-muted); opacity:.42; }
-      .fm-spectrum pre { margin:0; pointer-events:none; letter-spacing:0; white-space:pre; overflow:hidden;
+      .fm-spectrum-strip { position:absolute; top:0; bottom:0; z-index:1; overflow:hidden;
+        display:flex; justify-content:center; pointer-events:auto; touch-action:none;
+        cursor:ew-resize; user-select:none; border-radius:3px;
+        transition:background-color var(--fm-fast) var(--fm-ease); }
+      .fm-spectrum-strip:hover { background:color-mix(in srgb,var(--fm-accent) 7%,transparent); }
+      .fm-spectrum-strip pre { margin:0; pointer-events:none; letter-spacing:0; white-space:pre; overflow:hidden;
         font-family:ui-monospace,SFMono-Regular,Consolas,'Cascadia Mono',Menlo,monospace;
-        font-size:11px; line-height:var(--fm-row,13px); }
+        font-size:10px; line-height:var(--fm-row,13px); color:var(--fm-accent-ink); opacity:.4;
+        transition:opacity var(--fm-base) var(--fm-ease); }
+      .fm-spectrum-strip[data-active=false] pre { opacity:.22; }
       .fm-float-pill { display:flex; align-items:center; gap:6px; padding:6px;
         border:1px solid var(--fm-line); border-radius:11px; background:var(--fm-raised); box-shadow:var(--fm-popup-shadow); }
       .fm-float-art { display:grid; place-items:center; width:34px; height:38px; flex:none;
@@ -482,7 +483,7 @@ window.__ModuleLoader__.load({
     const MOTION_KEY = 'fishfm.motion.v1';
     const PLAYBACK_EFFECTS_KEY = 'fishfm.playback.effects.v1';
     const SPECTRUM_VISIBLE_KEY = 'fishfm.spectrum.visible.v1';
-    const SPECTRUM_LEFT_KEY = 'fishfm.spectrum.left.v1';
+    const SPECTRUM_INSET_KEY = 'fishfm.spectrum.inset.v1';
     const readPreference = (key, fallback) => {
       try {
         const value = window.localStorage.getItem(key);
@@ -492,7 +493,7 @@ window.__ModuleLoader__.load({
     const writePreference = (key, value) => {
       try { window.localStorage.setItem(key, JSON.stringify(value)); } catch { /* storage can be disabled */ }
     };
-    const normalizeSpectrumLeft = value => value && Number.isFinite(value.left)
+    const normalizeSpectrumInset = value => value && Number.isFinite(value.left)
       ? { left: Math.round(Math.max(0, Math.min(4096, value.left))) } : null;
 
     function createController(connection) {
@@ -506,7 +507,7 @@ window.__ModuleLoader__.load({
         widgetPosition: readPreference(WIDGET_POSITION_KEY, null),
         playbackEffects: readPreference(PLAYBACK_EFFECTS_KEY, false) === true,
         spectrumVisible: readPreference(SPECTRUM_VISIBLE_KEY, true) !== false,
-        spectrumLeft: normalizeSpectrumLeft(readPreference(SPECTRUM_LEFT_KEY, null)),
+        spectrumInset: normalizeSpectrumInset(readPreference(SPECTRUM_INSET_KEY, null)),
         motion: ['full', 'reduced', 'off'].includes(readPreference(MOTION_KEY, 'full')) ? readPreference(MOTION_KEY, 'full') : 'full',
       };
       let epoch = 0, playbackEpoch = 0, libraryEpoch = 0, timer, read, write, platformWrite, libraryRead,summaryWrite,expressionWrite, disposed = false;
@@ -722,10 +723,10 @@ window.__ModuleLoader__.load({
           writePreference(SPECTRUM_VISIBLE_KEY, next);
           emit({ spectrumVisible: next });
         },
-        setSpectrumLeft(left) {
-          const next = normalizeSpectrumLeft({ left });
-          writePreference(SPECTRUM_LEFT_KEY, next);
-          emit({ spectrumLeft: next });
+        setSpectrumInset(left) {
+          const next = normalizeSpectrumInset({ left });
+          writePreference(SPECTRUM_INSET_KEY, next);
+          emit({ spectrumInset: next });
         },
         setWidgetPosition(position) {
           const next = position && ['left', 'right'].includes(position.edge) && Number.isFinite(position.top)
@@ -1558,11 +1559,11 @@ window.__ModuleLoader__.load({
                 h('select', { id: `${rateId}-motion`, 'aria-label': '动态效果', value: state.motion || 'full', onChange: event => controller.setMotion(event.target.value) },
                   h('option', { value: 'full' }, '完整'), h('option', { value: 'reduced' }, '轻量'), h('option', { value: 'off' }, '关闭'))),
               h('p', { className: 'fm-note' }, '同时遵循系统的减少动态效果设置。'),
-              h('div', { className: 'fm-motion-row' }, h('label', { htmlFor: `${rateId}-spectrum` }, '频谱律动条'),
+              h('div', { className: 'fm-motion-row' }, h('label', { htmlFor: `${rateId}-spectrum` }, '频谱细带'),
                 h('button', { type: 'button', id: `${rateId}-spectrum`, className: 'fm-toggle', role: 'switch',
-                  'aria-label': '频谱律动条', 'aria-checked': Boolean(state.spectrumVisible),
+                  'aria-label': '频谱细带', 'aria-checked': Boolean(state.spectrumVisible),
                   onClick: () => controller.setSpectrumVisible(!state.spectrumVisible) }, h('span'))),
-              h('p', { className: 'fm-note' }, '首页侧栏旁的 ASCII 频谱条随播放律动；模拟观感，非音频测量，可左右拖动。'),
+              h('p', { className: 'fm-note' }, '对话区左缘的 ASCII 频谱细带；模拟观感，非音频测量。可整体拖动或用方向键调整位置。'),
               h('div', { className: 'fm-widget-note' }, h(Svg, { type: 'grip' }),
                 h('span', null, state.widgetVisible ? '离开面板后显示，可拖动吸附。' : '悬浮条已隐藏，可随时显示。')))));
       const grid = h('div', { className: 'fm-grid' }, ...(close?[controlsColumn,preferencesColumn]:[preferencesColumn,controlsColumn]));
@@ -1816,20 +1817,21 @@ window.__ModuleLoader__.load({
     }
 
     // src/ui/client/spectrum-bars.mjs
-    // ASCII 频谱条：本地动画时钟驱动的模拟频谱，不是 WPF 音频的测量值。
-    // 音频由原生宿主进程播放，媒体句柄不进 UI（见 ARCHITECTURE），网页端拿不到
-    // 真实 FFT，也没有歌词数据流；观感借鉴 audioMotion-analyzer 的对数分频、
-    // 峰值保持与重力下落、快起慢落包络，以及 soundscape 静默时的"呼吸"待机，
-    // 全部离线生成。引擎与渲染为纯函数便于离线测试；组件只负责计时和写 DOM。
+    // 工作区左缘 ASCII 频谱细带：本地动画时钟驱动的模拟频谱，不是 WPF 音频的
+    // 测量值，也不是歌词或节拍识别。音频由原生宿主进程播放，媒体句柄不进 UI
+    // （见 ARCHITECTURE），网页端拿不到真实 FFT，也没有歌词数据流；观感借鉴
+    // audioMotion-analyzer 的对数分频、峰值保持与重力下落、快起慢落包络，以及
+    // soundscape 静默时的"呼吸"待机，全部离线生成。字符按亮度映射到经典 ASCII
+    // 字符集（参考 ASCIIText 的 asciify 思路，不引入 Three.js 或第三方代码）。
+    // 引擎与渲染为纯函数便于离线测试；组件只负责计时和写 DOM。
 
-    const RAIL_DEFAULT_LEFT = 348; // 常见 DSH 侧栏宽度之后；宿主未提供布局 API，允许拖动微调
-    const RAIL_WIDTH = 76;
-    const RAIL_MARGIN = 4;
+    const INSET_DEFAULT = 348; // 常见 DSH 侧栏宽度之后；宿主未提供布局 API，可拖动微调
+    const STRIP_WIDTH = 14;
+    const STRIP_BANDS = 64;
+    const ROW_HEIGHT = 13;
     const BAND_MIN = 8;
     const BAND_MAX = 64;
-    const ROW_HEIGHT = 13;
-    const TIPS = ['', '▏', '▎', '▍', '▌', '▋', '▊', '▉'];
-    const PEAK_MARK = '▒';
+    const FIELD_RAMP = ' .\'`^",:;Il!i~+_-?][}{1)(|/tfjrxnuvczXYUJCLQ0OZmwqpdbkhao*#MW&8%B@$';
     const BEAT_PERIOD = 0.6; // 约 100 BPM 的固定律动；歌曲节拍不可测，只求观感稳定
     const PEAK_HOLD_S = 0.42;
     const PEAK_GRAVITY = 2.9;
@@ -1926,81 +1928,70 @@ window.__ModuleLoader__.load({
       return { bands: count, reseed, step };
     }
 
-    // 一行一个频段：█ 主体 + 八分块尖端字符表达亚字符精度，▒ 为重力下落的峰值标记。
-    // 返回按频段（低→高）排列的行数组；竖条内由调用方决定显示顺序。
-    function renderSpectrumRows(values, peaks, columns) {
-      const width = Math.max(1, Math.round(Number(columns) || 1));
-      return (values ?? []).map((value, index) => {
-        const cells = new Array(width).fill(' ');
-        const eighths = Math.round(clamp01(Number(value) || 0) * width * 8);
-        const full = Math.min(width, Math.floor(eighths / 8));
-        for (let cell = 0; cell < full; cell++) cells[cell] = '█';
-        const tip = eighths % 8;
-        if (tip && full < width) cells[full] = TIPS[tip];
-        const occupied = full + (tip ? 1 : 0);
-        const peakColumn = Math.ceil(clamp01(Number(peaks?.[index]) || 0) * width);
-        if (peakColumn > occupied && peakColumn <= width) cells[peakColumn - 1] = PEAK_MARK;
-        return cells.join('');
-      });
+    // 把频段值铺成细带字符：每行一个频段（低频在底），两列字符分别是当前
+    // 振幅与峰值像素；亮度映射到经典 ASCII 字符集，得到印刷网点般的纹理。
+    function renderSpectrumStrip(values, peaks, rows, { ramp = FIELD_RAMP } = {}) {
+      const rowCount = Math.max(8, Math.min(96, Math.round(Number(rows) || 0)));
+      const bands = values?.length ?? 0;
+      if (!bands) return [];
+      const rampMax = Math.max(1, ramp.length - 1);
+      const pick = brightness => ramp[Math.min(rampMax, Math.max(0, Math.floor(brightness * rampMax)))];
+      const lines = [];
+      for (let row = 0; row < rowCount; row++) {
+        // 低频在底、高频在顶；频段数多于行数时取最近频段，避免跳段。
+        const position = rowCount === 1 ? 0 : 1 - row / (rowCount - 1);
+        const band = Math.min(bands - 1, Math.round(position * (bands - 1)));
+        const value = clamp01(Number(values[band]) || 0);
+        const peak = clamp01(Number(peaks?.[band]) || 0);
+        const head = pick(0.12 + 0.88 * value);
+        const tail = peak > value + 0.06 ? pick(0.12 + 0.6 * peak) : ' ';
+        lines.push(head + tail);
+      }
+      return lines;
     }
 
-    // 条内显示顺序：低频在底、高频在顶（频谱仪侧向放置的习惯方向）。
-    function renderSpectrumText(values, peaks, columns) {
-      return renderSpectrumRows(values, peaks, columns).reverse().join('\n');
+    function renderSpectrumStripText(values, peaks, rows, options) {
+      return renderSpectrumStrip(values, peaks, rows, options).join('\n');
     }
 
-    // src/ui/client/spectrum-rail.mjs
+    // src/ui/client/spectrum-strip.mjs
     // 与 FloatingPlayer 相同的边界读取：槽位包装层可能是零尺寸元素，
     // 真实的绝对定位与停靠边界属于 shell 的 [data-shell-overlay] 框架。
     const frameOf = root => (root?.closest?.('[data-shell-overlay]') ?? root?.parentElement)?.getBoundingClientRect();
+    const MIN_GAP = 40; // 拖到最右也保留一点可见宽度
 
-    let charCanvas = null;
-    function measureCharWidth(sample) {
-      try {
-        charCanvas = charCanvas ?? document.createElement('canvas');
-        const context = charCanvas.getContext('2d');
-        context.font = getComputedStyle(sample).font;
-        const width = context.measureText('█').width;
-        return width > 0 ? width : 6.6;
-      } catch { return 6.6; }
-    }
-
-    function SpectrumRail({ controller, usePanelInfo }) {
+    function SpectrumStrip({ controller, usePanelInfo }) {
       const state = React.useSyncExternalStore(controller.subscribe, controller.getSnapshot);
       const activePanelId = typeof usePanelInfo === 'function' ? usePanelInfo(info => info.activePanelId) : null;
       const rootRef = React.useRef(null);
       const textRef = React.useRef(null);
       const engineRef = React.useRef(null);
-      const columnsRef = React.useRef(8);
+      const rowsRef = React.useRef(48);
       const progressRef = React.useRef(0);
       const drag = React.useRef(null);
-      const [dragLeft, setDragLeft] = React.useState(null);
-      const [bands, setBands] = React.useState(24);
-      const [columns, setColumns] = React.useState(8);
-      const [rowPixels, setRowPixels] = React.useState(13);
+      const [dragInset, setDragInset] = React.useState(null);
+      const [rows, setRows] = React.useState(48);
+      const [rowPixels, setRowPixels] = React.useState(ROW_HEIGHT);
       const snapshot = state.snapshot;
       const current = snapshot?.current;
       const presentation = playbackPresentation(snapshot, state.connected);
       const playing = presentation.active;
-      const left = dragLeft ?? state.spectrumLeft?.left ?? RAIL_DEFAULT_LEFT;
+      const inset = dragInset ?? state.spectrumInset?.left ?? INSET_DEFAULT;
       const seedSource = current
         ? `${current.playInstanceId ?? ''}:${current.track?.provider ?? ''}:${current.track?.providerTrackId ?? ''}`
         : 'standby';
       React.useEffect(() => { progressRef.current = progressPercent(current) / 100; });
-      // 尺寸变化决定频段数与列数；块字符宽度按当前字体实测，避免等宽假设失真。
+      // 行数随视口高度变化，行距随之伸展，让细带铺满对话区左缘。
       React.useEffect(() => {
         const root = rootRef.current;
         if (!root || typeof ResizeObserver !== 'function') return undefined;
         const measure = () => {
           const rect = root.getBoundingClientRect();
-          if (rect.height <= 0 || rect.width <= 0) return;
-          const nextRows = Math.max(BAND_MIN, Math.min(BAND_MAX, Math.floor((rect.height - 20) / ROW_HEIGHT)));
-          const nextColumns = Math.max(5, Math.min(12, Math.floor((rect.width - 14) / measureCharWidth(textRef.current ?? root))));
-          // 行距随高度伸展，让 ASCII 条铺满整条竖带而不是缩在中间。
-          const nextRowPixels = Math.round(Math.max(ROW_HEIGHT, Math.min(22, (rect.height - 20) / nextRows)) * 10) / 10;
-          columnsRef.current = nextColumns;
-          setBands(previous => (previous === nextRows ? previous : nextRows));
-          setColumns(previous => (previous === nextColumns ? previous : nextColumns));
+          if (rect.height <= 0) return;
+          const nextRows = Math.max(8, Math.min(STRIP_BANDS, Math.floor(rect.height / ROW_HEIGHT)));
+          const nextRowPixels = Math.round(rect.height / nextRows * 10) / 10;
+          rowsRef.current = nextRows;
+          setRows(previous => (previous === nextRows ? previous : nextRows));
           setRowPixels(previous => (previous === nextRowPixels ? previous : nextRowPixels));
         };
         measure();
@@ -2012,8 +2003,8 @@ window.__ModuleLoader__.load({
       // 系统减少动态设置与面板内"轻量"同等对待。
       React.useEffect(() => {
         const seed = hashSeed(seedSource);
-        if (!engineRef.current || engineRef.current.bands !== bands) {
-          engineRef.current = createSpectrumEngine({ bands, seed });
+        if (!engineRef.current || engineRef.current.bands !== STRIP_BANDS) {
+          engineRef.current = createSpectrumEngine({ bands: STRIP_BANDS, seed });
         } else engineRef.current.reseed(seed);
         const engine = engineRef.current;
         const prefersReduced = typeof window.matchMedia === 'function'
@@ -2021,7 +2012,7 @@ window.__ModuleLoader__.load({
         const level = state.motion === 'off' ? 'off'
           : state.motion === 'reduced' || prefersReduced ? 'reduced' : 'full';
         const render = frame => {
-          if (textRef.current) textRef.current.textContent = renderSpectrumText(frame.values, frame.peaks, columnsRef.current);
+          if (textRef.current) textRef.current.textContent = renderSpectrumStripText(frame.values, frame.peaks, rowsRef.current);
         };
         if (level === 'off') {
           // 静态呼吸基线：预积分到稳定相位后停表，"关闭"仍保留一个安静的常驻形态。
@@ -2046,59 +2037,61 @@ window.__ModuleLoader__.load({
         }
         const timer = setInterval(tick, 160);
         return () => clearInterval(timer);
-      }, [playing, bands, columns, seedSource, state.motion, state.snapshot?.revision]);
-      // 窗口变窄时把条收回可见范围，和悬浮条的 keepInFrame 同一策略。
+      }, [playing, rows, seedSource, state.motion, state.snapshot?.revision]);
+      // 窗口变窄时把细带收回可见范围，和悬浮条的 keepInFrame 同一策略。
       React.useEffect(() => {
         const keepInFrame = () => {
-          const root = rootRef.current;
-          const frame = frameOf(root), rect = root?.getBoundingClientRect();
-          if (!frame || !rect || frame.height <= 0) return;
-          const preferred = controller.getSnapshot().spectrumLeft?.left ?? RAIL_DEFAULT_LEFT;
-          const clamped = Math.max(RAIL_MARGIN, Math.min(frame.width - rect.width - RAIL_MARGIN, preferred));
-          if (clamped !== preferred) controller.setSpectrumLeft(clamped);
+          const frame = frameOf(rootRef.current);
+          if (!frame || frame.width <= 0) return;
+          const preferred = controller.getSnapshot().spectrumInset?.left ?? INSET_DEFAULT;
+          const clamped = Math.max(0, Math.min(frame.width - MIN_GAP, preferred));
+          if (clamped !== preferred) controller.setSpectrumInset(clamped);
         };
         keepInFrame();
         window.addEventListener('resize', keepInFrame);
         return () => window.removeEventListener('resize', keepInFrame);
-      }, [controller, state.spectrumLeft, activePanelId, state.spectrumVisible]);
+      }, [controller, state.spectrumInset, activePanelId, state.spectrumVisible]);
       function dragStart(event) {
         if (event.button !== undefined && event.button !== 0) return;
         const rect = rootRef.current?.getBoundingClientRect(), frame = frameOf(rootRef.current);
         if (!rect || !frame) return;
-        drag.current = { startX: event.clientX, left: rect.left - frame.left, maxLeft: frame.width - rect.width - RAIL_MARGIN };
+        drag.current = { startX: event.clientX, inset: rect.left - frame.left, maxInset: Math.max(0, frame.width - MIN_GAP) };
         try { event.currentTarget.setPointerCapture(event.pointerId); } catch { /* PointerCapture is optional */ }
         event.preventDefault();
       }
       function dragMove(event) {
         if (!drag.current) return;
         const next = drag.current;
-        next.left = Math.max(RAIL_MARGIN, Math.min(next.maxLeft, next.left + event.clientX - next.startX));
+        next.inset = Math.max(0, Math.min(next.maxInset, next.inset + event.clientX - next.startX));
         next.startX = event.clientX;
-        setDragLeft(next.left);
+        setDragInset(next.inset);
       }
       function dragEnd() {
         if (!drag.current) return;
-        controller.setSpectrumLeft(drag.current.left);
+        controller.setSpectrumInset(drag.current.inset);
         drag.current = null;
-        setDragLeft(null);
+        setDragInset(null);
       }
       function nudge(event) {
         if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
         event.preventDefault();
-        const rect = rootRef.current?.getBoundingClientRect(), frame = frameOf(rootRef.current);
-        const maxLeft = frame && rect ? Math.max(RAIL_MARGIN, frame.width - rect.width - RAIL_MARGIN) : RAIL_DEFAULT_LEFT;
-        const from = controller.getSnapshot().spectrumLeft?.left ?? RAIL_DEFAULT_LEFT;
-        const next = event.key === 'Home' ? RAIL_MARGIN : event.key === 'End' ? maxLeft
-          : Math.max(RAIL_MARGIN, Math.min(maxLeft, from + (event.key === 'ArrowRight' ? 16 : -16)));
-        controller.setSpectrumLeft(next);
+        const frame = frameOf(rootRef.current);
+        const maxInset = frame ? Math.max(0, frame.width - MIN_GAP) : INSET_DEFAULT;
+        const from = controller.getSnapshot().spectrumInset?.left ?? INSET_DEFAULT;
+        const next = event.key === 'Home' ? 0 : event.key === 'End' ? maxInset
+          : Math.max(0, Math.min(maxInset, from + (event.key === 'ArrowRight' ? 16 : -16)));
+        controller.setSpectrumInset(next);
       }
       if (!state.spectrumVisible || activePanelId === 'fishfm') return null;
-      const status = playing ? '正在跳舞' : snapshot?.paused ? '已暂停' : '待机呼吸';
-      return h('div', { ref: rootRef, className: 'fm-spectrum', 'data-active': playing, 'data-motion': state.motion || 'full',
-        role: 'img', tabIndex: 0, title: '左右拖动调整位置；方向键微调',
-        'aria-label': `ASCII 频谱律动条 · ${status} · 模拟律动，非音频测量`,
-        onPointerDown: dragStart, onPointerMove: dragMove, onPointerUp: dragEnd, onPointerCancel: dragEnd, onKeyDown: nudge,
-        style: { left: `${left}px`, width: `${RAIL_WIDTH}px`, '--fm-row': `${rowPixels}px` } },
+      const status = playing ? '正在律动' : snapshot?.paused ? '已暂停' : '待机呼吸';
+      return h('div', { ref: rootRef, className: 'fm-spectrum-strip', role: 'slider', tabIndex: 0,
+        'aria-label': '频谱细带左边界', 'aria-orientation': 'horizontal',
+        'aria-valuemin': 0, 'aria-valuemax': 4096, 'aria-valuenow': Math.round(inset),
+        'aria-valuetext': `距左侧 ${Math.round(inset)} 像素`,
+        title: `ASCII 频谱细带 · ${status} · 模拟律动，非音频测量；拖动或用方向键调整位置`,
+        'data-active': playing, 'data-motion': state.motion || 'full',
+        style: { left: `${inset}px`, width: `${STRIP_WIDTH}px`, '--fm-row': `${rowPixels}px` },
+        onPointerDown: dragStart, onPointerMove: dragMove, onPointerUp: dragEnd, onPointerCancel: dragEnd, onKeyDown: nudge },
         h('pre', { ref: textRef, 'aria-hidden': true }));
     }
 
@@ -2122,10 +2115,10 @@ window.__ModuleLoader__.load({
       ctx.slots.inject('settings.section', () => ctx.slots.register({ name: 'settings.section', id: 'fishfm', order: 65, label: () => '肥鱼电台', inject }, Panel));
       ctx.slots.inject('shell.overlay', () => ctx.slots.register({ name: 'shell.overlay', id: 'fishfm.player', order: 30,
         inject: () => ({ controller, layout: ctx.layout }) }, FloatingPlayer));
-      // 同一槽位的第二个条目：工作区首页侧栏旁的 ASCII 频谱律动条。
+      // 同一槽位的第二个条目：工作区对话区左缘的 ASCII 频谱细带。
       // 真实宿主对同槽多条目的渲染行为待隔离 profile 验证（见 PROJECT_PLAN）。
       ctx.slots.inject('shell.overlay', () => ctx.slots.register({ name: 'shell.overlay', id: 'fishfm.spectrum', order: 31,
-        inject: () => ({ controller }) }, SpectrumRail));
+        inject: () => ({ controller }) }, SpectrumStrip));
     }
     return { apply, inject: ['slots', 'connection', 'layout'] };
   },

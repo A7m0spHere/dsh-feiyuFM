@@ -1,17 +1,18 @@
-// ASCII 频谱条：本地动画时钟驱动的模拟频谱，不是 WPF 音频的测量值。
-// 音频由原生宿主进程播放，媒体句柄不进 UI（见 ARCHITECTURE），网页端拿不到
-// 真实 FFT，也没有歌词数据流；观感借鉴 audioMotion-analyzer 的对数分频、
-// 峰值保持与重力下落、快起慢落包络，以及 soundscape 静默时的"呼吸"待机，
-// 全部离线生成。引擎与渲染为纯函数便于离线测试；组件只负责计时和写 DOM。
+// 工作区左缘 ASCII 频谱细带：本地动画时钟驱动的模拟频谱，不是 WPF 音频的
+// 测量值，也不是歌词或节拍识别。音频由原生宿主进程播放，媒体句柄不进 UI
+// （见 ARCHITECTURE），网页端拿不到真实 FFT，也没有歌词数据流；观感借鉴
+// audioMotion-analyzer 的对数分频、峰值保持与重力下落、快起慢落包络，以及
+// soundscape 静默时的"呼吸"待机，全部离线生成。字符按亮度映射到经典 ASCII
+// 字符集（参考 ASCIIText 的 asciify 思路，不引入 Three.js 或第三方代码）。
+// 引擎与渲染为纯函数便于离线测试；组件只负责计时和写 DOM。
 
-export const RAIL_DEFAULT_LEFT = 348; // 常见 DSH 侧栏宽度之后；宿主未提供布局 API，允许拖动微调
-export const RAIL_WIDTH = 76;
-export const RAIL_MARGIN = 4;
+export const INSET_DEFAULT = 348; // 常见 DSH 侧栏宽度之后；宿主未提供布局 API，可拖动微调
+export const STRIP_WIDTH = 14;
+export const STRIP_BANDS = 64;
+export const ROW_HEIGHT = 13;
 export const BAND_MIN = 8;
 export const BAND_MAX = 64;
-export const ROW_HEIGHT = 13;
-const TIPS = ['', '▏', '▎', '▍', '▌', '▋', '▊', '▉'];
-const PEAK_MARK = '▒';
+export const FIELD_RAMP = ' .\'`^",:;Il!i~+_-?][}{1)(|/tfjrxnuvczXYUJCLQ0OZmwqpdbkhao*#MW&8%B@$';
 const BEAT_PERIOD = 0.6; // 约 100 BPM 的固定律动；歌曲节拍不可测，只求观感稳定
 const PEAK_HOLD_S = 0.42;
 const PEAK_GRAVITY = 2.9;
@@ -108,25 +109,28 @@ export function createSpectrumEngine({ bands = 24, seed = 0 } = {}) {
   return { bands: count, reseed, step };
 }
 
-// 一行一个频段：█ 主体 + 八分块尖端字符表达亚字符精度，▒ 为重力下落的峰值标记。
-// 返回按频段（低→高）排列的行数组；竖条内由调用方决定显示顺序。
-export function renderSpectrumRows(values, peaks, columns) {
-  const width = Math.max(1, Math.round(Number(columns) || 1));
-  return (values ?? []).map((value, index) => {
-    const cells = new Array(width).fill(' ');
-    const eighths = Math.round(clamp01(Number(value) || 0) * width * 8);
-    const full = Math.min(width, Math.floor(eighths / 8));
-    for (let cell = 0; cell < full; cell++) cells[cell] = '█';
-    const tip = eighths % 8;
-    if (tip && full < width) cells[full] = TIPS[tip];
-    const occupied = full + (tip ? 1 : 0);
-    const peakColumn = Math.ceil(clamp01(Number(peaks?.[index]) || 0) * width);
-    if (peakColumn > occupied && peakColumn <= width) cells[peakColumn - 1] = PEAK_MARK;
-    return cells.join('');
-  });
+// 把频段值铺成细带字符：每行一个频段（低频在底），两列字符分别是当前
+// 振幅与峰值像素；亮度映射到经典 ASCII 字符集，得到印刷网点般的纹理。
+export function renderSpectrumStrip(values, peaks, rows, { ramp = FIELD_RAMP } = {}) {
+  const rowCount = Math.max(8, Math.min(96, Math.round(Number(rows) || 0)));
+  const bands = values?.length ?? 0;
+  if (!bands) return [];
+  const rampMax = Math.max(1, ramp.length - 1);
+  const pick = brightness => ramp[Math.min(rampMax, Math.max(0, Math.floor(brightness * rampMax)))];
+  const lines = [];
+  for (let row = 0; row < rowCount; row++) {
+    // 低频在底、高频在顶；频段数多于行数时取最近频段，避免跳段。
+    const position = rowCount === 1 ? 0 : 1 - row / (rowCount - 1);
+    const band = Math.min(bands - 1, Math.round(position * (bands - 1)));
+    const value = clamp01(Number(values[band]) || 0);
+    const peak = clamp01(Number(peaks?.[band]) || 0);
+    const head = pick(0.12 + 0.88 * value);
+    const tail = peak > value + 0.06 ? pick(0.12 + 0.6 * peak) : ' ';
+    lines.push(head + tail);
+  }
+  return lines;
 }
 
-// 条内显示顺序：低频在底、高频在顶（频谱仪侧向放置的习惯方向）。
-export function renderSpectrumText(values, peaks, columns) {
-  return renderSpectrumRows(values, peaks, columns).reverse().join('\n');
+export function renderSpectrumStripText(values, peaks, rows, options) {
+  return renderSpectrumStrip(values, peaks, rows, options).join('\n');
 }

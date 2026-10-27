@@ -1,6 +1,6 @@
 // PHL-inspired tokens and timing. Source/provenance: THIRD_PARTY_NOTICES.md.
 export const css = `
-  .fishfm,.fm-float,.fm-spectrum {
+  .fishfm,.fm-float,.fm-spectrum-strip {
     --fm-canvas:hsl(220 20% 96%); --fm-surface:hsl(0 0% 100%);
     --fm-raised:hsl(0 0% 100%); --fm-sunken:hsl(220 20% 97%);
     --fm-hover:hsl(220 24% 95.5%); --fm-line:hsl(220 16% 90%);
@@ -19,8 +19,8 @@ export const css = `
     box-sizing:border-box; color:var(--fm-ink); font-family:inherit; font-size:13px; line-height:1.5;
     color-scheme:light;
   }
-  :is([data-ds-dark-theme],.dark,[data-theme=dark]) :is(.fishfm,.fm-float,.fm-spectrum),
-  :is(.fishfm,.fm-float,.fm-spectrum)[data-theme=dark] {
+  :is([data-ds-dark-theme],.dark,[data-theme=dark]) :is(.fishfm,.fm-float,.fm-spectrum-strip),
+  :is(.fishfm,.fm-float,.fm-spectrum-strip)[data-theme=dark] {
     --fm-canvas:hsl(224 18% 8%); --fm-surface:hsl(222 16% 12.5%);
     --fm-raised:hsl(222 15% 15%); --fm-sunken:hsl(224 18% 10%);
     --fm-hover:hsl(222 14% 18%); --fm-line:hsl(222 12% 21%);
@@ -45,7 +45,7 @@ export const css = `
   :is(.fishfm,.fm-float) select { font:inherit; }
   :is(.fishfm,.fm-float) button { cursor:pointer; }
   :is(.fishfm,.fm-float) button:disabled { opacity:.45; cursor:default; }
-  :is(.fishfm,.fm-float) :focus-visible,.fm-spectrum:focus-visible { outline:2px solid var(--fm-accent); outline-offset:3px; }
+  :is(.fishfm,.fm-float) :focus-visible,.fm-spectrum-strip:focus-visible { outline:2px solid var(--fm-accent); outline-offset:-2px; }
   .fishfm { container-type:inline-size; container-name:fishfm; width:100%;
     max-width:1120px; margin:auto; padding:16px; background:var(--fm-canvas);
     height:100%; min-height:0; overflow:auto; overscroll-behavior:contain;
@@ -295,15 +295,16 @@ export const css = `
   .fm-library-pages { display:flex; align-items:center; gap:7px; }
   .fm-library-pages .fm-button { min-height:28px; padding:3px 8px; font-size:11px; }
   .fm-float { position:absolute; z-index:25; pointer-events:auto; width:310px; max-width:calc(100% - 24px); }
-  .fm-spectrum { position:absolute; top:18px; bottom:18px; z-index:24; display:flex; align-items:center;
-    justify-content:center; pointer-events:auto; touch-action:none; cursor:grab; user-select:none;
-    border:1px solid var(--fm-line); border-radius:10px; background:color-mix(in srgb,var(--fm-surface) 78%,transparent);
-    color:var(--fm-accent-ink); opacity:.78; transition:opacity var(--fm-base) var(--fm-ease); }
-  .fm-spectrum:active { cursor:grabbing; }
-  .fm-spectrum[data-active=false] { color:var(--fm-muted); opacity:.42; }
-  .fm-spectrum pre { margin:0; pointer-events:none; letter-spacing:0; white-space:pre; overflow:hidden;
+  .fm-spectrum-strip { position:absolute; top:0; bottom:0; z-index:1; overflow:hidden;
+    display:flex; justify-content:center; pointer-events:auto; touch-action:none;
+    cursor:ew-resize; user-select:none; border-radius:3px;
+    transition:background-color var(--fm-fast) var(--fm-ease); }
+  .fm-spectrum-strip:hover { background:color-mix(in srgb,var(--fm-accent) 7%,transparent); }
+  .fm-spectrum-strip pre { margin:0; pointer-events:none; letter-spacing:0; white-space:pre; overflow:hidden;
     font-family:ui-monospace,SFMono-Regular,Consolas,'Cascadia Mono',Menlo,monospace;
-    font-size:11px; line-height:var(--fm-row,13px); }
+    font-size:10px; line-height:var(--fm-row,13px); color:var(--fm-accent-ink); opacity:.4;
+    transition:opacity var(--fm-base) var(--fm-ease); }
+  .fm-spectrum-strip[data-active=false] pre { opacity:.22; }
   .fm-float-pill { display:flex; align-items:center; gap:6px; padding:6px;
     border:1px solid var(--fm-line); border-radius:11px; background:var(--fm-raised); box-shadow:var(--fm-popup-shadow); }
   .fm-float-art { display:grid; place-items:center; width:34px; height:38px; flex:none;
