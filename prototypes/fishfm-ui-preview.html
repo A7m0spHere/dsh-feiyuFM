@@ -171,7 +171,7 @@ const connection={rpc:{async call(_channel,endpoint,payload){
 }}};
 const layout={selectPanel(id){active=id;changeActive?.(id)}};
 harnessBundle.apply({connection,layout,effect(fn){fn()},slots:{inject(_name,fn){fn()},register(options,component){registrations.push({options,component});return()=>{}}}});
-const panel=registrations.find(r=>r.options.name==='main'),overlay=registrations.find(r=>r.options.name==='shell.overlay'),controller=panel.options.inject().controller;
+const panel=registrations.find(r=>r.options.name==='main'),overlays=registrations.filter(r=>r.options.name==='shell.overlay'),controller=panel.options.inject().controller;
 const previewStyle=document.querySelector('style[data-plugin="fishfm"]'),normalCss=previewStyle.textContent;
 function Harness(){
  const [page,setPage]=React.useState(active),[dark,setDark]=React.useState(false),[settings,setSettings]=React.useState(false),[demo,setDemo]=React.useState(false);changeActive=setPage;
@@ -183,12 +183,13 @@ function Harness(){
    React.createElement('button',{onClick:()=>setSettings(!settings)},settings?'主面板':'设置宽度'),
    React.createElement('button',{onClick:()=>{demoMotion=!demo;previewStyle.textContent=demoMotion?normalCss.replace('@media(prefers-reduced-motion:reduce)','@media(preview-motion:none)'):normalCss;controller.setMotion('full');setDemo(!demo)}},demo?'系统动效':'动效演示'),
    React.createElement('button',{onClick:()=>{empty=!empty;controller.refresh()}},'切换空库'),
+   React.createElement('button',{onClick:()=>{snapshot.paused=!snapshot.paused;snapshot.status=snapshot.paused?'paused':'playing';controller.refresh()}},'播放/暂停演示'),
    React.createElement('button',{onClick:()=>{connected=!connected;controller.refresh()}},'切换连接'),
    React.createElement('select',{'aria-label':'挑歌预览状态',defaultValue:'ready',onChange:event=>{
     pickerScenario=event.target.value;pickerRetryAt=pickerNow()+(pickerScenario==='finishing'?3500:15*60000);controller.refresh();
    }},...[['ready','可换批'],['cooldown','旧宿主等待'],['finishing','旧宿主即将到期'],['searching','找歌中'],['filtering','挑歌中'],['budget','预算用完'],['limit','次数用完'],['failure','请求失败'],['race','并发任务']].map(([value,label])=>React.createElement('option',{value,key:value},label)))),
   React.createElement('div',{className:'preview-shell'},page==='fishfm'?React.createElement('main',{className:settings?'preview-settings':'preview-main'},React.createElement(panel.component,{...panel.options.inject(),...(settings?{close:()=>setSettings(false)}:{})})):React.createElement('div',{className:'preview-conversation'},'对话面板 · 音乐服务独立于可见页面'),
-   React.createElement('div',{'data-shell-overlay':''},React.createElement(overlay.component,{...overlay.options.inject(),usePanelInfo:fn=>fn({activePanelId:page})}))));
+   React.createElement('div',{'data-shell-overlay':''},overlays.map((overlay,index)=>React.createElement(overlay.component,{key:overlay.options.id??index,...overlay.options.inject(),usePanelInfo:fn=>fn({activePanelId:page})})))));
 }
 ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(Harness));
 setInterval(()=>{if(!snapshot.paused&&snapshot.current)snapshot.current.positionMs=Math.min(snapshot.current.positionMs+1000,snapshot.current.track.durationMs)},1000);
