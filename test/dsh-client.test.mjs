@@ -597,14 +597,16 @@ test('the floating player selects the active panel from the host hook and return
   } finally { f.dispose(); }
 });
 
-test('the ASCII spectrum background ships enabled, fixed and hides inside the FishFM panel', () => {
+test('the ASCII spectrum backdrop ships enabled, stays non-interactive and hides inside the FishFM panel', () => {
   const f = fixture(async () => state(snapshot(1)));
   try {
     const strip = f.renderSpectrum();
     assert.ok(strip, 'the conversation area shows the spectrum background by default');
-    assert.equal(strip.props.className, 'fm-spectrum-strip');
-    assert.equal(strip.props['aria-hidden'], 'true', 'the background band stays out of the accessibility tree');
-    assert.equal(strip.props.role, undefined, 'the fixed band is not a control');
+    assert.equal(strip.props.className, 'fm-spectrum-bg');
+    assert.equal(strip.props['aria-hidden'], 'true', 'the backdrop stays out of the accessibility tree');
+    assert.equal(strip.props.role, undefined, 'the backdrop is not a control');
+    assert.equal(strip.props.style.pointerEvents, 'none', 'the backdrop never intercepts input');
+    assert.equal(strip.props.style.display, 'none', 'without a measured conversation container it stays hidden');
     assert.equal(strip.props['data-active'], false, 'an idle snapshot shows the standby baseline');
     assert.equal(f.renderSpectrum({ activePanelId: 'fishfm' }), null, 'the full panel hides the band');
     assert.ok(f.renderSpectrum({ activePanelId: 'plugins' }), 'the band returns outside the panel');
@@ -622,7 +624,7 @@ test('a fresh fixture restores the saved spectrum visibility preference', () => 
   const f = fixture(async () => state(snapshot(1)), storage);
   try {
     assert.equal(f.controller.getSnapshot().spectrumVisible, false);
-    assert.equal(f.controller.getSnapshot().spectrumInset, undefined, 'the fixed band no longer stores a position');
+    assert.equal(f.controller.getSnapshot().spectrumInset, undefined, 'the backdrop is positioned by measurement, not a stored inset');
     assert.equal(f.renderSpectrum(), null);
   } finally { f.dispose(); }
 });

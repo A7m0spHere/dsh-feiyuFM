@@ -6,8 +6,8 @@
 // ASCII 字符集（参考 ASCIIText 的 asciify 思路，不引入 Three.js 或第三方
 // 代码）。引擎与渲染为纯函数便于离线测试；组件只负责计时和写 DOM。
 
-export const STRIP_BANDS = 64;
-export const ROW_HEIGHT = 13;
+export const STRIP_BANDS = 28;
+export const ROW_HEIGHT = 12;
 export const BAND_MIN = 8;
 export const BAND_MAX = 64;
 export const FIELD_RAMP = ' .\'`^",:;Il!i~+_-?][}{1)(|/tfjrxnuvczXYUJCLQ0OZmwqpdbkhao*#MW&8%B@$';
@@ -107,35 +107,55 @@ export function createSpectrumEngine({ bands = 24, seed = 0 } = {}) {
   return { bands: count, reseed, step };
 }
 
-// 把频段值铺成横向 ASCII 柱：每行一个频段（低频在底），柱体从左侧生长，
-// 柱内字符沿长度由疏到密（ASCII 滤镜的亮度梯度），悬空的峰值用最亮的 @/$ 标记。
-export function renderSpectrumStrip(values, peaks, rows, columns, { ramp = FIELD_RAMP } = {}) {
-  const rowCount = Math.max(8, Math.min(96, Math.round(Number(rows) || 0)));
-  const colCount = Math.max(2, Math.min(24, Math.round(Number(columns) || 0)));
+// 把频段值铺成竖向 ASCII 频谱场：每列一个频段（低频在左），柱体围绕中部
+// 基线向上生长，下方是更暗的倒影；柱内字符沿高度由疏到密，悬空的峰值用
+// 最亮字符标记。phase 给低频柱体加一层缓慢的波浪起伏（参考顶点着色器的
+// 轻微形变），只动一两行，保持克制。
+export function renderSpectrumField(values, peaks, columns, rows,
+  { phase = 0, baseline = 0.54, reflection = 0.5, ramp = FIELD_RAMP } = {}) {
+  const cols = Math.max(4, Math.min(64, Math.round(Number(columns) || 0)));
+  const rowCount = Math.max(8, Math.min(120, Math.round(Number(rows) || 0)));
   const bands = values?.length ?? 0;
   if (!bands) return [];
   const rampMax = Math.max(1, ramp.length - 1);
   const pick = brightness => ramp[Math.min(rampMax, Math.max(0, Math.floor(brightness * rampMax)))];
+  const baselineRow = Math.max(2, Math.min(rowCount - 2, Math.round(rowCount * baseline)));
+  const maxBar = baselineRow - 1;
+  const sample = (series, band) => {
+    const lower = Math.floor(band), upper = Math.min(bands - 1, lower + 1);
+    return series[lower] + (series[upper] - series[lower]) * (band - lower);
+  };
   const lines = [];
   for (let row = 0; row < rowCount; row++) {
-    // 低频在底、高频在顶；频段数多于行数时取最近频段，避免跳段。
-    const position = rowCount === 1 ? 0 : 1 - row / (rowCount - 1);
-    const band = Math.min(bands - 1, Math.round(position * (bands - 1)));
-    const value = clamp01(Number(values[band]) || 0);
-    const peak = clamp01(Number(peaks?.[band]) || 0);
-    const filled = Math.round(value * colCount);
-    const cells = new Array(colCount).fill(' ');
-    for (let cell = 0; cell < filled; cell++) {
-      const towardTip = filled <= 1 ? 1 : cell / (filled - 1);
-      cells[cell] = pick(0.35 + 0.6 * towardTip);
+    const cells = new Array(cols).fill(' ');
+    for (let column = 0; column < cols; column++) {
+      const band = cols === 1 ? 0 : column / (cols - 1) * (bands - 1);
+      const value = clamp01(sample(values, band));
+      const peak = clamp01(sample(peaks ?? values, band));
+      const wave = Math.sin(phase + column * 0.42) * 0.6;
+      const bar = Math.max(0, value * maxBar + wave);
+      const heightAbove = baselineRow - row;
+      if (heightAbove > 0) {
+        if (heightAbove <= bar) {
+          const towardTip = bar <= 1 ? 1 : (heightAbove - 1) / (bar - 1);
+          cells[column] = pick(0.30 + 0.58 * towardTip);
+        } else if (peak > value + 0.04 && Math.abs(heightAbove - (peak * maxBar + wave)) < 0.5) {
+          cells[column] = ramp[rampMax];
+        }
+      } else {
+        const mirrored = row - baselineRow + 1;
+        const reflected = Math.min(maxBar, bar * reflection);
+        if (mirrored <= reflected) {
+          const towardBase = 1 - (reflected <= 1 ? 1 : mirrored / reflected);
+          cells[column] = pick(0.08 + 0.24 * towardBase);
+        }
+      }
     }
-    const peakCell = peak > value + 0.06 ? Math.min(colCount - 1, Math.round(peak * colCount) - 1) : -1;
-    if (peakCell >= filled) cells[peakCell] = ramp[rampMax];
     lines.push(cells.join(''));
   }
   return lines;
 }
 
-export function renderSpectrumStripText(values, peaks, rows, columns, options) {
-  return renderSpectrumStrip(values, peaks, rows, columns, options).join('\n');
+export function renderSpectrumFieldText(values, peaks, columns, rows, options) {
+  return renderSpectrumField(values, peaks, columns, rows, options).join('\n');
 }

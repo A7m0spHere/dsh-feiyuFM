@@ -6,7 +6,7 @@ window.__ModuleLoader__.load({
     // src/ui/client/styles.mjs
     // PHL-inspired tokens and timing. Source/provenance: THIRD_PARTY_NOTICES.md.
     const css = `
-      .fishfm,.fm-float,.fm-spectrum-strip {
+      .fishfm,.fm-float,.fm-spectrum-bg {
         --fm-canvas:hsl(220 20% 96%); --fm-surface:hsl(0 0% 100%);
         --fm-raised:hsl(0 0% 100%); --fm-sunken:hsl(220 20% 97%);
         --fm-hover:hsl(220 24% 95.5%); --fm-line:hsl(220 16% 90%);
@@ -25,8 +25,8 @@ window.__ModuleLoader__.load({
         box-sizing:border-box; color:var(--fm-ink); font-family:inherit; font-size:13px; line-height:1.5;
         color-scheme:light;
       }
-      :is([data-ds-dark-theme],.dark,[data-theme=dark]) :is(.fishfm,.fm-float,.fm-spectrum-strip),
-      :is(.fishfm,.fm-float,.fm-spectrum-strip)[data-theme=dark] {
+      :is([data-ds-dark-theme],.dark,[data-theme=dark]) :is(.fishfm,.fm-float,.fm-spectrum-bg),
+      :is(.fishfm,.fm-float,.fm-spectrum-bg)[data-theme=dark] {
         --fm-canvas:hsl(224 18% 8%); --fm-surface:hsl(222 16% 12.5%);
         --fm-raised:hsl(222 15% 15%); --fm-sunken:hsl(224 18% 10%);
         --fm-hover:hsl(222 14% 18%); --fm-line:hsl(222 12% 21%);
@@ -301,13 +301,18 @@ window.__ModuleLoader__.load({
       .fm-library-pages { display:flex; align-items:center; gap:7px; }
       .fm-library-pages .fm-button { min-height:28px; padding:3px 8px; font-size:11px; }
       .fm-float { position:absolute; z-index:25; pointer-events:auto; width:310px; max-width:calc(100% - 24px); }
-      .fm-spectrum-strip { position:absolute; top:0; bottom:0; left:348px; width:56px; z-index:1; overflow:hidden;
-        display:flex; justify-content:center; pointer-events:none; }
-      .fm-spectrum-strip pre { margin:0; pointer-events:none; letter-spacing:0; white-space:pre; overflow:hidden;
-        font-family:ui-monospace,SFMono-Regular,Consolas,'Cascadia Mono',Menlo,monospace;
-        font-size:10px; line-height:var(--fm-row,13px); color:var(--fm-accent-ink); opacity:.3;
+      .fm-spectrum-bg { position:absolute; z-index:1; overflow:hidden; pointer-events:none;
+        contain:strict; }
+      .fm-spectrum-bg:not([data-ready]) { display:none; }
+      .fm-spectrum-bg pre { margin:0; pointer-events:none; letter-spacing:0; white-space:pre; overflow:hidden;
+        position:absolute; inset:0; font-family:ui-monospace,SFMono-Regular,Consolas,'Cascadia Mono',Menlo,monospace;
+        font-size:10px; line-height:var(--fm-row,12px); color:var(--fm-accent-ink); opacity:.17;
+        -webkit-mask-image:linear-gradient(90deg,#000 0%,#000 42%,transparent 100%);
+        mask-image:linear-gradient(90deg,#000 0%,#000 42%,transparent 100%);
         transition:opacity var(--fm-base) var(--fm-ease); }
-      .fm-spectrum-strip[data-active=false] pre { opacity:.16; }
+      :is([data-ds-dark-theme],.dark,[data-theme=dark]) .fm-spectrum-bg pre { opacity:.32; }
+      .fm-spectrum-bg[data-active=false] pre { opacity:.1; }
+      :is([data-ds-dark-theme],.dark,[data-theme=dark]) .fm-spectrum-bg[data-active=false] pre { opacity:.2; }
       .fm-float-pill { display:flex; align-items:center; gap:6px; padding:6px;
         border:1px solid var(--fm-line); border-radius:11px; background:var(--fm-raised); box-shadow:var(--fm-popup-shadow); }
       .fm-float-art { display:grid; place-items:center; width:34px; height:38px; flex:none;
@@ -1551,7 +1556,7 @@ window.__ModuleLoader__.load({
                 h('button', { type: 'button', id: `${rateId}-spectrum`, className: 'fm-toggle', role: 'switch',
                   'aria-label': '背景频谱', 'aria-checked': Boolean(state.spectrumVisible),
                   onClick: () => controller.setSpectrumVisible(!state.spectrumVisible) }, h('span'))),
-              h('p', { className: 'fm-note' }, '对话区左缘的 ASCII 频谱背景带；模拟观感，非音频测量，位置固定。'),
+              h('p', { className: 'fm-note' }, '对话区左缘的 ASCII 频谱背景；模拟观感，非音频测量，随窗口与会话宽度自适应。'),
               h('div', { className: 'fm-widget-note' }, h(Svg, { type: 'grip' }),
                 h('span', null, state.widgetVisible ? '离开面板后显示，可拖动吸附。' : '悬浮条已隐藏，可随时显示。')))));
       const grid = h('div', { className: 'fm-grid' }, ...(close?[controlsColumn,preferencesColumn]:[preferencesColumn,controlsColumn]));
@@ -1813,8 +1818,8 @@ window.__ModuleLoader__.load({
     // ASCII 字符集（参考 ASCIIText 的 asciify 思路，不引入 Three.js 或第三方
     // 代码）。引擎与渲染为纯函数便于离线测试；组件只负责计时和写 DOM。
 
-    const STRIP_BANDS = 64;
-    const ROW_HEIGHT = 13;
+    const STRIP_BANDS = 28;
+    const ROW_HEIGHT = 12;
     const BAND_MIN = 8;
     const BAND_MAX = 64;
     const FIELD_RAMP = ' .\'`^",:;Il!i~+_-?][}{1)(|/tfjrxnuvczXYUJCLQ0OZmwqpdbkhao*#MW&8%B@$';
@@ -1914,42 +1919,72 @@ window.__ModuleLoader__.load({
       return { bands: count, reseed, step };
     }
 
-    // 把频段值铺成横向 ASCII 柱：每行一个频段（低频在底），柱体从左侧生长，
-    // 柱内字符沿长度由疏到密（ASCII 滤镜的亮度梯度），悬空的峰值用最亮的 @/$ 标记。
-    function renderSpectrumStrip(values, peaks, rows, columns, { ramp = FIELD_RAMP } = {}) {
-      const rowCount = Math.max(8, Math.min(96, Math.round(Number(rows) || 0)));
-      const colCount = Math.max(2, Math.min(24, Math.round(Number(columns) || 0)));
+    // 把频段值铺成竖向 ASCII 频谱场：每列一个频段（低频在左），柱体围绕中部
+    // 基线向上生长，下方是更暗的倒影；柱内字符沿高度由疏到密，悬空的峰值用
+    // 最亮字符标记。phase 给低频柱体加一层缓慢的波浪起伏（参考顶点着色器的
+    // 轻微形变），只动一两行，保持克制。
+    function renderSpectrumField(values, peaks, columns, rows,
+      { phase = 0, baseline = 0.54, reflection = 0.5, ramp = FIELD_RAMP } = {}) {
+      const cols = Math.max(4, Math.min(64, Math.round(Number(columns) || 0)));
+      const rowCount = Math.max(8, Math.min(120, Math.round(Number(rows) || 0)));
       const bands = values?.length ?? 0;
       if (!bands) return [];
       const rampMax = Math.max(1, ramp.length - 1);
       const pick = brightness => ramp[Math.min(rampMax, Math.max(0, Math.floor(brightness * rampMax)))];
+      const baselineRow = Math.max(2, Math.min(rowCount - 2, Math.round(rowCount * baseline)));
+      const maxBar = baselineRow - 1;
+      const sample = (series, band) => {
+        const lower = Math.floor(band), upper = Math.min(bands - 1, lower + 1);
+        return series[lower] + (series[upper] - series[lower]) * (band - lower);
+      };
       const lines = [];
       for (let row = 0; row < rowCount; row++) {
-        // 低频在底、高频在顶；频段数多于行数时取最近频段，避免跳段。
-        const position = rowCount === 1 ? 0 : 1 - row / (rowCount - 1);
-        const band = Math.min(bands - 1, Math.round(position * (bands - 1)));
-        const value = clamp01(Number(values[band]) || 0);
-        const peak = clamp01(Number(peaks?.[band]) || 0);
-        const filled = Math.round(value * colCount);
-        const cells = new Array(colCount).fill(' ');
-        for (let cell = 0; cell < filled; cell++) {
-          const towardTip = filled <= 1 ? 1 : cell / (filled - 1);
-          cells[cell] = pick(0.35 + 0.6 * towardTip);
+        const cells = new Array(cols).fill(' ');
+        for (let column = 0; column < cols; column++) {
+          const band = cols === 1 ? 0 : column / (cols - 1) * (bands - 1);
+          const value = clamp01(sample(values, band));
+          const peak = clamp01(sample(peaks ?? values, band));
+          const wave = Math.sin(phase + column * 0.42) * 0.6;
+          const bar = Math.max(0, value * maxBar + wave);
+          const heightAbove = baselineRow - row;
+          if (heightAbove > 0) {
+            if (heightAbove <= bar) {
+              const towardTip = bar <= 1 ? 1 : (heightAbove - 1) / (bar - 1);
+              cells[column] = pick(0.30 + 0.58 * towardTip);
+            } else if (peak > value + 0.04 && Math.abs(heightAbove - (peak * maxBar + wave)) < 0.5) {
+              cells[column] = ramp[rampMax];
+            }
+          } else {
+            const mirrored = row - baselineRow + 1;
+            const reflected = Math.min(maxBar, bar * reflection);
+            if (mirrored <= reflected) {
+              const towardBase = 1 - (reflected <= 1 ? 1 : mirrored / reflected);
+              cells[column] = pick(0.08 + 0.24 * towardBase);
+            }
+          }
         }
-        const peakCell = peak > value + 0.06 ? Math.min(colCount - 1, Math.round(peak * colCount) - 1) : -1;
-        if (peakCell >= filled) cells[peakCell] = ramp[rampMax];
         lines.push(cells.join(''));
       }
       return lines;
     }
 
-    function renderSpectrumStripText(values, peaks, rows, columns, options) {
-      return renderSpectrumStrip(values, peaks, rows, columns, options).join('\n');
+    function renderSpectrumFieldText(values, peaks, columns, rows, options) {
+      return renderSpectrumField(values, peaks, columns, rows, options).join('\n');
     }
 
-    // src/ui/client/spectrum-strip.mjs
-    // 位置固定在对话区左缘（见 styles.mjs 的 .fm-spectrum-strip），不参与互动；
-    // 列数按实际宽度与等宽字符宽度测量，行距随高度伸展铺满整列。
+    // src/ui/client/spectrum-backdrop.mjs
+    // 工作区背景层：DSH 没有会话背景插槽（0.2.1-rc.3 的 slot 只有 main／
+    // conversation.content／shell.*），因此挂在本插件可用的 shell.overlay 条目上，
+    // 但几何完全由宿主真实容器推导：目标为 [data-conversation-content]（会话正文
+    // 容器，带稳定语义属性），左缘留白取自 [data-width-handle=left]（会话宽度
+    // 手柄）与正文的 24px 间距，并随窗口缩放、侧栏拖动、正文宽度拖动重新测量。
+    // 不使用固定屏幕坐标，不在没有会话正文时渲染。
+    const OVERLAY = '[data-shell-overlay]';
+    const TARGET = '[data-conversation-content]';
+    const MAX_WIDTH = 160; // 参考截图的初始宽度；容器更窄时按留白自适应
+    const MIN_WIDTH = 72; // 小于此宽度会压到正文，直接不渲染
+    const FRAME_INTERVAL = 1000 / 12; // 背景层 12fps 足够，避免无意义的逐帧 DOM 写入
+
     let charCanvas = null;
     function measureCharWidth(sample) {
       try {
@@ -1957,19 +1992,48 @@ window.__ModuleLoader__.load({
         const context = charCanvas.getContext('2d');
         context.font = getComputedStyle(sample).font;
         const width = context.measureText('█').width;
-        return width > 0 ? width : 6.6;
-      } catch { return 6.6; }
+        return width > 0 ? width : 6;
+      } catch { return 6; }
     }
 
-    function SpectrumStrip({ controller, usePanelInfo }) {
+    function readGeometry(root, target) {
+      const overlay = root?.closest?.(OVERLAY);
+      if (!overlay || !target || !target.isConnected) return null;
+      const frame = overlay.getBoundingClientRect();
+      const rect = target.getBoundingClientRect();
+      if (rect.width < 240 || rect.height < 200) return null;
+      // 左缘留白：优先用会话宽度手柄（存在时）右缘 + 24px 内容间距；空会话没有
+      // 手柄时退回 [data-composer-card]（宿主按正文宽度 + 32px 渲染的输入卡片）；
+      // 两者都缺时用宿主正文宽度公式 clamp(680px, 64%, 920px)。
+      const handle = target.querySelector('[data-width-handle="left"]');
+      const card = target.querySelector('[data-composer-card]');
+      let gutter = handle ? handle.getBoundingClientRect().right - rect.left + 24 : NaN;
+      if (!(gutter > 0) && card) gutter = card.getBoundingClientRect().left - rect.left + 16;
+      if (!(gutter > 0)) {
+        const contentWidth = Math.max(680, Math.min(920, rect.width * 0.64));
+        gutter = (rect.width - contentWidth) / 2;
+      }
+      const width = Math.min(MAX_WIDTH, gutter - 12);
+      if (width < MIN_WIDTH) return null;
+      return { left: Math.round(rect.left - frame.left), top: Math.round(rect.top - frame.top),
+        width: Math.round(width), height: Math.round(rect.height) };
+    }
+
+    const sameGeometry = (a, b) => (a === b) || (a && b
+      && a.left === b.left && a.top === b.top && a.width === b.width && a.height === b.height);
+
+    function SpectrumBackdrop({ controller, usePanelInfo }) {
       const state = React.useSyncExternalStore(controller.subscribe, controller.getSnapshot);
       const activePanelId = typeof usePanelInfo === 'function' ? usePanelInfo(info => info.activePanelId) : null;
       const rootRef = React.useRef(null);
       const textRef = React.useRef(null);
       const engineRef = React.useRef(null);
-      const columnsRef = React.useRef(9);
+      const columnsRef = React.useRef(24);
       const rowsRef = React.useRef(48);
       const progressRef = React.useRef(0);
+      const geometryRef = React.useRef(null);
+      const [geometry, setGeometry] = React.useState(null);
+      const [columns, setColumns] = React.useState(24);
       const [rows, setRows] = React.useState(48);
       const [rowPixels, setRowPixels] = React.useState(ROW_HEIGHT);
       const snapshot = state.snapshot;
@@ -1980,26 +2044,54 @@ window.__ModuleLoader__.load({
         ? `${current.playInstanceId ?? ''}:${current.track?.provider ?? ''}:${current.track?.providerTrackId ?? ''}`
         : 'standby';
       React.useEffect(() => { progressRef.current = progressPercent(current) / 100; });
+      // 真实容器测量：目标出现／消失、侧栏拖动、正文宽度拖动和窗口缩放都会重算。
       React.useEffect(() => {
+        if (!state.spectrumVisible) return undefined;
         const root = rootRef.current;
-        if (!root || typeof ResizeObserver !== 'function') return undefined;
-        const measure = () => {
-          const rect = root.getBoundingClientRect();
-          if (rect.height <= 0 || rect.width <= 0) return;
-          const nextRows = Math.max(8, Math.min(STRIP_BANDS, Math.floor(rect.height / ROW_HEIGHT)));
-          const nextColumns = Math.max(2, Math.min(24, Math.floor(rect.width / measureCharWidth(textRef.current ?? root))));
-          const nextRowPixels = Math.round(rect.height / nextRows * 10) / 10;
-          columnsRef.current = nextColumns;
-          rowsRef.current = nextRows;
-          setRows(previous => (previous === nextRows ? previous : nextRows));
-          setRowPixels(previous => (previous === nextRowPixels ? previous : nextRowPixels));
+        if (!root) return undefined;
+        let scheduled = 0;
+        let observed = null;
+        const observer = typeof ResizeObserver === 'function' ? new ResizeObserver(() => schedule()) : null;
+        function schedule() {
+          if (scheduled) return;
+          scheduled = requestAnimationFrame(() => {
+            scheduled = 0;
+            const target = document.querySelector(TARGET);
+            if (observer && target !== observed) {
+              if (observed) observer.unobserve(observed);
+              observed = target;
+              if (target) observer.observe(target);
+            }
+            const next = readGeometry(root, target);
+            if (!sameGeometry(next, geometryRef.current)) {
+              geometryRef.current = next;
+              setGeometry(next);
+            }
+            if (next) {
+              const charWidth = measureCharWidth(textRef.current ?? root);
+              const nextColumns = Math.max(8, Math.min(40, Math.floor((next.width - 4) / charWidth)));
+              const nextRows = Math.max(10, Math.min(96, Math.floor(next.height / ROW_HEIGHT)));
+              const nextRowPixels = Math.round(next.height / nextRows * 10) / 10;
+              columnsRef.current = nextColumns;
+              rowsRef.current = nextRows;
+              setColumns(previous => (previous === nextColumns ? previous : nextColumns));
+              setRows(previous => (previous === nextRows ? previous : nextRows));
+              setRowPixels(previous => (previous === nextRowPixels ? previous : nextRowPixels));
+            }
+          });
+        }
+        schedule();
+        window.addEventListener('resize', schedule);
+        // 目标挂载／卸载与宽度偏好变化不都会触发 ResizeObserver，低频巡检兜底。
+        const poll = setInterval(schedule, 800);
+        return () => {
+          cancelAnimationFrame(scheduled);
+          clearInterval(poll);
+          window.removeEventListener('resize', schedule);
+          observer?.disconnect();
         };
-        measure();
-        const observer = new ResizeObserver(measure);
-        observer.observe(root);
-        return () => observer.disconnect();
       }, [activePanelId, state.spectrumVisible]);
-      // 动画时钟：完整→每帧，轻量→160ms，关闭→静态呼吸基线（预积分一次）。
+      // 动画时钟：完整→12fps，轻量→240ms，关闭→静态呼吸基线（预积分一次）。
       // 系统减少动态设置与面板内"轻量"同等对待。
       React.useEffect(() => {
         const seed = hashSeed(seedSource);
@@ -2011,11 +2103,13 @@ window.__ModuleLoader__.load({
           && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
         const level = state.motion === 'off' ? 'off'
           : state.motion === 'reduced' || prefersReduced ? 'reduced' : 'full';
-        const render = frame => {
-          if (textRef.current) textRef.current.textContent = renderSpectrumStripText(frame.values, frame.peaks, rowsRef.current, columnsRef.current);
+        const render = (frame, phase = 0) => {
+          if (textRef.current) {
+            textRef.current.textContent = renderSpectrumFieldText(frame.values, frame.peaks,
+              columnsRef.current, rowsRef.current, { phase });
+          }
         };
         if (level === 'off') {
-          // 静态呼吸基线：预积分到稳定相位后停表，"关闭"仍保留一个安静的常驻形态。
           let frame = null;
           for (let warm = 0; warm < 48; warm++) {
             frame = engine.step(0.05, { energy: spectrumEnergy(progressRef.current), active: false });
@@ -2023,25 +2117,31 @@ window.__ModuleLoader__.load({
           render(frame);
           return undefined;
         }
-        let last = Date.now();
-        const tick = () => {
+        let phase = 0, last = Date.now(), lastDraw = 0, animationFrame = 0;
+        const draw = () => {
           const now = Date.now();
-          const frame = engine.step(Math.min(0.1, (now - last) / 1000),
-            { energy: spectrumEnergy(progressRef.current), active: playing });
+          const dt = Math.min(0.1, (now - last) / 1000);
           last = now;
-          render(frame);
+          if (now - lastDraw < FRAME_INTERVAL) return;
+          lastDraw = now;
+          phase += dt;
+          const frame = engine.step(dt, { energy: spectrumEnergy(progressRef.current), active: playing });
+          render(frame, phase);
         };
         if (level === 'full') {
-          let animationFrame = requestAnimationFrame(function loop() { tick(); animationFrame = requestAnimationFrame(loop); });
+          animationFrame = requestAnimationFrame(function loop() { draw(); animationFrame = requestAnimationFrame(loop); });
           return () => cancelAnimationFrame(animationFrame);
         }
-        const timer = setInterval(tick, 160);
+        const timer = setInterval(() => { last = Date.now() - 240; draw(); }, 240);
         return () => clearInterval(timer);
-      }, [playing, rows, seedSource, state.motion, state.snapshot?.revision]);
+      }, [playing, columns, rows, seedSource, state.motion, state.snapshot?.revision]);
       if (!state.spectrumVisible || activePanelId === 'fishfm') return null;
-      return h('div', { ref: rootRef, className: 'fm-spectrum-strip', 'data-active': playing,
-        'data-motion': state.motion || 'full', 'aria-hidden': 'true', style: { '--fm-row': `${rowPixels}px` } },
-        h('pre', { ref: textRef }));
+      const style = geometry
+        ? { left: `${geometry.left}px`, top: `${geometry.top}px`, width: `${geometry.width}px`, height: `${geometry.height}px`, '--fm-row': `${rowPixels}px` }
+        : { display: 'none' };
+      return h('div', { ref: rootRef, className: 'fm-spectrum-bg', 'data-active': playing,
+        'data-ready': geometry ? 'true' : undefined, 'data-motion': state.motion || 'full',
+        'aria-hidden': 'true', style: { ...style, pointerEvents: 'none' } }, h('pre', { ref: textRef }));
     }
 
     // src/ui/client/entry.mjs
@@ -2064,10 +2164,11 @@ window.__ModuleLoader__.load({
       ctx.slots.inject('settings.section', () => ctx.slots.register({ name: 'settings.section', id: 'fishfm', order: 65, label: () => '肥鱼电台', inject }, Panel));
       ctx.slots.inject('shell.overlay', () => ctx.slots.register({ name: 'shell.overlay', id: 'fishfm.player', order: 30,
         inject: () => ({ controller, layout: ctx.layout }) }, FloatingPlayer));
-      // 同一槽位的第二个条目：对话区左缘的 ASCII 频谱背景带（固定位置、不参与互动）。
-      // 真实宿主对同槽多条目的渲染行为待隔离 profile 验证（见 PROJECT_PLAN）。
+      // 同一槽位的第二个条目：工作区背景层。DSH 没有会话背景插槽，条目挂在
+      // shell.overlay，但几何由 [data-conversation-content] 实测推导，不占布局、
+      // 不拦截交互；真实宿主挂载与位置需隔离 profile 验证（见 PROJECT_PLAN）。
       ctx.slots.inject('shell.overlay', () => ctx.slots.register({ name: 'shell.overlay', id: 'fishfm.spectrum', order: 31,
-        inject: () => ({ controller }) }, SpectrumStrip));
+        inject: () => ({ controller }) }, SpectrumBackdrop));
     }
     return { apply, inject: ['slots', 'connection', 'layout'] };
   },

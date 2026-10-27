@@ -62,6 +62,6 @@
 | 2026-10-18 | U19 先做当前有效批次只读投影，沿用历史 JSON、以 modelCallId 关联经历；有声听过须实测 audibleMs 达阈值。不增表／发送／通知／模型调用或永久跨批历史 | [U19](spikes/U19-recent-discoveries-prototype.md) |
 | 2026-10-18 | U20 用 settings 的结构化预设与独立 revision，避免 persona.md／自由指令的额外范围。仅改变有依据的本地说明，音乐状态优先；不进入模型事实，保存不阻塞播放 | [U20](spikes/U20-expression-style-prototype.md) |
 | 2026-10-18 | 用户选择反馈管理首版仅查看与逐条撤销。沿用反馈表、增加独立递增版本；撤销留中立行以防重置恢复复活旧票，保留当前歌曲实例校验。以 DSH 插件及隔离 profile 验证，不以日常 Desktop 为前置 | [U21](spikes/U21-feedback-management.md) |
-| 2026-10-28 | 用户要求对话区左缘放约 56px 宽的 ASCII 频谱背景带，位置固定、不可移动；因音频在原生宿主播放且媒体句柄不进 UI，网页端没有音频流或歌词，采用本地动画时钟模拟（对数分频／峰值重力／快起慢落／静默呼吸），柱体字符按亮度映射经典 ASCII 字符集，只借鉴 audioMotion、butterchurn、soundscape 与 asciify 的观感而不引入代码或依赖，界面明确标注非音频测量。宿主无侧栏宽度 API，CSS 固定 overlay 左缘 348 px、不设位置偏好；背景带不接收输入，面板内隐藏，随动态效果分级降帧 | [U22](spikes/U22-ascii-spectrum-strip.md)、[MVP §5](MVP.md)、[架构](ARCHITECTURE.md) |
+| 2026-10-28 | 用户要求工作区左缘的 ASCII 频谱作为背景融入（非悬浮块）。调查 DSH 0.2.1-rc.3：没有会话背景插槽，`conversation.content` 由会话包独占，最小侵入方案是 `shell.overlay` 条目，几何由 `[data-conversation-content]`（正文容器）、`[data-composer-card]`／宽度手柄运行时实测，不写死屏幕坐标、不挂 body、不改正文布局。真实 FFT 受阻：音频在 WPF 宿主播、播放协议无样本流、页面无音频元素，故采用本地时钟模拟（明确标注非音频测量），不伪装成真实频谱。用 ASCII 字符矩阵替代参考代码的 Three.js 渲染链（更轻、无 GPU、无全屏 canvas），借鉴字符集、亮度映射、波浪与等宽排版；宽度参考截图取 160px、随留白自适应 | [U22](spikes/U22-ascii-spectrum-backdrop.md)、[MVP §5](MVP.md)、[架构](ARCHITECTURE.md) |
 
 第三方来源、版本、文件范围与许可只维护在 [THIRD_PARTY_NOTICES](../THIRD_PARTY_NOTICES.md) 和 [依赖许可清单](../DEPENDENCY_LICENSES.md)，不在决策表重复许可结论。未核实的参考项目仍保留在归档，不能当作已获授权或已验证接口。

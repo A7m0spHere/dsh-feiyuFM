@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createSpectrumEngine, renderSpectrumStrip, renderSpectrumStripText, spectrumEnergy,
+import { createSpectrumEngine, renderSpectrumField, renderSpectrumFieldText, spectrumEnergy,
   hashSeed, mulberry32, BAND_MIN, BAND_MAX, FIELD_RAMP } from '../src/ui/client/spectrum-bars.mjs';
 
 
@@ -73,41 +73,57 @@ test('band count clamps to the supported range', () => {
   assert.equal(createSpectrumEngine({}).bands, 24);
 });
 
-const filled = line => [...line].filter(char => char !== ' ').length;
+const column = (lines, index) => lines.map(line => line[index] ?? ' ');
+const inked = chars => chars.filter(char => char !== ' ').length;
+const strongest = chars => Math.max(0, ...chars.map(char => FIELD_RAMP.indexOf(char)));
+const ROW_MID = 0.54;
 
-test('strip rows span the requested width, clamp their count and stay inside the charset', () => {
+test('field rows span the requested columns, clamp their counts and stay inside the charset', () => {
   const values = new Array(16).fill(0.6), peaks = new Array(16).fill(0.8);
-  const lines = renderSpectrumStrip(values, peaks, 32, 9);
-  assert.equal(lines.length, 32);
+  const lines = renderSpectrumField(values, peaks, 24, 40);
+  assert.equal(lines.length, 40);
   for (const line of lines) {
-    assert.equal(line.length, 9, 'every row spans the measured column count');
+    assert.equal(line.length, 24, 'every row spans the measured column count');
     for (const char of line) assert.ok(char === ' ' || FIELD_RAMP.includes(char), `unexpected char ${char}`);
   }
-  assert.equal(renderSpectrumStrip(values, peaks, 1, 9).length, 8, 'row count clamps up');
-  assert.equal(renderSpectrumStrip(values, peaks, 1000, 9).length, 96, 'row count clamps down');
-  assert.equal(renderSpectrumStrip(values, peaks, 32, 100)[0].length, 24, 'column count clamps down');
-  assert.equal(renderSpectrumStrip(values, peaks, 32, 1)[0].length, 2, 'column count clamps up');
-  assert.deepEqual(renderSpectrumStrip([], [], 12, 9), [], 'no bands means no texture');
+  assert.equal(renderSpectrumField(values, peaks, 24, 1).length, 8, 'row count clamps up');
+  assert.equal(renderSpectrumField(values, peaks, 24, 1000).length, 120, 'row count clamps down');
+  assert.equal(renderSpectrumField(values, peaks, 1000, 40)[0].length, 64, 'column count clamps down');
+  assert.equal(renderSpectrumField(values, peaks, 1, 40)[0].length, 4, 'column count clamps up');
+  assert.deepEqual(renderSpectrumField([], [], 12, 20), [], 'no bands means no texture');
 });
 
-test('low frequencies sit at the bottom and louder bands fill more columns', () => {
-  const lines = renderSpectrumStrip([1, 0], [1, 0], 8, 6);
-  assert.equal(lines.at(-1).trim().length, 6, 'the loud low band fills the last row');
-  assert.equal(lines[0], '      ', 'the silent high band leaves the first row empty');
-  assert.ok(filled(renderSpectrumStrip([0.9], [0.9], 8, 6)[0]) > filled(renderSpectrumStrip([0.3], [0.3], 8, 6)[0]),
-    'higher amplitude fills more cells');
-  const bar = renderSpectrumStrip([1], [1], 8, 6)[0];
-  assert.ok(bar.trim().length === 6 && !bar.includes(' '), 'a full bar leaves no gaps');
+test('low frequencies sit on the left and louder bands reach further from the baseline', () => {
+  const lines = renderSpectrumField([1, 0], [1, 0], 4, 40);
+  const left = column(lines, 0), right = column(lines, 3);
+  assert.ok(inked(left) > inked(right) * 2, 'the loud left band towers over the quiet right band');
+  assert.equal(inked(right), 0, 'an empty band draws nothing');
+  const loud = renderSpectrumField([0.9], [0.9], 4, 40);
+  const quiet = renderSpectrumField([0.3], [0.3], 4, 40);
+  assert.ok(inked(column(loud, 0)) > inked(column(quiet, 0)), 'higher amplitude grows the bar');
 });
 
-test('a held peak marks its cell with the densest glyph until the bar catches up', () => {
-  const rising = renderSpectrumStrip([0.2], [0.9], 8, 6);
-  const settled = renderSpectrumStrip([0.9], [0.9], 8, 6);
-  assert.equal(rising[0][4], FIELD_RAMP.at(-1), 'a held peak leaves the densest glyph at its column');
-  assert.equal(rising[0][0].trim().length, 1, 'the bar itself still stops at its own amplitude');
-  assert.equal(settled[0].includes(FIELD_RAMP.at(-1)), false, 'a caught-up peak needs no extra glyph');
-  assert.equal(settled[0][5], ' ', 'nothing is drawn beyond the bar');
-  assert.equal(renderSpectrumStripText([0.5], [0.5], 8, 6), renderSpectrumStrip([0.5], [0.5], 8, 6).join('\n'));
+test('bars brighten toward the tip and the reflection below the baseline stays dimmer', () => {
+  const lines = renderSpectrumField([1], [1], 4, 40);
+  const chars = column(lines, 1);
+  const baseline = Math.round(39 * ROW_MID);
+  const tip = chars.slice(0, baseline).find(char => char !== ' ');
+  assert.ok(FIELD_RAMP.indexOf(tip) > 40, 'the tip prints a dense glyph');
+  const below = chars.slice(baseline + 1).find(char => char !== ' ');
+  assert.ok(below !== undefined && FIELD_RAMP.indexOf(below) < FIELD_RAMP.indexOf(tip), 'the reflection is dimmer than the bar');
+  assert.ok(FIELD_RAMP.indexOf(below) < FIELD_RAMP.indexOf(chars[baseline - 1] ?? ' '), 'the reflection is dimmer than the base');
+});
+
+test('a held peak marks the column above the bar and the wave nudges the tips', () => {
+  const settled = renderSpectrumField([0.5], [0.5], 4, 40);
+  const rising = renderSpectrumField([0.2], [0.9], 4, 40);
+  const cap = FIELD_RAMP.at(-1);
+  assert.equal(column(rising, 1).includes(cap), true, 'the falling peak leaves the densest glyph');
+  assert.equal(column(settled, 1).includes(cap), false, 'a caught-up peak needs no extra glyph');
+  const still = renderSpectrumField([0.5], [0.5], 8, 40, { phase: 0 });
+  const waved = renderSpectrumField([0.5], [0.5], 8, 40, { phase: Math.PI / 2 });
+  assert.notDeepEqual(waved, still, 'phase adds the gentle wave without changing the grid');
+  assert.equal(renderSpectrumFieldText([0.5], [0.5], 8, 40), still.join('\n'));
 });
 
 test('energy arc is fuller in the middle of a song than at the edges', () => {

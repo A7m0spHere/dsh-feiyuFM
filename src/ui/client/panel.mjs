@@ -153,7 +153,7 @@ export function Panel({ controller, back, close }) {
             h('button', { type: 'button', id: `${rateId}-spectrum`, className: 'fm-toggle', role: 'switch',
               'aria-label': '背景频谱', 'aria-checked': Boolean(state.spectrumVisible),
               onClick: () => controller.setSpectrumVisible(!state.spectrumVisible) }, h('span'))),
-          h('p', { className: 'fm-note' }, '对话区左缘的 ASCII 频谱背景带；模拟观感，非音频测量，位置固定。'),
+          h('p', { className: 'fm-note' }, '对话区左缘的 ASCII 频谱背景；模拟观感，非音频测量，随窗口与会话宽度自适应。'),
           h('div', { className: 'fm-widget-note' }, h(Svg, { type: 'grip' }),
             h('span', null, state.widgetVisible ? '离开面板后显示，可拖动吸附。' : '悬浮条已隐藏，可随时显示。')))));
   const grid = h('div', { className: 'fm-grid' }, ...(close?[controlsColumn,preferencesColumn]:[preferencesColumn,controlsColumn]));
