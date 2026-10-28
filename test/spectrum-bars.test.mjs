@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createSpectrumEngine, createSpectrumClock, createSpectrumDriver, snapshotFrame,
   renderSpectrumField, renderSpectrumFieldText, spectrumEnergy,
-  hashSeed, mulberry32, BAND_MIN, BAND_MAX, FIELD_RAMP, SIM_STEP, MAX_CATCH_UP_S } from '../src/ui/client/spectrum-bars.mjs';
+  hashSeed, mulberry32, BAND_MIN, BAND_MAX, FIELD_RAMP, FIELD_WAVE, SIM_STEP, MAX_CATCH_UP_S } from '../src/ui/client/spectrum-bars.mjs';
 
 
 const stepFor = (engine, seconds, options) => {
@@ -75,9 +75,8 @@ test('band count clamps to the supported range', () => {
 });
 
 const column = (lines, index) => lines.map(line => line[index] ?? ' ');
-const inked = chars => chars.filter(char => char !== ' ').length;
-const strongest = chars => Math.max(0, ...chars.map(char => FIELD_RAMP.indexOf(char)));
-const ROW_MID = 0.54;
+// 一列里最靠上（行号最小）的墨点：海面高度由它读出来。
+const crest = chars => chars.findIndex(char => char !== ' ');
 
 test('field rows span the requested columns, clamp their counts and stay inside the charset', () => {
   const values = new Array(16).fill(0.6), peaks = new Array(16).fill(0.8);
@@ -85,7 +84,10 @@ test('field rows span the requested columns, clamp their counts and stay inside 
   assert.equal(lines.length, 40);
   for (const line of lines) {
     assert.equal(line.length, 24, 'every row spans the measured column count');
-    for (const char of line) assert.ok(char === ' ' || FIELD_RAMP.includes(char), `unexpected char ${char}`);
+    for (const char of line) {
+      const known = char === ' ' || FIELD_RAMP.includes(char) || FIELD_WAVE.includes(char);
+      assert.ok(known, `unexpected char ${char}`);
+    }
   }
   assert.equal(renderSpectrumField(values, peaks, 24, 1).length, 8, 'row count clamps up');
   assert.equal(renderSpectrumField(values, peaks, 24, 1000).length, 120, 'row count clamps down');
@@ -94,28 +96,34 @@ test('field rows span the requested columns, clamp their counts and stay inside 
   assert.deepEqual(renderSpectrumField([], [], 12, 20), [], 'no bands means no texture');
 });
 
-test('low frequencies sit on the left and louder bands reach further from the baseline', () => {
-  const lines = renderSpectrumField([1, 0], [1, 0], 4, 40);
-  const left = column(lines, 0), right = column(lines, 3);
-  assert.ok(inked(left) > inked(right) * 2, 'the loud left band towers over the quiet right band');
-  assert.equal(inked(right), 0, 'an empty band draws nothing');
-  const loud = renderSpectrumField([0.9], [0.9], 4, 40);
-  const quiet = renderSpectrumField([0.3], [0.3], 4, 40);
-  assert.ok(inked(column(loud, 0)) > inked(column(quiet, 0)), 'higher amplitude grows the bar');
+test('the sea line sits lower for quiet bands and rises with amplitude (low frequencies stay on the left)', () => {
+  const lines = renderSpectrumField([1, 0.05], [1, 0.05], 4, 40, { phase: 0 });
+  const leftCrest = crest(column(lines, 0));
+  const rightCrest = crest(column(lines, 3));
+  assert.ok(leftCrest >= 0 && rightCrest >= 0, 'both columns draw something');
+  assert.ok(leftCrest < rightCrest - 2, 'the loud left band raises the water line above the quiet right band');
+  const loud = crest(column(renderSpectrumField([0.9], [0.9], 4, 40, { phase: 0 }), 1));
+  const quiet = crest(column(renderSpectrumField([0.25], [0.25], 4, 40, { phase: 0 }), 1));
+  assert.ok(loud < quiet - 1, `higher amplitude lifts the crest: ${loud} vs ${quiet}`);
 });
 
-test('bars brighten toward the tip and the reflection below the baseline stays dimmer', () => {
-  const lines = renderSpectrumField([1], [1], 4, 40);
+test('water below the crest is layered: crest drawn, depths sparser, tips carry the densest glyph', () => {
+  const lines = renderSpectrumField([1], [1], 4, 40, { phase: 0 });
   const chars = column(lines, 1);
-  const baseline = Math.round(39 * ROW_MID);
-  const tip = chars.slice(0, baseline).find(char => char !== ' ');
-  assert.ok(FIELD_RAMP.indexOf(tip) > 40, 'the tip prints a dense glyph');
-  const below = chars.slice(baseline + 1).find(char => char !== ' ');
-  assert.ok(below !== undefined && FIELD_RAMP.indexOf(below) < FIELD_RAMP.indexOf(tip), 'the reflection is dimmer than the bar');
-  assert.ok(FIELD_RAMP.indexOf(below) < FIELD_RAMP.indexOf(chars[baseline - 1] ?? ' '), 'the reflection is dimmer than the base');
+  const top = crest(chars);
+  assert.ok(top >= 0, 'the crest is drawn');
+  const nearSurface = chars.slice(top, top + 8).filter(char => char !== ' ').length;
+  const farBelow = chars.slice(-8).filter(char => char !== ' ').length;
+  assert.ok(nearSurface >= farBelow, 'the water thins out with depth instead of filling the column');
+  assert.ok(farBelow < 8, 'the bottom of the frame stays open, not a solid wall');
+  // 峰值比当前值高时会单独标出最亮字符。
+  const rising = renderSpectrumField([0.2], [0.95], 4, 40, { phase: 0 });
+  assert.ok(column(rising, 1).includes(FIELD_RAMP.at(-1)), 'a held peak leaves the densest glyph above the crest');
+  const settled = renderSpectrumField([0.5], [0.5], 4, 40, { phase: 0 });
+  assert.equal(column(settled, 1).includes(FIELD_RAMP.at(-1)), false, 'a caught-up peak needs no extra glyph');
 });
 
-test('a held peak marks the column above the bar and the wave nudges the tips', () => {
+test('phase shifts the swell without changing the grid, and a held peak still marks the crest', () => {
   const settled = renderSpectrumField([0.5], [0.5], 4, 40);
   const rising = renderSpectrumField([0.2], [0.9], 4, 40);
   const cap = FIELD_RAMP.at(-1);
@@ -125,6 +133,55 @@ test('a held peak marks the column above the bar and the wave nudges the tips', 
   const waved = renderSpectrumField([0.5], [0.5], 8, 40, { phase: Math.PI / 2 });
   assert.notDeepEqual(waved, still, 'phase adds the gentle wave without changing the grid');
   assert.equal(renderSpectrumFieldText([0.5], [0.5], 8, 40), still.join('\n'));
+});
+
+test('the swells run continuously across columns instead of breaking into isolated dots', () => {
+  // 海面观感的关键：每一道浪线左右相连。统计墨点落在多长连续段里的比例。
+  const values = new Array(16).fill(0.6), peaks = new Array(16).fill(0.7);
+  const lines = renderSpectrumField(values, peaks, 26, 60, { phase: 1.2 });
+  let inkedTotal = 0, inRuns = 0, longestRun = 0;
+  for (const line of lines) {
+    for (const match of line.matchAll(/[^ ]+/g)) {
+      inkedTotal += match[0].length;
+      if (match[0].length >= 3) inRuns += match[0].length;
+      longestRun = Math.max(longestRun, match[0].length);
+    }
+  }
+  assert.ok(inkedTotal > 100, `the field should draw a body of water, got ${inkedTotal} glyphs`);
+  assert.ok(inRuns / inkedTotal > 0.8,
+    `most glyphs must belong to a swell run, got ${inRuns}/${inkedTotal}`);
+  assert.ok(longestRun >= 8, `the widest swell should span the band, got ${longestRun} columns`);
+});
+
+test('the crest height still tracks band energy so the spectrum stays readable', () => {
+  // 海面化之后仍要能比出高低：浪脊高度与频段能量应正相关。
+  const bands = 16;
+  const values = Array.from({ length: bands }, (_, index) => (index % 4) / 3);
+  const lines = renderSpectrumField(values, values, 26, 60, { phase: 0.4 });
+  const pairs = [];
+  for (let index = 0; index < 26; index++) {
+    const row = crest(column(lines, index));
+    if (row < 0) continue;
+    pairs.push([values[Math.round((index / 25) * (bands - 1))], -row]);
+  }
+  const meanX = pairs.reduce((sum, [x]) => sum + x, 0) / pairs.length;
+  const meanY = pairs.reduce((sum, [, y]) => sum + y, 0) / pairs.length;
+  let num = 0, dx = 0, dy = 0;
+  for (const [x, y] of pairs) {
+    num += (x - meanX) * (y - meanY);
+    dx += (x - meanX) ** 2;
+    dy += (y - meanY) ** 2;
+  }
+  const correlation = num / Math.sqrt(dx * dy);
+  assert.ok(correlation > 0.45, `louder bands must raise the water line, got r=${correlation.toFixed(2)}`);
+});
+
+test('a quiet field keeps the water low and sparse instead of flooding the frame', () => {
+  const inked = lines => lines.join('').split('').filter(char => char !== ' ').length;
+  const loud = renderSpectrumField(new Array(16).fill(0.9), new Array(16).fill(0.9), 26, 60, { phase: 0.7 });
+  const quiet = renderSpectrumField(new Array(16).fill(0.02), new Array(16).fill(0.02), 26, 60, { phase: 0.7 });
+  assert.ok(inked(quiet) < inked(loud) * 0.75,
+    `a paused field must recede: ${inked(quiet)} vs ${inked(loud)}`);
 });
 
 test('energy arc is fuller in the middle of a song than at the edges', () => {

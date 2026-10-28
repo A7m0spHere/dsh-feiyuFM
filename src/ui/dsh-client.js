@@ -1823,6 +1823,9 @@ window.__ModuleLoader__.load({
     const BAND_MIN = 8;
     const BAND_MAX = 64;
     const FIELD_RAMP = ' .\'`^",:;Il!i~+_-?][}{1)(|/tfjrxnuvczXYUJCLQ0OZmwqpdbkhao*#MW&8%B@$';
+    // 浪线专用的斜线：反斜杠不在亮度梯度里，但浪脊要它才读得出水面起伏。
+    // 渲染只输出 FIELD_RAMP ∪ FIELD_WAVE，测试按这个并集校验字符集。
+    const FIELD_WAVE = '\\';
     const BEAT_PERIOD = 0.6; // 约 100 BPM 的固定律动；歌曲节拍不可测，只求观感稳定
     const PEAK_HOLD_S = 0.42;
     const PEAK_GRAVITY = 2.9;
@@ -1952,10 +1955,8 @@ window.__ModuleLoader__.load({
       return { bands: count, reseed, step };
     }
 
-    // 把频段值铺成竖向 ASCII 频谱场：每列一个频段（低频在左），柱体围绕中部
-    // 基线向上生长，下方是更暗的倒影；柱内字符沿高度由疏到密，悬空的峰值用
-    // 最亮字符标记。phase 给低频柱体加一层缓慢的波浪起伏（参考顶点着色器的
-    // 轻微形变），只动一两行，保持克制。
+    // 帧快照：引擎每步复用同一组数组，重绘（例如窗口尺寸变化）需要一份不随
+    // 引擎继续推进而变化的副本。
     function snapshotFrame(frame) {
       return { values: [...(frame?.values ?? [])], peaks: [...(frame?.peaks ?? [])] };
     }
@@ -1992,49 +1993,130 @@ window.__ModuleLoader__.load({
       };
     }
 
+    // 把频段值铺成一片 ASCII 海面，而不是"柱状图 + 镜面倒影"：
+    // - 最上面一条浪线就是谱轮廓：每列浪高＝该频段能量，低频在左；
+    // - 往下是一道道跟随轮廓、逐层变平的同形浪脊，行距按透视拉开；
+    //   斜率大时补齐中间行，曲线连续、不会断成点阵；
+    // - 断口按"浪段"成块出现（一段连续、段尾留白），读起来是一道道浪；
+    // - 笔画随深度从 ~ / - 过渡到 ' 与 .，越往近处越淡，底部自然化开；
+    // - 悬空峰值仍用最亮字符标出，浪尖偶尔溅起一颗水花。
+    // 全部由 phase（模拟秒）与频段值决定，纯函数。
     function renderSpectrumField(values, peaks, columns, rows,
-      { phase = 0, baseline = 0.54, reflection = 0.5, ramp = FIELD_RAMP } = {}) {
+      { phase = 0, ramp = FIELD_RAMP, horizon = 0.26, spray = true } = {}) {
       const cols = Math.max(4, Math.min(64, Math.round(Number(columns) || 0)));
       const rowCount = Math.max(8, Math.min(120, Math.round(Number(rows) || 0)));
       const bands = values?.length ?? 0;
       if (!bands) return [];
-      const rampMax = Math.max(1, ramp.length - 1);
-      const pick = brightness => ramp[Math.min(rampMax, Math.max(0, Math.floor(brightness * rampMax)))];
-      const baselineRow = Math.max(2, Math.min(rowCount - 2, Math.round(rowCount * baseline)));
-      const maxBar = baselineRow - 1;
+      const levels = Math.max(1, ramp.length - 1);
+      const peakGlyph = ramp[levels];
+      const bandOf = column => (cols === 1 ? 0 : column / (cols - 1)) * (bands - 1);
       const sample = (series, band) => {
         const lower = Math.floor(band), upper = Math.min(bands - 1, lower + 1);
         return series[lower] + (series[upper] - series[lower]) * (band - lower);
       };
-      const lines = [];
-      for (let row = 0; row < rowCount; row++) {
-        const cells = new Array(cols).fill(' ');
-        for (let column = 0; column < cols; column++) {
-          const band = cols === 1 ? 0 : column / (cols - 1) * (bands - 1);
-          const value = clamp01(sample(values, band));
-          const peak = clamp01(sample(peaks ?? values, band));
-          const wave = Math.sin(phase + column * 0.42) * 0.6;
-          const bar = Math.max(0, value * maxBar + wave);
-          const heightAbove = baselineRow - row;
-          if (heightAbove > 0) {
-            if (heightAbove <= bar) {
-              const towardTip = bar <= 1 ? 1 : (heightAbove - 1) / (bar - 1);
-              cells[column] = pick(0.30 + 0.58 * towardTip);
-            } else if (peak > value + 0.04 && Math.abs(heightAbove - (peak * maxBar + wave)) < 0.5) {
-              cells[column] = ramp[rampMax];
-            }
-          } else {
-            const mirrored = row - baselineRow + 1;
-            const reflected = Math.min(maxBar, bar * reflection);
-            if (mirrored <= reflected) {
-              const towardBase = 1 - (reflected <= 1 ? 1 : mirrored / reflected);
-              cells[column] = pick(0.08 + 0.24 * towardBase);
-            }
-          }
+
+      // 邻列平滑：浪脊要连贯，不能一格一格蹦。先整行取值再卷积，否则平滑会读到
+      // 尚未赋值的邻列（NaN 会污染整片字符场）。
+      const bandValues = new Array(cols);
+      for (let column = 0; column < cols; column++) bandValues[column] = clamp01(sample(values, bandOf(column)));
+      const energy = new Array(cols);
+      for (let column = 0; column < cols; column++) {
+        let sum = 0, weight = 0;
+        for (let delta = -2; delta <= 2; delta++) {
+          const index = Math.min(cols - 1, Math.max(0, column + delta));
+          const k = 1 - Math.abs(delta) / 3;
+          sum += bandValues[index] * k;
+          weight += k;
         }
-        lines.push(cells.join(''));
+        energy[column] = sum / weight;
       }
-      return lines;
+      // 整体能量既决定浪高，也决定涌浪幅度：暂停后自然变成一条浅浅的缓波。
+      const mean = energy.reduce((sum, value) => sum + value, 0) / cols;
+
+      const horizonRow = Math.max(2, Math.min(rowCount - 8, Math.round(rowCount * horizon)));
+      const depth = rowCount - horizonRow;
+      const lift = Math.max(2, Math.round((horizonRow - 1) * 0.95));
+      const grid = Array.from({ length: rowCount }, () => new Array(cols).fill(' '));
+      const set = (row, column, glyph) => {
+        if (row < 0 || row >= rowCount || column < 0 || column >= cols) return;
+        grid[row][column] = glyph;
+      };
+
+      // 浪脊轮廓：能量抬升 + 长涌浪。播放时起伏明显，暂停后只剩一层几乎平的呼吸。
+      const crest = new Array(cols);
+      for (let column = 0; column < cols; column++) {
+        const t = cols === 1 ? 0 : column / (cols - 1);
+        const body = Math.pow(energy[column], 1.2) * lift * (0.8 + 0.35 * mean);
+        const swell = Math.sin(phase * 0.45 + t * Math.PI * 2 + 0.4) * (0.25 + 1.5 * mean);
+        crest[column] = horizonRow - body + swell;
+      }
+
+      // 浪线：行距逐步拉开（透视），每条横向连续，断口按浪段成块出现。
+      // 海铺满整个高度，靠"越深越透"淡出，而不是在中途截断。
+      // presence 只控制安静时的整体稀薄程度：暂停后只剩贴近水线的几道浅纹。
+      const presence = clamp01(mean * 2.2);
+      // 安静时只留贴近水线的几道浪，播放时才铺满整个纵深：暂停后应该明显退潮。
+      const seaEnd = rowCount - 1;
+      const maxLines = Math.max(3, Math.round(3 + 12 * presence));
+      let row = horizonRow;
+      let line = 0;
+      while (row < seaEnd && line < maxLines) {
+        const q = clamp01((row - horizonRow) / Math.max(1, depth));
+        const follow = 0.55 * (1 - 0.65 * q);           // 越近越平，像一层层涌浪
+        const amp = (0.5 + 1.2 * q) * (0.35 + 0.9 * mean);
+        const len = Math.max(9, 12 * (0.8 + 0.7 * q));
+        const speed = 0.5 + 0.6 * q;
+        const ink = q < 0.3 ? '~' : q < 0.55 ? '-' : q > 0.8 ? '.' : '\'';
+        const span = Math.max(8, Math.round(12 + 6 * presence + 3 * Math.sin(line * 2.1 + phase * 0.3)));
+        const offset = Math.floor((Math.sin(line * 1.7 + phase * 0.22) * 0.5 + 0.5) * span);
+        const y = new Array(cols);
+        for (let column = 0; column < cols; column++) {
+          y[column] = row + (crest[column] - horizonRow) * follow
+            + Math.sin((column / len) * Math.PI * 2 + phase * speed + line * 1.6) * amp;
+        }
+        for (let column = 0; column < cols; column++) {
+          // 浪段为主：一段连续十几列，段尾留一两格断口，读起来是一道道浪。
+          if ((column + offset) % span > span - 2) continue;
+          // 最深处的浪线再稀一点（只在深海段挖洞），安静时整体更透。
+          if (q > 0.75) {
+            const porosity = Math.sin(column * 1.9 + line * 3.1 + phase * 0.7) * 0.5 + 0.5;
+            if (porosity < (q - 0.75) * 2.4 + (1 - presence) * 0.3) continue;
+          }
+          const slope = (column + 1 < cols ? y[column + 1] : y[column]) - y[column];
+          const glyph = slope < -0.5 ? '/' : slope > 0.5 ? '\\' : ink;
+          const top = Math.round(y[column]);
+          const next = Math.round(column + 1 < cols ? y[column + 1] : y[column]);
+          set(top, column, glyph);
+          // 斜率大时补齐中间行，曲线不断成点阵。
+          if (next > top) for (let fill = top + 1; fill <= next; fill++) set(fill, column, glyph);
+          else for (let fill = next; fill < top; fill++) set(fill, column, glyph);
+        }
+        line += 1;
+        row += Math.max(1, Math.round(2 + 4.2 * Math.pow(q, 1.2)));
+      }
+
+      // 悬空峰值：最亮字符标在未被浪追上的峰值高度，保留"柱"的可读性。
+      for (let column = 0; column < cols; column++) {
+        const band = bandOf(column);
+        const value = clamp01(sample(values, band));
+        const peak = clamp01(sample(peaks ?? values, band));
+        if (peak <= value + 0.06) continue;
+        const rowAt = Math.round(horizonRow - Math.pow(peak, 1.2) * lift * (0.8 + 0.35 * mean));
+        if (rowAt < Math.floor(crest[column]) - 1) set(rowAt, column, peakGlyph);
+      }
+
+      // 水花：浪脊上方偶尔溅起一颗，只在完整动效下出现，且必须落在空白处。
+      if (spray) {
+        for (let column = 0; column < cols; column++) {
+          const splash = Math.sin(phase * 1.6 + column * 2.1);
+          if (splash <= 0.95) continue;
+          const rowAt = Math.round(crest[column]) - 1 - Math.round((splash - 0.95) * 18);
+          if (rowAt < 0 || grid[rowAt][column] !== ' ') continue;
+          set(rowAt, column, ':');
+        }
+      }
+
+      return grid.map(line => line.join(''));
     }
 
     function renderSpectrumFieldText(values, peaks, columns, rows, options) {
