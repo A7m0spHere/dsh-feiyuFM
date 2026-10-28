@@ -28,7 +28,8 @@
 
 ## 实现
 
-- `src/ui/client/spectrum-bars.mjs`（纯逻辑）：种子化 PRNG（mulberry32，按曲目 `playInstanceId`／平台 ID 哈希）；对数式低频高、高频低的分段基准与低频慢、高频碎的目标节奏；约 100 BPM 律动脉冲加强低频；播放进度能量弧；快起（15/s）慢落（4.4/s）包络；峰值保持 420ms 后按重力下落；暂停回落“呼吸”基线。`renderSpectrumField` 生成 `columns × rows` 字符场：每列一个频段（低频在左），柱体围绕中部基线向上生长、下方是更暗的倒影，柱内亮度由基到顶递增并映射到 ASCII 字符集，悬空峰值用最亮字符标记；`phase` 给各列加约 1 行的正弦起伏（参考顶点着色器的轻微波浪）。
+- `src/ui/client/spectrum-bars.mjs`（纯逻辑）：种子化 PRNG（mulberry32，按曲目 `playInstanceId`／平台 ID 哈希）；对数式低频高、高频低的分段基准与低频慢、高频碎的目标节奏；约 100 BPM 律动脉冲加强低频；播放进度能量弧；快起（15/s）慢落（4.4/s）包络；峰值保持 420ms 后按重力下落；暂停回落“呼吸”基线。
+- `renderSpectrumField` 的观感在 2026-10-28 重做为**分层浪线海面**（原「竖向柱＋镜面倒影」已移除）：顶部浪脊即谱轮廓，每列浪高＝该频段能量、低频在左；下方逐层跟随轮廓、变平，行距按透视拉开；斜率给 `/` 与 `\` 字形（新增 `FIELD_WAVE`，不属于亮度梯度），断口按「浪段」成块出现而不是逐点抖动。笔画随深度从 `~`／`-` 过渡到 `'`／`.`；海的高度与浪段密度跟整体能量走——播放时铺满纵深，暂停后只剩贴近水线的几道浅纹。悬空峰值仍用最亮字符标出。
 - `src/ui/client/spectrum-backdrop.mjs`：`SpectrumBackdrop` 组件。运行时测量见上节；`requestAnimationFrame` 驱动但限制在 12fps，`reduced` 240ms，`off`／系统减少动态时只画一帧静态呼吸基线；`ResizeObserver`（正文容器）+ `resize` + 800ms 低频巡检（目标挂载、宽度偏好变化）重算几何；卸载时取消 rAF、清理定时器与观察者。
 - 计时修正（2026-10-28）：新增 `createSpectrumClock`／`createSpectrumDriver`。时钟只认真实时间，按固定步长 `SIM_STEP = 1/60` 结算，单次追赶上限 `MAX_CATCH_UP_S = 0.25` 秒；驱动层把步数喂给引擎并维护波浪相位。绘制频率（12fps／240ms／任意屏幕刷新率）只影响采样疏密，不再改变运动速度。修正前的实现每次 rAF 都刷新 `last`、只在跨过帧间隔时 `engine.step(dt)`，被丢弃的时间永久丢失——60Hz 屏幕上 4 秒真实时间只推进约 0.68 秒模拟（复核脚本给出的量化结果），轻量档同理更慢。
 - 动画 effect 依赖收敛：只依赖“可见性＋动效档位”；播放状态与进度改走 ref，普通快照刷新（`revision` 递增）或网格尺寸变化不再重启循环，`reseed` 对相同种子返回 `false` 且不清空目标。页面隐藏时不推进模拟，`visibilitychange` 回到前台先 `reset` 丢弃空档再按当前时刻继续；网格变化只用最近一帧按新行列重画。
@@ -40,9 +41,9 @@
 
 2026-10-28，Windows 10.0.22631 / Node 24.22.1：
 
-- 单元／客户端：`test/spectrum-bars.test.mjs` 18 项（确定性、边界、峰值不低柱体、静默回落、峰值重力、行宽/列数钳制、低频在左、柱高随振幅、尖端更密、倒影更暗、峰值标记、波浪相位，以及本轮新增的 6 项计时回归：采样率不改变运动、长空档按上限截断、`reset` 丢弃缓存空档、固定步长网格不漂移、同种子 reseed 为 no-op、帧快照不跟随活动缓冲）；新增 `test/spectrum-backdrop.test.mjs` 4 项源码契约（动画走驱动层且不再有逐帧 `dt`、动画 effect 只依赖可见性与动效档位、种子只随曲目变、resize 只用最近一帧重画）。全量 `npm test` **605 项通过、0 失败、0 跳过**；169 模块检查与 `build:client` 通过。
+- 单元／客户端：`test/spectrum-bars.test.mjs` 21 项。计时侧 6 项：采样率不改变运动、长空档按上限截断、`reset` 丢弃缓存空档、固定步长网格不漂移、同种子 reseed 为 no-op、帧快照不跟随活动缓冲；渲染侧按海面语义重写为「浪脊随能量抬升、水下逐层变稀、浪线连续（≥80% 墨点落在连续段、最宽浪段 ≥8 列）、浪脊高度与频段能量正相关（r>0.45）、安静时明显退潮、峰值标记与相位无关」，移除旧的「尖端更密／倒影更暗」镜面倒影断言。另有 `test/spectrum-backdrop.test.mjs` 4 项源码契约（动画走驱动层且不再有逐帧 `dt`、动画 effect 只依赖可见性与动效档位、种子只随曲目变、resize 只用最近一帧重画）。全量 `npm test` **608 项通过、0 失败、0 跳过**；169 模块检查与 `build:client` 通过。
 - **真实 DSH 隔离 Web profile**（复用 [N24](N24-dsh-background-acceptance.md) 的启动方式：`DSH_HOME` 临时目录、`dsh plugin add <repo> --offline`、`--patch` 夹具、认证 token 换 cookie），Chromium 实测：会话正文 `x=280,y=40,w=1160,h=860`；背景层 `x=280,y=40,w=160,h=860`（左缘完全贴合、满高）；`pointer-events:none`、透明背景、0 边框、71 行 × 28 列；浅色待机 opacity 0.1、深色 0.2；点击播放后 `data-active=true`、705 个字符、54 种字形且逐帧变化；暂停后 `data-active=false`，6 秒回落到 91 个字符的呼吸基线；控制台无错误。注入合成宽度手柄后宽度按公式缩到 140px，移除后恢复 160px（测量分支工作）。截图见本机 `work/real-*.png`（未入库）。上述为计时修正**之前**的现场记录，未重跑。
-- 预览 harness（计时修正后重跑，`work/spectrum-backdrop-check.py`）：背景层 `x=280,y=65,w=160,h=935` 与正文容器左缘／高度完全一致；透明背景、0 边框、无阴影、`pointer-events:none`、`aria-hidden`；播放中 965 个字符／55 种字形且逐帧变化，暂停 6 秒回落到 104 个字符；窄窗口（900px）下按留白自适应不压正文；面板开关能卸载整层并恢复。`ISSUES: none`。深色／浅色截图见 `work/spectrum-{idle,playing,dark,paused,narrow}.png`（未入库）。
+- 预览 harness（`work/spectrum-backdrop-check.py`，海面改版后重跑）：背景层 `x=280,y=65,w=160,h=935` 与正文容器左缘／高度完全一致；透明背景、0 边框、0 圆角、无阴影、`pointer-events:none`、`aria-hidden`；播放中 532 字符／8 种字形且逐帧变化、浪脊极差 18 行，暂停 6 秒后 146 字符、浪脊极差降到 3 行（明显退潮）。轻量档仍在动、关闭档静态且不再逐帧变化；窄窗口（900px）留白不足时整层隐藏不压正文；面板开关能卸载整层并恢复。`ISSUES: none`。截图见 `work/spectrum-{idle,playing,dark,paused,narrow,motion-off}.png`（未入库）。
 - 计时修正的量化复核：旧实现 60Hz 屏幕上 4 秒真实时间只推进约 0.41–0.68 秒模拟（取决于节流边界）；新驱动在 12／60／144Hz 三种采样下同一时刻的相位与频段值完全相同。
 
 ## 未验与边界
@@ -50,10 +51,11 @@
 - 未重启日常 Desktop 实例（用户正在使用）；真实桌面窗口、多显示器/DPI 缩放、macOS 未验。隔离 Web profile 与桌面 renderer 共用同一客户端代码，但不等同桌面现场验收。
 - 计时修正只在预览 harness 与单元回归中验证，未重跑隔离 DSH 真实页面；真实桌面上的 12fps 表现、后台标签恢复与不同刷新率显示器仍需现场复核。
 - 活动会话中出现真实宽度手柄时的测量分支只做了合成手柄验证；长会话、右侧栏打开、全屏等组合未逐一实测。
-- 未做长时间 CPU/内存观测；背景层限制在 12fps、约 2k 字符，无 GPU 资源，但没有性能承诺。
+- 未做长时间 CPU/内存观测；背景层限制在 12fps、约 1.5k 字符（比柱状版更疏），无 GPU 资源，但没有性能承诺。
+- 海面改版同样只在预览 harness 与单元回归中验证，未重跑隔离 DSH 真实页面；真实桌面观感与不同 DPI／窗口宽度下的浪线密度仍需现场复核。
 - 真实 FFT 未实现（阻碍见上）；当前频谱不反映真实声学能量，不检测歌词或节拍。
 
-## 后续阶段（未开工）
+## 后续阶段
 
-- 第二阶段（ASCII 海面）：在保留 `shell.overlay` 挂载与真实正文 DOM 定位的前提下，把“竖向柱＋镜面倒影”改成更接近海面的字符场，同时保留音乐可视化的柱形特征；只改字符矩阵绘制逻辑，不引入 Three.js／WebGL。
-- 第三阶段（鲸鱼彩蛋）：素材优先参考 [dsh-TUI](https://github.com/ccch1mneyyy/dsh-TUI) 的像素鲸鱼帧（`src/components/whaleFrames.ts`，40×25 字母格，上游为 [lhh010/dsh-ui-whale](https://github.com/lhh010/dsh-ui-whale)，MIT／BSD-3-Clause），需要按第二阶段合成的字符矩阵复用，而不是贴图或 emoji；授权与来源须先写入 [第三方声明](../../THIRD_PARTY_NOTICES.md)。
+- 第二阶段（ASCII 海面）**已完成**：`renderSpectrumField` 改为分层浪线，保留 `shell.overlay` 挂载与真实正文 DOM 定位，未引入 Three.js／WebGL 或新的运行时依赖，字符预算与 CPU 不高于柱状版。
+- 第三阶段（鲸鱼彩蛋，未开工）：素材优先参考 [dsh-TUI](https://github.com/ccch1mneyyy/dsh-TUI) 的像素鲸鱼帧（`src/components/whaleFrames.ts`，40×25 字母格，上游为 [lhh010/dsh-ui-whale](https://github.com/lhh010/dsh-ui-whale)，BSD-3-Clause），需要与第二阶段的分层字符矩阵同层合成（写进同一个 `<pre>` 的 `cells[]`，不做第二层 DOM），而不是贴图或 emoji；宽度不足时跳过整段动画，暂停／停止／关闭开关／减少动态时立即取消；复用前先把授权、版本与文件范围记入 [第三方声明](../../THIRD_PARTY_NOTICES.md)。
