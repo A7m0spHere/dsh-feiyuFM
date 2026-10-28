@@ -17,6 +17,34 @@ const PEAK_GRAVITY = 2.9;
 const RISE_RATE = 15;
 const FALL_RATE = 4.4;
 
+// 模拟时钟：频谱形态必须由真实时间推进，而不是由绘制节拍推进。固定步长积分
+// 让 60Hz／144Hz 屏幕和 12fps／240ms 两档绘制拿到同一条轨迹；绘制频率只影响
+// 采样疏密，不改变速度。单次追赶上限用于标签页挂起后恢复，避免一次性补齐
+// 整段空档造成突变。
+export const SIM_STEP = 1 / 60;
+export const MAX_CATCH_UP_S = 0.25;
+
+export function createSpectrumClock({ step = SIM_STEP, maxCatchUp = MAX_CATCH_UP_S } = {}) {
+  const fixed = Math.max(1 / 240, Math.min(0.1, Number(step) || SIM_STEP));
+  const cap = Math.max(fixed, Number(maxCatchUp) || MAX_CATCH_UP_S);
+  let origin = null, pending = 0;
+  // 丢弃已缓存的时间：标签页恢复、切歌或重置状态时用，避免把空档算进模拟。
+  const reset = now => { origin = Number.isFinite(now) ? now : null; pending = 0; };
+  const advance = now => {
+    if (!Number.isFinite(now)) return { steps: 0, seconds: 0, skipped: 0 };
+    if (origin === null) { origin = now; return { steps: 0, seconds: 0, skipped: 0 }; }
+    const real = Math.max(0, (now - origin) / 1000);
+    origin = now;
+    const usable = Math.min(real, cap);
+    pending += usable;
+    const steps = Math.floor(pending / fixed + 1e-9);
+    const seconds = steps * fixed;
+    pending = Math.max(0, pending - seconds);
+    return { steps, seconds, skipped: real - usable };
+  };
+  return { advance, reset, step: fixed, get pending() { return pending; } };
+}
+
 export function hashSeed(text) {
   let hash = 0x811c9dc5;
   const value = String(text ?? '');
@@ -56,17 +84,22 @@ export function createSpectrumEngine({ bands = 24, seed = 0 } = {}) {
   let beatRandom = mulberry32((seed ^ 0x5f356495) >>> 0);
   const values = new Array(count).fill(0);
   const peaks = new Array(count).fill(0);
-  let time = 0, beatPhase = 0, beatAccent = 1;
+  let time = 0, beatPhase = 0, beatAccent = 1, currentSeed = seed >>> 0;
 
-  // 换曲换种子：同一种子序列确定可复现，不同曲目呈现不同的律动纹样。
+  // 换曲换种子：同一种子序列确定可复现，不同曲目呈现不同的律动纹样。同一种子
+  // 重复调用不做事并返回 false——普通快照刷新不该清掉当前目标。
   function reseed(nextSeed) {
+    const value = Number(nextSeed) >>> 0;
+    if (value === currentSeed) return false;
+    currentSeed = value;
     for (let index = 0; index < count; index++) {
-      randoms[index] = mulberry32((nextSeed ^ Math.imul(index + 1, 0x9e3779b1)) >>> 0);
+      randoms[index] = mulberry32((value ^ Math.imul(index + 1, 0x9e3779b1)) >>> 0);
       const state = band[index];
       state.target = 0; state.nextAt = 0; state.peakVel = 0; state.holdUntil = 0;
     }
-    beatRandom = mulberry32((nextSeed ^ 0x5f356495) >>> 0);
+    beatRandom = mulberry32((value ^ 0x5f356495) >>> 0);
     beatAccent = 1; beatPhase = 0;
+    return true;
   }
 
   function step(dt, { energy = 0.8, active = true } = {}) {
@@ -111,6 +144,42 @@ export function createSpectrumEngine({ bands = 24, seed = 0 } = {}) {
 // 基线向上生长，下方是更暗的倒影；柱内字符沿高度由疏到密，悬空的峰值用
 // 最亮字符标记。phase 给低频柱体加一层缓慢的波浪起伏（参考顶点着色器的
 // 轻微形变），只动一两行，保持克制。
+export function snapshotFrame(frame) {
+  return { values: [...(frame?.values ?? [])], peaks: [...(frame?.peaks ?? [])] };
+}
+
+// 驱动层：把"时间推进"和"绘制节拍"分开。clock 只认真实时间，按固定步长
+// 产出可结算的模拟步；driver 把步数喂给引擎并维护波浪相位。绘制方可以按任意
+// 频率采样，采样频率不再改变运动速度。
+export function createSpectrumDriver({ engine, step = SIM_STEP, maxCatchUp = MAX_CATCH_UP_S,
+  initialFrame = null, initialPhase = 0 } = {}) {
+  if (!engine || typeof engine.step !== 'function') throw new TypeError('spectrum driver needs an engine');
+  const clock = createSpectrumClock({ step, maxCatchUp });
+  // 接管上一档绘制留下的画面与相位：切换"完整／轻量"时不该闪一帧空白。
+  let phase = Number.isFinite(initialPhase) ? initialPhase : 0;
+  let frame = initialFrame ?? { values: [], peaks: [] };
+  function advance(now, options = {}) {
+    const tick = clock.advance(now);
+    for (let index = 0; index < tick.steps; index++) {
+      frame = engine.step(clock.step, options);
+      phase += clock.step;
+    }
+    return { steps: tick.steps, skipped: tick.skipped, frame, phase, changed: tick.steps > 0 };
+  }
+  // 静态基线：预积分一段静默时间，供"关闭动效"时一次画完。
+  function settle(seconds, options = {}) {
+    const steps = Math.max(1, Math.round((Number(seconds) || 0) / clock.step));
+    for (let index = 0; index < steps; index++) frame = engine.step(clock.step, options);
+    return snapshotFrame(frame);
+  }
+  return {
+    advance, settle, engine, step: clock.step,
+    reset: now => clock.reset(now),
+    get phase() { return phase; },
+    get frame() { return frame; },
+  };
+}
+
 export function renderSpectrumField(values, peaks, columns, rows,
   { phase = 0, baseline = 0.54, reflection = 0.5, ramp = FIELD_RAMP } = {}) {
   const cols = Math.max(4, Math.min(64, Math.round(Number(columns) || 0)));

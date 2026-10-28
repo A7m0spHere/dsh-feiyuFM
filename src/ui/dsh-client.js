@@ -1829,6 +1829,34 @@ window.__ModuleLoader__.load({
     const RISE_RATE = 15;
     const FALL_RATE = 4.4;
 
+    // 模拟时钟：频谱形态必须由真实时间推进，而不是由绘制节拍推进。固定步长积分
+    // 让 60Hz／144Hz 屏幕和 12fps／240ms 两档绘制拿到同一条轨迹；绘制频率只影响
+    // 采样疏密，不改变速度。单次追赶上限用于标签页挂起后恢复，避免一次性补齐
+    // 整段空档造成突变。
+    const SIM_STEP = 1 / 60;
+    const MAX_CATCH_UP_S = 0.25;
+
+    function createSpectrumClock({ step = SIM_STEP, maxCatchUp = MAX_CATCH_UP_S } = {}) {
+      const fixed = Math.max(1 / 240, Math.min(0.1, Number(step) || SIM_STEP));
+      const cap = Math.max(fixed, Number(maxCatchUp) || MAX_CATCH_UP_S);
+      let origin = null, pending = 0;
+      // 丢弃已缓存的时间：标签页恢复、切歌或重置状态时用，避免把空档算进模拟。
+      const reset = now => { origin = Number.isFinite(now) ? now : null; pending = 0; };
+      const advance = now => {
+        if (!Number.isFinite(now)) return { steps: 0, seconds: 0, skipped: 0 };
+        if (origin === null) { origin = now; return { steps: 0, seconds: 0, skipped: 0 }; }
+        const real = Math.max(0, (now - origin) / 1000);
+        origin = now;
+        const usable = Math.min(real, cap);
+        pending += usable;
+        const steps = Math.floor(pending / fixed + 1e-9);
+        const seconds = steps * fixed;
+        pending = Math.max(0, pending - seconds);
+        return { steps, seconds, skipped: real - usable };
+      };
+      return { advance, reset, step: fixed, get pending() { return pending; } };
+    }
+
     function hashSeed(text) {
       let hash = 0x811c9dc5;
       const value = String(text ?? '');
@@ -1868,17 +1896,22 @@ window.__ModuleLoader__.load({
       let beatRandom = mulberry32((seed ^ 0x5f356495) >>> 0);
       const values = new Array(count).fill(0);
       const peaks = new Array(count).fill(0);
-      let time = 0, beatPhase = 0, beatAccent = 1;
+      let time = 0, beatPhase = 0, beatAccent = 1, currentSeed = seed >>> 0;
 
-      // 换曲换种子：同一种子序列确定可复现，不同曲目呈现不同的律动纹样。
+      // 换曲换种子：同一种子序列确定可复现，不同曲目呈现不同的律动纹样。同一种子
+      // 重复调用不做事并返回 false——普通快照刷新不该清掉当前目标。
       function reseed(nextSeed) {
+        const value = Number(nextSeed) >>> 0;
+        if (value === currentSeed) return false;
+        currentSeed = value;
         for (let index = 0; index < count; index++) {
-          randoms[index] = mulberry32((nextSeed ^ Math.imul(index + 1, 0x9e3779b1)) >>> 0);
+          randoms[index] = mulberry32((value ^ Math.imul(index + 1, 0x9e3779b1)) >>> 0);
           const state = band[index];
           state.target = 0; state.nextAt = 0; state.peakVel = 0; state.holdUntil = 0;
         }
-        beatRandom = mulberry32((nextSeed ^ 0x5f356495) >>> 0);
+        beatRandom = mulberry32((value ^ 0x5f356495) >>> 0);
         beatAccent = 1; beatPhase = 0;
+        return true;
       }
 
       function step(dt, { energy = 0.8, active = true } = {}) {
@@ -1923,6 +1956,42 @@ window.__ModuleLoader__.load({
     // 基线向上生长，下方是更暗的倒影；柱内字符沿高度由疏到密，悬空的峰值用
     // 最亮字符标记。phase 给低频柱体加一层缓慢的波浪起伏（参考顶点着色器的
     // 轻微形变），只动一两行，保持克制。
+    function snapshotFrame(frame) {
+      return { values: [...(frame?.values ?? [])], peaks: [...(frame?.peaks ?? [])] };
+    }
+
+    // 驱动层：把"时间推进"和"绘制节拍"分开。clock 只认真实时间，按固定步长
+    // 产出可结算的模拟步；driver 把步数喂给引擎并维护波浪相位。绘制方可以按任意
+    // 频率采样，采样频率不再改变运动速度。
+    function createSpectrumDriver({ engine, step = SIM_STEP, maxCatchUp = MAX_CATCH_UP_S,
+      initialFrame = null, initialPhase = 0 } = {}) {
+      if (!engine || typeof engine.step !== 'function') throw new TypeError('spectrum driver needs an engine');
+      const clock = createSpectrumClock({ step, maxCatchUp });
+      // 接管上一档绘制留下的画面与相位：切换"完整／轻量"时不该闪一帧空白。
+      let phase = Number.isFinite(initialPhase) ? initialPhase : 0;
+      let frame = initialFrame ?? { values: [], peaks: [] };
+      function advance(now, options = {}) {
+        const tick = clock.advance(now);
+        for (let index = 0; index < tick.steps; index++) {
+          frame = engine.step(clock.step, options);
+          phase += clock.step;
+        }
+        return { steps: tick.steps, skipped: tick.skipped, frame, phase, changed: tick.steps > 0 };
+      }
+      // 静态基线：预积分一段静默时间，供"关闭动效"时一次画完。
+      function settle(seconds, options = {}) {
+        const steps = Math.max(1, Math.round((Number(seconds) || 0) / clock.step));
+        for (let index = 0; index < steps; index++) frame = engine.step(clock.step, options);
+        return snapshotFrame(frame);
+      }
+      return {
+        advance, settle, engine, step: clock.step,
+        reset: now => clock.reset(now),
+        get phase() { return phase; },
+        get frame() { return frame; },
+      };
+    }
+
     function renderSpectrumField(values, peaks, columns, rows,
       { phase = 0, baseline = 0.54, reflection = 0.5, ramp = FIELD_RAMP } = {}) {
       const cols = Math.max(4, Math.min(64, Math.round(Number(columns) || 0)));
@@ -1984,6 +2053,15 @@ window.__ModuleLoader__.load({
     const MAX_WIDTH = 160; // 参考截图的初始宽度；容器更窄时按留白自适应
     const MIN_WIDTH = 72; // 小于此宽度会压到正文，直接不渲染
     const FRAME_INTERVAL = 1000 / 12; // 背景层 12fps 足够，避免无意义的逐帧 DOM 写入
+    const REDUCED_INTERVAL = 240; // “轻量”档的绘制节拍；模拟时钟仍按真实时间推进
+
+    // performance.now 与 rAF 时间戳同一时间基准；缺失时退回 Date.now。
+    const performanceNow = () => {
+      try {
+        if (typeof performance !== 'undefined' && typeof performance.now === 'function') return performance.now();
+      } catch { /* 某些嵌入环境屏蔽 performance */ }
+      return Date.now();
+    };
 
     let charCanvas = null;
     function measureCharWidth(sample) {
@@ -2028,6 +2106,9 @@ window.__ModuleLoader__.load({
       const rootRef = React.useRef(null);
       const textRef = React.useRef(null);
       const engineRef = React.useRef(null);
+      const frameRef = React.useRef(null);
+      const phaseRef = React.useRef(0);
+      const activeRef = React.useRef(false);
       const columnsRef = React.useRef(24);
       const rowsRef = React.useRef(48);
       const progressRef = React.useRef(0);
@@ -2043,10 +2124,15 @@ window.__ModuleLoader__.load({
       const seedSource = current
         ? `${current.playInstanceId ?? ''}:${current.track?.provider ?? ''}:${current.track?.providerTrackId ?? ''}`
         : 'standby';
+      // 播放状态与进度都走 ref：它们每几秒就变一次，写进 effect 依赖会让整条
+      // 动画循环重启。模拟循环在下一帧自己读取最新值。
       React.useEffect(() => { progressRef.current = progressPercent(current) / 100; });
+      React.useEffect(() => { activeRef.current = playing; });
+      // 面板打开或用户关闭背景时整层不渲染，动画循环也随之停止，不留后台空转。
+      const visible = Boolean(state.spectrumVisible) && activePanelId !== 'fishfm';
       // 真实容器测量：目标出现／消失、侧栏拖动、正文宽度拖动和窗口缩放都会重算。
       React.useEffect(() => {
-        if (!state.spectrumVisible) return undefined;
+        if (!visible) return undefined;
         const root = rootRef.current;
         if (!root) return undefined;
         let scheduled = 0;
@@ -2090,52 +2176,87 @@ window.__ModuleLoader__.load({
           window.removeEventListener('resize', schedule);
           observer?.disconnect();
         };
-      }, [activePanelId, state.spectrumVisible]);
-      // 动画时钟：完整→12fps，轻量→240ms，关闭→静态呼吸基线（预积分一次）。
-      // 系统减少动态设置与面板内"轻量"同等对待。
+      }, [activePanelId, visible]);
+      // 引擎与种子：reseed 自己判断种子是否真变了，普通快照刷新不会重置频段目标。
       React.useEffect(() => {
         const seed = hashSeed(seedSource);
         if (!engineRef.current || engineRef.current.bands !== STRIP_BANDS) {
           engineRef.current = createSpectrumEngine({ bands: STRIP_BANDS, seed });
-        } else engineRef.current.reseed(seed);
+        } else {
+          engineRef.current.reseed(seed);
+        }
+      }, [seedSource]);
+      // 动画循环：时间推进与绘制节拍分开。模拟按固定步长由真实时间驱动，绘制
+      // 只做采样，因此 60Hz／144Hz 屏幕和 12fps／240ms 两档得到的运动速度一致；
+      // 标签页挂起后靠驱动层的追赶上限平滑恢复，不补画整段空档。
+      React.useEffect(() => {
+        if (!visible) return undefined;
         const engine = engineRef.current;
+        if (!engine) return undefined;
         const prefersReduced = typeof window.matchMedia === 'function'
           && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
         const level = state.motion === 'off' ? 'off'
           : state.motion === 'reduced' || prefersReduced ? 'reduced' : 'full';
-        const render = (frame, phase = 0) => {
+        const driver = createSpectrumDriver({ engine,
+          initialFrame: frameRef.current, initialPhase: phaseRef.current });
+        const paint = () => {
+          const { frame, phase } = driver;
+          frameRef.current = frame;
+          phaseRef.current = phase;
           if (textRef.current) {
             textRef.current.textContent = renderSpectrumFieldText(frame.values, frame.peaks,
               columnsRef.current, rowsRef.current, { phase });
           }
         };
+        const options = () => ({ energy: spectrumEnergy(progressRef.current), active: activeRef.current });
         if (level === 'off') {
-          let frame = null;
-          for (let warm = 0; warm < 48; warm++) {
-            frame = engine.step(0.05, { energy: spectrumEnergy(progressRef.current), active: false });
-          }
-          render(frame);
+          // 关闭动效：预积分一段静默时间，只画一张静态呼吸基线。
+          driver.settle(2.4, { energy: spectrumEnergy(progressRef.current), active: false });
+          paint();
           return undefined;
         }
-        let phase = 0, last = Date.now(), lastDraw = 0, animationFrame = 0;
-        const draw = () => {
-          const now = Date.now();
-          const dt = Math.min(0.1, (now - last) / 1000);
-          last = now;
+        // 从当前时刻起算，并先积一步，避免第一帧 rAF 前出现空白字符场。
+        driver.reset(performanceNow());
+        if (!frameRef.current) driver.settle(0, options());
+        paint();
+        let animationFrame = 0, timer = 0, lastDraw = 0;
+        const tick = () => {
+          const now = performanceNow();
+          driver.advance(now, options());
           if (now - lastDraw < FRAME_INTERVAL) return;
           lastDraw = now;
-          phase += dt;
-          const frame = engine.step(dt, { energy: spectrumEnergy(progressRef.current), active: playing });
-          render(frame, phase);
+          paint();
         };
+        const onVisibility = () => {
+          // 后台期间不推进模拟；回到前台从当前时刻重新计时，避免整段追赶。
+          driver.reset(performanceNow());
+          lastDraw = 0;
+        };
+        // 页面隐藏时 rAF 本就不派发；这里只为 setInterval 档和恢复时刻兜底。
+        const hidden = () => typeof document !== 'undefined' && document.hidden === true;
         if (level === 'full') {
-          animationFrame = requestAnimationFrame(function loop() { draw(); animationFrame = requestAnimationFrame(loop); });
-          return () => cancelAnimationFrame(animationFrame);
+          animationFrame = requestAnimationFrame(function loop() {
+            if (!hidden()) tick();
+            animationFrame = requestAnimationFrame(loop);
+          });
+        } else {
+          timer = setInterval(() => { if (!hidden()) tick(); }, REDUCED_INTERVAL);
         }
-        const timer = setInterval(() => { last = Date.now() - 240; draw(); }, 240);
-        return () => clearInterval(timer);
-      }, [playing, columns, rows, seedSource, state.motion, state.snapshot?.revision]);
-      if (!state.spectrumVisible || activePanelId === 'fishfm') return null;
+        document.addEventListener?.('visibilitychange', onVisibility);
+        return () => {
+          cancelAnimationFrame(animationFrame);
+          clearInterval(timer);
+          document.removeEventListener?.('visibilitychange', onVisibility);
+        };
+      }, [visible, state.motion]);
+      // 网格尺寸变化只影响采样分辨率，不重启动画：用最近一帧按新列数／行数重画。
+      React.useEffect(() => {
+        const frame = frameRef.current;
+        if (!frame || !textRef.current) return;
+        textRef.current.textContent = renderSpectrumFieldText(frame.values, frame.peaks,
+          columnsRef.current, rowsRef.current, { phase: phaseRef.current });
+      }, [columns, rows, rowPixels, visible]);
+      if (!visible) return null;
       const style = geometry
         ? { left: `${geometry.left}px`, top: `${geometry.top}px`, width: `${geometry.width}px`, height: `${geometry.height}px`, '--fm-row': `${rowPixels}px` }
         : { display: 'none' };

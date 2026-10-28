@@ -1,7 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createSpectrumEngine, renderSpectrumField, renderSpectrumFieldText, spectrumEnergy,
-  hashSeed, mulberry32, BAND_MIN, BAND_MAX, FIELD_RAMP } from '../src/ui/client/spectrum-bars.mjs';
+import { createSpectrumEngine, createSpectrumClock, createSpectrumDriver, snapshotFrame,
+  renderSpectrumField, renderSpectrumFieldText, spectrumEnergy,
+  hashSeed, mulberry32, BAND_MIN, BAND_MAX, FIELD_RAMP, SIM_STEP, MAX_CATCH_UP_S } from '../src/ui/client/spectrum-bars.mjs';
 
 
 const stepFor = (engine, seconds, options) => {
@@ -139,4 +140,88 @@ test('hashSeed is stable and mulberry32 is deterministic', () => {
   const rng = mulberry32(42);
   const replay = mulberry32(42);
   for (let index = 0; index < 10; index++) assert.equal(rng(), replay());
+});
+
+// 绘制节流缺陷的回归：旧实现每次 rAF 都刷新 last，只有跨过帧间隔才 step(dt)，
+// 于是被丢弃的时间永久丢失——60Hz 屏幕上 4 秒只推进约 0.68 秒模拟。
+// 现在模拟时钟只认真实时间，绘制频率不影响轨迹。
+test('the simulation clock advances by real time regardless of how often it is sampled', () => {
+  const sample = (hz, seconds) => {
+    const engine = createSpectrumEngine({ bands: 6, seed: 21 });
+    const driver = createSpectrumDriver({ engine });
+    let now = 0;
+    const interval = 1000 / hz;
+    for (let step = 0; step <= Math.round(seconds * hz); step++) {
+      driver.advance(now, { active: true, energy: 1 });
+      now += interval;
+    }
+    return { phase: driver.phase, values: [...driver.frame.values] };
+  };
+  const slow = sample(12, 4), fast = sample(144, 4);
+  assert.ok(Math.abs(slow.phase - 4) < 0.05, `12fps sampling should still cover ~4s, got ${slow.phase}`);
+  assert.ok(Math.abs(fast.phase - 4) < 0.05, `144Hz sampling should cover ~4s, got ${fast.phase}`);
+  slow.values.forEach((value, index) => {
+    assert.ok(Math.abs(value - fast.values[index]) < 1e-9,
+      `refresh rate must not change the motion: ${value} vs ${fast.values[index]}`);
+  });
+  // 旧实现的量化结果：同一段真实时间只推进不到 1 秒。
+  assert.ok(slow.phase > 3.9, 'the throttled draw no longer loses simulated time');
+});
+
+test('a long gap (background tab) is capped instead of fast-forwarding the whole pause', () => {
+  const engine = createSpectrumEngine({ bands: 4, seed: 3 });
+  const driver = createSpectrumDriver({ engine });
+  driver.advance(0, { active: true, energy: 1 });
+  const resumed = driver.advance(30_000, { active: true, energy: 1 });
+  assert.equal(resumed.steps, Math.round(MAX_CATCH_UP_S / SIM_STEP), '只补上限内的步数');
+  assert.ok(resumed.skipped > 29, `the rest of the gap is dropped, got ${resumed.skipped}`);
+  assert.ok(driver.phase <= MAX_CATCH_UP_S + 1e-9, 'phase must not jump a half minute');
+});
+
+test('resetting the clock discards the cached gap so a resume neither jumps nor freezes', () => {
+  const engine = createSpectrumEngine({ bands: 4, seed: 5 });
+  const driver = createSpectrumDriver({ engine });
+  driver.advance(1000, { active: true, energy: 1 });
+  driver.reset(20_000);
+  assert.equal(driver.advance(20_000, { active: true, energy: 1 }).steps, 0, 'reset drops the elapsed time');
+  const after = driver.advance(20_100, { active: true, energy: 1 });
+  assert.equal(after.steps, 6, 'normal time flow resumes on the next sample');
+});
+
+test('the clock snaps to a fixed step grid so fractional sampling cannot drift', () => {
+  const clock = createSpectrumClock({ step: SIM_STEP });
+  clock.advance(0);
+  let total = 0, steps = 0;
+  for (let index = 1; index <= 1000; index++) {
+    const tick = clock.advance(index * 7.3);
+    total += tick.seconds;
+    steps += tick.steps;
+  }
+  assert.equal(steps, Math.round(1000 * 7.3 / 1000 / SIM_STEP));
+  assert.ok(Math.abs(total - 7.3) < SIM_STEP, `accumulated seconds stay on the grid, got ${total}`);
+});
+
+test('re-seeding with the unchanged track is a no-op so routine refreshes never reset the bars', () => {
+  const engine = createSpectrumEngine({ bands: 8, seed: 77 });
+  const before = [...stepFor(engine, 2, { active: true, energy: 0.9 }).values];
+  assert.equal(engine.reseed(77), false, 'the same seed reports no change');
+  const continued = [...engine.step(SIM_STEP, { active: true, energy: 0.9 }).values];
+  continued.forEach((value, index) => assert.ok(Math.abs(value - before[index]) < 0.05,
+    `an unchanged seed keeps the running envelope instead of resetting: ${value} vs ${before[index]}`));
+  assert.equal(engine.reseed(78), true, 'a real track change reports the reseed');
+  const reseeded = [...engine.step(SIM_STEP, { active: true, energy: 0.9 }).values];
+  assert.ok(reseeded.some((value, index) => Math.abs(value - continued[index]) > 1e-6),
+    'a real reseed changes the pattern');
+});
+
+test('the driver exposes an immutable frame snapshot for repainting after a resize', () => {
+  const engine = createSpectrumEngine({ bands: 8, seed: 9 });
+  const driver = createSpectrumDriver({ engine });
+  driver.advance(0, { active: true, energy: 1 });
+  driver.advance(500, { active: true, energy: 1 });
+  const copy = snapshotFrame(driver.frame);
+  driver.advance(1000, { active: true, energy: 1 });
+  assert.equal(copy.values.length, 8);
+  assert.equal(copy.peaks.length, 8);
+  assert.notDeepEqual(copy.values, [...driver.frame.values], 'the snapshot does not follow the live buffer');
 });
