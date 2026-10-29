@@ -66,7 +66,7 @@
 ## 未验与边界
 
 - 未重启日常 Desktop 实例（用户正在使用，且期间发生过一次误杀，见下）；真实桌面窗口、多显示器/DPI 缩放、macOS 未验。隔离 Web profile 与桌面 renderer 共用同一客户端代码，但不等同桌面现场验收。
-- **2026-10-29 操作事故**：验收脚本早期版本用 `taskkill /F /IM "DeepSeek Harness.exe"` 收尾，按镜像名结束了本机全部 DSH 进程，连带终止了用户正在使用的日常 Desktop 实例（日常 `core.json` 的 runId 从 `5cc22924`（13:52 启动）跳到 `73ca648f`（14:17–14:33结束）后无进程残留）。事后核对：日常库 `integrity_check ok`、18 张表、无 `acceptance-*` 夹具污染、当日无新增 `listen_history`。脚本已改为只按 Popen 返回的 PID 结束进程树（`taskkill /PID <pid> /T /F`）。
+- **2026-10-29 操作事故**：验收脚本早期版本用 `taskkill /F /IM "DeepSeek Harness.exe"` 收尾，按镜像名结束了本机全部 DSH 进程，连带终止了用户正在使用的日常 Desktop 实例（日常 `core.json` 的 runId 从 `5cc22924`（13:52 启动）跳到 `73ca648f`（14:17–14:33结束）后无进程残留）。事后核对：日常库 `integrity_check ok`、18 张表、无 `acceptance-*` 夹具污染、当日无新增 `listen_history`。脚本已改为只按 Popen 返回的 PID 结束进程树（`taskkill /PID <pid> /T /F`）。验收日志里的 launch URL（含一次性 token）已删除；`work/` 已加入 `.gitignore`，避免证据目录被 `git add -A` 带入仓库。
 - 计时修正与本次现场验收都在隔离 Web profile 完成；真实桌面上的 12fps 表现、后台标签恢复与不同刷新率显示器仍需复核。
 - 活动会话中出现真实宽度手柄时的测量分支只做了合成手柄验证；长会话、右侧栏打开、全屏等组合未逐一实测。
 - 未做长时间 CPU/内存观测；背景层限制在 12fps、约 1.5k 字符（比柱状版更疏），无 GPU 资源，但没有性能承诺。

@@ -8,6 +8,10 @@ target/
 .vite/
 .tmp/
 
+# Local acceptance evidence (screenshots, scripts, launch logs).
+# Never commit: it can contain DSH launch tokens or session screenshots.
+/work/
+
 # Local configuration and credentials
 .env
 .env.*
