@@ -1,8 +1,8 @@
 // ASCII 海面上的鲸鱼彩蛋：字母格取自 dsh-TUI 的像素鲸鱼帧（原作为
 // lhh010/dsh-ui-whale 的手绘 Excel 像素画，BSD-3-Clause）。这里只取"哪一格有
 // 墨"的轮廓信息并降采样到 18×9 的字母格，颜色与渲染链全部由本项目重写：
-// 鲸鱼的每个格子直接写进频谱背景那一个 <pre> 的字符矩阵，因此它和水面是同
-// 一层、同一片浪，没有第二个 DOM 层、没有贴图、没有 emoji。
+// 鲸鱼的每个格子直接写进频谱背景的同一张字符矩阵，再由同一个 Canvas 绘制；
+// 没有第二个 DOM 层、没有贴图、没有 emoji。
 //
 // 授权与来源见 THIRD_PARTY_NOTICES.md；本文件只保留降采样后的字形，不包含
 // 上游的调色板、ANSI 编码或 Ink 组件。
@@ -73,7 +73,7 @@ export const WHALE_POSES = Object.freeze({
 // 水上／水下用不同的亮度档：水上要显眼，水下只留一层更淡的影子。
 // 键必须覆盖字母格里出现的全部非透明字形。
 const UNDER_WATER = { '@': '\'', '%': ',', '-': ',', o: '\'' };
-const WAKE = ["'", ',', '~', '-', ':'];
+const WAKE = ["'", ',', ':'];
 
 const scaledCache = new Map();
 
@@ -86,7 +86,7 @@ export function scaleWhaleFrame(frame, width) {
   const source = Array.isArray(frame) && frame.length ? frame : WHALE_POSES.standard;
   const sourceWidth = source.reduce((max, row) => Math.max(max, row.length), 0) || MASTER_WIDTH;
   if (target >= sourceWidth) return source.map(row => row.padEnd(sourceWidth, '.'));
-  const key = `${target}:${source === WHALE_POSES.standard ? 'std' : source.map(row => row.length).join('')}:${source[0]}`;
+  const key = `${target}:${source.join('\n')}`;
   const cached = scaledCache.get(key);
   if (cached) return cached;
   const sourceHeight = source.length;
@@ -120,9 +120,7 @@ export function scaleWhaleFrame(frame, width) {
 export function whaleWidthFor(columns) {
   const cols = Math.round(Number(columns) || 0);
   if (cols < WHALE_MIN_COLUMNS) return 0;
-  if (cols >= 34) return 18;
-  if (cols >= 20) return 14;
-  return 11;
+  return Math.max(7, Math.min(MASTER_WIDTH, Math.floor(cols * 0.58)));
 }
 
 // 一段动画的分段：submerge 0＝完全出水，1＝完全没入。lurk 与 emerge 让鲸鱼
@@ -178,6 +176,7 @@ export function createWhaleDirector({
     if (whaleWidthFor(columns) === 0 || rows < 6) { event = null; return null; }
 
     if (event) {
+      width = whaleWidthFor(columns);
       event.time += delta;
       event.columns = columns;
       let elapsed = 0;
@@ -192,6 +191,7 @@ export function createWhaleDirector({
           const span = frame ? frame[0].length : Math.max(1, Math.round(width / 2));
           const visual = {
             phase: phase.name,
+            progress: local,
             submerge,
             frame,
             column: Math.max(1, Math.min(columns - span - 1,
@@ -245,7 +245,7 @@ function mulberryFrom(seed) {
  * 部分换成更淡的影子，出水处的浪被抬起来，涟漪从入水点向两侧扩。
  * 返回是否真的画上了东西（没有画上就不该让调用方以为有变化）。
  */
-export function stampWhale(grid, whale, { waterLine = 0, columns = 0 } = {}) {
+export function stampWhale(grid, whale, { waterLine = 0, columns = 0, offsets = null } = {}) {
   if (!Array.isArray(grid) || !grid.length || !whale) return false;
   const cols = Math.max(0, Math.min(columns || grid[0].length, grid[0].length));
   const rows = grid.length;
@@ -255,6 +255,7 @@ export function stampWhale(grid, whale, { waterLine = 0, columns = 0 } = {}) {
     if (row < 0 || row >= rows || column < 0 || column >= cols) return;
     if (!glyph || glyph === '.' || glyph === ' ') return;
     grid[row][column] = glyph;
+    if (offsets?.[row]) offsets[row][column] = 0;
     painted = true;
   };
 
@@ -271,6 +272,17 @@ export function stampWhale(grid, whale, { waterLine = 0, columns = 0 } = {}) {
       if (row > line + shadowRows) break;
       const under = row > line;
       const glyphs = frame[y];
+      // 擦掉实体轮廓内部的原柱体（包括鲸鱼自身的空白），不只覆盖有墨的格。
+      // 两侧透明角保留背景；重置亚字符位移，鲸鱼仍严格落在统一网格上。
+      const first = glyphs.search(/[^. ]/);
+      let last = glyphs.length - 1;
+      while (last >= 0 && (glyphs[last] === '.' || glyphs[last] === ' ')) last--;
+      if (first >= 0 && row >= 0 && row < rows) for (let x = first; x <= last; x++) {
+        const col = whale.column + x;
+        if (col < 0 || col >= cols) continue;
+        grid[row][col] = ' ';
+        if (offsets?.[row]) offsets[row][col] = 0;
+      }
       for (let x = 0; x < glyphs.length; x++) {
         const glyph = glyphs[x];
         if (glyph === '.' || glyph === ' ') continue;
@@ -278,7 +290,7 @@ export function stampWhale(grid, whale, { waterLine = 0, columns = 0 } = {}) {
       }
     }
     // 出水处的浪被顶起来：紧贴鲸鱼身侧的一行画成浪尖，全部落在空白处。
-    for (let x = -1; x <= (frame[0]?.length || 0); x++) {
+    for (const x of [-1, frame[0]?.length || 0]) {
       const column = whale.column + x;
       if (column < 0 || column >= cols) continue;
       if (grid[line]?.[column] === ' ') put(line, column, WAKE[Math.abs(x) % WAKE.length]);
@@ -288,8 +300,8 @@ export function stampWhale(grid, whale, { waterLine = 0, columns = 0 } = {}) {
   if (whale.ripple) {
     const { radius, fade } = whale.ripple;
     const centerColumn = whale.column + Math.round((frame?.[0]?.length || 0) / 2);
-    const rings = Math.max(1, Math.round(radius));
-    const glyph = fade > 0.6 ? '~' : fade > 0.3 ? '-' : '\'';
+    const rings = Math.min(2, Math.max(1, Math.round(radius)));
+    const glyph = fade > 0.6 ? ':' : fade > 0.3 ? ',' : '\'';
     for (let ring = 0; ring < rings; ring++) {
       const spread = Math.round(radius * (0.5 + ring / Math.max(1, rings)));
       for (const side of [-1, 1]) {

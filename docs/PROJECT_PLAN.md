@@ -1,6 +1,6 @@
 # 肥鱼电台 FishFM — 开发状态与下一步
 
-更新：2026-10-28。本文是源码、发布、日常 Desktop、验收缺口和接续任务的唯一状态入口。产品规则见 [MVP](MVP.md)，接口见 [控制契约](CORE_CONTRACT.md)，操作命令见 [贡献指南](../CONTRIBUTING.md) 和 [脚本索引](../scripts/README.md)。
+更新：2026-10-29。本文是源码、发布、日常 Desktop、验收缺口和接续任务的唯一状态入口。产品规则见 [MVP](MVP.md)，接口见 [控制契约](CORE_CONTRACT.md)，操作命令见 [贡献指南](../CONTRIBUTING.md) 和 [脚本索引](../scripts/README.md)。
 
 ## 当前基线
 
@@ -10,7 +10,8 @@
 | 已发布包 | `0.1.0-beta.3`，Windows／网易云 Beta。2026-10-13 已确认 `beta` 指向 beta.3、`latest` 保持 beta.1，公开下载摘要及 npm／官方 DSH 安装一致；范围、文件数和摘要只查 [发布记录](releases/0.1.0-beta.3.md) |
 | `main` 源码 | beta.3 之后的 REV-04、研究工具、反馈补齐、U19/U20 原型、U21 反馈管理、N24 退出证据修复、[N25 最近播放窗口与多批入选池](spikes/N25-recent-playback-and-approved-pool.md)、[REV-05 HTTP 凭据边界](spikes/REV-05-http-transport-boundaries.md) 与 [U22 工作区背景 ASCII 频谱](spikes/U22-ascii-spectrum-backdrop.md) 尚未随 npm 发布 |
 | 日常 Desktop | [N23](spikes/N23-model-route-completion.md) 曾验原生正常退出重开。N25 本轮未主动重载；只读观察到日常进程期间重启且已有新窗口和 17 首待播池设置，但最终提交完整加载状态仍为 unknown，不据此补记 Desktop 退出验收 |
-| 最近功能验证 | 2026-10-29，Windows／Node 24.22.1：U22 三阶段——① 修复计时缺陷并抽出 `createSpectrumClock`／`createSpectrumDriver`（模拟按真实时间固定步长结算、绘制频率不再改变速度、长空档按 250ms 上限追赶），动画 effect 只依赖可见性与动效档位、同种子 reseed 为 no-op；② `renderSpectrumField` 改为分层浪线海面（浪脊即谱轮廓、逐层透视变平变淡、断口按浪段成块、能量决定海深），移除柱状与镜面倒影；③ 鲸鱼彩蛋落地：dsh-TUI／dsh-ui-whale 像素鲸鱼降采样后与海面写进同一张字符矩阵，五阶段状态机＋95 秒冷却，窄网格／暂停／关闭／减少动态一律跳过或立即取消。全量 **622 项，622 通过、0 失败、0 跳过**，171 模块检查与 client 构建通过。**第四阶段隔离 DSH 现场验收已完成**（独立 `DSH_HOME`、launch URL 由浏览器换 cookie、全部本地夹具）：背景层 `x=280,y=40,w=160,h=960` 与正文左缘／满高一致，`pointer-events:none`、透明、无边框；播放 516 墨点／7 字形且逐帧变化，浅色 opacity 0.17、深色 0.32；`data-whale` 在 **155 秒**首次报出 `lurk` 并走完 `lurk→emerge→breach→dive→ripple`，结束后回 `none`，鲸鱼行与海面笔画同行（同一矩阵）；窄窗口 900px 整层隐藏不压正文；暂停后降到 147 墨点无残留；控制台零错误，`ISSUES: none`。期间修掉两个真实缺陷：resize 重画漏掉鲸鱼（海／鲸共用 `composeField`）、切歌瞬间 `resolving` 反复清零彩蛋冷却（改用更宽的"在听"判据）。默认节奏另用 Node 复刻 200 组种子量化：首现中位 108 秒、p99 218 秒、无超过 240 秒。构建／debug smoke、包白名单与真实媒体沿用 2026-10-23 记录，本轮未重跑 |
+| 最近功能验证 | 2026-10-29，U22 ASCII Fluid Spectrum：在 `feat/ascii-spectrum-bars` 将横向浪线改为底锚密度柱＋亚字符轻微弯曲，保留挂载／时钟／鲸鱼导演；统一局部 Canvas，无新增依赖。全量 **635/635**、专项 **52/52**、172 模块检查、build 与 debug smoke 通过。最终隔离 Web：背景 x=280/y=40、160×960px、透明且 pointer-events:none；浅深色播放 opacity .60/.48，暂停后 .24 且鲸鱼 none，900px 视口隐藏；off 两次截图一致，静态切主题已验，轻量档切换已验；背景开关卸载 0／重挂 1，控制台零 error。最终预览鲸鱼五阶段 metadata 与跃出截图齐全（仅预览 eager）；早期隔离原生 Desktop 有浅深色与默认鲸鱼五阶段样本，后续修复按用户要求只在 Web 后台静默复验，未补记最终 Desktop 完整通过。取证与边界见 [U22](spikes/U22-ascii-spectrum-backdrop.md) |
+| U22 短样本性能 | 隐藏 IAB、生产 CSS、160×760px，每项预热后 600 帧：B 在 12fps 配置平均 0.699ms／p95 1.0ms，在 24fps 配置平均 0.806ms／p95 1.4ms；A 分别 0.795／0.985ms。统计范围为场生成＋Canvas 绘字，不含浏览器合成、整体 CPU 或后台实际帧率；A 先于 B 测量、环境未隔离，不据此推断 B 比 A 更快。完整档目标 24fps，后台节流与 250ms 追赶上限使录帧变慢，真实前台流畅度仍待用户确认；未做长时 CPU／内存结论 |
 | DSH 插件验证 | [N25](spikes/N25-recent-playback-and-approved-pool.md)：官方 DSH `0.2.1-rc.2` 隔离 Web profile，受控 filtered／两批合成批准／本地静音 WPF 的窗口、失败、重启、12 首累计池／6 首当前批次和清理 **20/20 通过**，真实模型请求 0。[N24](spikes/N24-dsh-background-acceptance.md) 的真实模型并发／启停对照、U21 的界面／反馈证据保留；真实平台补批／音频及完整 filtered 现场组合未验 |
 | 最近引用审计 | 2026-10-23：106 份文档零坏链接、10/10 证据齐全。引用存在不等于验收通过；文档蒸馏的原文比对与归档边界保留 |
 | 真实推荐与观察 | N23：40 候选 → 9 入选 → WPF 静音进度通过；日常观察 54.72 分钟、16 条有效收听、0 播放错误，按用户要求提前结束。N24 已补隔离真实并发、启停对照、9418 ms 原生有效进度与一次 0.0045 的短会话静音成长；日常真实平台的成长应用与归因仍未补验 |
@@ -61,7 +62,7 @@
 
 ## 更新与交接
 
-U21、N24、N25、REV-05 和 U22 均未发布 npm；范围和证据见各报告。REV-05 未操作日常账号或重载插件。N25 不自动重载日常插件，日常进程期间发生重启的观察不等于最终提交已完整加载。U22 已在隔离 DSH Web profile 完成挂载、几何、浅深色、播放/暂停与鲸鱼五阶段现场验收；日常 Desktop 实例未重启、多显示器/DPI、macOS 与长时间运行未验。验收期间发生过一次误杀：脚本早期版本按镜像名结束所有 DSH 进程，连带终止用户的日常实例，已核对日常库完整并只按 PID 收尾。真实 FFT 因宿主无样本流未实现，当前为状态驱动的模拟频谱（明确标注）。A09 保持部分通过，不提升完整通过数；独立 profile 的源码链接验证不等同已发布 tarball 安装验收。
+U21、N24、N25、REV-05 和 U22 均未发布 npm；范围和证据见各报告。U22 本轮只在 `feat/ascii-spectrum-bars` 提交，不合并 main；日常 Desktop 未重载。早期隔离原生样本与最终 Web／预览验证分开记录，按用户最新要求后续不打开原生窗口。Web 背景采帧存在调度节流，不能据此宣称真实窗口稳定 24fps；最终原生、多显示器／DPI、macOS 与长时间资源稳定性仍未验。前次按镜像名误杀的事故记录保留，本轮未采用该方式；只收尾本轮 PID。真实 FFT 未实现，仍为明确标注的模拟频段；A09 不升级完整通过，源码链接安装不等同发布 tarball 验收。
 
 修改行为或接口时同步 MVP／契约，改变取舍时更新 [决策摘要](DECISIONS.md) 并链接证据。报告记录实际环境、命令、结果和未验项，证据缺失用 `unknown`。离线、浏览器、隔离安装、原生 Desktop 和生产验收分别标明。
 

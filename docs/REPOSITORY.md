@@ -10,7 +10,7 @@
 | `src/core*.mjs`、`src/storage.mjs` | 播放控制、宿主协调与持久化；职责见架构 |
 | `src/providers/`、`src/discovery.mjs`、`src/persona*.mjs` | 平台导入/候选、缓存、模型筛选和预算；现行流程见 MVP/契约 |
 | `src/playback/`、`src/runtime/` | 独立音频服务与运行证据采集 |
-| `src/ui/client/` | 主面板、设置页、悬浮条的可编辑源码 |
+| `src/ui/client/` | 主面板、设置页、悬浮条与工作区频谱的可编辑源码；`spectrum-bars/whale/canvas/backdrop` 分别维护场、彩蛋、绘制与挂载 |
 | `src/ui/assets/` | 运行图片的唯一文件位置；来源、hash 与许可见第三方声明及 U12 记录 |
 | [bin/](../bin/fishfm-core.mjs) | Core 子进程与调试命令入口 |
 | [test/](../test/recommendation-pipeline.test.mjs) | 自动化回归；不保存账号、数据库或音频 |

@@ -2,12 +2,13 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createWhaleDirector, stampWhale, scaleWhaleFrame, whaleWidthFor,
   WHALE_POSES, WHALE_MIN_COLUMNS, WHALE_COOLDOWN_S, WHALE_EVENT_SECONDS } from '../src/ui/client/spectrum-whale.mjs';
-import { renderSpectrumGrid, spectrumWaterLine, FIELD_RAMP, FIELD_WAVE } from '../src/ui/client/spectrum-bars.mjs';
+import { renderSpectrumScene, renderSpectrumGrid, spectrumWhaleLine, FIELD_RAMP } from '../src/ui/client/spectrum-bars.mjs';
 
 const bands = new Array(16).fill(0.6);
 const peaks = new Array(16).fill(0.7);
 const grid = (columns = 26, rows = 60) => renderSpectrumGrid(bands, peaks, columns, rows, { phase: 0.5 });
-const inked = lines => lines.join('').split('').filter(char => char !== ' ').length;
+const blank = (columns = 26, rows = 60) => Array.from({ length: rows }, () => new Array(columns).fill(' '));
+const whaleGlyphs = "@%o-.,~'";
 
 // 让彩蛋立刻发生：随机数恒为 0，冷却期设为 0，首次延迟设为 0。
 const eager = (extra = {}) => createWhaleDirector({ seed: 7, cooldown: 0, firstDelay: 0, chance: 1, ...extra });
@@ -21,7 +22,7 @@ const runUntilVisual = (director, { columns = 26, rows = 60, active = true, allo
 };
 
 test('every pose keeps a rectangular letter grid made only of glyphs the field can print', () => {
-  const allowed = new Set([...FIELD_RAMP, ...FIELD_WAVE, '.', ' ']);
+  const allowed = new Set([...FIELD_RAMP, ...whaleGlyphs, '.', ' ']);
   for (const [name, pose] of Object.entries(WHALE_POSES)) {
     assert.ok(pose.length >= 6, `${name} should have enough rows to read as a whale`);
     const width = pose[0].length;
@@ -55,7 +56,10 @@ test('scaling keeps the whale recognisable and drops detail instead of distortin
 
 test('the whale is skipped on grids too narrow to hold it', () => {
   assert.equal(whaleWidthFor(WHALE_MIN_COLUMNS - 1), 0);
-  assert.ok(whaleWidthFor(WHALE_MIN_COLUMNS) >= 8);
+  assert.ok(whaleWidthFor(WHALE_MIN_COLUMNS) >= 6);
+  for (let columns = WHALE_MIN_COLUMNS; columns <= 64; columns++) {
+    assert.ok(whaleWidthFor(columns) <= Math.floor(columns * 0.6), 'the whale must leave a visible share of the spectrum');
+  }
   assert.ok(whaleWidthFor(40) >= whaleWidthFor(20), 'wider grids get a bigger whale');
   const director = eager();
   for (let tick = 0; tick < 200; tick++) {
@@ -117,71 +121,100 @@ test('pausing in the middle of an event cancels it immediately instead of freezi
   assert.equal(director.active, false);
 });
 
-test('the stamped whale shares the sea grid instead of adding a second layer', () => {
-  const base = grid();
-  const before = base.map(line => line.join(''));
-  const director = eager();
-  const visual = runUntilVisual(director);
+test('the stamped whale shares the bar grid without changing its dimensions', () => {
+  const scene = renderSpectrumScene(bands, peaks, 26, 60, { phase: 0.5 });
+  const before = scene.grid.map(line => line.join(''));
+  const visual = runUntilVisual(eager());
   assert.ok(visual);
-  const painted = stampWhale(base, visual, { waterLine: spectrumWaterLine(60), columns: 26 });
-  assert.equal(painted, true, 'the whale really writes into the grid');
-  const after = base.map(line => line.join(''));
-  assert.equal(after.length, before.length, 'no extra rows were introduced');
-  assert.ok(after.every((line, index) => line.length === before[index].length), 'no extra columns');
-  const known = new Set([...FIELD_RAMP, ...FIELD_WAVE, ' ']);
+  assert.equal(stampWhale(scene.grid, visual,
+    { waterLine: spectrumWhaleLine(scene, visual), columns: 26, offsets: scene.offsets }), true);
+  const after = scene.grid.map(line => line.join(''));
+  assert.equal(after.length, before.length);
+  assert.ok(after.every((line, index) => line.length === before[index].length));
+  assert.notDeepEqual(after, before, 'the whale changes the existing character grid');
+  const known = new Set([...FIELD_RAMP, ...whaleGlyphs, ' ']);
   for (const line of after) for (const char of line) assert.ok(known.has(char), `stray glyph ${char}`);
-  assert.ok(inked(after) > inked(before), 'the whale is visibly on top of the water');
 });
 
-test('the whale sits on the water line: above it the body is solid, below it only a shadow', () => {
-  const base = grid();
-  const waterLine = spectrumWaterLine(60);
+test('solid whale rows occlude bar glyphs and clear displacement within the silhouette', () => {
+  const body = Array.from({ length: 20 }, () => new Array(14).fill('#'));
+  const offsets = Array.from({ length: 20 }, () => new Array(14).fill(0.3));
+  const whale = { column: 4, submerge: 0, frame: ['@..@', '@%%@', '@@@@'], ripple: null };
+  assert.equal(stampWhale(body, whale, { waterLine: 10, columns: 14, offsets }), true);
+  assert.equal(body[8].slice(4, 8).join(''), '@  @',
+    'transparent holes enclosed by the whale row erase the bars behind it');
+  assert.equal(body[9].slice(4, 8).join(''), '@%%@');
+  assert.ok(offsets.slice(8, 11).every(row => row.slice(4, 8).every(value => value === 0)),
+    'whale glyphs and cleared holes must not inherit bent bar offsets');
+  assert.equal(body[8][3], '#', 'outside corners still belong to the spectrum');
+  assert.equal(offsets[8][3], 0.3, 'unoccupied bar cells retain their own displacement');
+});
+
+test('above the local column tops the body is solid, while submerged cells are faint shadows', () => {
+  const base = blank();
   const director = eager();
   let visual = null;
-  // 推进到 breach 阶段（身子基本出水）。
   for (let tick = 0; tick < 400 && (!visual || visual.phase !== 'breach'); tick++) {
-    visual = director.advance(1 / 12, { active: true, allowed: true, columns: 26, rows: 60 });
+    visual = director.advance(1 / 24, { active: true, allowed: true, columns: 26, rows: 60 });
   }
-  assert.equal(visual?.phase, 'breach', 'reached the breach phase');
+  assert.equal(visual?.phase, 'breach');
+  const waterLine = 30;
   stampWhale(base, visual, { waterLine, columns: 26 });
-  const above = base.slice(0, waterLine).join('').split('');
-  const below = base.slice(waterLine + 1).join('').split('');
-  const bodyAbove = above.filter(char => char === '@' || char === '%' || char === 'o').length;
-  const bodyBelow = below.filter(char => char === '@' || char === '%' || char === 'o').length;
-  assert.ok(bodyAbove > 8, `the whale body should be above the water, got ${bodyAbove}`);
-  assert.ok(bodyBelow <= bodyAbove, 'the submerged part is drawn as a faint shadow, not a second whale');
+  const above = base.slice(0, waterLine).flat();
+  const below = base.slice(waterLine + 1).flat();
+  assert.ok(above.filter(char => '@%o'.includes(char)).length > 8, 'the breach must show a readable body');
+  assert.equal(below.filter(char => '@%o'.includes(char)).length, 0, 'submerged cells must not look like another solid whale');
+  assert.ok(base.flat().some(char => char !== ' '));
 });
 
-test('the ripple outlives the whale and never leaves the grid', () => {
-  const base = grid();
-  const before = base.map(line => line.join(''));
-  const waterLine = spectrumWaterLine(60);
+test('the compact ripple outlives the whale and stays inside the same grid', () => {
   const director = eager();
   let visual = null;
   for (let tick = 0; tick < 400 && (!visual || visual.phase !== 'ripple'); tick++) {
-    visual = director.advance(1 / 12, { active: true, allowed: true, columns: 26, rows: 60 });
+    visual = director.advance(1 / 24, { active: true, allowed: true, columns: 26, rows: 60 });
   }
   assert.equal(visual?.phase, 'ripple');
-  assert.equal(visual.frame, null, 'the body is gone by the ripple phase');
-  stampWhale(base, visual, { waterLine, columns: 26 });
-  const bodyGlyphs = base.join('').split('').filter(char => '@%o'.includes(char)).length;
-  assert.equal(bodyGlyphs, 0, 'no whale body is painted during the ripple');
-  const after = base.map(line => line.join(''));
-  assert.ok(inked(after) > inked(before), 'the ripple still leaves a mark on the water');
-  // 极窄网格也不越界。
-  const narrow = renderSpectrumGrid(bands, peaks, 14, 40, { phase: 0 });
-  stampWhale(narrow, visual, { waterLine: spectrumWaterLine(40), columns: 14 });
-  assert.ok(narrow.every(line => line.length === 14));
+  assert.equal(visual.frame, null, 'the body is gone before the ripple');
+  for (const columns of [14, 26]) {
+    const base = blank(columns, 40);
+    assert.equal(stampWhale(base, visual, { waterLine: 25, columns }), true);
+    assert.ok(base.every(line => line.length === columns));
+    const ink = base.flat().filter(char => char !== ' ');
+    assert.ok(ink.length > 0 && ink.length <= 14, 'water marks stay local rather than filling the sea with horizontal waves');
+    assert.equal(ink.filter(char => '@%o'.includes(char)).length, 0);
+  }
 });
 
-test('stamping is a no-op when the whale would fall outside the grid', () => {
+test('resizing during a breach rescales the whale and a too narrow grid cancels it', () => {
+  const director = eager();
+  const wide = runUntilVisual(director, { columns: 40 });
+  assert.ok(wide?.frame);
+  const narrower = director.advance(1 / 24, { active: true, allowed: true, columns: 14, rows: 40 });
+  assert.ok(narrower?.frame, 'an event survives a supported width change');
+  assert.ok(narrower.frame[0].length <= Math.floor(14 * 0.6), 'the current event uses the new width budget');
+  assert.ok(narrower.column >= 0 && narrower.column + narrower.frame[0].length <= 14);
+  assert.ok(narrower.frame[0].length < wide.frame[0].length);
+  assert.equal(director.advance(1 / 24,
+    { active: true, allowed: true, columns: WHALE_MIN_COLUMNS - 1, rows: 40 }), null);
+  assert.equal(director.active, false);
+});
+
+test('scale caching distinguishes poses with identical dimensions and first rows', () => {
+  const first = ['..@@..@@', '%%%%%%%%', '%%%%%%%%', '..%%%%..'];
+  const second = ['..@@..@@', 'oooooooo', 'oooooooo', '..oooo..'];
+  const a = scaleWhaleFrame(first, 6), b = scaleWhaleFrame(second, 6);
+  assert.notDeepEqual(a, b, 'the cache must include the full pose rather than only its first row');
+  assert.ok(a.join('').includes('%'));
+  assert.ok(b.join('').includes('o'));
+  assert.deepEqual(scaleWhaleFrame(first, 6), a, 'repeated reads of the same pose stay stable');
+});
+
+test('stamping is a no-op for missing or wholly off-grid whales', () => {
   const base = grid();
   const before = base.map(line => line.join(''));
-  const director = eager();
-  const visual = runUntilVisual(director);
+  const visual = runUntilVisual(eager());
   assert.ok(visual);
-  assert.equal(stampWhale(base, null, { waterLine: 10 }), false, 'no whale means nothing painted');
-  const offGrid = { ...visual, column: 400 };
-  assert.equal(stampWhale(base, offGrid, { waterLine: 10, columns: 26 }), false, 'off-grid columns paint nothing');
-  assert.deepEqual(base.map(line => line.join('')), before, 'the sea is untouched');
+  assert.equal(stampWhale(base, null, { waterLine: 10 }), false);
+  assert.equal(stampWhale(base, { ...visual, column: 400 }, { waterLine: 10, columns: 26 }), false);
+  assert.deepEqual(base.map(line => line.join('')), before);
 });

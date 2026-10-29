@@ -298,15 +298,15 @@ export const css = `
   .fm-spectrum-bg { position:absolute; z-index:1; overflow:hidden; pointer-events:none;
     contain:strict; }
   .fm-spectrum-bg:not([data-ready]) { display:none; }
-  .fm-spectrum-bg pre { margin:0; pointer-events:none; letter-spacing:0; white-space:pre; overflow:hidden;
+  .fm-spectrum-bg canvas { display:block; width:100%; height:100%; margin:0; pointer-events:none;
     position:absolute; inset:0; font-family:ui-monospace,SFMono-Regular,Consolas,'Cascadia Mono',Menlo,monospace;
-    font-size:10px; line-height:var(--fm-row,12px); color:var(--fm-accent-ink); opacity:.17;
-    -webkit-mask-image:linear-gradient(90deg,#000 0%,#000 42%,transparent 100%);
-    mask-image:linear-gradient(90deg,#000 0%,#000 42%,transparent 100%);
+    font-size:10px; line-height:var(--fm-row,12px); color:var(--fm-accent-ink); opacity:.60;
+    -webkit-mask-image:linear-gradient(90deg,#000 0%,#000 72%,rgba(0,0,0,.65) 90%,transparent 100%);
+    mask-image:linear-gradient(90deg,#000 0%,#000 72%,rgba(0,0,0,.65) 90%,transparent 100%);
     transition:opacity var(--fm-base) var(--fm-ease); }
-  :is([data-ds-dark-theme],.dark,[data-theme=dark]) .fm-spectrum-bg pre { opacity:.32; }
-  .fm-spectrum-bg[data-active=false] pre { opacity:.1; }
-  :is([data-ds-dark-theme],.dark,[data-theme=dark]) .fm-spectrum-bg[data-active=false] pre { opacity:.2; }
+  :is([data-ds-dark-theme],.dark,[data-theme=dark]) .fm-spectrum-bg canvas { opacity:.48; }
+  .fm-spectrum-bg[data-active=false] canvas { opacity:.26; }
+  :is([data-ds-dark-theme],.dark,[data-theme=dark]) .fm-spectrum-bg[data-active=false] canvas { opacity:.24; }
   .fm-float-pill { display:flex; align-items:center; gap:6px; padding:6px;
     border:1px solid var(--fm-line); border-radius:11px; background:var(--fm-raised); box-shadow:var(--fm-popup-shadow); }
   .fm-float-art { display:grid; place-items:center; width:34px; height:38px; flex:none;

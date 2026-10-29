@@ -25,7 +25,7 @@
 
 | 入口 | 作用与输入 |
 |---|---|
-| `npm run preview:ui -- --react-root <已有 node_modules> --port 4179` | 模拟 UI，复用 React 18 UMD；不访问账号或播放歌曲 |
+| `npm run preview:ui -- --react-root <已有 node_modules> --port 4179` | 模拟 UI；`/spectrum-ab` 对照密度柱与亚字符扭曲、12/24fps；复用生产渲染与样式，不访问账号或播放歌曲 |
 | `npm run verify:package` | npm dry-run 白名单核对，不发布、不生成安装后的生产验收 |
 | `node scripts/verify-installed-package.mjs <consumer-directory>` | 在已安装的隔离消费者目录核对入口、资源、依赖及静音 WPF；消费者通常应在仓库外 |
 | `node scripts/verify-windows-credentials.mjs <installed-package-root>` | 必须在 Windows 上实测已安装包的 DPAPI：PowerShell 7、5.1、仅 5.1 PATH 的写入/跨进程读取/删除；使用合成数据，不输出凭据。非 Windows 明示不适用 |

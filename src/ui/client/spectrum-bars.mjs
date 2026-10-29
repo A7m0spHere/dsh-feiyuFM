@@ -1,19 +1,18 @@
 // 对话区左缘 ASCII 频谱背景带：本地动画时钟驱动的模拟频谱，不是 WPF 音频
 // 的测量值，也不是歌词或节拍识别。音频由原生宿主进程播放，媒体句柄不进 UI
 // （见 ARCHITECTURE），网页端拿不到真实 FFT，也没有歌词数据流；观感借鉴
-// audioMotion-analyzer 的对数分频、峰值保持与重力下落、快起慢落包络，以及
+// audioMotion-analyzer 的峰值保持与重力下落、快起慢落包络，以及
 // soundscape 静默时的"呼吸"待机，全部离线生成。柱体字符按亮度映射到经典
 // ASCII 字符集（参考 ASCIIText 的 asciify 思路，不引入 Three.js 或第三方
-// 代码）。引擎与渲染为纯函数便于离线测试；组件只负责计时和写 DOM。
+// 代码）。引擎与亮度场为纯函数；Canvas 只负责按网格与连续位移绘字。
 
 export const STRIP_BANDS = 28;
 export const ROW_HEIGHT = 12;
 export const BAND_MIN = 8;
 export const BAND_MAX = 64;
-export const FIELD_RAMP = ' .\'`^",:;Il!i~+_-?][}{1)(|/tfjrxnuvczXYUJCLQ0OZmwqpdbkhao*#MW&8%B@$';
-// 浪线专用的斜线：反斜杠不在亮度梯度里，但浪脊要它才读得出水面起伏。
-// 渲染只输出 FIELD_RAMP ∪ FIELD_WAVE，测试按这个并集校验字符集。
-export const FIELD_WAVE = '\\';
+// 少量可读的密度级；Canvas 启动时按实际等宽字体的墨量校准，而非照搬参考
+// 代码的长字符表下标。鲸鱼的 @ % o - 是字形，不参与密度排序。
+export const FIELD_RAMP = ' .:;irsX#%@';
 const BEAT_PERIOD = 0.6; // 约 100 BPM 的固定律动；歌曲节拍不可测，只求观感稳定
 const PEAK_HOLD_S = 0.42;
 const PEAK_GRAVITY = 2.9;
@@ -21,7 +20,7 @@ const RISE_RATE = 15;
 const FALL_RATE = 4.4;
 
 // 模拟时钟：频谱形态必须由真实时间推进，而不是由绘制节拍推进。固定步长积分
-// 让 60Hz／144Hz 屏幕和 12fps／240ms 两档绘制拿到同一条轨迹；绘制频率只影响
+// 让 60Hz／144Hz 屏幕和 12fps／24fps／240ms 绘制拿到同一条轨迹；绘制频率只影响
 // 采样疏密，不改变速度。单次追赶上限用于标签页挂起后恢复，避免一次性补齐
 // 整段空档造成突变。
 export const SIM_STEP = 1 / 60;
@@ -68,7 +67,7 @@ export function mulberry32(seed) {
   };
 }
 
-const clamp01 = value => Math.max(0, Math.min(1, value));
+const clamp01 = value => Math.max(0, Math.min(1, Number(value) || 0));
 const lerp = (from, to, weight) => from + (to - from) * weight;
 
 // 歌曲进度 → 整体能量弧：首尾稍 calm、中段更满，避免匀速假感。
@@ -105,7 +104,9 @@ export function createSpectrumEngine({ bands = 24, seed = 0 } = {}) {
     return true;
   }
 
-  function step(dt, { energy = 0.8, active = true } = {}) {
+  // frequencyBands 为将来宿主 FFT 留下的归一化输入口；当前组件不传，仍为
+  // 本地模拟。输入只有 0..1 幅度，不接收媒体 URL、PCM 或凭据。
+  function step(dt, { energy = 0.8, active = true, frequencyBands = null } = {}) {
     const delta = Math.max(0, Math.min(0.1, Number(dt) || 0));
     time += delta;
     if (active) {
@@ -115,18 +116,21 @@ export function createSpectrumEngine({ bands = 24, seed = 0 } = {}) {
     for (let index = 0; index < count; index++) {
       const state = band[index];
       const position = count === 1 ? 0 : index / (count - 1); // 0=低频 … 1=高频
-      const base = 0.78 - 0.5 * Math.pow(position, 0.75); // 低频基底高、高频基底低，接近真实频谱的能量分布
+      const base = 0.38 + 0.14 * Math.sin(index * 1.71 + currentSeed % 31);
       if (time >= state.nextAt) {
-        state.target = base * (0.55 + 0.6 * randoms[index]());
+        state.target = base * (0.35 + 1.25 * randoms[index]());
         // 低频目标更新更慢：模拟低频段平滑、高频段细碎的动态差异
         state.nextAt = time + (0.16 + 0.5 * randoms[index]()) * (1.4 - 0.9 * position);
       }
-      const swell = 1 + 0.1 * Math.sin(time * 0.55 + index * 0.6);
-      const pulse = active ? beatAccent * Math.exp(-4.6 * beatPhase) * Math.pow(1 - position, 1.7) * 0.55 : 0;
+      // 相邻频段共享缓慢流动的能量包，但有各自的峰谷与响应；不再是固定斜坡。
+      const swell = 0.78 + 0.26 * Math.sin(time * 1.7 - index * 0.59)
+        + 0.14 * Math.sin(time * (2.1 + position * 2.6) + index * 1.37);
+      const pulse = active ? beatAccent * Math.exp(-5.5 * beatPhase) * (1 - position) * 0.28 : 0;
+      const input = frequencyBands?.length ? sampleSpectrumBand(frequencyBands, position) : null;
       const goal = active
-        ? clamp01(state.target * (0.55 + 0.6 * energy) * swell + pulse)
+        ? input === null ? clamp01(state.target * (0.65 + 0.65 * clamp01(energy)) * swell + pulse) : input
         : clamp01(0.05 + 0.05 * (0.5 + 0.5 * Math.sin(time * 0.9 + index * 0.45)));
-      const rate = goal > state.value ? RISE_RATE : FALL_RATE;
+      const rate = goal > state.value ? RISE_RATE * (0.75 + position * 0.8) : FALL_RATE * (0.7 + position * 0.9);
       state.value = clamp01(lerp(state.value, goal, 1 - Math.exp(-rate * delta)));
       if (state.value >= state.peak) {
         state.peak = state.value; state.peakVel = 0; state.holdUntil = time + PEAK_HOLD_S;
@@ -181,144 +185,99 @@ export function createSpectrumDriver({ engine, step = SIM_STEP, maxCatchUp = MAX
   };
 }
 
-// 把频段值铺成一片 ASCII 海面，而不是"柱状图 + 镜面倒影"：
-// - 最上面一条浪线就是谱轮廓：每列浪高＝该频段能量，低频在左；
-// - 往下是一道道跟随轮廓、逐层变平的同形浪脊，行距按透视拉开；
-//   斜率大时补齐中间行，曲线连续、不会断成点阵；
-// - 断口按"浪段"成块出现（一段连续、段尾留白），读起来是一道道浪；
-// - 笔画随深度从 ~ / - 过渡到 ' 与 .，越往近处越淡，底部自然化开；
-// - 悬空峰值仍用最亮字符标出，浪尖偶尔溅起一颗水花。
-// 全部由 phase（模拟秒）与频段值决定，纯函数。
-// 海平面所在行：渲染与鲸鱼合成必须用同一个水位，否则鲸鱼会浮在半空。
-export function spectrumWaterLine(rows, horizon = 0.26) {
-  const rowCount = Math.max(8, Math.min(120, Math.round(Number(rows) || 0)));
-  return Math.max(2, Math.min(rowCount - 8, Math.round(rowCount * horizon)));
+// 连续亮度场 → 统一字符网格。列数决定能容纳的柱数，不扩大背景宽度。
+export function sampleSpectrumBand(series, position) {
+  if (!series?.length) return 0;
+  const at = clamp01(position) * (series.length - 1);
+  const lo = Math.floor(at), hi = Math.min(series.length - 1, lo + 1);
+  return lerp(clamp01(series[lo]), clamp01(series[hi]), at - lo);
 }
 
-// 返回可直接改写的字符网格（每行是字符数组）：鲸鱼彩蛋要往同一片海里落笔，
-// 因此渲染必须能交出网格而不是已经拼好的字符串。
-export function renderSpectrumGrid(values, peaks, columns, rows,
-  { phase = 0, ramp = FIELD_RAMP, horizon = 0.26, spray = true } = {}) {
+const smoothUnit = value => { const x = clamp01(value); return x * x * (3 - 2 * x); };
+export function spectrumWaterLine(rows) { return Math.max(0, Math.round(rows) - 1); }
+
+// 返回字形和连续位移；Canvas 保留亚字符位移，纯文本对照只取 grid。
+// 底部位移恒为 0，越靠近柱顶越自由；相邻柱共享主波、带有各自的次波。
+export function spectrumBend(bar, relativeHeight, phase, fluid = true) {
+  if (!fluid) return 0;
+  return Math.pow(clamp01(relativeHeight), 1.7) * (0.24 * Math.sin(phase * 1.15 + bar * 0.64)
+    + 0.1 * Math.sin(phase * 1.83 - bar * 0.91));
+}
+
+export function renderSpectrumScene(values, peaks, columns, rows,
+  { phase = 0, ramp = FIELD_RAMP, fluid = true, disturbance = null } = {}) {
   const cols = Math.max(4, Math.min(64, Math.round(Number(columns) || 0)));
   const rowCount = Math.max(8, Math.min(120, Math.round(Number(rows) || 0)));
-  const bands = values?.length ?? 0;
-  if (!bands) return [];
-  const levels = Math.max(1, ramp.length - 1);
-  const peakGlyph = ramp[levels];
-  const bandOf = column => (cols === 1 ? 0 : column / (cols - 1)) * (bands - 1);
-  const sample = (series, band) => {
-    const lower = Math.floor(band), upper = Math.min(bands - 1, lower + 1);
-    return series[lower] + (series[upper] - series[lower]) * (band - lower);
-  };
-
-  // 邻列平滑：浪脊要连贯，不能一格一格蹦。先整行取值再卷积，否则平滑会读到
-  // 尚未赋值的邻列（NaN 会污染整片字符场）。
-  const bandValues = new Array(cols);
-  for (let column = 0; column < cols; column++) bandValues[column] = clamp01(sample(values, bandOf(column)));
-  const energy = new Array(cols);
-  for (let column = 0; column < cols; column++) {
-    let sum = 0, weight = 0;
-    for (let delta = -2; delta <= 2; delta++) {
-      const index = Math.min(cols - 1, Math.max(0, column + delta));
-      const k = 1 - Math.abs(delta) / 3;
-      sum += bandValues[index] * k;
-      weight += k;
-    }
-    energy[column] = sum / weight;
-  }
-  // 整体能量既决定浪高，也决定涌浪幅度：暂停后自然变成一条浅浅的缓波。
-  const mean = energy.reduce((sum, value) => sum + value, 0) / cols;
-
-  const horizonRow = spectrumWaterLine(rowCount, horizon);
-  const depth = rowCount - horizonRow;
-  const lift = Math.max(2, Math.round((horizonRow - 1) * 0.95));
   const grid = Array.from({ length: rowCount }, () => new Array(cols).fill(' '));
-  const set = (row, column, glyph) => {
-    if (row < 0 || row >= rowCount || column < 0 || column >= cols) return;
-    grid[row][column] = glyph;
-  };
-
-  // 浪脊轮廓：能量抬升 + 长涌浪。播放时起伏明显，暂停后只剩一层几乎平的呼吸。
-  const crest = new Array(cols);
-  for (let column = 0; column < cols; column++) {
-    const t = cols === 1 ? 0 : column / (cols - 1);
-    const body = Math.pow(energy[column], 1.2) * lift * (0.8 + 0.35 * mean);
-    const swell = Math.sin(phase * 0.45 + t * Math.PI * 2 + 0.4) * (0.25 + 1.5 * mean);
-    crest[column] = horizonRow - body + swell;
-  }
-
-  // 浪线：行距逐步拉开（透视），每条横向连续，断口按浪段成块出现。
-  // 海铺满整个高度，靠"越深越透"淡出，而不是在中途截断。
-  // presence 只控制安静时的整体稀薄程度：暂停后只剩贴近水线的几道浅纹。
-  const presence = clamp01(mean * 2.2);
-  // 安静时只留贴近水线的几道浪，播放时才铺满整个纵深：暂停后应该明显退潮。
-  const seaEnd = rowCount - 1;
-  const maxLines = Math.max(3, Math.round(3 + 12 * presence));
-  let row = horizonRow;
-  let line = 0;
-  while (row < seaEnd && line < maxLines) {
-    const q = clamp01((row - horizonRow) / Math.max(1, depth));
-    const follow = 0.55 * (1 - 0.65 * q);           // 越近越平，像一层层涌浪
-    const amp = (0.5 + 1.2 * q) * (0.35 + 0.9 * mean);
-    const len = Math.max(9, 12 * (0.8 + 0.7 * q));
-    const speed = 0.5 + 0.6 * q;
-    const ink = q < 0.3 ? '~' : q < 0.55 ? '-' : q > 0.8 ? '.' : '\'';
-    const span = Math.max(8, Math.round(12 + 6 * presence + 3 * Math.sin(line * 2.1 + phase * 0.3)));
-    const offset = Math.floor((Math.sin(line * 1.7 + phase * 0.22) * 0.5 + 0.5) * span);
-    const y = new Array(cols);
-    for (let column = 0; column < cols; column++) {
-      y[column] = row + (crest[column] - horizonRow) * follow
-        + Math.sin((column / len) * Math.PI * 2 + phase * speed + line * 1.6) * amp;
-    }
-    for (let column = 0; column < cols; column++) {
-      // 浪段为主：一段连续十几列，段尾留一两格断口，读起来是一道道浪。
-      if ((column + offset) % span > span - 2) continue;
-      // 最深处的浪线再稀一点（只在深海段挖洞），安静时整体更透。
-      if (q > 0.75) {
-        const porosity = Math.sin(column * 1.9 + line * 3.1 + phase * 0.7) * 0.5 + 0.5;
-        if (porosity < (q - 0.75) * 2.4 + (1 - presence) * 0.3) continue;
+  const offsets = Array.from({ length: rowCount }, () => new Array(cols).fill(0));
+  const baseline = rowCount - 1;
+  const bars = [];
+  if (!values?.length) return { grid: [], offsets: [], bars, baseline };
+  const count = Math.min(values.length, Math.max(1, Math.floor((cols - 1) / 5)));
+  const pitch = cols / count;
+  const halfWidth = Math.min(1.65, (pitch - 1.4) / 2);
+  const maxHeight = rowCount - 4;
+  const densityRamp = ramp.length > 1 ? ramp : FIELD_RAMP;
+  for (let b = 0; b < count; b++) {
+    const position = count === 1 ? 0.5 : b / (count - 1);
+    const value = sampleSpectrumBand(values, position);
+    const peak = Math.max(value, sampleSpectrumBand(peaks ?? values, position));
+    const center = pitch * (b + 0.5);
+    // 鲸鱼潜伏/出入水只短暂抬升附近的柱，结束后本帧重新从频段输入生成。
+    const local = disturbance ? Math.exp(-(((center - disturbance.center) / Math.max(2, disturbance.width * 0.55)) ** 2)) : 0;
+    const lift = local * (Number(disturbance?.strength) || 0);
+    const height = Math.min(maxHeight, Math.max(1, value * maxHeight + lift * 3));
+    const top = baseline + 1 - height;
+    const bar = { center, height, top, value, peak, halfWidth };
+    bars.push(bar);
+    const left = Math.max(0, Math.ceil(center - halfWidth - 0.5));
+    const right = Math.min(cols - 1, Math.floor(center + halfWidth - 0.5));
+    for (let y = Math.max(0, Math.floor(top)); y <= baseline; y++) {
+      const relative = clamp01((baseline - y) / Math.max(1, height - 1));
+      const bend = spectrumBend(b, relative, phase, fluid) + local * lift * 0.08 * relative;
+      const tip = smoothUnit((y + 1 - top) / 2.2);
+      for (let x = left; x <= right; x++) {
+        const edge = smoothUnit((halfWidth - Math.abs(x + 0.5 - center)) / 1.2);
+        const flow = Math.sin(y * 0.24 + b * 0.71 - phase * 0.55) * 0.055
+          + Math.sin(y * 0.47 - b * 1.2 + phase * 0.31) * 0.025;
+        const brightness = clamp01((0.32 + edge * 0.46 + value * 0.09 + flow) * (0.28 + tip * 0.72));
+        const index = Math.max(1, Math.round(brightness * (densityRamp.length - 1)));
+        grid[y][x] = densityRamp[index];
+        offsets[y][x] = bend;
       }
-      const slope = (column + 1 < cols ? y[column + 1] : y[column]) - y[column];
-      const glyph = slope < -0.5 ? '/' : slope > 0.5 ? '\\' : ink;
-      const top = Math.round(y[column]);
-      const next = Math.round(column + 1 < cols ? y[column + 1] : y[column]);
-      set(top, column, glyph);
-      // 斜率大时补齐中间行，曲线不断成点阵。
-      if (next > top) for (let fill = top + 1; fill <= next; fill++) set(fill, column, glyph);
-      else for (let fill = next; fill < top; fill++) set(fill, column, glyph);
     }
-    line += 1;
-    row += Math.max(1, Math.round(2 + 4.2 * Math.pow(q, 1.2)));
-  }
-
-  // 悬空峰值：最亮字符标在未被浪追上的峰值高度，保留"柱"的可读性。
-  for (let column = 0; column < cols; column++) {
-    const band = bandOf(column);
-    const value = clamp01(sample(values, band));
-    const peak = clamp01(sample(peaks ?? values, band));
-    if (peak <= value + 0.06) continue;
-    const rowAt = Math.round(horizonRow - Math.pow(peak, 1.2) * lift * (0.8 + 0.35 * mean));
-    if (rowAt < Math.floor(crest[column]) - 1) set(rowAt, column, peakGlyph);
-  }
-
-  // 水花：浪脊上方偶尔溅起一颗，只在完整动效下出现，且必须落在空白处。
-  if (spray) {
-    for (let column = 0; column < cols; column++) {
-      const splash = Math.sin(phase * 1.6 + column * 2.1);
-      if (splash <= 0.95) continue;
-      const rowAt = Math.round(crest[column]) - 1 - Math.round((splash - 0.95) * 18);
-      if (rowAt < 0 || grid[rowAt][column] !== ' ') continue;
-      set(rowAt, column, ':');
+    // 独立峰值帽只占中央一格，避免连成水平浪线。
+    if (peak > value + 0.055) {
+      const y = Math.max(0, Math.floor(baseline + 1 - peak * maxHeight));
+      const x = Math.min(cols - 1, Math.floor(center));
+      if (y < Math.floor(top) - 1) {
+        grid[y][x] = ':';
+        offsets[y][x] = spectrumBend(b, 1, phase, fluid);
+      }
     }
   }
-
-  return grid;
+  return { grid, offsets, bars, baseline };
 }
 
+// 鲸鱼从局部柱顶跃出，不从整片工作区中央或屏幕固定高度出现。
+export function spectrumWhaleLine(scene, whale) {
+  if (!whale || !scene.bars.length) return scene.baseline;
+  const width = whale.frame?.[0]?.length ?? 8;
+  const center = whale.column + width / 2;
+  let sum = 0, weights = 0;
+  for (const bar of scene.bars) {
+    const weight = Math.exp(-(((bar.center - center) / Math.max(3, width * 0.6)) ** 2));
+    sum += bar.top * weight; weights += weight;
+  }
+  return Math.max(8, Math.min(scene.baseline - 2, Math.round(sum / weights + 2)));
+}
+
+export function renderSpectrumGrid(values, peaks, columns, rows, options) {
+  return renderSpectrumScene(values, peaks, columns, rows, options).grid;
+}
 export function renderSpectrumField(values, peaks, columns, rows, options) {
   return renderSpectrumGrid(values, peaks, columns, rows, options).map(line => line.join(''));
 }
-
 export function renderSpectrumFieldText(values, peaks, columns, rows, options) {
   return renderSpectrumField(values, peaks, columns, rows, options).join('\n');
 }

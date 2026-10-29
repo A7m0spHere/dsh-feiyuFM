@@ -1,8 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createSpectrumEngine, createSpectrumClock, createSpectrumDriver, snapshotFrame,
-  renderSpectrumField, renderSpectrumFieldText, spectrumEnergy,
-  hashSeed, mulberry32, BAND_MIN, BAND_MAX, FIELD_RAMP, FIELD_WAVE, SIM_STEP, MAX_CATCH_UP_S } from '../src/ui/client/spectrum-bars.mjs';
+  renderSpectrumScene, renderSpectrumField, renderSpectrumFieldText, spectrumEnergy,
+  sampleSpectrumBand, spectrumBend, spectrumWhaleLine,
+  hashSeed, mulberry32, BAND_MIN, BAND_MAX, FIELD_RAMP, SIM_STEP, MAX_CATCH_UP_S } from '../src/ui/client/spectrum-bars.mjs';
 
 
 const stepFor = (engine, seconds, options) => {
@@ -74,114 +75,171 @@ test('band count clamps to the supported range', () => {
   assert.equal(createSpectrumEngine({}).bands, 24);
 });
 
-const column = (lines, index) => lines.map(line => line[index] ?? ' ');
-// 一列里最靠上（行号最小）的墨点：海面高度由它读出来。
-const crest = chars => chars.findIndex(char => char !== ' ');
+const column = (grid, index) => grid.map(line => line[index] ?? ' ');
+const inked = grid => grid.flatMap(line => [...line]).filter(char => char !== ' ').length;
 
-test('field rows span the requested columns, clamp their counts and stay inside the charset', () => {
+test('external normalized bands retain their ordering, clamp amplitude and bypass simulated pulses', () => {
+  assert.equal(sampleSpectrumBand([], 0.5), 0);
+  assert.equal(sampleSpectrumBand([0, 1], 0.25), 0.25);
+  assert.equal(sampleSpectrumBand([0.2, 0.8], -1), 0.2);
+  assert.equal(sampleSpectrumBand([0.2, 0.8], 2), 0.8);
+  assert.equal(sampleSpectrumBand([-0.5, 2], 0), 0);
+  assert.equal(sampleSpectrumBand([-0.5, 2], 1), 1);
+  const run = seed => stepFor(createSpectrumEngine({ bands: 8, seed }), 3,
+    { active: true, energy: 1, frequencyBands: new Float32Array([0.1, 0.9]) });
+  const first = run(1), other = run(999);
+  first.values.forEach((value, index) => {
+    const expected = 0.1 + index / 7 * 0.8;
+    assert.ok(Math.abs(value - expected) < 0.001, `band ${index} should converge to input ${expected}`);
+  });
+  assert.deepEqual(first.values, other.values, 'an external spectrum is not decorated with seeded fake beats');
+});
+
+test('attack is faster than release and high bands respond more quickly than low bands', () => {
+  const engine = createSpectrumEngine({ bands: 8, seed: 5 });
+  const rising = snapshotFrame(engine.step(0.05, { active: true, frequencyBands: [1] }));
+  assert.ok(rising.values.at(-1) > rising.values[0], 'high frequency attack should be more agile');
+  const peak = snapshotFrame(stepFor(engine, 2, { active: true, frequencyBands: [1] }));
+  const falling = snapshotFrame(engine.step(0.05, { active: true, frequencyBands: [0] }));
+  assert.ok(falling.values[0] > falling.values.at(-1), 'low frequency mass should fall more slowly');
+  for (let index = 0; index < 8; index++) {
+    assert.ok(rising.values[index] > peak.values[index] - falling.values[index],
+      `band ${index} should gain more on attack than it loses over the same release interval`);
+    assert.ok(falling.peaks[index] > falling.values[index], 'the local peak remains held briefly');
+  }
+  const silent = stepFor(engine, 3, { active: true, frequencyBands: [0] });
+  assert.ok(Math.max(...silent.values) < 0.001, 'an explicit zero spectrum has no simulated breathing');
+});
+
+test('the simulated bands contain separate peaks and valleys instead of a fixed descending ramp', () => {
+  const engine = createSpectrumEngine({ bands: 28, seed: 21 });
+  const first = snapshotFrame(stepFor(engine, 1, { active: true, energy: 0.9 }));
+  const second = snapshotFrame(stepFor(engine, 0.4, { active: true, energy: 0.9 }));
+  assert.ok(Math.max(...first.values) - Math.min(...first.values) > 0.2, 'heights need visible variation');
+  const slopes = first.values.slice(1).map((value, index) => value - first.values[index]);
+  assert.ok(slopes.some(value => value > 0.03) && slopes.some(value => value < -0.03),
+    'the profile should have both rises and falls');
+  const motion = second.values.map((value, index) => value - first.values[index]);
+  assert.ok(motion.some(value => value > 0.02) && motion.some(value => value < -0.02),
+    'all bands must not breathe up and down in lockstep');
+});
+
+test('the scene clamps its rectangular grid and every glyph and offset stays in bounds', () => {
   const values = new Array(16).fill(0.6), peaks = new Array(16).fill(0.8);
-  const lines = renderSpectrumField(values, peaks, 24, 40);
-  assert.equal(lines.length, 40);
-  for (const line of lines) {
-    assert.equal(line.length, 24, 'every row spans the measured column count');
-    for (const char of line) {
-      const known = char === ' ' || FIELD_RAMP.includes(char) || FIELD_WAVE.includes(char);
-      assert.ok(known, `unexpected char ${char}`);
+  for (const [requestedColumns, requestedRows, cols, rows] of [[24, 40, 24, 40], [1, 1, 4, 8], [1000, 1000, 64, 120]]) {
+    const scene = renderSpectrumScene(values, peaks, requestedColumns, requestedRows);
+    assert.equal(scene.grid.length, rows);
+    assert.equal(scene.offsets.length, rows);
+    assert.equal(scene.baseline, rows - 1);
+    scene.grid.forEach((line, y) => {
+      assert.equal(line.length, cols);
+      assert.equal(scene.offsets[y].length, cols);
+      for (let x = 0; x < cols; x++) {
+        assert.ok(FIELD_RAMP.includes(line[x]), `unexpected density glyph ${line[x]}`);
+        assert.ok(Number.isFinite(scene.offsets[y][x]));
+        if (line[x] !== ' ') assert.ok(x + scene.offsets[y][x] >= 0 && x + scene.offsets[y][x] < cols,
+          'the subcharacter displacement cannot push visible glyphs outside the grid');
+      }
+    });
+  }
+  assert.deepEqual(renderSpectrumField([], [], 12, 20), []);
+});
+
+test('bar heights map monotonically to frequency energy and share the bottom baseline', () => {
+  const values = [0.1, 0.3, 0.55, 0.75, 1];
+  const scene = renderSpectrumScene(values, values, 26, 60, { fluid: false });
+  assert.equal(scene.bars.length, values.length);
+  scene.bars.forEach((bar, index) => {
+    assert.equal(bar.value, values[index], 'left-to-right frequency order is retained');
+    assert.ok(Math.abs(bar.top + bar.height - (scene.baseline + 1)) < 1e-9,
+      'every bar grows upward from the same bottom edge');
+    if (index) assert.ok(bar.height > scene.bars[index - 1].height);
+    const chars = column(scene.grid, Math.floor(bar.center));
+    assert.notEqual(chars.at(-1), ' ', 'each bar has a visible foot on the bottom row');
+    for (let y = Math.floor(bar.top); y <= scene.baseline; y++) {
+      assert.notEqual(chars[y], ' ', 'the body stays vertically connected even when frozen');
+    }
+  });
+  assert.ok(scene.bars.at(-1).height > scene.bars[0].height * 5, 'energy changes must have visible height range');
+});
+
+test('dense bodies have sparse tips, multiple glyph levels, and visible gaps between bars', () => {
+  const scene = renderSpectrumScene([0.8], [0.8], 26, 60, { phase: 1.2, fluid: false });
+  const glyphs = new Set(scene.grid.flat().filter(char => char !== ' '));
+  assert.ok(glyphs.size >= 4, 'a bar must have a density texture rather than repeated pipes');
+  const first = scene.bars[0];
+  const x = Math.floor(first.center);
+  const tip = FIELD_RAMP.indexOf(scene.grid[Math.floor(first.top)][x]);
+  const body = FIELD_RAMP.indexOf(scene.grid[Math.min(scene.baseline, Math.ceil(first.top) + 4)][x]);
+  assert.ok(body > tip, `the body should be denser than the soft cap: ${body} vs ${tip}`);
+  const runs = scene.grid.at(-1).join('').match(/[^ ]+/g) ?? [];
+  assert.equal(runs.length, scene.bars.length, 'the bottom row must preserve a separate footprint for each bar');
+  assert.ok(runs.every(run => run.length >= 2 && run.length <= 4), 'bars are substantial but never merge into a horizontal line');
+});
+
+test('fluid motion preserves the occupancy grid and uses continuous subcharacter displacements', () => {
+  const a = renderSpectrumScene([0.8], [0.8], 26, 60, { phase: 0.4, fluid: false });
+  const b = renderSpectrumScene([0.8], [0.8], 26, 60, { phase: 0.4, fluid: true });
+  assert.deepEqual(b.grid, a.grid, 'bending must not randomly remove or shuffle glyphs');
+  assert.ok(a.offsets.flat().every(offset => offset === 0), 'the A prototype stays straight');
+  assert.ok(b.offsets.flat().some(offset => Math.abs(offset) > 0.05), 'the B prototype has visible secondary motion');
+  assert.ok(b.offsets.at(-1).every(offset => offset === 0), 'the feet never wander');
+  for (let bar = 0; bar < b.bars.length; bar++) {
+    for (const height of [0, 0.25, 0.5, 0.75, 1]) {
+      for (let tick = 0; tick < 480; tick++) {
+        const phase = tick / 24;
+        const bend = spectrumBend(bar, height, phase);
+        const next = spectrumBend(bar, height, phase + 1 / 240);
+        assert.ok(Math.abs(bend) <= 0.35, 'bending cannot erase interbar gaps');
+        assert.ok(Math.abs(next - bend) < 0.004, 'motion is continuous rather than integer grid jumps');
+        if (height === 0) assert.ok(bend === 0, 'the baseline displacement stays zero');
+      }
     }
   }
-  assert.equal(renderSpectrumField(values, peaks, 24, 1).length, 8, 'row count clamps up');
-  assert.equal(renderSpectrumField(values, peaks, 24, 1000).length, 120, 'row count clamps down');
-  assert.equal(renderSpectrumField(values, peaks, 1000, 40)[0].length, 64, 'column count clamps down');
-  assert.equal(renderSpectrumField(values, peaks, 1, 40)[0].length, 4, 'column count clamps up');
-  assert.deepEqual(renderSpectrumField([], [], 12, 20), [], 'no bands means no texture');
 });
 
-test('the sea line sits lower for quiet bands and rises with amplitude (low frequencies stay on the left)', () => {
-  const lines = renderSpectrumField([1, 0.05], [1, 0.05], 4, 40, { phase: 0 });
-  const leftCrest = crest(column(lines, 0));
-  const rightCrest = crest(column(lines, 3));
-  assert.ok(leftCrest >= 0 && rightCrest >= 0, 'both columns draw something');
-  assert.ok(leftCrest < rightCrest - 2, 'the loud left band raises the water line above the quiet right band');
-  const loud = crest(column(renderSpectrumField([0.9], [0.9], 4, 40, { phase: 0 }), 1));
-  const quiet = crest(column(renderSpectrumField([0.25], [0.25], 4, 40, { phase: 0 }), 1));
-  assert.ok(loud < quiet - 1, `higher amplitude lifts the crest: ${loud} vs ${quiet}`);
+test('held peaks remain local above their bars and moving texture changes gradually', () => {
+  const values = [0.2, 0.3, 0.25, 0.4, 0.35];
+  const peaks = [0.9, 0.3, 0.25, 0.4, 0.35];
+  const held = renderSpectrumScene(values, peaks, 26, 60, { phase: 0.4 });
+  const body = renderSpectrumScene(values, values, 26, 60, { phase: 0.4 });
+  const heldCells = held.grid.flat(), bodyCells = body.grid.flat();
+  const differences = heldCells.filter((glyph, index) => glyph !== bodyCells[index]).length;
+  assert.equal(differences, 1, 'one held peak draws one local cap rather than a water line');
+  const soon = renderSpectrumScene(values, peaks, 26, 60, { phase: 0.4 + 1 / 24 });
+  const soonCells = soon.grid.flat();
+  const changed = heldCells.filter((glyph, index) => glyph !== soonCells[index]).length;
+  assert.ok(changed / inked(held.grid) < 0.1, 'slow density flow must not turn the whole body into flicker');
+  assert.equal(renderSpectrumFieldText(values, peaks, 26, 60, { phase: 0.4 }), held.grid.map(line => line.join('')).join('\n'));
 });
 
-test('water below the crest is layered: crest drawn, depths sparser, tips carry the densest glyph', () => {
-  const lines = renderSpectrumField([1], [1], 4, 40, { phase: 0 });
-  const chars = column(lines, 1);
-  const top = crest(chars);
-  assert.ok(top >= 0, 'the crest is drawn');
-  const nearSurface = chars.slice(top, top + 8).filter(char => char !== ' ').length;
-  const farBelow = chars.slice(-8).filter(char => char !== ' ').length;
-  assert.ok(nearSurface >= farBelow, 'the water thins out with depth instead of filling the column');
-  assert.ok(farBelow < 8, 'the bottom of the frame stays open, not a solid wall');
-  // 峰值比当前值高时会单独标出最亮字符。
-  const rising = renderSpectrumField([0.2], [0.95], 4, 40, { phase: 0 });
-  assert.ok(column(rising, 1).includes(FIELD_RAMP.at(-1)), 'a held peak leaves the densest glyph above the crest');
-  const settled = renderSpectrumField([0.5], [0.5], 4, 40, { phase: 0 });
-  assert.equal(column(settled, 1).includes(FIELD_RAMP.at(-1)), false, 'a caught-up peak needs no extra glyph');
-});
-
-test('phase shifts the swell without changing the grid, and a held peak still marks the crest', () => {
-  const settled = renderSpectrumField([0.5], [0.5], 4, 40);
-  const rising = renderSpectrumField([0.2], [0.9], 4, 40);
-  const cap = FIELD_RAMP.at(-1);
-  assert.equal(column(rising, 1).includes(cap), true, 'the falling peak leaves the densest glyph');
-  assert.equal(column(settled, 1).includes(cap), false, 'a caught-up peak needs no extra glyph');
-  const still = renderSpectrumField([0.5], [0.5], 8, 40, { phase: 0 });
-  const waved = renderSpectrumField([0.5], [0.5], 8, 40, { phase: Math.PI / 2 });
-  assert.notDeepEqual(waved, still, 'phase adds the gentle wave without changing the grid');
-  assert.equal(renderSpectrumFieldText([0.5], [0.5], 8, 40), still.join('\n'));
-});
-
-test('the swells run continuously across columns instead of breaking into isolated dots', () => {
-  // 海面观感的关键：每一道浪线左右相连。统计墨点落在多长连续段里的比例。
-  const values = new Array(16).fill(0.6), peaks = new Array(16).fill(0.7);
-  const lines = renderSpectrumField(values, peaks, 26, 60, { phase: 1.2 });
-  let inkedTotal = 0, inRuns = 0, longestRun = 0;
-  for (const line of lines) {
-    for (const match of line.matchAll(/[^ ]+/g)) {
-      inkedTotal += match[0].length;
-      if (match[0].length >= 3) inRuns += match[0].length;
-      longestRun = Math.max(longestRun, match[0].length);
-    }
+test('resize rebuilds bounded bars at the same phase and pause leaves a low bottom anchored field', () => {
+  const engine = createSpectrumEngine({ seed: 9, bands: 28 });
+  const playing = snapshotFrame(stepFor(engine, 2, { active: true, energy: 1 }));
+  const paused = snapshotFrame(stepFor(engine, 3, { active: false }));
+  for (const [columns, rows] of [[12, 20], [26, 60], [40, 96]]) {
+    const active = renderSpectrumScene(playing.values, playing.peaks, columns, rows, { phase: 1 });
+    const quiet = renderSpectrumScene(paused.values, paused.peaks, columns, rows, { phase: 1 });
+    assert.equal(active.grid.length, rows);
+    assert.ok(active.grid.every(line => line.length === columns));
+    assert.ok(inked(quiet.grid) < inked(active.grid) * 0.5, 'pause should visibly settle the spectrum');
+    assert.ok(quiet.bars.every(bar => bar.height < rows * 0.15));
+    assert.ok(quiet.offsets.at(-1).every(offset => offset === 0));
   }
-  assert.ok(inkedTotal > 100, `the field should draw a body of water, got ${inkedTotal} glyphs`);
-  assert.ok(inRuns / inkedTotal > 0.8,
-    `most glyphs must belong to a swell run, got ${inRuns}/${inkedTotal}`);
-  assert.ok(longestRun >= 8, `the widest swell should span the band, got ${longestRun} columns`);
 });
 
-test('the crest height still tracks band energy so the spectrum stays readable', () => {
-  // 海面化之后仍要能比出高低：浪脊高度与频段能量应正相关。
-  const bands = 16;
-  const values = Array.from({ length: bands }, (_, index) => (index % 4) / 3);
-  const lines = renderSpectrumField(values, values, 26, 60, { phase: 0.4 });
-  const pairs = [];
-  for (let index = 0; index < 26; index++) {
-    const row = crest(column(lines, index));
-    if (row < 0) continue;
-    pairs.push([values[Math.round((index / 25) * (bands - 1))], -row]);
-  }
-  const meanX = pairs.reduce((sum, [x]) => sum + x, 0) / pairs.length;
-  const meanY = pairs.reduce((sum, [, y]) => sum + y, 0) / pairs.length;
-  let num = 0, dx = 0, dy = 0;
-  for (const [x, y] of pairs) {
-    num += (x - meanX) * (y - meanY);
-    dx += (x - meanX) ** 2;
-    dy += (y - meanY) ** 2;
-  }
-  const correlation = num / Math.sqrt(dx * dy);
-  assert.ok(correlation > 0.45, `louder bands must raise the water line, got r=${correlation.toFixed(2)}`);
-});
-
-test('a quiet field keeps the water low and sparse instead of flooding the frame', () => {
-  const inked = lines => lines.join('').split('').filter(char => char !== ' ').length;
-  const loud = renderSpectrumField(new Array(16).fill(0.9), new Array(16).fill(0.9), 26, 60, { phase: 0.7 });
-  const quiet = renderSpectrumField(new Array(16).fill(0.02), new Array(16).fill(0.02), 26, 60, { phase: 0.7 });
-  assert.ok(inked(quiet) < inked(loud) * 0.75,
-    `a paused field must recede: ${inked(quiet)} vs ${inked(loud)}`);
+test('whale disturbances lift nearby bars temporarily and the jump line follows local bar tops', () => {
+  const values = [0.2, 0.35, 0.75, 0.55, 0.4];
+  const ordinary = renderSpectrumScene(values, values, 26, 60, { phase: 1 });
+  const disturbed = renderSpectrumScene(values, values, 26, 60,
+    { phase: 1, disturbance: { center: ordinary.bars[2].center, width: 4, strength: 1 } });
+  const lifts = disturbed.bars.map((bar, index) => bar.height - ordinary.bars[index].height);
+  assert.ok(lifts[2] > 2 && lifts[2] > lifts[0] * 3, 'the pre-breach swell stays local');
+  const jump = { column: 9, frame: ['........'] };
+  const line = spectrumWhaleLine(ordinary, jump);
+  assert.ok(line >= 8 && line < ordinary.baseline - 2, 'the whale emerges from column tops, not the workspace bottom');
+  assert.deepEqual(renderSpectrumScene(values, values, 26, 60, { phase: 1 }), ordinary,
+    'ending the event leaves no persistent disturbance state');
 });
 
 test('energy arc is fuller in the middle of a song than at the edges', () => {
@@ -214,7 +272,8 @@ test('the simulation clock advances by real time regardless of how often it is s
     }
     return { phase: driver.phase, values: [...driver.frame.values] };
   };
-  const slow = sample(12, 4), fast = sample(144, 4);
+  const slow = sample(12, 4), full = sample(24, 4), fast = sample(144, 4);
+  assert.deepEqual(full.values, slow.values, '24fps must retain the 12fps simulation trajectory');
   assert.ok(Math.abs(slow.phase - 4) < 0.05, `12fps sampling should still cover ~4s, got ${slow.phase}`);
   assert.ok(Math.abs(fast.phase - 4) < 0.05, `144Hz sampling should cover ~4s, got ${fast.phase}`);
   slow.values.forEach((value, index) => {

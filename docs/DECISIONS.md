@@ -68,4 +68,6 @@
 | 2026-10-28 | 鲸鱼彩蛋落地为「同一张字符矩阵里的低频事件」：字母格取自 dsh-TUI／dsh-ui-whale 的像素鲸鱼轮廓，降采样到 18×9 后写进频谱那张网格，不新建浮层、不用贴图或 emoji；五阶段状态机（潜伏→浮出→跃起→下潜→涟漪）共 5.3 秒，95 秒冷却、每次掷 30% 骰子，窄网格与暂停／关闭／减少动态一律跳过或立即取消。复用范围为四个姿态的降采样轮廓，按 BSD-3-Clause 记来源与许可 | [U22](spikes/U22-ascii-spectrum-backdrop.md)、[第三方声明](../THIRD_PARTY_NOTICES.md)、`test/spectrum-whale.test.mjs` |
 | 2026-10-29 | 隔离 DSH 现场验收暴露两个缺陷并各自定案：① 改窗口宽度时鲸鱼会消失一帧——原因是 resize 分支只重画海水；改为海面与鲸鱼共用 `composeField()`，animation frame 与 resize 都走它。② 默认节奏下彩蛋在真实播放中永不出现——原因是切歌时 Core 短暂进入 `resolving`，界面 `active` 掉线把 95 秒冷却反复清零；彩蛋改用更宽的"在听"判据（连接正常、有快照、未暂停、无错误、非 idle），暂停／停止／出错仍立即取消。两处都由回归断言固定 | [U22](spikes/U22-ascii-spectrum-backdrop.md)、`test/spectrum-backdrop.test.mjs` |
 
+| 2026-10-29 | 按用户本轮视觉要求，以底锚 ASCII 密度柱取代 2026-10-28 的横向海面决策，保留挂载、几何、时钟与鲸鱼导演。字符网格＋连续位移交给局部 Canvas 绘制，解决整数格扭曲跳变；不引入 Three.js，字形只在初始化测墨排序。完整档改为 24fps；浅深色分别调亮，渐隐移到正文侧末段。鲸鱼限制尺寸、擦除实体内部原柱体并按完整姿态缓存；换曲保留已开始的背景能量，静态档响应主题。真实 FFT 仍未实现。用户随后指定已有 Web 端后台静默复验，早期原生证据与最终 Web 证据分别记录 | [U22](spikes/U22-ascii-spectrum-backdrop.md)、[MVP §5](MVP.md)、`test/spectrum-backdrop.test.mjs` |
+
 第三方来源、版本、文件范围与许可只维护在 [THIRD_PARTY_NOTICES](../THIRD_PARTY_NOTICES.md) 和 [依赖许可清单](../DEPENDENCY_LICENSES.md)，不在决策表重复许可结论。未核实的参考项目仍保留在归档，不能当作已获授权或已验证接口。
