@@ -63,11 +63,36 @@ test('the whale is composited into the same pre as the sea, with no second DOM l
   assert.match(source, /h\('pre'/, 'the backdrop still renders exactly one pre');
   const preCount = (source.match(/h\('pre'/g) || []).length;
   assert.equal(preCount, 1, `the backdrop must never add a second pre, found ${preCount}`);
-  assert.match(source, /stampWhale\(grid, whaleVisualRef\.current/, 'the whale is stamped into the sea grid');
+  assert.match(source, /stampWhale\(grid, whale, \{/, 'the whale is stamped into the sea grid');
   assert.match(source, /createWhaleDirector\(/, 'the easter egg is driven by its own state machine');
   const whaleSource = readFileSync(new URL('../src/ui/client/spectrum-whale.mjs', import.meta.url), 'utf8');
   assert.doesNotMatch(whaleSource, /requestAnimationFrame|setInterval|setTimeout/,
     'the whale borrows the sea clock instead of running its own timer');
   assert.doesNotMatch(whaleSource, /document\.|querySelector|createElement/,
     'the whale module must stay DOM-free so it can be unit tested');
+});
+
+test('the whale follows a "listening" gate instead of the transient UI playing flag', () => {
+  // 切歌时 Core 会短暂进入 resolving，界面 active 掉线。若彩蛋按 active 推进，
+  // 每次换歌都会把 95 秒冷却清零，真实播放里永远攒不够时间（现场验收复现）。
+  assert.match(source, /const listening = Boolean\(state\.connected && snapshot\) && !snapshot\.paused/,
+    'listening tolerates the resolving window between tracks');
+  assert.match(source, /!snapshot\.lastError && snapshot\.status !== 'idle'/, 'a stopped or broken player still cancels');
+  const animated = effectDeps.find(entry => entry.body.includes('createWhaleDirector('));
+  assert.match(animated.body, /active: listening,/, 'the director is driven by the listening gate');
+  assert.doesNotMatch(animated.body, /active: activeRef\.current && motion/,
+    'the transient UI playing flag must not drive the easter egg');
+});
+
+test('both the animation frame and a resize redraw through the same sea + whale compositor', () => {
+  // 两处重画必须共用 composeField：只画海会导致改窗口宽度时鲸鱼凭空消失。
+  const repaint = effectDeps.find(entry => entry.body.includes('frameRef.current') && entry.deps.includes('columns'));
+  assert.ok(repaint, 'a geometry change repaints from the last frame');
+  const animated = effectDeps.find(entry => entry.body.includes('createSpectrumDriver('));
+  assert.match(repaint.body, /composeField\(textRef\.current, frameRef\.current, whaleVisualRef\.current/,
+    'the resize path repaints the whale as well');
+  assert.match(animated.body, /composeField\(textRef\.current, frame, whaleVisualRef\.current/,
+    'the animation path repaints through the same compositor');
+  assert.match(source, /stampWhale\(grid, whale, \{ waterLine: spectrumWaterLine\(rows\), columns \}\)/,
+    'the compositor owns the water-line semantics, so both callers agree');
 });
