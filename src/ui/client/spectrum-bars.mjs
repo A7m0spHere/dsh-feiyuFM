@@ -189,7 +189,15 @@ export function createSpectrumDriver({ engine, step = SIM_STEP, maxCatchUp = MAX
 // - 笔画随深度从 ~ / - 过渡到 ' 与 .，越往近处越淡，底部自然化开；
 // - 悬空峰值仍用最亮字符标出，浪尖偶尔溅起一颗水花。
 // 全部由 phase（模拟秒）与频段值决定，纯函数。
-export function renderSpectrumField(values, peaks, columns, rows,
+// 海平面所在行：渲染与鲸鱼合成必须用同一个水位，否则鲸鱼会浮在半空。
+export function spectrumWaterLine(rows, horizon = 0.26) {
+  const rowCount = Math.max(8, Math.min(120, Math.round(Number(rows) || 0)));
+  return Math.max(2, Math.min(rowCount - 8, Math.round(rowCount * horizon)));
+}
+
+// 返回可直接改写的字符网格（每行是字符数组）：鲸鱼彩蛋要往同一片海里落笔，
+// 因此渲染必须能交出网格而不是已经拼好的字符串。
+export function renderSpectrumGrid(values, peaks, columns, rows,
   { phase = 0, ramp = FIELD_RAMP, horizon = 0.26, spray = true } = {}) {
   const cols = Math.max(4, Math.min(64, Math.round(Number(columns) || 0)));
   const rowCount = Math.max(8, Math.min(120, Math.round(Number(rows) || 0)));
@@ -221,7 +229,7 @@ export function renderSpectrumField(values, peaks, columns, rows,
   // 整体能量既决定浪高，也决定涌浪幅度：暂停后自然变成一条浅浅的缓波。
   const mean = energy.reduce((sum, value) => sum + value, 0) / cols;
 
-  const horizonRow = Math.max(2, Math.min(rowCount - 8, Math.round(rowCount * horizon)));
+  const horizonRow = spectrumWaterLine(rowCount, horizon);
   const depth = rowCount - horizonRow;
   const lift = Math.max(2, Math.round((horizonRow - 1) * 0.95));
   const grid = Array.from({ length: rowCount }, () => new Array(cols).fill(' '));
@@ -304,7 +312,11 @@ export function renderSpectrumField(values, peaks, columns, rows,
     }
   }
 
-  return grid.map(line => line.join(''));
+  return grid;
+}
+
+export function renderSpectrumField(values, peaks, columns, rows, options) {
+  return renderSpectrumGrid(values, peaks, columns, rows, options).map(line => line.join(''));
 }
 
 export function renderSpectrumFieldText(values, peaks, columns, rows, options) {

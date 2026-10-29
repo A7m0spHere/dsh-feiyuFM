@@ -31,9 +31,10 @@ test('the animation effect drives a fixed-step driver instead of stepping the en
   assert.equal(source.includes('const dt = Math.min(0.1'), false, 'the throttled delta that lost time is gone');
 });
 
-test('the animation loop only restarts for visibility and motion level, never for playback or layout state', () => {
+test('the animation loop only restarts for visibility, motion level and the preview-only whale flag', () => {
   const animated = effectDeps.find(entry => entry.body.includes('createSpectrumDriver('));
-  assert.deepEqual(animated.deps, ['visible', 'state.motion']);
+  // whaleEager 是预览夹具的挂载常量（生产不传），不是播放或布局状态。
+  assert.deepEqual(animated.deps, ['visible', 'state.motion', 'whaleEager']);
   for (const banned of ['playing', 'revision', 'columns', 'rows', 'rowPixels', 'seedSource', 'snapshot']) {
     assert.equal(animated.deps.includes(banned), false, `${banned} must not restart the animation loop`);
   }
@@ -54,4 +55,19 @@ test('the seed effect only reseeds when the track changes and a resize repaints 
 test('the engine treats an unchanged seed as a no-op', () => {
   assert.match(barSource, /if \(value === currentSeed\) return false;/,
     'reseed must report and skip a no-op instead of clearing the band targets');
+});
+
+test('the whale is composited into the same pre as the sea, with no second DOM layer and no timers of its own', () => {
+  // 彩蛋必须画进同一张字符矩阵：源码里只能有一处 <pre>，鲸鱼通过 stampWhale
+  // 往网格里落笔，而不是另建浮层或自己的 rAF。
+  assert.match(source, /h\('pre'/, 'the backdrop still renders exactly one pre');
+  const preCount = (source.match(/h\('pre'/g) || []).length;
+  assert.equal(preCount, 1, `the backdrop must never add a second pre, found ${preCount}`);
+  assert.match(source, /stampWhale\(grid, whaleVisualRef\.current/, 'the whale is stamped into the sea grid');
+  assert.match(source, /createWhaleDirector\(/, 'the easter egg is driven by its own state machine');
+  const whaleSource = readFileSync(new URL('../src/ui/client/spectrum-whale.mjs', import.meta.url), 'utf8');
+  assert.doesNotMatch(whaleSource, /requestAnimationFrame|setInterval|setTimeout/,
+    'the whale borrows the sea clock instead of running its own timer');
+  assert.doesNotMatch(whaleSource, /document\.|querySelector|createElement/,
+    'the whale module must stay DOM-free so it can be unit tested');
 });

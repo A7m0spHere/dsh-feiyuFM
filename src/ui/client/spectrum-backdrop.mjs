@@ -1,7 +1,8 @@
 import React from 'react';
 import { h, progressPercent } from './shared.mjs';
 import { playbackPresentation } from './presentation.mjs';
-import { createSpectrumEngine, createSpectrumDriver, renderSpectrumFieldText, spectrumEnergy, hashSeed, STRIP_BANDS, ROW_HEIGHT } from './spectrum-bars.mjs';
+import { createSpectrumEngine, createSpectrumDriver, renderSpectrumGrid, spectrumWaterLine, spectrumEnergy, hashSeed, STRIP_BANDS, ROW_HEIGHT } from './spectrum-bars.mjs';
+import { createWhaleDirector, stampWhale } from './spectrum-whale.mjs';
 
 // 工作区背景层：DSH 没有会话背景插槽（0.2.1-rc.3 的 slot 只有 main／
 // conversation.content／shell.*），因此挂在本插件可用的 shell.overlay 条目上，
@@ -61,7 +62,9 @@ function readGeometry(root, target) {
 const sameGeometry = (a, b) => (a === b) || (a && b
   && a.left === b.left && a.top === b.top && a.width === b.width && a.height === b.height);
 
-export function SpectrumBackdrop({ controller, usePanelInfo }) {
+// whaleEager 只给预览 harness 与回归用：生产注册不传，彩蛋保持默认的低频
+// 节奏。用布尔 props 而不是 window 开关，避免页面脚本能改写彩蛋频率。
+export function SpectrumBackdrop({ controller, usePanelInfo, whaleEager = false }) {
   const state = React.useSyncExternalStore(controller.subscribe, controller.getSnapshot);
   const activePanelId = typeof usePanelInfo === 'function' ? usePanelInfo(info => info.activePanelId) : null;
   const rootRef = React.useRef(null);
@@ -70,6 +73,8 @@ export function SpectrumBackdrop({ controller, usePanelInfo }) {
   const frameRef = React.useRef(null);
   const phaseRef = React.useRef(0);
   const activeRef = React.useRef(false);
+  const whaleVisualRef = React.useRef(null);
+  const seedSourceRef = React.useRef('standby');
   const columnsRef = React.useRef(24);
   const rowsRef = React.useRef(48);
   const progressRef = React.useRef(0);
@@ -89,6 +94,7 @@ export function SpectrumBackdrop({ controller, usePanelInfo }) {
   // 动画循环重启。模拟循环在下一帧自己读取最新值。
   React.useEffect(() => { progressRef.current = progressPercent(current) / 100; });
   React.useEffect(() => { activeRef.current = playing; });
+  React.useEffect(() => { seedSourceRef.current = seedSource; }, [seedSource]);
   // 面板打开或用户关闭背景时整层不渲染，动画循环也随之停止，不留后台空转。
   const visible = Boolean(state.spectrumVisible) && activePanelId !== 'fishfm';
   // 真实容器测量：目标出现／消失、侧栏拖动、正文宽度拖动和窗口缩放都会重算。
@@ -160,19 +166,33 @@ export function SpectrumBackdrop({ controller, usePanelInfo }) {
       : state.motion === 'reduced' || prefersReduced ? 'reduced' : 'full';
     const driver = createSpectrumDriver({ engine,
       initialFrame: frameRef.current, initialPhase: phaseRef.current });
+    const whale = createWhaleDirector({
+      seed: hashSeed(`whale:${seedSourceRef.current}`),
+      // 预览里点了「鲸鱼彩蛋」就跳过长冷却，方便截图；生产不传这个 prop。
+      ...(whaleEager ? { cooldown: 0, firstDelay: 0, chance: 1 } : {}),
+    });
     const paint = () => {
       const { frame, phase } = driver;
       frameRef.current = frame;
       phaseRef.current = phase;
-      if (textRef.current) {
-        textRef.current.textContent = renderSpectrumFieldText(frame.values, frame.peaks,
-          columnsRef.current, rowsRef.current, { phase });
+      if (!textRef.current) return;
+      // 鲸鱼与海水共用同一张字符矩阵：先铺海，再把鲸鱼和涟漪写进去，
+      // 因此它读起来是"从浪里冒出来"，不是叠在上面的一层挂件。
+      const grid = renderSpectrumGrid(frame.values, frame.peaks,
+        columnsRef.current, rowsRef.current, { phase });
+      if (whaleVisualRef.current) {
+        stampWhale(grid, whaleVisualRef.current, {
+          waterLine: spectrumWaterLine(rowsRef.current),
+          columns: columnsRef.current,
+        });
       }
+      textRef.current.textContent = grid.map(line => line.join('')).join('\n');
     };
     const options = () => ({ energy: spectrumEnergy(progressRef.current), active: activeRef.current });
     if (level === 'off') {
-      // 关闭动效：预积分一段静默时间，只画一张静态呼吸基线。
+      // 关闭动效：预积分一段静默时间，只画一张静态呼吸基线，鲸鱼不出现。
       driver.settle(2.4, { energy: spectrumEnergy(progressRef.current), active: false });
+      whaleVisualRef.current = null;
       paint();
       return undefined;
     }
@@ -183,7 +203,17 @@ export function SpectrumBackdrop({ controller, usePanelInfo }) {
     let animationFrame = 0, timer = 0, lastDraw = 0;
     const tick = () => {
       const now = performanceNow();
-      driver.advance(now, options());
+      const ticked = driver.advance(now, options());
+      // 彩蛋只在完整动效、真实播放且网格够宽时推进；任何一条不满足都会
+      // 立刻取消当前动画（暂停、停止、关闭效果、减少动态都由这里兜住）。
+      const motion = level === 'full';
+      const visual = whale.advance(ticked.changed ? ticked.steps * driver.step : 0, {
+        active: activeRef.current && motion,
+        allowed: motion,
+        columns: columnsRef.current,
+        rows: rowsRef.current,
+      });
+      whaleVisualRef.current = visual ?? null;
       if (now - lastDraw < FRAME_INTERVAL) return;
       lastDraw = now;
       paint();
@@ -191,6 +221,9 @@ export function SpectrumBackdrop({ controller, usePanelInfo }) {
     const onVisibility = () => {
       // 后台期间不推进模拟；回到前台从当前时刻重新计时，避免整段追赶。
       driver.reset(performanceNow());
+      // 后台期间彩蛋也停掉，避免回到前台看到半截鲸鱼。
+      whale.cancel();
+      whaleVisualRef.current = null;
       lastDraw = 0;
     };
     // 页面隐藏时 rAF 本就不派发；这里只为 setInterval 档和恢复时刻兜底。
@@ -209,7 +242,7 @@ export function SpectrumBackdrop({ controller, usePanelInfo }) {
       clearInterval(timer);
       document.removeEventListener?.('visibilitychange', onVisibility);
     };
-  }, [visible, state.motion]);
+  }, [visible, state.motion, whaleEager]);
   // 网格尺寸变化只影响采样分辨率，不重启动画：用最近一帧按新列数／行数重画。
   React.useEffect(() => {
     const frame = frameRef.current;

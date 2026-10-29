@@ -24,7 +24,7 @@ beta.3 的模型协议／最终回答与日常原生 Desktop 重启补验见 [N2
 
 [U21 反馈管理](U21-feedback-management.md) 提供查询／筛选／分页／逐条撤销、独立版本与防复活中立记录；隔离 DSH Web profile 的源码安装、启用和认证 RPC 单列记录。
 
-[U22 工作区背景 ASCII 频谱](U22-ascii-spectrum-backdrop.md) 记录 DSH 0.2.1-rc.3 的插槽/DOM 调查、正文容器实测挂载、ASCII 字符矩阵实现、模拟时钟计时修正（模拟与绘制节拍分离、后台恢复上限）、真实 FFT 阻碍与隔离 Web profile 的真实页面验证边界。
+[U22 工作区背景 ASCII 频谱](U22-ascii-spectrum-backdrop.md) 记录 DSH 0.2.1-rc.3 的插槽/DOM 调查、正文容器实测挂载、分层浪线 ASCII 海面、ASCII 鲸鱼彩蛋（同层合成、低频触发与安全取消）、模拟时钟计时修正（模拟与绘制节拍分离、后台恢复上限）、真实 FFT 阻碍与隔离 Web profile 的真实页面验证边界。
 
 | 记录 | 主题 |
 |---|---|

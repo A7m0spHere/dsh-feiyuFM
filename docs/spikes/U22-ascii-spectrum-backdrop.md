@@ -35,15 +35,21 @@
 - 动画 effect 依赖收敛：只依赖“可见性＋动效档位”；播放状态与进度改走 ref，普通快照刷新（`revision` 递增）或网格尺寸变化不再重启循环，`reseed` 对相同种子返回 `false` 且不清空目标。页面隐藏时不推进模拟，`visibilitychange` 回到前台先 `reset` 丢弃空档再按当前时刻继续；网格变化只用最近一帧按新行列重画。
 - 样式（`styles.mjs`）：定位与尺寸由内联几何给出；根元素 `pointer-events:none`、`aria-hidden`；无边框、无底色、无圆角、无阴影；`<pre>` 使用等宽字体、右侧 `mask-image` 渐隐（42% → 100%），浅色主题 `opacity:.17`、深色 `.32`、待机更低；`contain:strict` 限制重排影响。主题跟随宿主 `body[data-ds-dark-theme]`。
 - `src/ui/client/controller.mjs`：仅 `fishfm.spectrum.visible.v1` 可见性开关（默认开启），不保存位置、不进入 Core/RPC/模型事实。设置页“界面选项 → 背景频谱”。
-- 预览 harness 增加模拟侧栏与 `[data-conversation-content]`，保持与宿主 DOM 同构。
+- 预览 harness 增加模拟侧栏与 `[data-conversation-content]`，保持与宿主 DOM 同构；另加「鲸鱼彩蛋」按钮，只在预览里把冷却与首次延迟置零（`whaleEager`），生产注册不传这个 prop。
+- **鲸鱼彩蛋（2026-10-28）**：`src/ui/client/spectrum-whale.mjs`（纯逻辑，无 DOM、无自己的计时器）。字母格取自 [dsh-TUI](https://github.com/ccch1mneyyy/dsh-TUI) 的 `whaleFrames.ts`（MIT），原作为 [lhh010/dsh-ui-whale](https://github.com/lhh010/dsh-ui-whale) 的 40×25 手绘像素鲸鱼（BSD-3-Clause）；本项目只取 `standard`／`fin1`／`tail3`／`spout4` 四帧的"哪些格子有墨"轮廓，按包围盒块多数决降采样到 18×9，配色映射与全部渲染/状态机/合成代码重写，未复制上游调色板、ANSI 编码、Ink 组件或 `whaleGirl` 素材（授权与范围见 [第三方声明](../../THIRD_PARTY_NOTICES.md)）。
+  - 状态机 `lurk → emerge → breach → dive → ripple`（共 5.3 秒）：`submerge` 从 0.82 降到 0.02 再回到 0.94，出水阶段依次换 `fin`／`tail`／`spout` 姿态；涟漪阶段身体已完全撤出，网格里只剩水面圈。
+  - 触发是低频的：播放中每 10 秒掷一次 30% 的骰子，且距上次结束至少 `WHALE_COOLDOWN_S = 95` 秒、首次最早在 `WHALE_FIRST_DELAY_S = 28` 秒后；五分钟后平均不超过 1–3 次。
+  - 合成方式：`stampWhale(grid, …)` 直接改写海水那张 `rows × cols` 字符数组——露出水面的格子用原字形（`@ % o -`），没入水下的换成更淡的影子（`' ,`），出水处两侧补浪花，涟漪从入水点向两侧扩。因此 DOM 里始终只有一个 `<pre>`，鲸鱼没有独立的浮层、Z 序或 mouse 事件。
+  - 安全取消：暂停、停止、`motion != full`、面板打开、宽度不足 12 列、页面隐藏都会立刻 `cancel()` 并清掉当前视觉，不会留下半截鲸鱼。
 
 ## 验证
 
 2026-10-28，Windows 10.0.22631 / Node 24.22.1：
 
-- 单元／客户端：`test/spectrum-bars.test.mjs` 21 项。计时侧 6 项：采样率不改变运动、长空档按上限截断、`reset` 丢弃缓存空档、固定步长网格不漂移、同种子 reseed 为 no-op、帧快照不跟随活动缓冲；渲染侧按海面语义重写为「浪脊随能量抬升、水下逐层变稀、浪线连续（≥80% 墨点落在连续段、最宽浪段 ≥8 列）、浪脊高度与频段能量正相关（r>0.45）、安静时明显退潮、峰值标记与相位无关」，移除旧的「尖端更密／倒影更暗」镜面倒影断言。另有 `test/spectrum-backdrop.test.mjs` 4 项源码契约（动画走驱动层且不再有逐帧 `dt`、动画 effect 只依赖可见性与动效档位、种子只随曲目变、resize 只用最近一帧重画）。全量 `npm test` **608 项通过、0 失败、0 跳过**；169 模块检查与 `build:client` 通过。
+- 单元／客户端：`test/spectrum-bars.test.mjs` 21 项。计时侧 6 项：采样率不改变运动、长空档按上限截断、`reset` 丢弃缓存空档、固定步长网格不漂移、同种子 reseed 为 no-op、帧快照不跟随活动缓冲；渲染侧按海面语义重写为「浪脊随能量抬升、水下逐层变稀、浪线连续（≥80% 墨点落在连续段、最宽浪段 ≥8 列）、浪脊高度与频段能量正相关（r>0.45）、安静时明显退潮、峰值标记与相位无关」，移除旧的「尖端更密／倒影更暗」镜面倒影断言。`test/spectrum-whale.test.mjs` 11 项（字符合法性与矩形网格、不同宽度缩放不畸变、窄网格跳过、暂停/减少动态不出场、五阶段顺序与时长、五分钟内出现次数上限、事件中途取消、合成只改同一网格、水上实体水下影子、涟漪在身体消失后仍画且不越界、越界时不动海水）；`test/spectrum-backdrop.test.mjs` 5 项源码契约（动画走驱动层且不再有逐帧 `dt`、动画 effect 只依赖可见性/动效档位/预览用的 `whaleEager`、种子只随曲目变、resize 只用最近一帧重画、鲸鱼与海水共用一个 `<pre>` 且鲸鱼模块无 DOM 与自有计时器）。全量 `npm test` **620 项通过、0 失败、0 跳过**；171 模块检查与 `build:client` 通过。
 - **真实 DSH 隔离 Web profile**（复用 [N24](N24-dsh-background-acceptance.md) 的启动方式：`DSH_HOME` 临时目录、`dsh plugin add <repo> --offline`、`--patch` 夹具、认证 token 换 cookie），Chromium 实测：会话正文 `x=280,y=40,w=1160,h=860`；背景层 `x=280,y=40,w=160,h=860`（左缘完全贴合、满高）；`pointer-events:none`、透明背景、0 边框、71 行 × 28 列；浅色待机 opacity 0.1、深色 0.2；点击播放后 `data-active=true`、705 个字符、54 种字形且逐帧变化；暂停后 `data-active=false`，6 秒回落到 91 个字符的呼吸基线；控制台无错误。注入合成宽度手柄后宽度按公式缩到 140px，移除后恢复 160px（测量分支工作）。截图见本机 `work/real-*.png`（未入库）。上述为计时修正**之前**的现场记录，未重跑。
 - 预览 harness（`work/spectrum-backdrop-check.py`，海面改版后重跑）：背景层 `x=280,y=65,w=160,h=935` 与正文容器左缘／高度完全一致；透明背景、0 边框、0 圆角、无阴影、`pointer-events:none`、`aria-hidden`；播放中 532 字符／8 种字形且逐帧变化、浪脊极差 18 行，暂停 6 秒后 146 字符、浪脊极差降到 3 行（明显退潮）。轻量档仍在动、关闭档静态且不再逐帧变化；窄窗口（900px）留白不足时整层隐藏不压正文；面板开关能卸载整层并恢复。`ISSUES: none`。截图见 `work/spectrum-{idle,playing,dark,paused,narrow,motion-off}.png`（未入库）。
+- 预览 harness 的鲸鱼实测（同一脚本追加）：打开「鲸鱼彩蛋」后 14 秒内出现 2 次可截图的跃起/下潜画面，网格里出现 `@`／`%`／`o` 字形；暂停后 0.9 秒内这些字形全部消失，没有残留半截鲸鱼。截图见 `work/spectrum-whale-{1,2}.png`（未入库）。
 - 计时修正的量化复核：旧实现 60Hz 屏幕上 4 秒真实时间只推进约 0.41–0.68 秒模拟（取决于节流边界）；新驱动在 12／60／144Hz 三种采样下同一时刻的相位与频段值完全相同。
 
 ## 未验与边界
@@ -52,10 +58,13 @@
 - 计时修正只在预览 harness 与单元回归中验证，未重跑隔离 DSH 真实页面；真实桌面上的 12fps 表现、后台标签恢复与不同刷新率显示器仍需现场复核。
 - 活动会话中出现真实宽度手柄时的测量分支只做了合成手柄验证；长会话、右侧栏打开、全屏等组合未逐一实测。
 - 未做长时间 CPU/内存观测；背景层限制在 12fps、约 1.5k 字符（比柱状版更疏），无 GPU 资源，但没有性能承诺。
-- 海面改版同样只在预览 harness 与单元回归中验证，未重跑隔离 DSH 真实页面；真实桌面观感与不同 DPI／窗口宽度下的浪线密度仍需现场复核。
+- 海面改版与鲸鱼彩蛋同样只在预览 harness 与单元回归中验证，未重跑隔离 DSH 真实页面；真实桌面观感、不同 DPI／窗口宽度下的浪线密度、以及鲸鱼在真实会话滚动位置下的观感仍需现场复核。
+- 鲸鱼触发概率与冷却是在预览里用 `whaleEager` 强行提速验证的；默认节奏（95 秒冷却、30% 命中）只由单元测试覆盖，真实播放中"多久遇到一次"未观察。
+- 鲸鱼复用上游轮廓属衍生作品，已按 BSD-3-Clause 记录来源与许可；未做与上游字节级的逐帧比对，只保证字母格是同一形状的降采样。
 - 真实 FFT 未实现（阻碍见上）；当前频谱不反映真实声学能量，不检测歌词或节拍。
 
 ## 后续阶段
 
 - 第二阶段（ASCII 海面）**已完成**：`renderSpectrumField` 改为分层浪线，保留 `shell.overlay` 挂载与真实正文 DOM 定位，未引入 Three.js／WebGL 或新的运行时依赖，字符预算与 CPU 不高于柱状版。
-- 第三阶段（鲸鱼彩蛋，未开工）：素材优先参考 [dsh-TUI](https://github.com/ccch1mneyyy/dsh-TUI) 的像素鲸鱼帧（`src/components/whaleFrames.ts`，40×25 字母格，上游为 [lhh010/dsh-ui-whale](https://github.com/lhh010/dsh-ui-whale)，BSD-3-Clause），需要与第二阶段的分层字符矩阵同层合成（写进同一个 `<pre>` 的 `cells[]`，不做第二层 DOM），而不是贴图或 emoji；宽度不足时跳过整段动画，暂停／停止／关闭开关／减少动态时立即取消；复用前先把授权、版本与文件范围记入 [第三方声明](../../THIRD_PARTY_NOTICES.md)。
+- 第三阶段（鲸鱼彩蛋）**已完成**：字母格取自 dsh-TUI 的像素鲸鱼帧并降采样到 18×9，与海面写入同一张字符矩阵（DOM 里仍只有一个 `<pre>`，无贴图、无 emoji、无第二层浮层）；低频触发＋95 秒冷却、窄网格跳过、暂停/停止/关闭开关/减少动态立即取消。授权、版本与文件范围已记入 [第三方声明](../../THIRD_PARTY_NOTICES.md)。
+- 第四阶段（视觉验收）：仍需在真实隔离 DSH 环境补浅色/深色、播放/暂停、鲸鱼跃起/下潜、窄窗口与侧栏展开的截图或录屏；本轮只有预览 harness 的证据。

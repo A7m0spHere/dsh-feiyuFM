@@ -174,7 +174,7 @@ harnessBundle.apply({connection,layout,effect(fn){fn()},slots:{inject(_name,fn){
 const panel=registrations.find(r=>r.options.name==='main'),overlays=registrations.filter(r=>r.options.name==='shell.overlay'),controller=panel.options.inject().controller;
 const previewStyle=document.querySelector('style[data-plugin="fishfm"]'),normalCss=previewStyle.textContent;
 function Harness(){
- const [page,setPage]=React.useState(active),[dark,setDark]=React.useState(false),[settings,setSettings]=React.useState(false),[demo,setDemo]=React.useState(false);changeActive=setPage;
+ const [page,setPage]=React.useState(active),[dark,setDark]=React.useState(false),[settings,setSettings]=React.useState(false),[demo,setDemo]=React.useState(false),[whaleEager,setWhaleEager]=React.useState(false);changeActive=setPage;
  const show=id=>{active=id;setPage(id)};
  return React.createElement(React.Fragment,null,
   React.createElement('header',{className:'preview-toolbar'},React.createElement('span',{className:'preview-note'},'界面预览 · 模拟数据 · 不播放声音'),
@@ -185,6 +185,7 @@ function Harness(){
    React.createElement('button',{onClick:()=>{empty=!empty;controller.refresh()}},'切换空库'),
    React.createElement('button',{onClick:()=>{snapshot.paused=!snapshot.paused;snapshot.status=snapshot.paused?'paused':'playing';controller.refresh()}},'播放/暂停演示'),
    React.createElement('button',{onClick:()=>{connected=!connected;controller.refresh()}},'切换连接'),
+   React.createElement('button',{onClick:()=>setWhaleEager(value=>!value),'aria-pressed':String(whaleEager)},'鲸鱼彩蛋'),
    React.createElement('select',{'aria-label':'挑歌预览状态',defaultValue:'ready',onChange:event=>{
     pickerScenario=event.target.value;pickerRetryAt=pickerNow()+(pickerScenario==='finishing'?3500:15*60000);controller.refresh();
    }},...[['ready','可换批'],['cooldown','旧宿主等待'],['finishing','旧宿主即将到期'],['searching','找歌中'],['filtering','挑歌中'],['budget','预算用完'],['limit','次数用完'],['failure','请求失败'],['race','并发任务']].map(([value,label])=>React.createElement('option',{value,key:value},label)))),
@@ -192,7 +193,10 @@ function Harness(){
    React.createElement('div',{className:'preview-sidebar','aria-hidden':true}),
    React.createElement('div',{className:'preview-center','data-conversation-content':'','data-conversation-region':'chat'},
     page==='fishfm'?React.createElement('main',{className:settings?'preview-settings':'preview-main'},React.createElement(panel.component,{...panel.options.inject(),...(settings?{close:()=>setSettings(false)}:{})})):React.createElement('div',{className:'preview-conversation'},'对话面板 · 音乐服务独立于可见页面')),
-   React.createElement('div',{'data-shell-overlay':''},overlays.map((overlay,index)=>React.createElement(overlay.component,{key:overlay.options.id??index,...overlay.options.inject(),usePanelInfo:fn=>fn({activePanelId:page})})))));
+   React.createElement('div',{'data-shell-overlay':''},overlays.map((overlay,index)=>React.createElement(overlay.component,{key:overlay.options.id??index,...overlay.options.inject(),
+     // 预览专用：把鲸鱼彩蛋调成"立刻出现"，免去等待 95 秒冷却才能截图。
+     ...(overlay.options.id==='fishfm.spectrum'?{whaleEager}:{}),
+     usePanelInfo:fn=>fn({activePanelId:page})})))));
 }
 ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(Harness));
 setInterval(()=>{if(!snapshot.paused&&snapshot.current)snapshot.current.positionMs=Math.min(snapshot.current.positionMs+1000,snapshot.current.track.durationMs)},1000);

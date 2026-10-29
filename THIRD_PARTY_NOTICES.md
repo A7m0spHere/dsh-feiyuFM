@@ -89,3 +89,42 @@ SOFTWARE.
 ## DeepSeek Balance Whale Widget — reference only
 
 The widget's bubble, compact status, and three-dot menu informed the FishFM overlay. No code or artwork was copied. The upstream repository states that its code is MIT-licensed while `assets/**` is outside that grant; FishFM therefore uses the project's own generated art in `src/ui/assets/`. See [upstream provenance](https://raw.githubusercontent.com/MeteorNOX/DeepSeek-Balance-Whale-Widget/main/PROVENANCE.md).
+
+## Pixel-whale ASCII frames — BSD-3-Clause
+
+`src/ui/client/spectrum-whale.mjs` 里的鲸鱼字母格（`WHALE_POSES` 的 `standard` / `fin` / `tail` / `spout` 四个 18×9 姿态）是上游手绘像素鲸鱼的降采样衍生：原作为 [lhh010/dsh-ui-whale](https://github.com/lhh010/dsh-ui-whale) 的 `sprites/whale-frames.json`（作者 @lhh010，BSD-3-Clause），经 [ccch1mneyyy/dsh-TUI](https://github.com/ccch1mneyyy/dsh-TUI)（MIT）的 `src/components/whaleFrames.ts`（提交时 `main`，22 帧 40×25 字母格，含 `standard`/`fin1`/`tail3`/`spout4`）读取。本项目在 2026-10-28 取其"哪些格子有墨"的轮廓信息，按包围盒做块多数决降采样到 18 宽，并重写配色映射（`@`/`%`/`o`/`-`）与全部渲染、状态机与合成代码。
+
+- 复用范围：仅上述四个姿态的**降采样轮廓**；未复制上游的调色板、ANSI 编码、Ink 组件、`whaleIdle.ts` 行为、`whaleGirl` 素材或其 `frames.json`。
+- 上游 `assets/whaleGirl/` 是用户提供的表情包 GIF 转制，**不在本次复用范围**。
+- 本项目 MIT 不改变上述帧的 BSD-3-Clause 授权；再分发时须保留下列版权、条件与免责声明。来源、版本与取舍见 [U22](docs/spikes/U22-ascii-spectrum-backdrop.md)。
+
+```text
+BSD 3-Clause License
+
+Copyright (c) 2026, lhh010
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are met:
+
+1. Redistributions of source code must retain the above copyright notice, this
+   list of conditions and the following disclaimer.
+
+2. Redistributions in binary form must reproduce the above copyright notice,
+   this list of conditions and the following disclaimer in the documentation
+   and/or other materials provided with the distribution.
+
+3. Neither the name of the copyright holder nor the names of its
+   contributors may be used to endorse or promote products derived from
+   this software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+```
