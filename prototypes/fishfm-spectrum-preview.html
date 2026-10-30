@@ -12,9 +12,9 @@ output{font-size:12px;font-variant-numeric:tabular-nums}p{max-width:480px;line-h
 <header><strong>ASCII Fluid Spectrum</strong><span>模拟频段 · 同尺寸、同时间、同输入</span>
 <select id="fps" aria-label="绘制频率"><option>24</option><option>12</option></select><span>fps</span>
 <button id="theme">深浅色</button><button id="pause">播放 / 暂停</button><output id="perf"></output></header>
-<main><section><h2>A · 密度柱</h2><div class="field fm-spectrum-bg" data-ready="true" data-active="true"><canvas id="a"></canvas></div></section>
-<section><h2>B · 轻微流体扭曲</h2><div class="field fm-spectrum-bg" data-ready="true" data-active="true"><canvas id="b"></canvas></div></section>
-<aside><p>两个区域均为 160 × 760px，使用生产字色、透明度与渐隐。主运动是柱高，次运动是弯曲，细节是慢速密度流动。</p>
+<main><section><h2>A · 左锚密度条</h2><div class="field fm-spectrum-bg" data-ready="true" data-active="true"><canvas id="a"></canvas></div></section>
+<section><h2>B · 末端上下轻摆</h2><div class="field fm-spectrum-bg" data-ready="true" data-active="true"><canvas id="b"></canvas></div></section>
+<aside><p>无鲸鱼方向预览：两个区域均为 160 × 760px，使用生产字色、透明度与渐隐。频段从上到下排列，左端固定，能量增加向右伸长、下降向左回缩。</p>
 <p>相同亮度场映射到字符；B 用 Canvas 保留亚字符位移。没有复制时钟、引擎或引入 Three.js。</p></aside></main>
 <script type="module">
 import {createSpectrumEngine,createSpectrumDriver,renderSpectrumScene} from '/spectrum-bars.mjs';

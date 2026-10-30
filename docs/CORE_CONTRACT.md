@@ -75,7 +75,7 @@ Host `library` 接收 `query/offset/limit`：关键词最多 200 字符，offset
 
 ### 本地频谱渲染边界
 
-工作区背景只读取既有安全播放快照与本机动效偏好，不新增 RPC、模型事实或持久化频谱数据。`createSpectrumEngine().step(dt, {frequencyBands})` 为未来归一化频段预留本地输入口：非空数组按频率位置采样并限于 0..1，缺省／空数组使用模拟输入，均经过相同包络和峰值链；该口尚未接入真实 FFT。渲染输出统一字符矩阵、连续位移和底锚柱信息，鲸鱼改写同一矩阵后交给一个透明 Canvas；UI 不接受媒体 URL、凭据或音频样本。见 [U22](spikes/U22-ascii-spectrum-backdrop.md)。
+工作区背景只读取既有安全播放快照与本机动效偏好，不新增 RPC、模型事实或持久化频谱数据。`createSpectrumEngine().step(dt, {frequencyBands})` 为未来归一化频段预留本地输入口：非空数组按频率位置采样并限于 0..1，缺省／空数组使用模拟输入，均经过相同包络和峰值链；该口尚未接入真实 FFT。渲染输出统一字符矩阵、上下连续位移与左侧基线／水平条长信息，鲸鱼改写同一矩阵后交给一个透明 Canvas；UI 不接受媒体 URL、凭据或音频样本。见 [U22](spikes/U22-ascii-spectrum-backdrop.md)。
 
 ### 历史反馈管理
 

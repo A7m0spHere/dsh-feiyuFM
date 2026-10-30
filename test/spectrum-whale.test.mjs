@@ -150,7 +150,7 @@ test('solid whale rows occlude bar glyphs and clear displacement within the silh
   assert.equal(offsets[8][3], 0.3, 'unoccupied bar cells retain their own displacement');
 });
 
-test('above the local column tops the body is solid, while submerged cells are faint shadows', () => {
+test('above the local activity band the body is solid, while submerged cells are faint shadows', () => {
   const base = blank();
   const director = eager();
   let visual = null;
@@ -165,6 +165,22 @@ test('above the local column tops the body is solid, while submerged cells are f
   assert.ok(above.filter(char => '@%o'.includes(char)).length > 8, 'the breach must show a readable body');
   assert.equal(below.filter(char => '@%o'.includes(char)).length, 0, 'submerged cells must not look like another solid whale');
   assert.ok(base.flat().some(char => char !== ' '));
+});
+
+test('a whale only occludes its local row band and leaves other left-anchored strips intact', () => {
+  const scene = renderSpectrumScene(new Array(28).fill(0.7), new Array(28).fill(0.7), 26, 80,
+    { phase: 0.5 });
+  const before = scene.grid.map(row => row.join(''));
+  const whale = { column: 5, submerge: 0, frame: ['@..@', '@%%@', '@@@@'], ripple: null };
+  const line = spectrumWhaleLine(scene, whale);
+  assert.ok(line > 8 && line < 72, 'the event belongs to an interior frequency band');
+  assert.equal(stampWhale(scene.grid, whale, { waterLine: line, columns: 26, offsets: scene.offsets }), true);
+  for (let y = 0; y < 80; y++) {
+    if (y >= line - 3 && y <= line + 2) continue;
+    assert.equal(scene.grid[y].join(''), before[y], 'other vertical frequency positions are untouched');
+  }
+  assert.equal(scene.grid[0][0], before[0][0], 'the upper left-anchored frequency strip survives');
+  assert.equal(scene.grid.at(-1)[0], before.at(-1)[0], 'the lower strip geometry is not moved to a waterline');
 });
 
 test('the compact ripple outlives the whale and stays inside the same grid', () => {

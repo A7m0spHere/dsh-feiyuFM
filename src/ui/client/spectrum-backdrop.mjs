@@ -69,13 +69,23 @@ const sameGeometry = (a, b) => (a === b) || (a && b
 function composeField(painter, frame, whale, columns, rows, phase, fluid = true) {
   if (!painter || !frame) return;
   const strength = whale ? whale.phase === 'lurk' ? 0.65 : whale.phase === 'ripple' ? whale.ripple.fade * 0.35 : 0.4 : 0;
-  const scene = renderSpectrumScene(frame.values, frame.peaks, columns, rows, { phase, fluid, ramp: painter.ramp,
-    disturbance: whale ? { center: whale.column + (whale.frame?.[0]?.length ?? 8) / 2,
-      width: whale.frame?.[0]?.length ?? 8, strength } : null });
+  const fieldOptions = { phase, fluid, ramp: painter.ramp };
+  let scene = renderSpectrumScene(frame.values, frame.peaks, columns, rows, fieldOptions);
   if (whale) {
-    // 一次跃出沿同一个局部水位运动，避免被附近起落的柱顶拖着跳；缩窗按比例重画。
+    // 选定一个纵向频段带，从该带的右端附近浮出。行带不随条长变化；同次事件
+    // 固定行/列比例，避免被伸缩的条端拖着跳；缩窗仍在同一张字符网格内重画。
     if (!Number.isFinite(whale.waterLineRatio)) whale.waterLineRatio = spectrumWhaleLine(scene, whale) / rows;
-    stampWhale(scene.grid, whale, { waterLine: Math.round(whale.waterLineRatio * rows), columns, offsets: scene.offsets });
+    const line = Math.round(whale.waterLineRatio * rows);
+    const width = whale.frame?.[0]?.length ?? 8;
+    if (!Number.isFinite(whale.columnRatio)) {
+      const band = scene.bars.reduce((closest, item) => Math.abs(item.center - line) < Math.abs(closest.center - line) ? item : closest,
+        scene.bars[0]);
+      whale.columnRatio = Math.max(1, Math.min(columns - width - 1, Math.round((band?.end ?? columns * 0.6) - width * 0.65))) / columns;
+    }
+    const column = Math.max(1, Math.min(columns - width - 1, Math.round(whale.columnRatio * columns)));
+    scene = renderSpectrumScene(frame.values, frame.peaks, columns, rows, { ...fieldOptions,
+      disturbance: { center: line, width: (whale.frame?.length ?? 5) * 1.6, strength } });
+    stampWhale(scene.grid, { ...whale, column }, { waterLine: line, columns, offsets: scene.offsets });
   }
   painter.paint(scene);
 }
@@ -119,8 +129,8 @@ export function SpectrumBackdrop({ controller, usePanelInfo, whaleEager = false,
   // 永远攒不够时间。暂停、停止、出错才是用户真的不想听了，必须立刻取消。
   const listening = Boolean(state.connected && snapshot) && !snapshot.paused
     && !snapshot.lastError && snapshot.status !== 'idle';
-  // 已开始的音乐在换曲 resolving 间隙仍保持背景能量；否则柱群会突然退到
-  // 底部，把仍在跃出的鲸鱼留在半空。首次准备不提前启动，暂停/停止仍取消。
+  // 已开始的音乐跨 resolving 间隙保持背景能量，避免水平条突然全部缩回左端。
+  // 首次准备不提前启动，暂停/停止仍取消。
   const playing = presentation.active || (listening && activeRef.current);
   const seedSource = current
     ? `${current.playInstanceId ?? ''}:${current.track?.provider ?? ''}:${current.track?.providerTrackId ?? ''}`
@@ -253,7 +263,10 @@ export function SpectrumBackdrop({ controller, usePanelInfo, whaleEager = false,
         rows: rowsRef.current,
       });
       if (listening) activeSeconds += delta;
-      if (visual) visual.waterLineRatio = whaleVisualRef.current?.waterLineRatio;
+      if (visual) {
+        visual.waterLineRatio = whaleVisualRef.current?.waterLineRatio;
+        visual.columnRatio = whaleVisualRef.current?.columnRatio;
+      }
       whaleVisualRef.current = visual ?? null;
       if (now - lastDraw < FRAME_INTERVAL) return;
       lastDraw = now - ((now - lastDraw) % FRAME_INTERVAL);
@@ -303,5 +316,6 @@ export function SpectrumBackdrop({ controller, usePanelInfo, whaleEager = false,
     : { display: 'none' };
   return h('div', { ref: rootRef, className: 'fm-spectrum-bg', 'data-active': playing,
     'data-ready': geometry ? 'true' : undefined, 'data-motion': state.motion || 'full',
+    'data-columns': columns, 'data-rows': rows,
     'aria-hidden': 'true', style: { ...style, pointerEvents: 'none' } }, h('canvas', { ref: canvasRef }));
 }

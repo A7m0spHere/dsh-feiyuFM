@@ -10,6 +10,8 @@ import { playbackPresentation } from '../src/ui/client/presentation.mjs';
 // 静态／媒体查询 effect，验证换曲连续性、主题重画与清理；不挂载真实 DOM。
 const source = readFileSync(new URL('../src/ui/client/spectrum-backdrop.mjs', import.meta.url), 'utf8');
 const barSource = readFileSync(new URL('../src/ui/client/spectrum-bars.mjs', import.meta.url), 'utf8');
+const canvasSource = readFileSync(new URL('../src/ui/client/spectrum-canvas.mjs', import.meta.url), 'utf8');
+const styleSource = readFileSync(new URL('../src/ui/client/styles.mjs', import.meta.url), 'utf8');
 
 const effectDeps = [];
 // 逐个 effect 切分：先按 `React.useEffect(() => {` 切开，再在每段里找紧随其后的
@@ -63,7 +65,7 @@ test('the engine treats an unchanged seed as a no-op', () => {
 test('the whale and spectrum share one canvas and one simulation clock', () => {
   assert.equal((source.match(/h\('canvas'/g) || []).length, 1, 'one display canvas owns the shared scene');
   assert.doesNotMatch(source, /h\('pre'/, 'a duplicate text renderer must not run alongside the canvas');
-  assert.match(source, /stampWhale\(scene\.grid, whale, \{/, 'the whale modifies the existing bar grid');
+  assert.match(source, /stampWhale\(scene\.grid,/, 'the whale modifies the existing bar grid');
   assert.match(source, /offsets: scene\.offsets/, 'occlusion also resets the displaced bar cells');
   assert.match(source, /painter\.paint\(scene\)/, 'the final composed scene is painted once');
   const whaleSource = readFileSync(new URL('../src/ui/client/spectrum-whale.mjs', import.meta.url), 'utf8');
@@ -101,7 +103,7 @@ test('a started spectrum stays active across track preparation and resets on pau
   const preparing = { status: 'resolving', paused: false, lastError: null };
   assert.equal(commit(preparing).playing, false, 'the first preparation must not start a fake active spectrum');
   assert.equal(commit(playing).playing, true);
-  assert.equal(commit(preparing).playing, true, 'resolving between tracks retains the column energy under an active whale');
+  assert.equal(commit(preparing).playing, true, 'resolving between tracks retains strip energy under an active whale');
   assert.equal(commit({ ...preparing, status: 'selecting' }).playing, true, 'selection between tracks also keeps the established spectrum');
   assert.deepEqual(commit({ ...preparing, status: 'paused', paused: true }), { playing: false, listening: false });
   assert.equal(commit(preparing).playing, false, 'after a pause, preparation cannot reuse stale active energy');
@@ -125,7 +127,7 @@ test('animation frames and resize repaints use the same bar + whale compositor',
   const animated = effectDeps.find(entry => entry.body.includes('createSpectrumDriver('));
   assert.match(repaint.body, /composeField\(painterRef\.current, frameRef\.current, whaleVisualRef\.current/);
   assert.match(animated.body, /composeField\(painterRef\.current, frame, whaleVisualRef\.current/);
-  assert.match(source, /spectrumWhaleLine\(scene, whale\)/, 'the shared compositor chooses a local column-top jump line');
+  assert.match(source, /spectrumWhaleLine\(\w+, whale\)/, 'the compositor chooses a local vertical activity band');
   assert.match(source, /waterLineRatio/, 'a breach keeps its water line stable while bars keep moving');
 });
 
@@ -236,7 +238,7 @@ test('the background retains semantic geometry and never becomes an interactive 
   assert.doesNotMatch(source, /document\.body\.append|position: 'fixed'/);
 });
 
-test('canvas paints the continuous offsets in CSS pixels and clears the previous frame', () => {
+test('canvas keeps glyphs upright and fixed in X while applying continuous vertical offsets', () => {
   const scene = renderSpectrumScene([0.8], [0.8], 26, 60, { phase: 1 });
   const drawn = [], cleared = [], transforms = [];
   const context = { canvas: { width: 0, height: 0 },
@@ -254,8 +256,10 @@ test('canvas paints the continuous offsets in CSS pixels and clears the previous
   for (let y = 0; y < scene.grid.length; y++) for (let x = 0; x < scene.grid[y].length; x++) {
     if (scene.grid[y][x] === ' ') continue;
     const call = drawn[index++];
-    const expectedX = (x + 0.5 + scene.offsets[y][x]) * 160 / 26;
-    assert.ok(Math.abs(call[1] - expectedX) < 1e-9, 'canvas must preserve the fractional displacement');
+    const expectedX = (x + 0.5) * 160 / 26;
+    const expectedY = (y + 0.5 + scene.offsets[y][x]) * 720 / 60;
+    assert.ok(Math.abs(call[1] - expectedX) < 1e-9, 'X must stay on the horizontal grid; the strip does not slide sideways');
+    assert.ok(Math.abs(call[2] - expectedY) < 1e-9, 'Y preserves fractional fluid motion toward the right tip');
     assert.ok(call[1] >= 0 && call[1] < 160 && call[2] > 0 && call[2] < 720);
     if (scene.offsets[y][x] !== 0) subcharacterMotion++;
   }
@@ -263,6 +267,9 @@ test('canvas paints the continuous offsets in CSS pixels and clears the previous
   assert.equal(drawSpectrumScene(context, { grid: [], offsets: [] },
     { width: 160, height: 720, font: '12px monospace', color: '#1255aa' }), 0);
   assert.equal(cleared.length, 2, 'empty scenes clear stale bars and whales too');
+  assert.doesNotMatch(canvasSource, /\.rotate\s*\(/, 'drawing the horizontal spectrum must not rotate ASCII glyphs');
+  const canvasStyle = styleSource.match(/\.fm-spectrum-bg canvas\s*\{([^}]+)/)?.[1] ?? '';
+  assert.doesNotMatch(canvasStyle, /rotate\s*\(/, 'CSS cannot rotate the canvas to fake the new coordinate system');
 });
 
 test('density calibration sorts the actual glyph ink rather than trusting charset indexes', () => {

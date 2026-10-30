@@ -185,7 +185,7 @@ export function createSpectrumDriver({ engine, step = SIM_STEP, maxCatchUp = MAX
   };
 }
 
-// 连续亮度场 → 统一字符网格。列数决定能容纳的柱数，不扩大背景宽度。
+// 连续亮度场 → 正向可读字符网格：Y 排列频段，X 表示从左基线起的长度。
 export function sampleSpectrumBand(series, position) {
   if (!series?.length) return 0;
   const at = clamp01(position) * (series.length - 1);
@@ -194,13 +194,13 @@ export function sampleSpectrumBand(series, position) {
 }
 
 const smoothUnit = value => { const x = clamp01(value); return x * x * (3 - 2 * x); };
-export function spectrumWaterLine(rows) { return Math.max(0, Math.round(rows) - 1); }
+// 仅是鲸鱼在频段中的局部活动行，不参与频谱的左侧基线计算。
+export function spectrumWaterLine(rows) { return Math.max(2, Math.round((Number(rows) || 8) * 0.5)); }
 
-// 返回字形和连续位移；Canvas 保留亚字符位移，纯文本对照只取 grid。
-// 底部位移恒为 0，越靠近柱顶越自由；相邻柱共享主波、带有各自的次波。
-export function spectrumBend(bar, relativeHeight, phase, fluid = true) {
+// offsets 是上下方向的亚字符位移。左端恒为 0，沿条长平滑增加；不旋转字形。
+export function spectrumBend(bar, relativeLength, phase, fluid = true) {
   if (!fluid) return 0;
-  return Math.pow(clamp01(relativeHeight), 1.7) * (0.24 * Math.sin(phase * 1.15 + bar * 0.64)
+  return Math.pow(clamp01(relativeLength), 1.7) * (0.24 * Math.sin(phase * 1.15 + bar * 0.64)
     + 0.1 * Math.sin(phase * 1.83 - bar * 0.91));
 }
 
@@ -210,66 +210,55 @@ export function renderSpectrumScene(values, peaks, columns, rows,
   const rowCount = Math.max(8, Math.min(120, Math.round(Number(rows) || 0)));
   const grid = Array.from({ length: rowCount }, () => new Array(cols).fill(' '));
   const offsets = Array.from({ length: rowCount }, () => new Array(cols).fill(0));
-  const baseline = rowCount - 1;
+  const baseline = 0; // Sidebar 右边界对应容器最左列，与画布底部无关。
   const bars = [];
   if (!values?.length) return { grid: [], offsets: [], bars, baseline };
-  const count = Math.min(values.length, Math.max(1, Math.floor((cols - 1) / 5)));
-  const pitch = cols / count;
-  const halfWidth = Math.min(1.65, (pitch - 1.4) / 2);
-  const maxHeight = rowCount - 4;
-  const densityRamp = ramp.length > 1 ? ramp : FIELD_RAMP;
+  // 每条两行，至少空一行；上下各留一行防止弯曲裁切。条数仅随高度/频段数变化。
+  const count = Math.min(values.length, 32, Math.max(1, Math.floor((rowCount - 2) / 3)));
+  const pitch = (rowCount - 2) / count;
+  const densityRamp = ramp?.length > 1 ? ramp : FIELD_RAMP;
   for (let b = 0; b < count; b++) {
     const position = count === 1 ? 0.5 : b / (count - 1);
     const value = sampleSpectrumBand(values, position);
     const peak = Math.max(value, sampleSpectrumBand(peaks ?? values, position));
-    const center = pitch * (b + 0.5);
-    // 鲸鱼潜伏/出入水只短暂抬升附近的柱，结束后本帧重新从频段输入生成。
+    const startRow = 1 + Math.floor(b * pitch + (pitch - 2) / 2);
+    const endRow = startRow + 1;
+    const center = startRow + 1;
     const local = disturbance ? Math.exp(-(((center - disturbance.center) / Math.max(2, disturbance.width * 0.55)) ** 2)) : 0;
     const lift = local * (Number(disturbance?.strength) || 0);
-    const height = Math.min(maxHeight, Math.max(1, value * maxHeight + lift * 3));
-    const top = baseline + 1 - height;
-    const bar = { center, height, top, value, peak, halfWidth };
-    bars.push(bar);
-    const left = Math.max(0, Math.ceil(center - halfWidth - 0.5));
-    const right = Math.min(cols - 1, Math.floor(center + halfWidth - 0.5));
-    for (let y = Math.max(0, Math.floor(top)); y <= baseline; y++) {
-      const relative = clamp01((baseline - y) / Math.max(1, height - 1));
-      const bend = spectrumBend(b, relative, phase, fluid) + local * lift * 0.08 * relative;
-      const tip = smoothUnit((y + 1 - top) / 2.2);
-      for (let x = left; x <= right; x++) {
-        const edge = smoothUnit((halfWidth - Math.abs(x + 0.5 - center)) / 1.2);
-        const flow = Math.sin(y * 0.24 + b * 0.71 - phase * 0.55) * 0.055
-          + Math.sin(y * 0.47 - b * 1.2 + phase * 0.31) * 0.025;
-        const brightness = clamp01((0.32 + edge * 0.46 + value * 0.09 + flow) * (0.28 + tip * 0.72));
-        const index = Math.max(1, Math.round(brightness * (densityRamp.length - 1)));
-        grid[y][x] = densityRamp[index];
+    const length = Math.min(cols, Math.max(0, value * cols + lift * 2));
+    bars.push({ center, startRow, endRow, length, end: baseline + length, value, peak });
+    for (let x = baseline; x < Math.ceil(length); x++) {
+      const relative = clamp01(x / Math.max(1, length - 1));
+      const bend = spectrumBend(b, relative, phase, fluid) + local * lift * 0.06 * relative;
+      const tip = smoothUnit((length - x) / 2.2);
+      for (let y = startRow; y <= endRow; y++) {
+        const flow = Math.sin(x * 0.38 + b * 0.63 - phase * 0.55) * 0.055
+          + Math.sin(x * 0.7 + (y - startRow) * 1.9 - b * 0.81 + phase * 0.31) * 0.025;
+        const brightness = clamp01((0.66 + value * 0.12 + flow) * (0.22 + tip * 0.78));
+        grid[y][x] = densityRamp[Math.max(1, Math.round(brightness * (densityRamp.length - 1)))];
         offsets[y][x] = bend;
       }
     }
-    // 独立峰值帽只占中央一格，避免连成水平浪线。
+    // 峰值点留在右端前方的一格，峰值回落沿 X 轴向左，不改变条体起点。
     if (peak > value + 0.055) {
-      const y = Math.max(0, Math.floor(baseline + 1 - peak * maxHeight));
-      const x = Math.min(cols - 1, Math.floor(center));
-      if (y < Math.floor(top) - 1) {
-        grid[y][x] = ':';
-        offsets[y][x] = spectrumBend(b, 1, phase, fluid);
+      const x = Math.min(cols - 1, Math.floor(peak * cols));
+      if (x > Math.ceil(length)) {
+        grid[startRow][x] = ':';
+        offsets[startRow][x] = spectrumBend(b, 1, phase, fluid);
       }
     }
   }
   return { grid, offsets, bars, baseline };
 }
 
-// 鲸鱼从局部柱顶跃出，不从整片工作区中央或屏幕固定高度出现。
+// 鲸鱼选择中部某个频段作为活动带，不再从竖柱 top/height 计算水位。
 export function spectrumWhaleLine(scene, whale) {
-  if (!whale || !scene.bars.length) return scene.baseline;
-  const width = whale.frame?.[0]?.length ?? 8;
-  const center = whale.column + width / 2;
-  let sum = 0, weights = 0;
-  for (const bar of scene.bars) {
-    const weight = Math.exp(-(((bar.center - center) / Math.max(3, width * 0.6)) ** 2));
-    sum += bar.top * weight; weights += weight;
-  }
-  return Math.max(8, Math.min(scene.baseline - 2, Math.round(sum / weights + 2)));
+  if (!whale || !scene.bars.length) return spectrumWaterLine(scene.grid.length);
+  const cols = scene.grid[0]?.length || 1;
+  const ratio = 0.32 + 0.3 * clamp01((whale.column + (whale.frame?.[0]?.length ?? 8) / 2) / cols);
+  const index = Math.min(scene.bars.length - 1, Math.floor(scene.bars.length * ratio));
+  return scene.bars[index].endRow;
 }
 
 export function renderSpectrumGrid(values, peaks, columns, rows, options) {

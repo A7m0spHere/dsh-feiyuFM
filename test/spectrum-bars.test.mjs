@@ -75,7 +75,6 @@ test('band count clamps to the supported range', () => {
   assert.equal(createSpectrumEngine({}).bands, 24);
 });
 
-const column = (grid, index) => grid.map(line => line[index] ?? ' ');
 const inked = grid => grid.flatMap(line => [...line]).filter(char => char !== ' ').length;
 
 test('external normalized bands retain their ordering, clamp amplitude and bypass simulated pulses', () => {
@@ -124,96 +123,142 @@ test('the simulated bands contain separate peaks and valleys instead of a fixed 
     'all bands must not breathe up and down in lockstep');
 });
 
-test('the scene clamps its rectangular grid and every glyph and offset stays in bounds', () => {
-  const values = new Array(16).fill(0.6), peaks = new Array(16).fill(0.8);
+test('the scene clamps its rectangular grid and vertical displacements stay in bounds', () => {
+  const values = new Array(28).fill(0.6), peaks = new Array(28).fill(0.8);
   for (const [requestedColumns, requestedRows, cols, rows] of [[24, 40, 24, 40], [1, 1, 4, 8], [1000, 1000, 64, 120]]) {
     const scene = renderSpectrumScene(values, peaks, requestedColumns, requestedRows);
     assert.equal(scene.grid.length, rows);
     assert.equal(scene.offsets.length, rows);
-    assert.equal(scene.baseline, rows - 1);
+    assert.equal(scene.baseline, 0, 'the common baseline is the left column, never the bottom row');
     scene.grid.forEach((line, y) => {
       assert.equal(line.length, cols);
       assert.equal(scene.offsets[y].length, cols);
       for (let x = 0; x < cols; x++) {
         assert.ok(FIELD_RAMP.includes(line[x]), `unexpected density glyph ${line[x]}`);
         assert.ok(Number.isFinite(scene.offsets[y][x]));
-        if (line[x] !== ' ') assert.ok(x + scene.offsets[y][x] >= 0 && x + scene.offsets[y][x] < cols,
-          'the subcharacter displacement cannot push visible glyphs outside the grid');
+        if (line[x] !== ' ') assert.ok(y + 0.5 + scene.offsets[y][x] >= 0 && y + 0.5 + scene.offsets[y][x] < rows,
+          'the vertical subcharacter displacement cannot push glyphs outside the grid');
       }
     });
   }
   assert.deepEqual(renderSpectrumField([], [], 12, 20), []);
 });
 
-test('bar heights map monotonically to frequency energy and share the bottom baseline', () => {
+test('frequency order runs from top to bottom and energy controls horizontal length from the left edge', () => {
   const values = [0.1, 0.3, 0.55, 0.75, 1];
   const scene = renderSpectrumScene(values, values, 26, 60, { fluid: false });
   assert.equal(scene.bars.length, values.length);
   scene.bars.forEach((bar, index) => {
-    assert.equal(bar.value, values[index], 'left-to-right frequency order is retained');
-    assert.ok(Math.abs(bar.top + bar.height - (scene.baseline + 1)) < 1e-9,
-      'every bar grows upward from the same bottom edge');
-    if (index) assert.ok(bar.height > scene.bars[index - 1].height);
-    const chars = column(scene.grid, Math.floor(bar.center));
-    assert.notEqual(chars.at(-1), ' ', 'each bar has a visible foot on the bottom row');
-    for (let y = Math.floor(bar.top); y <= scene.baseline; y++) {
-      assert.notEqual(chars[y], ' ', 'the body stays vertically connected even when frozen');
+    assert.equal(bar.value, values[index], 'frequency order is retained vertically');
+    assert.ok(Math.abs(bar.length - values[index] * 26) < 1e-9, 'barLength = normalizedEnergy * availableWidth');
+    assert.ok(Math.abs(bar.end - bar.length) < 1e-9, 'the moving right endpoint is measured from x=0');
+    if (index) {
+      assert.ok(bar.center > scene.bars[index - 1].center, 'successive frequency bands sit lower in the workspace');
+      assert.ok(bar.length > scene.bars[index - 1].length);
+    }
+    const chars = scene.grid[Math.floor(bar.center)];
+    assert.notEqual(chars[0], ' ', 'all visible strips have a fixed foot in the first column');
+    const occupied = chars.join('').match(/[^ ]+/g) ?? [];
+    assert.equal(occupied.length, 1, 'each strip has one horizontally connected body');
+    assert.equal(occupied[0].length, Math.ceil(bar.length), 'the right endpoint follows energy, not the row count');
+    for (let x = 0; x < Math.ceil(bar.length); x++) assert.notEqual(chars[x], ' ');
+    for (let x = Math.ceil(bar.length); x < 26; x++) assert.equal(chars[x], ' ');
+  });
+});
+
+test('increasing and decreasing a band grows and retracts only its right end while its left anchor stays fixed', () => {
+  const frame = energy => renderSpectrumScene(new Array(28).fill(energy), new Array(28).fill(energy), 26, 80,
+    { phase: 0.7, fluid: false });
+  const quiet = frame(0.2), loud = frame(0.8), returned = frame(0.2), zero = frame(0);
+  quiet.bars.forEach((bar, index) => {
+    const row = Math.floor(bar.center);
+    assert.equal(loud.bars[index].center, bar.center, 'the band does not move vertically when its energy changes');
+    assert.equal(returned.bars[index].center, bar.center);
+    const span = scene => scene.grid[row].join('').replace(/ +$/, '');
+    assert.equal(span(quiet).length, 6);
+    assert.equal(span(loud).length, 21);
+    assert.equal(span(returned).length, 6, 'energy release removes the right portion, not the left foot');
+    for (const scene of [quiet, loud, returned]) {
+      assert.notEqual(scene.grid[row][0], ' ');
+      assert.equal(scene.offsets[row][0], 0, 'the first character cannot wander with motion');
     }
   });
-  assert.ok(scene.bars.at(-1).height > scene.bars[0].height * 5, 'energy changes must have visible height range');
+  assert.equal(inked(zero.grid), 0, 'zero energy has zero horizontal length, with no fake bottom cluster');
 });
 
-test('dense bodies have sparse tips, multiple glyph levels, and visible gaps between bars', () => {
-  const scene = renderSpectrumScene([0.8], [0.8], 26, 60, { phase: 1.2, fluid: false });
+test('bar density depends on available rows and spans the whole workspace rather than collecting at the bottom', () => {
+  const values = new Array(64).fill(0.7);
+  const normal = renderSpectrumScene(values, values, 26, 80);
+  assert.equal(normal.bars.length, 26, 'an 80-row workspace has roughly the requested 20–32 strips');
+  const narrow = renderSpectrumScene(values, values, 12, 80);
+  const wide = renderSpectrumScene(values, values, 40, 80);
+  assert.equal(narrow.bars.length, normal.bars.length, 'reducing horizontal width does not turn frequency bands into columns');
+  assert.equal(wide.bars.length, normal.bars.length);
+  assert.ok(renderSpectrumScene(values, values, 26, 20).bars.length < normal.bars.length);
+  assert.equal(renderSpectrumScene(values, values, 26, 120).bars.length, 32, 'a tall grid reaches the 32-band density cap');
+  assert.ok(renderSpectrumScene(values, values, 26, 96).bars.length <= 32, 'top and bottom clearance may reduce the count');
+  assert.ok(normal.bars[0].center < 8 && normal.bars.at(-1).center > 72,
+    'the first and last bands cover the top and bottom portions');
+  for (const [start, end] of [[0, 26], [26, 53], [53, 80]]) {
+    assert.ok(inked(normal.grid.slice(start, end)) > 0, 'upper, middle and lower regions all carry strips');
+  }
+  const occupiedRows = normal.grid.map(line => line.some(glyph => glyph !== ' '));
+  const runs = occupiedRows.map(on => on ? 'x' : ' ').join('').match(/x+/g) ?? [];
+  assert.equal(runs.length, normal.bars.length, 'each band is separated by at least one empty grid row');
+  assert.ok(runs.every(run => run.length === 2), 'a two-row body remains substantial without merging neighbouring strips');
+});
+
+test('horizontal bodies use several density glyphs with softer right tips and blank interband rows', () => {
+  const values = new Array(28).fill(0.8);
+  const scene = renderSpectrumScene(values, values, 26, 80, { phase: 1.2, fluid: false });
   const glyphs = new Set(scene.grid.flat().filter(char => char !== ' '));
-  assert.ok(glyphs.size >= 4, 'a bar must have a density texture rather than repeated pipes');
-  const first = scene.bars[0];
-  const x = Math.floor(first.center);
-  const tip = FIELD_RAMP.indexOf(scene.grid[Math.floor(first.top)][x]);
-  const body = FIELD_RAMP.indexOf(scene.grid[Math.min(scene.baseline, Math.ceil(first.top) + 4)][x]);
-  assert.ok(body > tip, `the body should be denser than the soft cap: ${body} vs ${tip}`);
-  const runs = scene.grid.at(-1).join('').match(/[^ ]+/g) ?? [];
-  assert.equal(runs.length, scene.bars.length, 'the bottom row must preserve a separate footprint for each bar');
-  assert.ok(runs.every(run => run.length >= 2 && run.length <= 4), 'bars are substantial but never merge into a horizontal line');
+  assert.ok(glyphs.size >= 4, 'the strip needs an ASCII density texture rather than repeated pipes or equals');
+  const row = Math.floor(scene.bars[0].center);
+  const tip = FIELD_RAMP.indexOf(scene.grid[row][Math.ceil(scene.bars[0].length) - 1]);
+  const body = FIELD_RAMP.indexOf(scene.grid[row][3]);
+  assert.ok(body > tip, `the body is denser than the soft right tip: ${body} vs ${tip}`);
+  assert.ok([...glyphs].some(glyph => !'|=~-/\\'.includes(glyph)), 'the visible body is not a CSS-like rule or wave line');
 });
 
-test('fluid motion preserves the occupancy grid and uses continuous subcharacter displacements', () => {
-  const a = renderSpectrumScene([0.8], [0.8], 26, 60, { phase: 0.4, fluid: false });
-  const b = renderSpectrumScene([0.8], [0.8], 26, 60, { phase: 0.4, fluid: true });
-  assert.deepEqual(b.grid, a.grid, 'bending must not randomly remove or shuffle glyphs');
+test('fluid motion keeps horizontal occupancy and uses continuous vertical displacement with a fixed left foot', () => {
+  const values = new Array(28).fill(0.8);
+  const a = renderSpectrumScene(values, values, 26, 80, { phase: 0.4, fluid: false });
+  const b = renderSpectrumScene(values, values, 26, 80, { phase: 0.4, fluid: true });
+  assert.deepEqual(b.grid, a.grid, 'bending cannot randomly remove or shuffle glyphs');
   assert.ok(a.offsets.flat().every(offset => offset === 0), 'the A prototype stays straight');
-  assert.ok(b.offsets.flat().some(offset => Math.abs(offset) > 0.05), 'the B prototype has visible secondary motion');
-  assert.ok(b.offsets.at(-1).every(offset => offset === 0), 'the feet never wander');
+  assert.ok(b.offsets.flat().some(offset => Math.abs(offset) > 0.05), 'the B prototype has secondary motion');
+  assert.ok(b.offsets.every(row => row[0] === 0), 'the left anchor never moves up or down');
   for (let bar = 0; bar < b.bars.length; bar++) {
-    for (const height of [0, 0.25, 0.5, 0.75, 1]) {
+    for (const distance of [0, 0.25, 0.5, 0.75, 1]) {
       for (let tick = 0; tick < 480; tick++) {
         const phase = tick / 24;
-        const bend = spectrumBend(bar, height, phase);
-        const next = spectrumBend(bar, height, phase + 1 / 240);
-        assert.ok(Math.abs(bend) <= 0.35, 'bending cannot erase interbar gaps');
+        const bend = spectrumBend(bar, distance, phase);
+        const next = spectrumBend(bar, distance, phase + 1 / 240);
+        assert.ok(Math.abs(bend) <= 0.35, 'bending cannot erase the vertical gaps');
         assert.ok(Math.abs(next - bend) < 0.004, 'motion is continuous rather than integer grid jumps');
-        if (height === 0) assert.ok(bend === 0, 'the baseline displacement stays zero');
+        if (distance === 0) assert.ok(bend === 0, 'the left baseline displacement stays zero');
       }
     }
   }
 });
 
-test('held peaks remain local above their bars and moving texture changes gradually', () => {
-  const values = [0.2, 0.3, 0.25, 0.4, 0.35];
-  const peaks = [0.9, 0.3, 0.25, 0.4, 0.35];
-  const held = renderSpectrumScene(values, peaks, 26, 60, { phase: 0.4 });
-  const body = renderSpectrumScene(values, values, 26, 60, { phase: 0.4 });
-  const heldCells = held.grid.flat(), bodyCells = body.grid.flat();
-  const differences = heldCells.filter((glyph, index) => glyph !== bodyCells[index]).length;
-  assert.equal(differences, 1, 'one held peak draws one local cap rather than a water line');
-  const soon = renderSpectrumScene(values, peaks, 26, 60, { phase: 0.4 + 1 / 24 });
-  const soonCells = soon.grid.flat();
-  const changed = heldCells.filter((glyph, index) => glyph !== soonCells[index]).length;
-  assert.ok(changed / inked(held.grid) < 0.1, 'slow density flow must not turn the whole body into flicker');
-  assert.equal(renderSpectrumFieldText(values, peaks, 26, 60, { phase: 0.4 }), held.grid.map(line => line.join('')).join('\n'));
+test('held peaks stay to the right of their strips and density texture changes gradually', () => {
+  const values = new Array(28).fill(0.3), peaks = [...values]; peaks[0] = 0.9;
+  const held = renderSpectrumScene(values, peaks, 26, 80, { phase: 0.4 });
+  const body = renderSpectrumScene(values, values, 26, 80, { phase: 0.4 });
+  const differences = [];
+  held.grid.forEach((row, y) => row.forEach((glyph, x) => { if (glyph !== body.grid[y][x]) differences.push({x,y}); }));
+  assert.equal(differences.length, 1, 'one held peak leaves one local cap rather than a horizontal water line');
+  assert.ok(differences[0].x > held.bars[0].end, 'peak holding extends rightward, never upward from the bottom');
+  assert.ok(Math.abs(differences[0].y - held.bars[0].center) <= 1);
+  const soon = renderSpectrumScene(values, peaks, 26, 80, { phase: 0.4 + 1 / 24 });
+  const cells = held.grid.flat(), next = soon.grid.flat();
+  const changed = cells.filter((glyph, index) => glyph !== next[index]).length;
+  assert.ok(changed / inked(held.grid) < 0.1, 'slow density flow must not turn the body into flicker');
+  assert.equal(renderSpectrumFieldText(values, peaks, 26, 80, { phase: 0.4 }), held.grid.map(line => line.join('')).join('\n'));
 });
 
-test('resize rebuilds bounded bars at the same phase and pause leaves a low bottom anchored field', () => {
+test('resize preserves left anchors and paused strips contract near the sidebar throughout the height', () => {
   const engine = createSpectrumEngine({ seed: 9, bands: 28 });
   const playing = snapshotFrame(stepFor(engine, 2, { active: true, energy: 1 }));
   const paused = snapshotFrame(stepFor(engine, 3, { active: false }));
@@ -222,26 +267,30 @@ test('resize rebuilds bounded bars at the same phase and pause leaves a low bott
     const quiet = renderSpectrumScene(paused.values, paused.peaks, columns, rows, { phase: 1 });
     assert.equal(active.grid.length, rows);
     assert.ok(active.grid.every(line => line.length === columns));
-    assert.ok(inked(quiet.grid) < inked(active.grid) * 0.5, 'pause should visibly settle the spectrum');
-    assert.ok(quiet.bars.every(bar => bar.height < rows * 0.15));
-    assert.ok(quiet.offsets.at(-1).every(offset => offset === 0));
+    assert.ok(inked(quiet.grid) < inked(active.grid) * 0.5, 'pause visibly contracts horizontal lengths');
+    assert.ok(quiet.bars.every(bar => bar.length < columns * 0.15));
+    assert.ok(quiet.offsets.every(row => row[0] === 0));
+    assert.ok(quiet.bars.at(-1).center >= rows * 0.85, 'quiet bands remain spread vertically, not bottom anchored');
   }
 });
 
-test('whale disturbances lift nearby bars temporarily and the jump line follows local bar tops', () => {
-  const values = [0.2, 0.35, 0.75, 0.55, 0.4];
-  const ordinary = renderSpectrumScene(values, values, 26, 60, { phase: 1 });
-  const disturbed = renderSpectrumScene(values, values, 26, 60,
-    { phase: 1, disturbance: { center: ordinary.bars[2].center, width: 4, strength: 1 } });
-  const lifts = disturbed.bars.map((bar, index) => bar.height - ordinary.bars[index].height);
-  assert.ok(lifts[2] > 2 && lifts[2] > lifts[0] * 3, 'the pre-breach swell stays local');
+test('whale disturbances extend nearby horizontal strips and select a local vertical activity band', () => {
+  const values = new Array(28).fill(0.4);
+  const ordinary = renderSpectrumScene(values, values, 26, 80, { phase: 1 });
+  const middle = Math.floor(ordinary.bars.length / 2);
+  const disturbed = renderSpectrumScene(values, values, 26, 80,
+    { phase: 1, disturbance: { center: ordinary.bars[middle].center, width: 4, strength: 1 } });
+  const extensions = disturbed.bars.map((bar, index) => bar.length - ordinary.bars[index].length);
+  assert.ok(extensions[middle] > 1.5 && extensions[middle] > extensions[0] * 3, 'the pre-breach pulse extends the nearby strips while staying local in Y');
   const jump = { column: 9, frame: ['........'] };
   const line = spectrumWhaleLine(ordinary, jump);
-  assert.ok(line >= 8 && line < ordinary.baseline - 2, 'the whale emerges from column tops, not the workspace bottom');
-  assert.deepEqual(renderSpectrumScene(values, values, 26, 60, { phase: 1 }), ordinary,
+  assert.ok(line >= 8 && line < 72, 'the whale uses an interior row band rather than bottom baseline zero');
+  const brighter = renderSpectrumScene(new Array(28).fill(0.9), new Array(28).fill(0.9), 26, 80);
+  assert.equal(spectrumWhaleLine(brighter, jump), line,
+    'changing rightward lengths must not turn the whale waterline back into vertical column tops');
+  assert.deepEqual(renderSpectrumScene(values, values, 26, 80, { phase: 1 }), ordinary,
     'ending the event leaves no persistent disturbance state');
 });
-
 test('energy arc is fuller in the middle of a song than at the edges', () => {
   assert.ok(spectrumEnergy(0.5) > spectrumEnergy(0.02));
   assert.ok(spectrumEnergy(0.5) > spectrumEnergy(0.98));

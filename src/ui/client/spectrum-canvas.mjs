@@ -34,7 +34,7 @@ export function drawSpectrumScene(context, scene, { width, height, font, color, 
     const glyph = scene.grid[y][x];
     if (glyph === ' ') continue;
     const offset = scene.offsets[y]?.[x] || 0;
-    context.fillText(glyph, (x + 0.5 + offset) * cellWidth, (y + 0.5) * cellHeight);
+    context.fillText(glyph, (x + 0.5) * cellWidth, (y + 0.5 + offset) * cellHeight);
     glyphs++;
   }
   return glyphs;
