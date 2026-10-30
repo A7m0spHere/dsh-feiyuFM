@@ -121,7 +121,7 @@ export function scoreCandidate({
     repeatPenalty,
     freshness,
     randomValue,
-    relationship,seedAffinity,environment,diversityPenalty,userFeedback,feedback,llmRank,llmBoost,graphAffinity,algorithm:'local-v6',
+    relationship,seedAffinity,environment,diversityPenalty,userFeedback,feedback,llmRank,llmBoost,graphAffinity,algorithm:'local-v7',
   };
 }
 
@@ -167,9 +167,9 @@ export function createSelector({
 
     const prepare = (tracks) => {
       const all = [...new Map(tracks.map(track=>[trackId(track),{track,key:trackId(track)}])).values()];
-      const usable = all
-        .filter(({ track, key }) => !banned.has(key) && !excluded.has(key) && store.isTrackAvailable(track,at) && isPlayable(track));
-      return { all, usable };
+      const eligible = all.filter(({track,key})=>!banned.has(key)&&store.isTrackAvailable(track,at)&&isPlayable(track));
+      const usable = eligible.filter(({key})=>!excluded.has(key));
+      return { all, usable, recentBlocked:eligible.some(({key})=>recent.keys.has(key)) };
     };
 
     const familiarPool = prepare(listFamiliar(options));
@@ -178,9 +178,9 @@ export function createSelector({
     const offered = familiarPool.all.length + discoveryPool.all.length+queuePool.all.length;
     const wantsDiscovery = rate > 0 && (rate >= 1 || rng() < rate);
     const tierOf=key=>repeatTier(key,{recent,plays,at,cooldownMs:parameters.cooldownMs});
-    const maxTier=options.allowRepeatFallback===false?1:2;
     let tier=0,familiar=[],discovery=[],queue=[];
-    for(;tier<=maxTier;tier++){
+    // The 50-start window is a hard filter. Only elapsed-time cooldown may relax.
+    for(;tier<=1;tier++){
       familiar=familiarPool.usable.filter(c=>tierOf(c.key)===tier);
       discovery=rate>0?discoveryPool.usable.filter(c=>tierOf(c.key)===tier):[];
       queue=queuePool.usable.filter(c=>tierOf(c.key)===tier);
@@ -203,17 +203,10 @@ export function createSelector({
     const finish=(best,pool)=>({track:best.track,pool,fellBack:pool!=='discovery'&&wantsDiscovery,
       fallbackReason:pool!=='discovery'&&wantsDiscovery?'discovery pool had no usable track':null,
       score:best.detail.score,detail:{...best.detail,repeat:{window:RECENT_PLAYBACK_LIMIT,
-        relaxed:tier>0,reason:tier===2?'recent-exhausted':tier===1?'cooldown-exhausted':null,
+        relaxed:tier>0,reason:tier===1?'cooldown-exhausted':null,
         distance:recent.positions.has(best.key)?recent.entries.length-recent.positions.get(best.key).index:null}},
       considered,discoveryRate:rate,attemptedDiscovery:wantsDiscovery});
 
-    if(tier===2&&(queue.length||familiar.length||discovery.length)){
-      const candidates=[...queue.map(c=>({...c,pool:'queue'})),...familiar.map(c=>({...c,pool:'familiar'})),...discovery.map(c=>({...c,pool:'discovery'}))];
-      // Last playback order wins before affinity, LLM rank or pool preference.
-      const oldest=Math.min(...candidates.map(c=>recent.positions.get(c.key).index));
-      const candidate=candidates.find(c=>recent.positions.get(c.key).index===oldest);
-      return finish({...candidate,detail:scoreCandidate({track:candidate.track,store,now:at,plays,context,randomValue:0,parameters})},candidate.pool);
-    }
     if(queue.length){const best=queue[0];return finish({...best,detail:scoreCandidate({track:best.track,store,now:at,plays,context,randomValue:0,parameters})},'queue');}
 
     if (wantsDiscovery && discovery.length) {
@@ -229,10 +222,12 @@ export function createSelector({
     // Nothing usable: the caller waits instead of retrying in a loop. The reason
 // distinguishes "there is no music yet" from "everything was filtered out",
 // because those need different things from the user.
+    const recentBlocked=familiarPool.recentBlocked||queuePool.recentBlocked||(rate>0&&discoveryPool.recentBlocked);
     return {
       track: null, pool: null, fellBack: wantsDiscovery,
       fallbackReason: wantsDiscovery && !discoveryPool.all.length ? 'discovery pool had no usable track' : null,
-      reason: offered > 0 ? 'every candidate was filtered out' : 'no candidates',
+      reason: recentBlocked?'recent-window-exhausted':offered > 0 ? 'every candidate was filtered out' : 'no candidates',
+      ...(recentBlocked?{detail:{algorithm:'local-v7',repeat:{window:RECENT_PLAYBACK_LIMIT,relaxed:false,reason:'recent-window-exhausted',distance:null}}}:{}),
       considered,
       discoveryRate: rate,
       attemptedDiscovery:wantsDiscovery,

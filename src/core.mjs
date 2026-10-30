@@ -372,25 +372,22 @@ export class MusicCore {
         const rate = this.state.settings.discovery ? this.state.settings.discoveryRate : 0;
         const selector=this.selector??this.queueSelector;
         const options={discoveryRate:rate,at:now,excludeTrackKeys:exclude,queuedTracks:this.state.queue};
-        let decision = selector.next({...options,allowRepeatFallback:false});
+        let decision = selector.next(options);
+        let recentBlocked=decision?.reason==='recent-window-exhausted';
         // 用户明确要求换曲：模型歌单没有可播曲目（未核对/冷却/不可用）时
         // 回退到输入曲库，而不是报错收场；自主续播不受此影响。
         if (this.selector&&!decision?.track) {
           decision = this.selector?.next({
-            ...options,libraryFallback:true,allowRepeatFallback:false,
+            ...options,libraryFallback:true,
           });
+          recentBlocked||=decision?.reason==='recent-window-exhausted';
           if (decision?.track) {
             decision = { ...decision, fellBack: true,
               fallbackReason: '模型歌单暂时没有可播的曲目，已回退你的输入曲库' };
           }
         }
-        if(!decision?.track)decision=selector.next(options);
-        if(this.selector&&!decision?.track){
-          decision=this.selector.next({...options,libraryFallback:true});
-          if(decision?.track)decision={...decision,fellBack:true,fallbackReason:'模型歌单暂时没有可播的曲目，已回退你的输入曲库'};
-        }
         if (!decision?.track) {
-          throw new MusicError('no_candidates', this._noCandidatesReason(true));
+          throw new MusicError('no_candidates', this._noCandidatesReason(true,recentBlocked?'recent-window-exhausted':decision?.reason));
         }
         this._applyRecommendation(decision,{trigger:'user-next',keepPaused:this.state.paused});
         break;
@@ -506,14 +503,15 @@ export class MusicCore {
         if (this._blockedUntil()) {
           throw new MusicError('autonomy_blocked', '今天已停止自主听歌。点击提示条里的「恢复自主听歌」即可重新开启。');
         }
-        throw new MusicError('no_candidates', this._noCandidatesReason());
+        throw new MusicError('no_candidates', this._noCandidatesReason(false,this.state.lastSelection?.reason));
       }
     }
     return this.snapshot();
   }
 
   /** 为什么现在没有可自动播放的歌曲，按推荐来源给出可操作的原因。 */
-  _noCandidatesReason(fallbackAttempted = false) {
+  _noCandidatesReason(fallbackAttempted = false, reason = null) {
+    if(reason==='recent-window-exhausted')return '最近 50 首播放过的歌曲暂不重复，请换一批新歌，也可以明确点播。';
     if(this.store.getSetting('recommendation_mode_v1')==='filtered'){
       const status=this.provider.discoveryStatus?.();
       if(status?.refreshing||status?.filtering)return '大肥鱼正在找歌和挑歌，稍后再开始听。';

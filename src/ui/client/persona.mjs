@@ -24,7 +24,7 @@ export function Persona({ state, controller }) {
   const pipeline = view.recommendationPipeline ?? state.snapshot?.discovery ?? {};
   const tracks = pipeline.pipeline === 'platform-filter' ? pipeline.tracks ?? [] : [];
   const playbackPool=pipeline.playbackPool;
-  const repeatFallback=state.snapshot?.current?.selectedBy==='agent'&&state.snapshot?.lastSelection?.detail?.repeat?.reason==='recent-exhausted';
+  const repeatWaiting=!state.snapshot?.current&&state.snapshot?.lastSelection?.reason==='recent-window-exhausted';
   const routes = state.summaryModels ?? [], key = route => JSON.stringify([route.provider, route.model]);
   const saved = view.recommendationRoute ?? view.lastModelRoute;
   const previous = saved && routes.find(route => route.provider === saved.provider && route.model === saved.model);
@@ -45,6 +45,7 @@ export function Persona({ state, controller }) {
     : pipeline.refreshing ? '我正在网易云找一些相近的歌…'
     : filtering ? '候选找到了，我正在挑歌…'
     : state.summaryBusy ? '正在准备新一批歌曲…'
+    : repeatWaiting ? '最近 50 首播放过的歌曲暂不重复，等待补充新歌，也可以手动点播。'
     : tracks.length ? !state.snapshot?.settings.discovery||state.snapshot?.settings.discoveryRate===0
       ? `这批挑了 ${tracks.length} 首，关闭探索时可以手动点播。` : `这批挑了 ${tracks.length} 首，可以点播或让我接着听。`
     : pipeline.selectionComplete ? '这批没有挑到合适的歌，可先点播参考歌曲。'
@@ -62,8 +63,7 @@ export function Persona({ state, controller }) {
   return h('section', { 'aria-label': '大肥鱼的歌单' },
     h('h2', null, '大肥鱼的歌单'),
     h('div', { className: 'fm-card fm-persona-card', 'aria-busy':Boolean(busy) },
-      state.connected&&playbackPool&&h('p',{className:'fm-note'},`待播池 ${playbackPool.total} 首 · 窗口外可选 ${playbackPool.available} 首 · 近期暂避 ${playbackPool.recentBlocked} 首`),
-      state.connected&&repeatFallback&&h('p',{className:'fm-note'},'可用新曲不足，先重播较早的歌曲。'),
+      state.connected&&playbackPool&&h('p',{className:'fm-note'},`待播池 ${playbackPool.total} 首 · 窗口外可选 ${playbackPool.available} 首 · 近 50 次已播 ${playbackPool.recentBlocked} 首`),
       h('div', { className: 'fm-picks-head' }, h('p', { className: 'fm-note', role: 'status', 'aria-live': 'polite' }, status),
         h('button', { type: 'button', className: 'fm-button fm-primary', disabled: disabled || busy || action.disabled || !route || !referenceCount || !state.features?.personaSummary,
           onClick: () => controller.personaAction('recommendations', { provider: route.provider, model: route.model }) }, busy ? filtering?'正在挑歌…':'正在找歌…' : action.label|| (state.summaryError?'再试一次':tracks.length ? '换一批' : '找一批歌'))),

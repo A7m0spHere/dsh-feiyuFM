@@ -71,7 +71,7 @@ test('search business failures retain their code and cannot be reported as missi
  }finally{store.close();}
 });
 
-test('user next may use the library while autonomous shortage replay stays inside the approved playlist',async()=>{
+test('user next may use fresh library tracks while autonomous shortage waits for the hard window',async()=>{
  const store=fixture();try{
   generate(store,2000,JSON.stringify({summary:'参考输入推荐',songs:[['Song 1','Artist 1']]}));
   const resolver=createModelRecommendationResolver({store,now:()=>3000,registry:{async search(){throw new Error('unexpected search');}}});
@@ -90,13 +90,11 @@ test('user next may use the library while autonomous shortage replay stays insid
   core.dispatch({type:'next',commandId:'n2'});await core.waitForIdle();
   assert.equal(core.snapshot().current.track.providerTrackId,'2','冷却中的歌单歌曲不重复，回退曲库选下一首');
   assert.ok(core.state.lastSelection.fallbackReason.includes('输入曲库'));
-  // 缺歌时只复用已批准的歌单歌曲，不把输入曲库变成自动池。
+  // 缺歌时保持等待，不重播窗口内歌曲，也不把输入曲库变成自动池。
   playback.emit({type:'ended',playInstanceId:core.snapshot().current.playInstanceId});await core.waitForIdle();
-  assert.equal(core.snapshot().current.track.providerTrackId,'1');
-  assert.equal(core.snapshot().lastSelection.detail.repeat.reason,'recent-exhausted');
-  core.dispatch({type:'next',commandId:'n3'});await core.waitForIdle();
-  assert.equal(core.snapshot().current.track.providerTrackId,'2');
-  assert.ok(core.snapshot().lastSelection.fallbackReason.includes('输入曲库'));
+  assert.equal(core.snapshot().current,null);
+  assert.equal(core.snapshot().lastSelection.reason,'recent-window-exhausted');
+  assert.throws(()=>core.dispatch({type:'next',commandId:'n3'}),e=>e.code==='no_candidates'&&e.message.includes('50'));
  }finally{store.close();}
 });
 

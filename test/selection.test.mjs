@@ -132,7 +132,7 @@ test('nothing to play returns a decision with no track so the caller waits', () 
   }
 });
 
-test('recent playback order survives time cooldown and only exhaustion permits a replay', () => {
+test('the recent playback window stays hard through pool exhaustion and elapsed cooldown', () => {
   const store = storeWithTracks(['1', '2']);
   try {
     // Realistic epoch-scale timestamps: a window subtraction must stay positive.
@@ -145,23 +145,23 @@ test('recent playback order survives time cooldown and only exhaustion permits a
     assert.equal(decision.detail.repeatPlays, 0);
     assert.deepEqual(decision.considered, { familiar: 1, discovery: 0, offered: 2 });
 
-    // With no song outside the count window, choose the oldest one.
+    // With no song outside the count window, wait rather than replay.
     recordPlay(store, n('2'), now - 5 * 60 * 1000);
     const cooled = selector.decide({ discoveryRate: 0, at: now });
-    assert.equal(cooled.track?.providerTrackId, '1', 'the cooling track is excluded, the expired one is available');
-    assert.deepEqual(cooled.considered, { familiar: 1, discovery: 0, offered: 2 });
-    assert.equal(cooled.detail.repeat.reason,'recent-exhausted');
+    assert.equal(cooled.track,null);
+    assert.deepEqual(cooled.considered, { familiar: 0, discovery: 0, offered: 2 });
+    assert.equal(cooled.reason,'recent-window-exhausted');
 
-    // Both cooling: keep playing the oldest non-current song, visibly relaxed.
+    // Updating history does not release a recent track.
     recordPlay(store, n('1'), now - 5 * 60 * 1000);
     const bothCooling = selector.decide({ discoveryRate: 0, at: now });
-    assert.equal(bothCooling.track.providerTrackId,'2');
-    assert.equal(bothCooling.detail.repeat.reason,'recent-exhausted');
+    assert.equal(bothCooling.track,null);
+    assert.equal(bothCooling.reason,'recent-window-exhausted');
 
     // 31 minutes later the cooldown has passed for both again.
     const later = selector.decide({ discoveryRate: 0, at: now + 31 * 60 * 1000 });
-    assert.ok(later.track, 'after the cooldown window a track is selectable again');
-    assert.equal(later.detail.repeat.reason,'recent-exhausted','elapsed time does not clear the playback-count window');
+    assert.equal(later.track,null);
+    assert.equal(later.reason,'recent-window-exhausted','elapsed time does not clear the playback-count window');
   } finally {
     store.close();
   }

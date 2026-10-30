@@ -44,7 +44,7 @@ export function repeatContext(store){
  return{entries,positions,keys:new Set(positions.keys()),lastTrackKey:entries.at(-1)?.trackKey??null};
 }
 
-/** Normal, time-cooldown relaxation, then least-recently-played relaxation. */
+/** Normal, time-cooldown relaxation, or blocked by the hard recent window. */
 export function repeatTier(key,{recent,plays,at,cooldownMs}){
  if(recent.keys.has(key))return 2;
  const last=plays.get(key)?.lastPlayedAt??-Infinity;

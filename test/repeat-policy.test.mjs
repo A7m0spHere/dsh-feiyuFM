@@ -57,26 +57,63 @@ test('100 candidates over 200 actual starts never repeat inside the last 50 inst
  }finally{f.store.close();}
 });
 
-test('a small pool rotates by oldest actual play even when one song has much higher affinity',async()=>{
- const f=fixture(3),sequence=[],decisions=[];
+test('a small pool waits after every track starts once and new candidates resume without replay',async()=>{
+ const f=fixture(3),sequence=[];
  f.store.setPreference({targetType:'track',targetKey:'netease:0',affinity:0.95,source:'seed',updatedAt:epoch});
  try{
   f.core.dispatch({type:'chooseSelf',commandId:'start'});await f.core.waitForIdle();
-  for(let i=0;i<12;i++){
+  for(let i=0;i<3;i++){
    const current=f.core.snapshot().current;
-   sequence.push(current.track.providerTrackId);decisions.push(f.core.snapshot().lastSelection.detail.repeat);
-   if(i===11)break;
+   sequence.push(current.track.providerTrackId);
    f.clock.advance(180000);
    f.playback.emit({type:'progress',playInstanceId:current.playInstanceId,positionMs:180000,effectiveDeltaMs:180000});
    f.playback.emit({type:'ended',playInstanceId:current.playInstanceId});await f.core.waitForIdle();
   }
-  assert.equal(new Set(sequence.slice(0,3)).size,3);
-  for(let i=3;i<sequence.length;i++)assert.equal(sequence[i],sequence[i-3]);
-  assert.ok(decisions.slice(3).every(r=>r.relaxed&&r.reason==='recent-exhausted'));
+  assert.equal(new Set(sequence).size,3);
+  assert.equal(f.core.snapshot().current,null);
+  assert.equal(f.core.snapshot().paused,false);
+  assert.equal(f.core.snapshot().lastSelection.reason,'recent-window-exhausted');
+  const decisions=f.store.getSetting('decision_history_v1').length;
+  f.clock.advance(86400000);
+  assert.equal(f.core.selectAutonomously(),false,'time alone cannot release the count window');
+  assert.equal(f.store.getSetting('decision_history_v1').length,decisions+1,'one explicit retry makes one decision');
+  assert.throws(()=>f.core.dispatch({type:'next',commandId:'no-replay'}),e=>e.code==='no_candidates'&&e.message.includes('50'));
+  f.tracks.push(track(3));
+  assert.equal(f.core.selectAutonomously(),true);
+  await f.core.waitForIdle();
+  assert.equal(f.core.snapshot().current.track.providerTrackId,'3');
+  assert.equal(recentPlayback(f.store).length,4);
+  assert.equal(f.store.db.prepare('SELECT COUNT(*) AS n FROM music_model_calls').get().n,0);
  }finally{f.store.close();}
 });
 
-test('cooldown relaxation prefers a song outside the 50-start window before replaying inside it',()=>{
+test('all 50 started tracks stay blocked until a new actual start moves the oldest out',async()=>{
+ const f=fixture(50),sequence=[];
+ try{
+  f.core.dispatch({type:'chooseSelf',commandId:'start'});await f.core.waitForIdle();
+  for(let i=0;i<50;i++){
+   const current=f.core.snapshot().current;assert.ok(current);
+   sequence.push(current.track.providerTrackId);
+   // Starting and immediately skipping still consumes a place in the window.
+   if(i<49){f.core.dispatch({type:'next',commandId:`skip-${i}`});await f.core.waitForIdle();}
+   else{f.playback.emit({type:'ended',playInstanceId:current.playInstanceId});await f.core.waitForIdle();}
+  }
+  assert.equal(new Set(sequence).size,50);
+  assert.equal(f.core.snapshot().current,null);
+  assert.equal(f.core.snapshot().lastSelection.reason,'recent-window-exhausted');
+  const selector=createSelector({store:f.store,listFamiliar:()=>f.tracks});
+  assert.equal(selector.decide({allowRepeatFallback:true,discoveryRate:0,at:f.clock.now()}).track,null,'legacy options cannot relax the hard window');
+  f.tracks.push(track(50));
+  assert.equal(f.core.selectAutonomously(),true);await f.core.waitForIdle();
+  assert.equal(f.core.snapshot().current.track.providerTrackId,'50');
+  assert.equal(recentPlayback(f.store).some(e=>e.trackKey===`netease:${sequence[0]}`),false);
+  const current=f.core.snapshot().current;
+  f.playback.emit({type:'ended',playInstanceId:current.playInstanceId});await f.core.waitForIdle();
+  assert.equal(f.core.snapshot().current.track.providerTrackId,sequence[0]);
+ }finally{f.store.close();}
+});
+
+test('cooldown relaxation permits only a song outside the 50-start window',()=>{
  const store=new MusicStore();
  try{
   for(let i=0;i<51;i++)remember(store,i,i,epoch+i*1000);

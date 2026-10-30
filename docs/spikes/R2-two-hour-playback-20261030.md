@@ -2,6 +2,8 @@
 
 记录日期：2026-10-30。关联 [Issue #8](https://github.com/A7m0spHere/dsh-feiyuFM/issues/8) Gate 0；当前验收状态统一见 [PROJECT_PLAN](../PROJECT_PLAN.md)。
 
+后续用户要求最近 50 首内不重复，实现与验证见 [N26](N26-hard-repeat-window.md)。下文保留修改前的实测与当时规则，不代表新版本仍允许小池重播。
+
 ## 结果与来源
 
 **两小时播放已完成（用户实测确认）：Windows DSH Desktop 持续自动换曲，没有卡住和报错；存在 10 首歌以内重复播放的问题。**
