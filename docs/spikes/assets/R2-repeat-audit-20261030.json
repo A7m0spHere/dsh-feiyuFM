@@ -140,5 +140,334 @@
     "A failed selection without an actual playback start is excluded.",
     "The user-reported two-hour period has no supplied date and is not identified by this audit.",
     "No credentials, account IDs, song names, platform IDs, media URLs or runtime database are exported."
-  ]
+  ],
+  "eveningActualStarts": {
+    "capturedAt": "2026-10-30T13:54:24.741Z",
+    "scopeFrom": "2026-10-30 18:00:00",
+    "scopeTo": "2026-10-30 21:54:24",
+    "source": "recent_playback_v1 actual starts; listen_history used only to classify subsequent end reason",
+    "counts": {
+      "actualStarts": 34,
+      "uniqueTracks": 30,
+      "naturalEnded": 28,
+      "skipped": 5,
+      "otherTerminated": 0,
+      "current": 1,
+      "withoutHistory": 1,
+      "repeats": 4,
+      "withinTen": 0
+    },
+    "repeats": [
+      {
+        "track": "T10",
+        "previousStartedAt": "2026-10-30 19:08:49",
+        "repeatedStartedAt": "2026-10-30 21:17:53",
+        "distance": 16,
+        "interveningSongs": 15,
+        "trigger": "automatic",
+        "repeat": {
+          "window": 50,
+          "relaxed": true,
+          "reason": "recent-exhausted",
+          "distance": 16
+        }
+      },
+      {
+        "track": "T12",
+        "previousStartedAt": "2026-10-30 19:19:11",
+        "repeatedStartedAt": "2026-10-30 21:24:25",
+        "distance": 15,
+        "interveningSongs": 14,
+        "trigger": "automatic",
+        "repeat": {
+          "window": 50,
+          "relaxed": true,
+          "reason": "recent-exhausted",
+          "distance": 15
+        }
+      },
+      {
+        "track": "T11",
+        "previousStartedAt": "2026-10-30 19:15:06",
+        "repeatedStartedAt": "2026-10-30 21:33:53",
+        "distance": 18,
+        "interveningSongs": 17,
+        "trigger": "automatic",
+        "repeat": {
+          "window": 50,
+          "relaxed": true,
+          "reason": "recent-exhausted",
+          "distance": 18
+        }
+      },
+      {
+        "track": "T13",
+        "previousStartedAt": "2026-10-30 20:30:45",
+        "repeatedStartedAt": "2026-10-30 21:39:24",
+        "distance": 18,
+        "interveningSongs": 17,
+        "trigger": "automatic",
+        "repeat": {
+          "window": 50,
+          "relaxed": true,
+          "reason": "recent-exhausted",
+          "distance": 18
+        }
+      }
+    ],
+    "timeline": [
+      {
+        "index": 1,
+        "track": "T01",
+        "startedAt": "2026-10-30 18:39:17",
+        "endReason": "ended",
+        "current": false
+      },
+      {
+        "index": 2,
+        "track": "T02",
+        "startedAt": "2026-10-30 18:44:02",
+        "endReason": "skipped",
+        "current": false
+      },
+      {
+        "index": 3,
+        "track": "T03",
+        "startedAt": "2026-10-30 18:44:55",
+        "endReason": "skipped",
+        "current": false
+      },
+      {
+        "index": 4,
+        "track": "T04",
+        "startedAt": "2026-10-30 18:45:28",
+        "endReason": "ended",
+        "current": false
+      },
+      {
+        "index": 5,
+        "track": "T05",
+        "startedAt": "2026-10-30 18:50:17",
+        "endReason": "ended",
+        "current": false
+      },
+      {
+        "index": 6,
+        "track": "T06",
+        "startedAt": "2026-10-30 18:53:32",
+        "endReason": "ended",
+        "current": false
+      },
+      {
+        "index": 7,
+        "track": "T07",
+        "startedAt": "2026-10-30 18:57:38",
+        "endReason": "ended",
+        "current": false
+      },
+      {
+        "index": 8,
+        "track": "T08",
+        "startedAt": "2026-10-30 19:01:50",
+        "endReason": "ended",
+        "current": false
+      },
+      {
+        "index": 9,
+        "track": "T09",
+        "startedAt": "2026-10-30 19:05:37",
+        "endReason": "ended",
+        "current": false
+      },
+      {
+        "index": 10,
+        "track": "T10",
+        "startedAt": "2026-10-30 19:08:49",
+        "endReason": "ended",
+        "current": false
+      },
+      {
+        "index": 11,
+        "track": "T11",
+        "startedAt": "2026-10-30 19:15:06",
+        "endReason": "ended",
+        "current": false
+      },
+      {
+        "index": 12,
+        "track": "T12",
+        "startedAt": "2026-10-30 19:19:11",
+        "endReason": "skipped",
+        "current": false
+      },
+      {
+        "index": 13,
+        "track": "T13",
+        "startedAt": "2026-10-30 20:30:45",
+        "endReason": "ended",
+        "current": false
+      },
+      {
+        "index": 14,
+        "track": "T14",
+        "startedAt": "2026-10-30 20:34:53",
+        "endReason": "ended",
+        "current": false
+      },
+      {
+        "index": 15,
+        "track": "T15",
+        "startedAt": "2026-10-30 20:37:07",
+        "endReason": "ended",
+        "current": false
+      },
+      {
+        "index": 16,
+        "track": "T16",
+        "startedAt": "2026-10-30 20:40:35",
+        "endReason": "ended",
+        "current": false
+      },
+      {
+        "index": 17,
+        "track": "T17",
+        "startedAt": "2026-10-30 20:44:39",
+        "endReason": "skipped",
+        "current": false
+      },
+      {
+        "index": 18,
+        "track": "T18",
+        "startedAt": "2026-10-30 20:47:58",
+        "endReason": "ended",
+        "current": false
+      },
+      {
+        "index": 19,
+        "track": "T19",
+        "startedAt": "2026-10-30 20:52:19",
+        "endReason": "ended",
+        "current": false
+      },
+      {
+        "index": 20,
+        "track": "T20",
+        "startedAt": "2026-10-30 20:55:26",
+        "endReason": "ended",
+        "current": false
+      },
+      {
+        "index": 21,
+        "track": "T21",
+        "startedAt": "2026-10-30 20:59:19",
+        "endReason": "ended",
+        "current": false
+      },
+      {
+        "index": 22,
+        "track": "T22",
+        "startedAt": "2026-10-30 21:03:36",
+        "endReason": "ended",
+        "current": false
+      },
+      {
+        "index": 23,
+        "track": "T23",
+        "startedAt": "2026-10-30 21:07:28",
+        "endReason": "ended",
+        "current": false
+      },
+      {
+        "index": 24,
+        "track": "T24",
+        "startedAt": "2026-10-30 21:12:22",
+        "endReason": "ended",
+        "current": false
+      },
+      {
+        "index": 25,
+        "track": "T25",
+        "startedAt": "2026-10-30 21:14:56",
+        "endReason": "ended",
+        "current": false
+      },
+      {
+        "index": 26,
+        "track": "T10",
+        "startedAt": "2026-10-30 21:17:53",
+        "endReason": "ended",
+        "current": false
+      },
+      {
+        "index": 27,
+        "track": "T12",
+        "startedAt": "2026-10-30 21:24:25",
+        "endReason": "ended",
+        "current": false
+      },
+      {
+        "index": 28,
+        "track": "T26",
+        "startedAt": "2026-10-30 21:30:22",
+        "endReason": "ended",
+        "current": false
+      },
+      {
+        "index": 29,
+        "track": "T11",
+        "startedAt": "2026-10-30 21:33:53",
+        "endReason": "skipped",
+        "current": false
+      },
+      {
+        "index": 30,
+        "track": "T27",
+        "startedAt": "2026-10-30 21:35:23",
+        "endReason": "ended",
+        "current": false
+      },
+      {
+        "index": 31,
+        "track": "T13",
+        "startedAt": "2026-10-30 21:39:24",
+        "endReason": "ended",
+        "current": false
+      },
+      {
+        "index": 32,
+        "track": "T28",
+        "startedAt": "2026-10-30 21:43:31",
+        "endReason": "ended",
+        "current": false
+      },
+      {
+        "index": 33,
+        "track": "T29",
+        "startedAt": "2026-10-30 21:47:45",
+        "endReason": "ended",
+        "current": false
+      },
+      {
+        "index": 34,
+        "track": "T30",
+        "startedAt": "2026-10-30 21:50:56",
+        "endReason": null,
+        "current": true
+      }
+    ],
+    "coverage": {
+      "retainedWindow": 50,
+      "firstRetainedAt": "2026-10-29 23:09:32",
+      "windowCoversAllEveningStarts": true,
+      "runtimeStartedAt": "2026-10-30 15:01:38",
+      "runtimeUpdatedAt": "2026-10-30 21:54:22",
+      "wholeRunPlaybackStartedCounter": 44,
+      "wholeRunCoreStartedCounter": 44,
+      "startsRetainedSinceRuntimeStart": 43,
+      "retainedPlaybackStartedEvents": 15,
+      "retainedStartedEventsMissingFromRecent": 0,
+      "rollingRuntimeLogDroppedEvents": 4751,
+      "limitation": "Runtime events roll over. The saved start window begins before 18:00 and retains the evening sequence. Whole-run event counters are not unique-instance counts and do not replace per-instance reconciliation. Failed selections with no actual start are excluded; pause/resume of the same instance is counted once."
+    }
+  }
 }
