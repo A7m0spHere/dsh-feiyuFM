@@ -81,7 +81,7 @@ const EVIDENCE = [
       { file: 'test/repeat-policy.test.mjs', name: '100 candidates over 200 actual starts never repeat inside the last 50 instances' },
       { file: 'test/approved-pool.test.mjs', name: 'only 100 valid approvals are retained and oldest approvals are evicted' },
     ],
-    unverified: 'N25 已验窗口、待播池与隔离 filtered 持久化；两小时用户反馈存在 10 首以内重复，加载版本与池状态未知、待定位；真实平台补批完整现场组合、长期推荐体验与 QQ 未验',
+    unverified: 'N25 已验窗口、待播池与隔离 filtered 持久化；只读实证 5 次 9 首距离重复，均为 9 首池耗尽降级，补曲不足原因待查；真实平台补批完整现场组合、长期推荐体验与 QQ 未验',
   },
   {
     id: 'A06', claim: '用户环境与 Agent 偏好分离，重启后保留；Session 不覆盖长期偏好',

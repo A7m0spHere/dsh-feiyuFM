@@ -1,0 +1,144 @@
+{
+  "schema": 1,
+  "capturedAt": "2026-10-30T13:49:51.831Z",
+  "timeZone": "Asia/Shanghai",
+  "source": {
+    "database": "daily FishFM music.sqlite",
+    "access": "node:sqlite DatabaseSync readOnly; one read transaction",
+    "history": "listen_history with effective_ms>0, joined growth_jobs startedAt",
+    "decisions": "decision_history_v1, last 200 retained decisions",
+    "recent": "recent_playback_v1, last 50 actual starts",
+    "identity": "same provider and providerTrackId; no titles or IDs exported",
+    "distance": "current start ordinal minus previous same-track start ordinal; intervening songs = distance - 1"
+  },
+  "historical": {
+    "matchedLocalV6WithinTen": 5,
+    "examples": [
+      {
+        "sample": "S01",
+        "firstStartedAt": "2026-10-28 23:23:27",
+        "repeatedStartedAt": "2026-10-28 23:55:42",
+        "startTimesFromGrowth": true,
+        "historyDistance": 9,
+        "interveningSongs": 8,
+        "trigger": "automatic",
+        "algorithm": "local-v6",
+        "repeat": {
+          "window": 50,
+          "relaxed": true,
+          "reason": "recent-exhausted",
+          "distance": 9
+        },
+        "offered": 9,
+        "considered": 8,
+        "actualProgressPositive": true,
+        "endReason": "ended"
+      },
+      {
+        "sample": "S02",
+        "firstStartedAt": "2026-10-28 23:29:46",
+        "repeatedStartedAt": "2026-10-29 00:01:59",
+        "startTimesFromGrowth": true,
+        "historyDistance": 9,
+        "interveningSongs": 8,
+        "trigger": "automatic",
+        "algorithm": "local-v6",
+        "repeat": {
+          "window": 50,
+          "relaxed": true,
+          "reason": "recent-exhausted",
+          "distance": 9
+        },
+        "offered": 9,
+        "considered": 8,
+        "actualProgressPositive": true,
+        "endReason": "ended"
+      },
+      {
+        "sample": "S03",
+        "firstStartedAt": "2026-10-28 23:31:59",
+        "repeatedStartedAt": "2026-10-29 00:04:29",
+        "startTimesFromGrowth": true,
+        "historyDistance": 9,
+        "interveningSongs": 8,
+        "trigger": "automatic",
+        "algorithm": "local-v6",
+        "repeat": {
+          "window": 50,
+          "relaxed": true,
+          "reason": "recent-exhausted",
+          "distance": 9
+        },
+        "offered": 9,
+        "considered": 8,
+        "actualProgressPositive": true,
+        "endReason": "ended"
+      },
+      {
+        "sample": "S04",
+        "firstStartedAt": "2026-10-28 23:35:24",
+        "repeatedStartedAt": "2026-10-29 00:08:02",
+        "startTimesFromGrowth": true,
+        "historyDistance": 9,
+        "interveningSongs": 8,
+        "trigger": "automatic",
+        "algorithm": "local-v6",
+        "repeat": {
+          "window": 50,
+          "relaxed": true,
+          "reason": "recent-exhausted",
+          "distance": 9
+        },
+        "offered": 9,
+        "considered": 8,
+        "actualProgressPositive": true,
+        "endReason": "ended"
+      },
+      {
+        "sample": "S05",
+        "firstStartedAt": "2026-10-28 23:44:34",
+        "repeatedStartedAt": "2026-10-29 00:18:12",
+        "startTimesFromGrowth": true,
+        "historyDistance": 9,
+        "interveningSongs": 8,
+        "trigger": "automatic",
+        "algorithm": "local-v6",
+        "repeat": {
+          "window": 50,
+          "relaxed": true,
+          "reason": "recent-exhausted",
+          "distance": 9
+        },
+        "offered": 9,
+        "considered": 8,
+        "actualProgressPositive": true,
+        "endReason": "skipped"
+      }
+    ]
+  },
+  "recent": {
+    "actualStarts": 50,
+    "uniqueTracks": 46,
+    "from": "2026-10-29 23:04:54",
+    "to": "2026-10-30 21:47:45",
+    "withinTen": 0,
+    "repeatedDistances": [
+      16,
+      15,
+      18,
+      18
+    ]
+  },
+  "runtime": {
+    "startedAt": "2026-10-30 15:01:38",
+    "mode": "real",
+    "node": "24.21.0",
+    "exactLoadedCommit": null
+  },
+  "limits": [
+    "Historical counts use measured-progress histories; recorded repeat.distance independently confirms actual-start distance for the five matched examples.",
+    "A failed selection without an actual playback start is excluded.",
+    "The user-reported two-hour period has no supplied date and is not identified by this audit.",
+    "No credentials, account IDs, song names, platform IDs, media URLs or runtime database are exported."
+  ]
+}
