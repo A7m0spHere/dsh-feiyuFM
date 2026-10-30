@@ -81,7 +81,7 @@ const EVIDENCE = [
       { file: 'test/repeat-policy.test.mjs', name: '100 candidates over 200 actual starts never repeat inside the last 50 instances' },
       { file: 'test/approved-pool.test.mjs', name: 'only 100 valid approvals are retained and oldest approvals are evicted' },
     ],
-    unverified: 'N25 已验窗口、待播池与隔离 filtered 持久化；真实平台补批完整现场组合、长期推荐体验与 QQ 未验',
+    unverified: 'N25 已验窗口、待播池与隔离 filtered 持久化；两小时用户反馈存在 10 首以内重复，加载版本与池状态未知、待定位；真实平台补批完整现场组合、长期推荐体验与 QQ 未验',
   },
   {
     id: 'A06', claim: '用户环境与 Agent 偏好分离，重启后保留；Session 不覆盖长期偏好',
@@ -121,12 +121,12 @@ const EVIDENCE = [
   {
     id: 'A09', claim: '逐曲零模型请求；计划内低频调用受各自门控和共享预算约束并入账，不持续注入音乐状态',
     status: 'partial',
-    files: ['src/runtime/recorder.mjs', 'scripts/soak.mjs', 'test/recorder.test.mjs', 'docs/spikes/R2-soak.md', 'src/runtime/evidence.mjs', 'scripts/observe-runtime.mjs', 'docs/spikes/N0-runtime-evidence.md', 'scripts/verify-dsh-integration.mjs', 'docs/spikes/N24-dsh-background-acceptance.md', 'docs/spikes/assets/N24-dsh-background-results.json'],
+    files: ['src/runtime/recorder.mjs', 'scripts/soak.mjs', 'test/recorder.test.mjs', 'docs/spikes/R2-soak.md', 'docs/spikes/R2-two-hour-playback-20261030.md', 'src/runtime/evidence.mjs', 'scripts/observe-runtime.mjs', 'docs/spikes/N0-runtime-evidence.md', 'scripts/verify-dsh-integration.mjs', 'docs/spikes/N24-dsh-background-acceptance.md', 'docs/spikes/assets/N24-dsh-background-results.json'],
     tests: [
       { file: 'test/recorder.test.mjs', name: 'the recorder counts requests by kind and proves a zero model count' },
       { file: 'test/dsh-adapter.test.mjs', name: 'translates only the allowlisted session events' },
     ],
-    unverified: 'N24 已验隔离真实启停对照、逐曲零请求及显式总结归因；默认 filtered 平台补批/自动调用组合与供应商内部重试未覆盖；两小时观察已取消',
+    unverified: 'N24 已验隔离真实启停对照、逐曲零请求及显式总结归因；默认 filtered 平台补批/自动调用组合与供应商内部重试未覆盖；两小时播放已由用户完成，本次请求计数未知',
   },
   {
     id: 'A10', claim: '静音、暂停、播放失败、进程重启不会伪增听歌次数或偏好',

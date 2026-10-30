@@ -78,7 +78,7 @@ DSH `0.2.0-rc.2` 的插件页暂不支持自动更新。先在插件管理器卸
 
 当前默认从 5 个持有者开始，按实际 Open 耗时最多补齐到 8 个；独立实测用了 6 个，后续加载 484ms。首曲仍冷，预热/打开时间随环境变化。`FISHFM_PLAYBACK_WARM_HOLDERS=0..8` 可指定固定数量，0 关闭。
 
-macOS 真机、完整窗口组合、DSH 请求／上下文对照、多会话和筛选质量仍待验证。两小时连续观察已由用户 2026-10-16 取消，不记为通过；逐曲零模型请求及 DSH 对照要求保留。当前状态统一见开发状态，短跑按 [N7](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/spikes/N7-short-run.md) 的日期和范围阅读；模拟预览和引用审计不能替代真实验收。
+macOS 真机、完整窗口组合、DSH 请求／上下文对照、多会话和筛选质量仍待验证。两小时连续观察已由用户 2026-10-16 取消作为阻塞门槛；后续完成的 Windows DSH Desktop 两小时播放见 [用户反馈报告](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/spikes/R2-two-hour-playback-20261030.md)，其中短周期重复待定位，逐曲零模型请求及 DSH 对照要求保留。当前状态统一见开发状态，短跑按 [N7](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/spikes/N7-short-run.md) 的日期和范围阅读；模拟预览和引用审计不能替代真实验收。
 
 ## 许可
 
