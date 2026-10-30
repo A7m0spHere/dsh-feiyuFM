@@ -69,9 +69,9 @@ const EVIDENCE = [
     unverified: '真实慢请求与真实命令冲突未验',
   },
   {
-    id: 'A05', claim: '平台候选与 LLM 筛选边界、探索关闭、空候选和重复惩罚有效；概率分流为旧兼容',
+    id: 'A05', claim: '平台候选与 LLM 筛选边界、探索关闭、空候选和最近 50 次实际开始的硬性防重复有效；概率分流为旧兼容',
     status: 'offline-passed',
-    files: ['test/selection.test.mjs', 'docs/spikes/T2-selection.md', 'test/discovery-cache.test.mjs', 'test/discovery-provider.test.mjs', 'docs/spikes/N2-netease-discovery.md', 'docs/spikes/N3-discovery-cache.md', 'test/recommendation-pipeline.test.mjs', 'docs/spikes/N22-platform-first-recommendations.md', 'test/repeat-policy.test.mjs', 'test/approved-pool.test.mjs', 'docs/spikes/N25-recent-playback-and-approved-pool.md', 'docs/spikes/assets/N25-repeat-policy-results.json'],
+    files: ['test/selection.test.mjs', 'docs/spikes/T2-selection.md', 'test/discovery-cache.test.mjs', 'test/discovery-provider.test.mjs', 'docs/spikes/N2-netease-discovery.md', 'docs/spikes/N3-discovery-cache.md', 'test/recommendation-pipeline.test.mjs', 'docs/spikes/N22-platform-first-recommendations.md', 'test/repeat-policy.test.mjs', 'test/approved-pool.test.mjs', 'docs/spikes/N25-recent-playback-and-approved-pool.md', 'docs/spikes/assets/N25-repeat-policy-results.json', 'docs/spikes/N26-hard-repeat-window.md', 'docs/spikes/assets/N26-hard-repeat-window-results.json'],
     tests: [
       { file: 'test/selection.test.mjs', name: 'discovery rate 0 always stays familiar; 100 always tries discovery' }
       , { file: 'test/selection.test.mjs', name: 'an empty discovery pool falls back to familiar and records that no exploration happened' }
@@ -80,8 +80,10 @@ const EVIDENCE = [
       { file: 'test/recommendation-pipeline.test.mjs', name: 'a model cannot introduce a song that NetEase did not return' },
       { file: 'test/repeat-policy.test.mjs', name: '100 candidates over 200 actual starts never repeat inside the last 50 instances' },
       { file: 'test/approved-pool.test.mjs', name: 'only 100 valid approvals are retained and oldest approvals are evicted' },
+      { file: 'test/repeat-policy.test.mjs', name: 'all 50 started tracks stay blocked until a new actual start moves the oldest out' },
+      { file: 'test/recommendation-pipeline.test.mjs', name: 'filtered autoplay waits at the hard window and resumes only after a fresh approved batch' },
     ],
-    unverified: 'N25 已验窗口、待播池与隔离 filtered 持久化；真实平台补批完整现场组合、长期推荐体验与 QQ 未验',
+    unverified: 'N26 已验最近 50 次硬窗口、短播跳过、小池等待、补批恢复与隔离原生播放；真实平台新曲供给、日常新规则加载、长期推荐体验与 QQ 未验',
   },
   {
     id: 'A06', claim: '用户环境与 Agent 偏好分离，重启后保留；Session 不覆盖长期偏好',
@@ -121,12 +123,12 @@ const EVIDENCE = [
   {
     id: 'A09', claim: '逐曲零模型请求；计划内低频调用受各自门控和共享预算约束并入账，不持续注入音乐状态',
     status: 'partial',
-    files: ['src/runtime/recorder.mjs', 'scripts/soak.mjs', 'test/recorder.test.mjs', 'docs/spikes/R2-soak.md', 'src/runtime/evidence.mjs', 'scripts/observe-runtime.mjs', 'docs/spikes/N0-runtime-evidence.md', 'scripts/verify-dsh-integration.mjs', 'docs/spikes/N24-dsh-background-acceptance.md', 'docs/spikes/assets/N24-dsh-background-results.json'],
+    files: ['src/runtime/recorder.mjs', 'scripts/soak.mjs', 'test/recorder.test.mjs', 'docs/spikes/R2-soak.md', 'docs/spikes/R2-two-hour-playback-20261030.md', 'src/runtime/evidence.mjs', 'scripts/observe-runtime.mjs', 'docs/spikes/N0-runtime-evidence.md', 'scripts/verify-dsh-integration.mjs', 'docs/spikes/N24-dsh-background-acceptance.md', 'docs/spikes/assets/N24-dsh-background-results.json'],
     tests: [
       { file: 'test/recorder.test.mjs', name: 'the recorder counts requests by kind and proves a zero model count' },
       { file: 'test/dsh-adapter.test.mjs', name: 'translates only the allowlisted session events' },
     ],
-    unverified: 'N24 已验隔离真实启停对照、逐曲零请求及显式总结归因；默认 filtered 平台补批/自动调用组合与供应商内部重试未覆盖；两小时观察已取消',
+    unverified: 'N24 已验隔离真实启停对照、逐曲零请求及显式总结归因；默认 filtered 平台补批/自动调用组合与供应商内部重试未覆盖；两小时播放已由用户完成，本次请求计数未知',
   },
   {
     id: 'A10', claim: '静音、暂停、播放失败、进程重启不会伪增听歌次数或偏好',

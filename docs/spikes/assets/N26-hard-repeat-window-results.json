@@ -1,0 +1,150 @@
+{
+  "schema": 1,
+  "startedAt": "2026-10-30T14:03:53.429Z",
+  "finishedAt": "2026-10-30T14:05:13.309Z",
+  "scope": "isolated-real-dsh-web-native-repeat-policy",
+  "environment": {
+    "platform": "win32",
+    "testRunnerNode": "24.22.1",
+    "host": "official isolated DSH Web profile",
+    "audio": "native WPF, generated local silent media",
+    "approvals": "two synthetic six-track approved batches",
+    "realPlatformAudio": false,
+    "realModelRequests": 0,
+    "hostVersion": "0.2.1-rc.5"
+  },
+  "checks": [
+    {
+      "name": "isolated host started without opening a browser",
+      "status": "passed"
+    },
+    {
+      "name": "authenticated FishFM RPC and Core ready",
+      "status": "passed"
+    },
+    {
+      "name": "two approved batches form a 12-track pool while the current batch stays at six",
+      "status": "passed"
+    },
+    {
+      "name": "two real host Sessions expose distinct stable id fields",
+      "status": "passed"
+    },
+    {
+      "name": "native muted playback starts",
+      "status": "passed"
+    },
+    {
+      "name": "local next pause resume add zero LLM service calls",
+      "status": "passed"
+    },
+    {
+      "name": "real playback starts advance the window while pause resume keeps the same instance once",
+      "status": "passed"
+    },
+    {
+      "name": "playback continues with no browser client connected",
+      "status": "passed"
+    },
+    {
+      "name": "native measured progress produces one bounded silent growth application",
+      "status": "passed"
+    },
+    {
+      "name": "instant switch does not create qualifying growth",
+      "status": "passed"
+    },
+    {
+      "name": "all twelve approved songs actually start once without any short-repeat fallback",
+      "status": "passed"
+    },
+    {
+      "name": "native autoplay waits after the small approved pool is exhausted",
+      "status": "passed"
+    },
+    {
+      "name": "ordinary next cannot bypass the exhausted hard window",
+      "status": "passed"
+    },
+    {
+      "name": "native media failure creates no positive growth",
+      "status": "passed"
+    },
+    {
+      "name": "a failed native media load does not advance the repeat window",
+      "status": "passed"
+    },
+    {
+      "name": "disabling the real plugin stops Core and all native audio children",
+      "status": "passed"
+    },
+    {
+      "name": "normal plugin teardown persists closed runtime evidence",
+      "status": "passed"
+    },
+    {
+      "name": "reenabling retains user pause and persisted growth",
+      "status": "passed"
+    },
+    {
+      "name": "the repeat window survives real Core restart unchanged",
+      "status": "passed"
+    },
+    {
+      "name": "both approved batches survive real Core restart",
+      "status": "passed"
+    },
+    {
+      "name": "repeat policy and pool maintenance make zero real model requests",
+      "status": "passed"
+    },
+    {
+      "name": "reenabling creates one fresh Core",
+      "status": "passed"
+    },
+    {
+      "name": "isolated host shuts down",
+      "status": "passed"
+    }
+  ],
+  "hardWindow": {
+    "actualStarts": 12,
+    "uniqueTracks": 12,
+    "waiting": {
+      "status": "idle",
+      "paused": false,
+      "current": null,
+      "reason": "recent-window-exhausted",
+      "detail": {
+        "algorithm": "local-v7",
+        "repeat": {
+          "window": 50,
+          "relaxed": false,
+          "reason": "recent-window-exhausted",
+          "distance": null
+        }
+      }
+    },
+    "afterRestartStarts": 12
+  },
+  "error": null,
+  "modelHomeUnchanged": true,
+  "offline": {
+    "targeted": {
+      "tests": 80,
+      "passed": 80,
+      "failed": 0
+    },
+    "full": {
+      "tests": 582,
+      "passed": 579,
+      "failed": 0,
+      "skipped": 3,
+      "realAudioTests": "skipped with FISHFM_TEST_REAL_AUDIO=0; native WPF verified separately"
+    }
+  },
+  "dailyDesktop": {
+    "reloaded": false,
+    "loadedNewPolicy": "unknown"
+  }
+}

@@ -305,6 +305,35 @@ test('successful batches retain old approvals while the journal stays on the new
  }finally{await f.close();}
 });
 
+test('filtered autoplay waits at the hard window and resumes only after a fresh approved batch',async()=>{
+ const f=fixture();
+ try{
+  await prepareRecommendations({...f,route});
+  await f.bridge.command({type:'chooseSelf',commandId:'start'});await f.host.core.waitForIdle();
+  for(let i=0;i<2;i++){
+   const current=f.host.core.snapshot().current;assert.ok(current);
+   f.host.core.onPlaybackEvent({type:'ended',playInstanceId:current.playInstanceId});await f.host.core.waitForIdle();
+  }
+  assert.equal(f.host.core.snapshot().current,null);
+  assert.equal(f.host.core.snapshot().lastSelection.reason,'recent-window-exhausted');
+  assert.equal(recentPlayback(f.store).length,2,'both actual starts count even without a completed-listen duration');
+  const recent=new Set(recentPlayback(f.store).map(e=>e.trackKey));
+  assert.equal(f.calls(),1);
+  f.candidates([5,6,7]);f.time(61001);
+  await prepareRecommendations({...f,route});await f.host.core.waitForIdle();
+  const current=f.host.core.snapshot().current;
+  assert.ok(current,'successful batch completion resumes waiting autonomy');
+  assert.equal(recent.has(`netease:${current.track.providerTrackId}`),false);
+  assert.equal(f.calls(),2,'only the two planned batch calls occurred');
+  await f.bridge.command({type:'pause',commandId:'pause'});await f.host.core.waitForIdle();
+  const instance=current.playInstanceId;
+  f.candidates([8,9,10]);f.time(121002);
+  await prepareRecommendations({...f,route});await f.host.core.waitForIdle();
+  assert.equal(f.host.core.snapshot().paused,true);
+  assert.equal(f.host.core.snapshot().current.playInstanceId,instance,'fresh approvals never override user pause');
+ }finally{await f.close();}
+});
+
 test('reset and undo clear the approved pool but preserve actual playback order',async()=>{
  const f=fixture();
  try{

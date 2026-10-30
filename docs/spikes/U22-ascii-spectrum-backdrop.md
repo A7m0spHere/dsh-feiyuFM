@@ -1,6 +1,6 @@
 # U22 工作区 ASCII 水平流体频谱
 
-更新：2026-10-30。基于 `2fcbdd975328309873c90efe96a3c9fa427fcac3`，在 `feat/ascii-spectrum-bars` 修正绘制方向，不合并 main。状态、测试数量与下一步只维护在 [PROJECT_PLAN](../PROJECT_PLAN.md)。
+更新：2026-10-30。基于 `2fcbdd975328309873c90efe96a3c9fa427fcac3` 的方向修正与 `30d00e6` 灰黑配色，用户现已要求将 `feat/ascii-spectrum-bars` 通过 PR 合入 main，取代此前暂不合并的安排。保留 main 的 [N26 最近 50 次硬性窗口](N26-hard-repeat-window.md)，本次整合不改变下述视觉契约。状态、测试数量与下一步只维护在 [PROJECT_PLAN](../PROJECT_PLAN.md)。
 
 ## 坐标与视觉契约
 

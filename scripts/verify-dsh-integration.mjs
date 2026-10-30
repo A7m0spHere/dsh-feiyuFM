@@ -137,6 +137,21 @@ try{
   report.manualSummary={returned:!!summary,errorCode,ledger,serviceCallsAdded:(await probe({op:'status'})).calls.length-beforeCalls};
   check('explicit summary success or failure is attributed to exactly one ledger entry and model call',ledger.length===1&&['completed','failed'].includes(ledger[0].status)&&ledger[0].usage_json!==null&&report.manualSummary.serviceCallsAdded===1);
  }
+ if(repeatPolicy){
+  await control('resume');
+  for(let i=0;i<12&&recentState().entries.length<12;i++){
+   const before=recentState().entries.length;
+   await control('next');
+   await until(async()=>{const s=(await state()).snapshot;return s.status==='playing'&&recentState().entries.length>before;},{timeout:20000});
+  }
+  const full=recentState();
+  check('all twelve approved songs actually start once without any short-repeat fallback',full.entries.length===12&&new Set(full.entries.map(e=>e.trackKey)).size===12);
+  const waiting=await until(async()=>{const s=(await state()).snapshot;return !s.current&&s.lastSelection?.reason==='recent-window-exhausted'?s:null;},{timeout:25000});
+  report.repeatPolicy.hardWindow={recent:recentState(),waiting};
+  check('native autoplay waits after the small approved pool is exhausted',waiting.status==='idle'&&waiting.paused===false&&recentState().entries.length===12);
+  let nextError=null;try{await control('next');}catch(error){nextError=error.message;}
+  check('ordinary next cannot bypass the exhausted hard window',Boolean(nextError?.includes('no_candidates'))&&recentState().entries.length===12);
+ }
  // A missing native media file must not create a positive listening signal.
  const failureBefore=dbSummary();
  const recentBeforeFailure=repeatPolicy?recentState():null;

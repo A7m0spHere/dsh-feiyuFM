@@ -95,11 +95,13 @@ Host 的 `feedback-list/feedback-clear` 越过慢平台队列；撤销只使投�
 
 旧直接生成歌名的记录继续保留原有搜索匹配与有界核对契约，filtered 模式不调用这条核对路径，也不把旧歌名记录加入默认播放池。
 
-`local-v6` 的真实评分保存在决策中，解释只读事实。filtered 模式只播放 LLM 入选曲，`llmRank/llmReason` 参与正常本地评分；未入选歌曲不进入默认自动池。N15 的“只加分、不排空”保留旧兼容模式。
+`local-v7` 的真实评分保存在决策中，解释只读事实；旧 `local-v6` 的小池重播记录按当时规则读取，不覆盖当前硬窗口。filtered 模式只播放 LLM 入选曲，`llmRank/llmReason` 参与正常本地评分；未入选歌曲不进入默认自动池。N15 的“只加分、不排空”保留旧兼容模式。
 
 `recent_playback_v1` 为 `{version:1,entries:[{playInstanceId,trackKey,startedAt}]}`，按实际开始顺序从旧到新保留最近 50 个实例；旧库只由有进度历史及已开始当前实例回填。`started` 或首个有效进度确认开始，零有效增量的位置变化不算开始；同实例恢复不再次登记。此设置与历史一起保留，不因偏好重置／换批清空，不增加收听或成长。普通 next 的队列与曲库回退也不能绕过策略，只有明确 `requestTrack` 保留重播例外。
 
-选择依次使用：窗口外且满足 30 分钟冷却 → 窗口外但放宽时间冷却 → 最近窗口内最久未播的允许曲目。最后一级按最近开始的顺序决定，偏好／模型排名不能抢先；当前或刚播完同曲、禁播和不可播不放宽。`lastSelection.detail.repeat` 含 `window=50`、`relaxed`、`reason=null/cooldown-exhausted/recent-exhausted` 与最近窗口内的 `distance`。只有一首刚播完的可用曲目时等待，用户仍可明确点播。
+选择只使用：窗口外且满足 30 分钟冷却 → 窗口外但放宽时间冷却；不再允许窗口内最久未播回退。自动续播、推荐队列和普通 next 的曲库回退均适用，内部旧 `allowRepeatFallback` 参数也不能放宽。当前或刚播完同曲、禁播和不可播不放宽。成功选择的 `lastSelection.detail.repeat` 含 `window=50`、`relaxed`、`reason=null/cooldown-exhausted` 与 `distance=null`；只允许放宽时间冷却。窗口内歌曲导致无可选曲时返回 `track=null`、`reason=recent-window-exhausted`，`detail.algorithm=local-v7`、`detail.repeat={window:50,relaxed:false,reason:'recent-window-exhausted',distance:null}`。自动续播保持无 current 等待，普通 next 返回 `no_candidates` 并保留当前曲目／暂停状态；明确 `requestTrack` 保留重播例外。
+
+窗口不足不增加逐曲模型请求，不改变自动筛选门控、次数或 token 预算。filtered 新批准批次完成后沿用 `persona-finish` 的自主续播入口，只在听歌开启、未暂停、未受停止约束且无 current 时开始窗口外歌曲；新批次不能撤销暂停。旧 `recent-exhausted` 表示历史小池重播，新的等待状态不复用该原因码。无需修改数据库 schema 或清理现有开始窗口。
 
 `filtered_playback_pool_v1` 为 `{version:1,owner,entries:[{approvedAt,track}]}`，owner 沿用候选账号指纹。成功且仍属当前账号／候选代次的筛选完成时，与账本和当前批次同事务合并最多 100 首，同平台 ID 采用最新批准信息并保留来源、rank/reason、modelCallId 和原 expiry；先去过期，再淘汰最早批准。旧库只从当前有效且可核验批次兼容读取，下一成功批次一起落盘；不由旧候选账本反推批准。账号变化、清缓存及现有重置／撤销重置流程清理池，迟到／取消／失败结果不入池。数据仍在 settings，schema 版本不变。
 
