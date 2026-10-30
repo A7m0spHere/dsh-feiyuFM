@@ -300,11 +300,11 @@ export const css = `
   .fm-spectrum-bg:not([data-ready]) { display:none; }
   .fm-spectrum-bg canvas { display:block; width:100%; height:100%; margin:0; pointer-events:none;
     position:absolute; inset:0; font-family:ui-monospace,SFMono-Regular,Consolas,'Cascadia Mono',Menlo,monospace;
-    font-size:10px; line-height:var(--fm-row,12px); color:var(--fm-accent-ink); opacity:.60;
+    font-size:10px; line-height:var(--fm-row,12px); color:#3b3b3b; opacity:.60;
     -webkit-mask-image:linear-gradient(90deg,#000 0%,#000 72%,rgba(0,0,0,.65) 90%,transparent 100%);
     mask-image:linear-gradient(90deg,#000 0%,#000 72%,rgba(0,0,0,.65) 90%,transparent 100%);
     transition:opacity var(--fm-base) var(--fm-ease); }
-  :is([data-ds-dark-theme],.dark,[data-theme=dark]) .fm-spectrum-bg canvas { opacity:.48; }
+  :is([data-ds-dark-theme],.dark,[data-theme=dark]) .fm-spectrum-bg canvas { color:#b8b8b8; opacity:.48; }
   .fm-spectrum-bg[data-active=false] canvas { opacity:.26; }
   :is([data-ds-dark-theme],.dark,[data-theme=dark]) .fm-spectrum-bg[data-active=false] canvas { opacity:.24; }
   .fm-float-pill { display:flex; align-items:center; gap:6px; padding:6px;
