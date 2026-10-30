@@ -13,6 +13,10 @@ const port = process.argv.includes('--port') ? Number(value('--port')) : 4179;
 buildClientBundle();
 const routes = new Map([
   ['/', [join(root, 'prototypes', 'fishfm-ui-preview.html'), 'text/html']],
+  ['/spectrum-ab', [join(root, 'prototypes', 'fishfm-spectrum-preview.html'), 'text/html']],
+  ['/spectrum-bars.mjs', [join(root, 'src', 'ui', 'client', 'spectrum-bars.mjs'), 'text/javascript']],
+  ['/spectrum-canvas.mjs', [join(root, 'src', 'ui', 'client', 'spectrum-canvas.mjs'), 'text/javascript']],
+  ['/spectrum-styles.mjs', [join(root, 'src', 'ui', 'client', 'styles.mjs'), 'text/javascript']],
   ['/react.js', [join(reactRoot, 'react', 'umd', 'react.development.js'), 'text/javascript']],
   ['/react-dom.js', [join(reactRoot, 'react-dom', 'umd', 'react-dom.development.js'), 'text/javascript']],
   ['/client.js', [join(root, 'src', 'ui', 'dsh-client.js'), 'text/javascript']],

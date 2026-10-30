@@ -10,6 +10,8 @@ npm run preview:ui -- --react-root "C:/path/to/existing/node_modules" --port 417
 
 已有依赖需提供 React 18 与 react-dom 的 UMD 开发构建。主题、窄窗口、模拟操作和动效演示只用于界面验证，不当作生产账号、真实模型或音频证据。更多维护说明见 [贡献指南](../CONTRIBUTING.md) 与 [脚本索引](../scripts/README.md)。
 
+同一服务器的 `/spectrum-ab` 打开 [ASCII Fluid Spectrum 对照](fishfm-spectrum-preview.html)：在两个 160×760px 区域，以同一引擎／固定步长时钟对照 A 左锚水平密度条与 B 末端上下亚字符扭曲；复用生产样式，可切换 12/24fps 与主题，统计预热后的分项绘制耗时。该页面只组合实际频谱函数，没有独立动画引擎。
+
 ## 素材来源
 
 自有三张透明 PNG 由本项目此前使用 Codex ImageGen 生成。2026-10-07 整理时核对 SHA-256，原型副本与正式文件完全相同；删除原型副本，统一由生产资源路由读取 `src/ui/assets/`。

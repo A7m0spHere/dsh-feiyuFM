@@ -7,10 +7,10 @@
 *{box-sizing:border-box}body{margin:0;font-family:system-ui,'Segoe UI',sans-serif;background:#f3f5f8;color:#172235}
 .preview-toolbar{position:fixed;z-index:100;inset:0 0 auto;display:flex;align-items:center;flex-wrap:wrap;gap:8px;padding:10px 16px;background:#fff;border-bottom:1px solid #dfe3e9;font-size:12px}
 .preview-toolbar button{font:inherit;padding:5px 9px;border:1px solid #dfe3e9;border-radius:6px;background:transparent;color:inherit;cursor:pointer}
-.preview-note{margin-right:auto;color:#566171}.preview-shell{padding-top:65px;min-height:100vh}.preview-main{width:100%;max-width:1050px;margin:auto;height:calc(100vh - 65px)}
-[data-shell-overlay]{position:fixed;inset:65px 0 0;pointer-events:none}.preview-conversation{padding:60px 24px;text-align:center;color:#566171}
+.preview-note{margin-right:auto;color:#566171}.preview-shell{padding-top:65px;min-height:100vh;display:flex}.preview-sidebar{width:280px;flex:none;background:#fff;border-right:1px solid #dfe3e9}.preview-center{flex:1;min-width:0;position:relative;display:flex;flex-direction:column}.preview-main{width:100%;max-width:1050px;margin:auto;height:100%}
+[data-shell-overlay]{position:fixed;inset:65px 0 0;pointer-events:none}.preview-conversation{flex:1;display:flex;align-items:center;justify-content:center;padding:60px 24px;text-align:center;color:#566171}
 .preview-settings{max-width:440px;margin:24px auto;border:1px solid #dfe3e9;border-radius:10px;overflow:hidden;height:calc(100vh - 113px)}
-[data-ds-dark-theme] body{background:#11151d;color:#e4e9f2}[data-ds-dark-theme] .preview-toolbar{background:#1b202a;border-color:#303644}
+[data-ds-dark-theme] body{background:#11151d;color:#e4e9f2}[data-ds-dark-theme] .preview-toolbar{background:#1b202a;border-color:#303644}[data-ds-dark-theme] .preview-sidebar{background:#171b23;border-color:#303644}
 [data-ds-dark-theme] .preview-toolbar button{border-color:#303644}[data-ds-dark-theme] .preview-note{color:#a5adba}
 @media(max-width:600px){.preview-toolbar{gap:4px;padding:8px}.preview-note{width:100%;font-size:10px}.preview-shell{padding-top:88px}.preview-main{height:calc(100vh - 88px)}[data-shell-overlay]{top:88px}}
 </style>
@@ -171,10 +171,10 @@ const connection={rpc:{async call(_channel,endpoint,payload){
 }}};
 const layout={selectPanel(id){active=id;changeActive?.(id)}};
 harnessBundle.apply({connection,layout,effect(fn){fn()},slots:{inject(_name,fn){fn()},register(options,component){registrations.push({options,component});return()=>{}}}});
-const panel=registrations.find(r=>r.options.name==='main'),overlay=registrations.find(r=>r.options.name==='shell.overlay'),controller=panel.options.inject().controller;
+const panel=registrations.find(r=>r.options.name==='main'),overlays=registrations.filter(r=>r.options.name==='shell.overlay'),controller=panel.options.inject().controller;
 const previewStyle=document.querySelector('style[data-plugin="fishfm"]'),normalCss=previewStyle.textContent;
 function Harness(){
- const [page,setPage]=React.useState(active),[dark,setDark]=React.useState(false),[settings,setSettings]=React.useState(false),[demo,setDemo]=React.useState(false);changeActive=setPage;
+ const [page,setPage]=React.useState(active),[dark,setDark]=React.useState(false),[settings,setSettings]=React.useState(false),[demo,setDemo]=React.useState(false),[whaleEager,setWhaleEager]=React.useState(false);changeActive=setPage;
  const show=id=>{active=id;setPage(id)};
  return React.createElement(React.Fragment,null,
   React.createElement('header',{className:'preview-toolbar'},React.createElement('span',{className:'preview-note'},'界面预览 · 模拟数据 · 不播放声音'),
@@ -183,12 +183,20 @@ function Harness(){
    React.createElement('button',{onClick:()=>setSettings(!settings)},settings?'主面板':'设置宽度'),
    React.createElement('button',{onClick:()=>{demoMotion=!demo;previewStyle.textContent=demoMotion?normalCss.replace('@media(prefers-reduced-motion:reduce)','@media(preview-motion:none)'):normalCss;controller.setMotion('full');setDemo(!demo)}},demo?'系统动效':'动效演示'),
    React.createElement('button',{onClick:()=>{empty=!empty;controller.refresh()}},'切换空库'),
+   React.createElement('button',{onClick:()=>{snapshot.paused=!snapshot.paused;snapshot.status=snapshot.paused?'paused':'playing';controller.refresh()}},'播放/暂停演示'),
    React.createElement('button',{onClick:()=>{connected=!connected;controller.refresh()}},'切换连接'),
+   React.createElement('button',{onClick:()=>setWhaleEager(value=>!value),'aria-pressed':String(whaleEager)},'鲸鱼彩蛋'),
    React.createElement('select',{'aria-label':'挑歌预览状态',defaultValue:'ready',onChange:event=>{
     pickerScenario=event.target.value;pickerRetryAt=pickerNow()+(pickerScenario==='finishing'?3500:15*60000);controller.refresh();
    }},...[['ready','可换批'],['cooldown','旧宿主等待'],['finishing','旧宿主即将到期'],['searching','找歌中'],['filtering','挑歌中'],['budget','预算用完'],['limit','次数用完'],['failure','请求失败'],['race','并发任务']].map(([value,label])=>React.createElement('option',{value,key:value},label)))),
-  React.createElement('div',{className:'preview-shell'},page==='fishfm'?React.createElement('main',{className:settings?'preview-settings':'preview-main'},React.createElement(panel.component,{...panel.options.inject(),...(settings?{close:()=>setSettings(false)}:{})})):React.createElement('div',{className:'preview-conversation'},'对话面板 · 音乐服务独立于可见页面'),
-   React.createElement('div',{'data-shell-overlay':''},React.createElement(overlay.component,{...overlay.options.inject(),usePanelInfo:fn=>fn({activePanelId:page})}))));
+  React.createElement('div',{className:'preview-shell'},
+   React.createElement('div',{className:'preview-sidebar','aria-hidden':true}),
+   React.createElement('div',{className:'preview-center','data-conversation-content':'','data-conversation-region':'chat'},
+    page==='fishfm'?React.createElement('main',{className:settings?'preview-settings':'preview-main'},React.createElement(panel.component,{...panel.options.inject(),...(settings?{close:()=>setSettings(false)}:{})})):React.createElement('div',{className:'preview-conversation'},'对话面板 · 音乐服务独立于可见页面')),
+   React.createElement('div',{'data-shell-overlay':''},overlays.map((overlay,index)=>React.createElement(overlay.component,{key:overlay.options.id??index,...overlay.options.inject(),
+     // 预览专用：把鲸鱼彩蛋调成"立刻出现"，免去等待 95 秒冷却才能截图。
+     ...(overlay.options.id==='fishfm.spectrum'?{whaleEager}:{}),
+     usePanelInfo:fn=>fn({activePanelId:page})})))));
 }
 ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(Harness));
 setInterval(()=>{if(!snapshot.paused&&snapshot.current)snapshot.current.positionMs=Math.min(snapshot.current.positionMs+1000,snapshot.current.track.durationMs)},1000);

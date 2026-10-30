@@ -51,6 +51,7 @@ function fixture(call, storage = new Map()) {
     } });
   const panel = registrations.find(r => r.options.name === 'main');
   const overlay = registrations.find(r => r.options.name === 'shell.overlay');
+  const spectrum = registrations.find(r => r.options.id === 'fishfm.spectrum');
   const controller = panel.options.inject().controller;
   const renderComponent = (registration, props = {}) => {
     activeHooks = hooks.get(registration.component) ?? [];
@@ -65,6 +66,7 @@ function fixture(call, storage = new Map()) {
     dispatchStorage(key, area = localStorage) { windowListeners.get('storage')?.forEach(handler => handler({ key, storageArea: area })); },
     render: props => renderComponent(panel, props),
     renderOverlay: props => renderComponent(overlay, props),
+    renderSpectrum: props => renderComponent(spectrum, props),
     dispose() { effects.forEach(fn => fn()); },
   };
 }
@@ -595,13 +597,59 @@ test('the floating player selects the active panel from the host hook and return
   } finally { f.dispose(); }
 });
 
+test('the ASCII spectrum backdrop ships enabled, stays non-interactive and hides inside the FishFM panel', () => {
+  const f = fixture(async () => state(snapshot(1)));
+  try {
+    const strip = f.renderSpectrum();
+    assert.ok(strip, 'the conversation area shows the spectrum background by default');
+    assert.equal(strip.props.className, 'fm-spectrum-bg');
+    assert.equal(strip.props['aria-hidden'], 'true', 'the backdrop stays out of the accessibility tree');
+    assert.equal(strip.props.role, undefined, 'the backdrop is not a control');
+    assert.equal(strip.props.style.pointerEvents, 'none', 'the backdrop never intercepts input');
+    assert.equal(strip.props.style.display, 'none', 'without a measured conversation container it stays hidden');
+    assert.equal(strip.props['data-active'], false, 'an idle snapshot shows the standby baseline');
+    assert.equal(f.renderSpectrum({ activePanelId: 'fishfm' }), null, 'the full panel hides the band');
+    assert.ok(f.renderSpectrum({ activePanelId: 'plugins' }), 'the band returns outside the panel');
+
+    f.controller.setSpectrumVisible(false);
+    assert.equal(f.renderSpectrum(), null, 'the interface toggle hides the band');
+    assert.equal(f.storage.get('fishfm.spectrum.visible.v1'), 'false');
+    f.controller.setSpectrumVisible(true);
+    assert.ok(f.renderSpectrum(), 'the band returns when re-enabled');
+  } finally { f.dispose(); }
+});
+
+test('a fresh fixture restores the saved spectrum visibility preference', () => {
+  const storage = new Map([['fishfm.spectrum.visible.v1', 'false'], ['fishfm.spectrum.inset.v1', '{"left":77}']]);
+  const f = fixture(async () => state(snapshot(1)), storage);
+  try {
+    assert.equal(f.controller.getSnapshot().spectrumVisible, false);
+    assert.equal(f.controller.getSnapshot().spectrumInset, undefined, 'the backdrop is positioned by measurement, not a stored inset');
+    assert.equal(f.renderSpectrum(), null);
+  } finally { f.dispose(); }
+});
+
+test('the panel exposes a spectrum switch that flips the stored preference', async () => {
+  const f = fixture(async () => state(snapshot(1)));
+  const off = f.controller.subscribe(() => {});
+  try {
+    const toggle = all(f.render()).find(n => n.props['aria-label'] === '背景频谱');
+    assert.ok(toggle, 'the interface settings list the spectrum background');
+    assert.equal(toggle.props['aria-checked'], true);
+    toggle.props.onClick();
+    assert.equal(f.storage.get('fishfm.spectrum.visible.v1'), 'false');
+    assert.equal(all(f.render()).find(n => n.props['aria-label'] === '背景频谱').props['aria-checked'], false);
+  } finally { off(); f.dispose(); }
+});
+
 test('client contributes native sidebar, main and settings seats; controls send Core commands', async () => {
   const calls = [];
   const f = fixture(async (channel, endpoint, payload) => { calls.push({ channel, endpoint, payload }); return state(snapshot(calls.length, endpoint !== 'fishfm/command')); });
   const off = f.controller.subscribe(() => {});
   try {
     await tick();
-    assert.deepEqual(f.registrations.map(r => r.options.name), ['main', 'sidebar.panellist', 'settings.section', 'shell.overlay']);
+    assert.deepEqual(f.registrations.map(r => r.options.name), ['main', 'sidebar.panellist', 'settings.section', 'shell.overlay', 'shell.overlay']);
+    assert.deepEqual(f.registrations.filter(r => r.options.name === 'shell.overlay').map(r => r.options.id), ['fishfm.player', 'fishfm.spectrum']);
     const nodes = all(f.render());
     const toggle = nodes.find(n => n.props['aria-label'] === '电脑输出声音');
     assert.equal(toggle.props['aria-checked'], true);

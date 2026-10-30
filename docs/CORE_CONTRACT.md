@@ -73,6 +73,10 @@ UI 经宿主认证 `/api` 调用；完整白名单见 [dsh-settings.mjs](../src/
 
 Host `library` 接收 `query/offset/limit`：关键词最多 200 字符，offset 为非负安全整数，limit 为 1–100（默认 12）。按标题/艺人/平台 ID 在全库搜索，返回 `total/matched/query/offset/limit/tracks/firstTrack`；偏移超出结果时收敛到最后一页，空结果回到 0。`firstTrack` 独立于查询，供手动模式在空搜索结果时开始播放。只返回安全曲目元数据，UI 不接受音频 URL。`insights` 统计按最近 200 次决策关联，不代表历史全期；反馈、成长与解释独立。业务错误有应答不等于 Core 断连；平台失败后以补查状态的结果更新连接标记，无法补查时保留实际错误语义。客户端平台任务与播放命令分别持有取消控制器；慢登录/导入不阻塞播放控制或状态轮询，命令之后到达的旧平台快照不能覆盖播放。曲库查询使用独立代次，旧搜索、旧轮询和旧平台响应不能替换新查询页。见 [U17](spikes/U17-control-library-fixes.md)。
 
+### 本地频谱渲染边界
+
+工作区背景只读取既有安全播放快照与本机动效偏好，不新增 RPC、模型事实或持久化频谱数据。`createSpectrumEngine().step(dt, {frequencyBands})` 为未来归一化频段预留本地输入口：非空数组按频率位置采样并限于 0..1，缺省／空数组使用模拟输入，均经过相同包络和峰值链；该口尚未接入真实 FFT。渲染输出统一字符矩阵、上下连续位移与左侧基线／水平条长信息，鲸鱼改写同一矩阵后交给一个透明 Canvas；UI 不接受媒体 URL、凭据或音频样本。见 [U22](spikes/U22-ascii-spectrum-backdrop.md)。
+
 ### 历史反馈管理
 
 `feedback-list` 的 filter 为 `all/liked/reduced`，query 最多 200 字符，offset 为非负安全整数，limit 为 1–100、默认 12。只查询 score=±1，按更新时间倒序、曲目键升序；搜索歌名／艺人／平台 ID，百分号和下划线按普通字符处理。`feedbackPage` 含 `version/revision/query/filter/offset/limit/total/matched/counts/items`；total、counts 是全部有效反馈数量，matched 是筛选搜索结果，offset 收敛到有效页。items 只含 `key/track/score/updatedAt` 的安全元数据。

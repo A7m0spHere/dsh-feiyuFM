@@ -6,7 +6,7 @@ window.__ModuleLoader__.load({
     // src/ui/client/styles.mjs
     // PHL-inspired tokens and timing. Source/provenance: THIRD_PARTY_NOTICES.md.
     const css = `
-      .fishfm,.fm-float {
+      .fishfm,.fm-float,.fm-spectrum-bg {
         --fm-canvas:hsl(220 20% 96%); --fm-surface:hsl(0 0% 100%);
         --fm-raised:hsl(0 0% 100%); --fm-sunken:hsl(220 20% 97%);
         --fm-hover:hsl(220 24% 95.5%); --fm-line:hsl(220 16% 90%);
@@ -25,8 +25,8 @@ window.__ModuleLoader__.load({
         box-sizing:border-box; color:var(--fm-ink); font-family:inherit; font-size:13px; line-height:1.5;
         color-scheme:light;
       }
-      :is([data-ds-dark-theme],.dark,[data-theme=dark]) :is(.fishfm,.fm-float),
-      :is(.fishfm,.fm-float)[data-theme=dark] {
+      :is([data-ds-dark-theme],.dark,[data-theme=dark]) :is(.fishfm,.fm-float,.fm-spectrum-bg),
+      :is(.fishfm,.fm-float,.fm-spectrum-bg)[data-theme=dark] {
         --fm-canvas:hsl(224 18% 8%); --fm-surface:hsl(222 16% 12.5%);
         --fm-raised:hsl(222 15% 15%); --fm-sunken:hsl(224 18% 10%);
         --fm-hover:hsl(222 14% 18%); --fm-line:hsl(222 12% 21%);
@@ -301,6 +301,18 @@ window.__ModuleLoader__.load({
       .fm-library-pages { display:flex; align-items:center; gap:7px; }
       .fm-library-pages .fm-button { min-height:28px; padding:3px 8px; font-size:11px; }
       .fm-float { position:absolute; z-index:25; pointer-events:auto; width:310px; max-width:calc(100% - 24px); }
+      .fm-spectrum-bg { position:absolute; z-index:1; overflow:hidden; pointer-events:none;
+        contain:strict; }
+      .fm-spectrum-bg:not([data-ready]) { display:none; }
+      .fm-spectrum-bg canvas { display:block; width:100%; height:100%; margin:0; pointer-events:none;
+        position:absolute; inset:0; font-family:ui-monospace,SFMono-Regular,Consolas,'Cascadia Mono',Menlo,monospace;
+        font-size:10px; line-height:var(--fm-row,12px); color:#3b3b3b; opacity:.60;
+        -webkit-mask-image:linear-gradient(90deg,#000 0%,#000 72%,rgba(0,0,0,.65) 90%,transparent 100%);
+        mask-image:linear-gradient(90deg,#000 0%,#000 72%,rgba(0,0,0,.65) 90%,transparent 100%);
+        transition:opacity var(--fm-base) var(--fm-ease); }
+      :is([data-ds-dark-theme],.dark,[data-theme=dark]) .fm-spectrum-bg canvas { color:#b8b8b8; opacity:.48; }
+      .fm-spectrum-bg[data-active=false] canvas { opacity:.26; }
+      :is([data-ds-dark-theme],.dark,[data-theme=dark]) .fm-spectrum-bg[data-active=false] canvas { opacity:.24; }
       .fm-float-pill { display:flex; align-items:center; gap:6px; padding:6px;
         border:1px solid var(--fm-line); border-radius:11px; background:var(--fm-raised); box-shadow:var(--fm-popup-shadow); }
       .fm-float-art { display:grid; place-items:center; width:34px; height:38px; flex:none;
@@ -472,6 +484,7 @@ window.__ModuleLoader__.load({
     const WIDGET_POSITION_KEY = 'fishfm.widget.position.v1';
     const MOTION_KEY = 'fishfm.motion.v1';
     const PLAYBACK_EFFECTS_KEY = 'fishfm.playback.effects.v1';
+    const SPECTRUM_VISIBLE_KEY = 'fishfm.spectrum.visible.v1';
     const readPreference = (key, fallback) => {
       try {
         const value = window.localStorage.getItem(key);
@@ -492,6 +505,7 @@ window.__ModuleLoader__.load({
         widgetVisible: readPreference(WIDGET_VISIBLE_KEY, true) !== false,
         widgetPosition: readPreference(WIDGET_POSITION_KEY, null),
         playbackEffects: readPreference(PLAYBACK_EFFECTS_KEY, false) === true,
+        spectrumVisible: readPreference(SPECTRUM_VISIBLE_KEY, true) !== false,
         motion: ['full', 'reduced', 'off'].includes(readPreference(MOTION_KEY, 'full')) ? readPreference(MOTION_KEY, 'full') : 'full',
       };
       let epoch = 0, playbackEpoch = 0, libraryEpoch = 0, timer, read, write, platformWrite, libraryRead,summaryWrite,expressionWrite, disposed = false;
@@ -701,6 +715,11 @@ window.__ModuleLoader__.load({
           const next = Boolean(visible);
           writePreference(WIDGET_VISIBLE_KEY, next);
           emit({ widgetVisible: next });
+        },
+        setSpectrumVisible(visible) {
+          const next = Boolean(visible);
+          writePreference(SPECTRUM_VISIBLE_KEY, next);
+          emit({ spectrumVisible: next });
         },
         setWidgetPosition(position) {
           const next = position && ['left', 'right'].includes(position.edge) && Number.isFinite(position.top)
@@ -1533,6 +1552,11 @@ window.__ModuleLoader__.load({
                 h('select', { id: `${rateId}-motion`, 'aria-label': '动态效果', value: state.motion || 'full', onChange: event => controller.setMotion(event.target.value) },
                   h('option', { value: 'full' }, '完整'), h('option', { value: 'reduced' }, '轻量'), h('option', { value: 'off' }, '关闭'))),
               h('p', { className: 'fm-note' }, '同时遵循系统的减少动态效果设置。'),
+              h('div', { className: 'fm-motion-row' }, h('label', { htmlFor: `${rateId}-spectrum` }, '背景频谱'),
+                h('button', { type: 'button', id: `${rateId}-spectrum`, className: 'fm-toggle', role: 'switch',
+                  'aria-label': '背景频谱', 'aria-checked': Boolean(state.spectrumVisible),
+                  onClick: () => controller.setSpectrumVisible(!state.spectrumVisible) }, h('span'))),
+              h('p', { className: 'fm-note' }, '对话区左缘的 ASCII 频谱背景；模拟观感，非音频测量，随窗口与会话宽度自适应。'),
               h('div', { className: 'fm-widget-note' }, h(Svg, { type: 'grip' }),
                 h('span', null, state.widgetVisible ? '离开面板后显示，可拖动吸附。' : '悬浮条已隐藏，可随时显示。')))));
       const grid = h('div', { className: 'fm-grid' }, ...(close?[controlsColumn,preferencesColumn]:[preferencesColumn,controlsColumn]));
@@ -1785,6 +1809,974 @@ window.__ModuleLoader__.load({
       );
     }
 
+    // src/ui/client/spectrum-bars.mjs
+    // 对话区左缘 ASCII 频谱背景带：本地动画时钟驱动的模拟频谱，不是 WPF 音频
+    // 的测量值，也不是歌词或节拍识别。音频由原生宿主进程播放，媒体句柄不进 UI
+    // （见 ARCHITECTURE），网页端拿不到真实 FFT，也没有歌词数据流；观感借鉴
+    // audioMotion-analyzer 的峰值保持与重力下落、快起慢落包络，以及
+    // soundscape 静默时的"呼吸"待机，全部离线生成。柱体字符按亮度映射到经典
+    // ASCII 字符集（参考 ASCIIText 的 asciify 思路，不引入 Three.js 或第三方
+    // 代码）。引擎与亮度场为纯函数；Canvas 只负责按网格与连续位移绘字。
+
+    const STRIP_BANDS = 28;
+    const ROW_HEIGHT = 12;
+    const BAND_MIN = 8;
+    const BAND_MAX = 64;
+    // 少量可读的密度级；Canvas 启动时按实际等宽字体的墨量校准，而非照搬参考
+    // 代码的长字符表下标。鲸鱼的 @ % o - 是字形，不参与密度排序。
+    const FIELD_RAMP = ' .:;irsX#%@';
+    const BEAT_PERIOD = 0.6; // 约 100 BPM 的固定律动；歌曲节拍不可测，只求观感稳定
+    const PEAK_HOLD_S = 0.42;
+    const PEAK_GRAVITY = 2.9;
+    const RISE_RATE = 15;
+    const FALL_RATE = 4.4;
+
+    // 模拟时钟：频谱形态必须由真实时间推进，而不是由绘制节拍推进。固定步长积分
+    // 让 60Hz／144Hz 屏幕和 12fps／24fps／240ms 绘制拿到同一条轨迹；绘制频率只影响
+    // 采样疏密，不改变速度。单次追赶上限用于标签页挂起后恢复，避免一次性补齐
+    // 整段空档造成突变。
+    const SIM_STEP = 1 / 60;
+    const MAX_CATCH_UP_S = 0.25;
+
+    function createSpectrumClock({ step = SIM_STEP, maxCatchUp = MAX_CATCH_UP_S } = {}) {
+      const fixed = Math.max(1 / 240, Math.min(0.1, Number(step) || SIM_STEP));
+      const cap = Math.max(fixed, Number(maxCatchUp) || MAX_CATCH_UP_S);
+      let origin = null, pending = 0;
+      // 丢弃已缓存的时间：标签页恢复、切歌或重置状态时用，避免把空档算进模拟。
+      const reset = now => { origin = Number.isFinite(now) ? now : null; pending = 0; };
+      const advance = now => {
+        if (!Number.isFinite(now)) return { steps: 0, seconds: 0, skipped: 0 };
+        if (origin === null) { origin = now; return { steps: 0, seconds: 0, skipped: 0 }; }
+        const real = Math.max(0, (now - origin) / 1000);
+        origin = now;
+        const usable = Math.min(real, cap);
+        pending += usable;
+        const steps = Math.floor(pending / fixed + 1e-9);
+        const seconds = steps * fixed;
+        pending = Math.max(0, pending - seconds);
+        return { steps, seconds, skipped: real - usable };
+      };
+      return { advance, reset, step: fixed, get pending() { return pending; } };
+    }
+
+    function hashSeed(text) {
+      let hash = 0x811c9dc5;
+      const value = String(text ?? '');
+      for (let index = 0; index < value.length; index++) {
+        hash ^= value.charCodeAt(index);
+        hash = Math.imul(hash, 0x01000193);
+      }
+      return hash >>> 0;
+    }
+
+    function mulberry32(seed) {
+      let state = seed >>> 0;
+      return () => {
+        state = (state + 0x6d2b79f5) | 0;
+        let mixed = Math.imul(state ^ (state >>> 15), 1 | state);
+        mixed = (mixed + Math.imul(mixed ^ (mixed >>> 7), 61 | mixed)) ^ mixed;
+        return ((mixed ^ (mixed >>> 14)) >>> 0) / 4294967296;
+      };
+    }
+
+    const clamp01 = value => Math.max(0, Math.min(1, Number(value) || 0));
+    const lerp = (from, to, weight) => from + (to - from) * weight;
+
+    // 歌曲进度 → 整体能量弧：首尾稍 calm、中段更满，避免匀速假感。
+    function spectrumEnergy(progress) {
+      const bounded = Math.max(0, Math.min(1, Number(progress) || 0));
+      return clamp01(0.62 + 0.3 * Math.sin(Math.PI * bounded));
+    }
+
+    function createSpectrumEngine({ bands = 24, seed = 0 } = {}) {
+      const count = Math.max(BAND_MIN, Math.min(BAND_MAX, Math.round(bands) || BAND_MIN));
+      const randoms = [], band = [];
+      for (let index = 0; index < count; index++) {
+        randoms.push(mulberry32((seed ^ Math.imul(index + 1, 0x9e3779b1)) >>> 0));
+        band.push({ value: 0, peak: 0, peakVel: 0, holdUntil: 0, target: 0, nextAt: 0 });
+      }
+      let beatRandom = mulberry32((seed ^ 0x5f356495) >>> 0);
+      const values = new Array(count).fill(0);
+      const peaks = new Array(count).fill(0);
+      let time = 0, beatPhase = 0, beatAccent = 1, currentSeed = seed >>> 0;
+
+      // 换曲换种子：同一种子序列确定可复现，不同曲目呈现不同的律动纹样。同一种子
+      // 重复调用不做事并返回 false——普通快照刷新不该清掉当前目标。
+      function reseed(nextSeed) {
+        const value = Number(nextSeed) >>> 0;
+        if (value === currentSeed) return false;
+        currentSeed = value;
+        for (let index = 0; index < count; index++) {
+          randoms[index] = mulberry32((value ^ Math.imul(index + 1, 0x9e3779b1)) >>> 0);
+          const state = band[index];
+          state.target = 0; state.nextAt = 0; state.peakVel = 0; state.holdUntil = 0;
+        }
+        beatRandom = mulberry32((value ^ 0x5f356495) >>> 0);
+        beatAccent = 1; beatPhase = 0;
+        return true;
+      }
+
+      // frequencyBands 为将来宿主 FFT 留下的归一化输入口；当前组件不传，仍为
+      // 本地模拟。输入只有 0..1 幅度，不接收媒体 URL、PCM 或凭据。
+      function step(dt, { energy = 0.8, active = true, frequencyBands = null } = {}) {
+        const delta = Math.max(0, Math.min(0.1, Number(dt) || 0));
+        time += delta;
+        if (active) {
+          beatPhase += delta / BEAT_PERIOD;
+          while (beatPhase >= 1) { beatPhase -= 1; beatAccent = 0.7 + 0.6 * beatRandom(); }
+        }
+        for (let index = 0; index < count; index++) {
+          const state = band[index];
+          const position = count === 1 ? 0 : index / (count - 1); // 0=低频 … 1=高频
+          const base = 0.38 + 0.14 * Math.sin(index * 1.71 + currentSeed % 31);
+          if (time >= state.nextAt) {
+            state.target = base * (0.35 + 1.25 * randoms[index]());
+            // 低频目标更新更慢：模拟低频段平滑、高频段细碎的动态差异
+            state.nextAt = time + (0.16 + 0.5 * randoms[index]()) * (1.4 - 0.9 * position);
+          }
+          // 相邻频段共享缓慢流动的能量包，但有各自的峰谷与响应；不再是固定斜坡。
+          const swell = 0.78 + 0.26 * Math.sin(time * 1.7 - index * 0.59)
+            + 0.14 * Math.sin(time * (2.1 + position * 2.6) + index * 1.37);
+          const pulse = active ? beatAccent * Math.exp(-5.5 * beatPhase) * (1 - position) * 0.28 : 0;
+          const input = frequencyBands?.length ? sampleSpectrumBand(frequencyBands, position) : null;
+          const goal = active
+            ? input === null ? clamp01(state.target * (0.65 + 0.65 * clamp01(energy)) * swell + pulse) : input
+            : clamp01(0.05 + 0.05 * (0.5 + 0.5 * Math.sin(time * 0.9 + index * 0.45)));
+          const rate = goal > state.value ? RISE_RATE * (0.75 + position * 0.8) : FALL_RATE * (0.7 + position * 0.9);
+          state.value = clamp01(lerp(state.value, goal, 1 - Math.exp(-rate * delta)));
+          if (state.value >= state.peak) {
+            state.peak = state.value; state.peakVel = 0; state.holdUntil = time + PEAK_HOLD_S;
+          } else if (time >= state.holdUntil) {
+            state.peakVel += PEAK_GRAVITY * delta;
+            state.peak = Math.max(state.value, state.peak - state.peakVel * delta);
+          }
+          values[index] = state.value;
+          peaks[index] = state.peak;
+        }
+        return { values, peaks };
+      }
+
+      return { bands: count, reseed, step };
+    }
+
+    // 帧快照：引擎每步复用同一组数组，重绘（例如窗口尺寸变化）需要一份不随
+    // 引擎继续推进而变化的副本。
+    function snapshotFrame(frame) {
+      return { values: [...(frame?.values ?? [])], peaks: [...(frame?.peaks ?? [])] };
+    }
+
+    // 驱动层：把"时间推进"和"绘制节拍"分开。clock 只认真实时间，按固定步长
+    // 产出可结算的模拟步；driver 把步数喂给引擎并维护波浪相位。绘制方可以按任意
+    // 频率采样，采样频率不再改变运动速度。
+    function createSpectrumDriver({ engine, step = SIM_STEP, maxCatchUp = MAX_CATCH_UP_S,
+      initialFrame = null, initialPhase = 0 } = {}) {
+      if (!engine || typeof engine.step !== 'function') throw new TypeError('spectrum driver needs an engine');
+      const clock = createSpectrumClock({ step, maxCatchUp });
+      // 接管上一档绘制留下的画面与相位：切换"完整／轻量"时不该闪一帧空白。
+      let phase = Number.isFinite(initialPhase) ? initialPhase : 0;
+      let frame = initialFrame ?? { values: [], peaks: [] };
+      function advance(now, options = {}) {
+        const tick = clock.advance(now);
+        for (let index = 0; index < tick.steps; index++) {
+          frame = engine.step(clock.step, options);
+          phase += clock.step;
+        }
+        return { steps: tick.steps, skipped: tick.skipped, frame, phase, changed: tick.steps > 0 };
+      }
+      // 静态基线：预积分一段静默时间，供"关闭动效"时一次画完。
+      function settle(seconds, options = {}) {
+        const steps = Math.max(1, Math.round((Number(seconds) || 0) / clock.step));
+        for (let index = 0; index < steps; index++) frame = engine.step(clock.step, options);
+        return snapshotFrame(frame);
+      }
+      return {
+        advance, settle, engine, step: clock.step,
+        reset: now => clock.reset(now),
+        get phase() { return phase; },
+        get frame() { return frame; },
+      };
+    }
+
+    // 连续亮度场 → 正向可读字符网格：Y 排列频段，X 表示从左基线起的长度。
+    function sampleSpectrumBand(series, position) {
+      if (!series?.length) return 0;
+      const at = clamp01(position) * (series.length - 1);
+      const lo = Math.floor(at), hi = Math.min(series.length - 1, lo + 1);
+      return lerp(clamp01(series[lo]), clamp01(series[hi]), at - lo);
+    }
+
+    const smoothUnit = value => { const x = clamp01(value); return x * x * (3 - 2 * x); };
+    // 仅是鲸鱼在频段中的局部活动行，不参与频谱的左侧基线计算。
+    function spectrumWaterLine(rows) { return Math.max(2, Math.round((Number(rows) || 8) * 0.5)); }
+
+    // offsets 是上下方向的亚字符位移。左端恒为 0，沿条长平滑增加；不旋转字形。
+    function spectrumBend(bar, relativeLength, phase, fluid = true) {
+      if (!fluid) return 0;
+      return Math.pow(clamp01(relativeLength), 1.7) * (0.24 * Math.sin(phase * 1.15 + bar * 0.64)
+        + 0.1 * Math.sin(phase * 1.83 - bar * 0.91));
+    }
+
+    function renderSpectrumScene(values, peaks, columns, rows,
+      { phase = 0, ramp = FIELD_RAMP, fluid = true, disturbance = null } = {}) {
+      const cols = Math.max(4, Math.min(64, Math.round(Number(columns) || 0)));
+      const rowCount = Math.max(8, Math.min(120, Math.round(Number(rows) || 0)));
+      const grid = Array.from({ length: rowCount }, () => new Array(cols).fill(' '));
+      const offsets = Array.from({ length: rowCount }, () => new Array(cols).fill(0));
+      const baseline = 0; // Sidebar 右边界对应容器最左列，与画布底部无关。
+      const bars = [];
+      if (!values?.length) return { grid: [], offsets: [], bars, baseline };
+      // 每条两行，至少空一行；上下各留一行防止弯曲裁切。条数仅随高度/频段数变化。
+      const count = Math.min(values.length, 32, Math.max(1, Math.floor((rowCount - 2) / 3)));
+      const pitch = (rowCount - 2) / count;
+      const densityRamp = ramp?.length > 1 ? ramp : FIELD_RAMP;
+      for (let b = 0; b < count; b++) {
+        const position = count === 1 ? 0.5 : b / (count - 1);
+        const value = sampleSpectrumBand(values, position);
+        const peak = Math.max(value, sampleSpectrumBand(peaks ?? values, position));
+        const startRow = 1 + Math.floor(b * pitch + (pitch - 2) / 2);
+        const endRow = startRow + 1;
+        const center = startRow + 1;
+        const local = disturbance ? Math.exp(-(((center - disturbance.center) / Math.max(2, disturbance.width * 0.55)) ** 2)) : 0;
+        const lift = local * (Number(disturbance?.strength) || 0);
+        const length = Math.min(cols, Math.max(0, value * cols + lift * 2));
+        bars.push({ center, startRow, endRow, length, end: baseline + length, value, peak });
+        for (let x = baseline; x < Math.ceil(length); x++) {
+          const relative = clamp01(x / Math.max(1, length - 1));
+          const bend = spectrumBend(b, relative, phase, fluid) + local * lift * 0.06 * relative;
+          const tip = smoothUnit((length - x) / 2.2);
+          for (let y = startRow; y <= endRow; y++) {
+            const flow = Math.sin(x * 0.38 + b * 0.63 - phase * 0.55) * 0.055
+              + Math.sin(x * 0.7 + (y - startRow) * 1.9 - b * 0.81 + phase * 0.31) * 0.025;
+            const brightness = clamp01((0.66 + value * 0.12 + flow) * (0.22 + tip * 0.78));
+            grid[y][x] = densityRamp[Math.max(1, Math.round(brightness * (densityRamp.length - 1)))];
+            offsets[y][x] = bend;
+          }
+        }
+        // 峰值点留在右端前方的一格，峰值回落沿 X 轴向左，不改变条体起点。
+        if (peak > value + 0.055) {
+          const x = Math.min(cols - 1, Math.floor(peak * cols));
+          if (x > Math.ceil(length)) {
+            grid[startRow][x] = ':';
+            offsets[startRow][x] = spectrumBend(b, 1, phase, fluid);
+          }
+        }
+      }
+      return { grid, offsets, bars, baseline };
+    }
+
+    // 鲸鱼选择中部某个频段作为活动带，不再从竖柱 top/height 计算水位。
+    function spectrumWhaleLine(scene, whale) {
+      if (!whale || !scene.bars.length) return spectrumWaterLine(scene.grid.length);
+      const cols = scene.grid[0]?.length || 1;
+      const ratio = 0.32 + 0.3 * clamp01((whale.column + (whale.frame?.[0]?.length ?? 8) / 2) / cols);
+      const index = Math.min(scene.bars.length - 1, Math.floor(scene.bars.length * ratio));
+      return scene.bars[index].endRow;
+    }
+
+    function renderSpectrumGrid(values, peaks, columns, rows, options) {
+      return renderSpectrumScene(values, peaks, columns, rows, options).grid;
+    }
+    function renderSpectrumField(values, peaks, columns, rows, options) {
+      return renderSpectrumGrid(values, peaks, columns, rows, options).map(line => line.join(''));
+    }
+    function renderSpectrumFieldText(values, peaks, columns, rows, options) {
+      return renderSpectrumField(values, peaks, columns, rows, options).join('\n');
+    }
+
+    // src/ui/client/spectrum-whale.mjs
+    // ASCII 海面上的鲸鱼彩蛋：字母格取自 dsh-TUI 的像素鲸鱼帧（原作为
+    // lhh010/dsh-ui-whale 的手绘 Excel 像素画，BSD-3-Clause）。这里只取"哪一格有
+    // 墨"的轮廓信息并降采样到 18×9 的字母格，颜色与渲染链全部由本项目重写：
+    // 鲸鱼的每个格子直接写进频谱背景的同一张字符矩阵，再由同一个 Canvas 绘制；
+    // 没有第二个 DOM 层、没有贴图、没有 emoji。
+    //
+    // 授权与来源见 THIRD_PARTY_NOTICES.md；本文件只保留降采样后的字形，不包含
+    // 上游的调色板、ANSI 编码或 Ink 组件。
+
+    /** 比这更窄的字符网格放不下完整鲸鱼，整段动画跳过。 */
+    const WHALE_MIN_COLUMNS = 12;
+    /** 两次彩蛋之间至少间隔的秒数。 */
+    const WHALE_COOLDOWN_S = 95;
+    /** 本次会话里第一次允许出现的等待秒数。 */
+    const WHALE_FIRST_DELAY_S = 28;
+    /** 多久掷一次骰子。 */
+    const ROLL_INTERVAL_S = 10;
+    const ROLL_CHANCE = 0.3;
+    const SEED_VERSION = 1;
+
+    // 字母格：'@' 轮廓、'%' 身体、'o' 口鼻、'-' 腹部，'.' 透明。
+    // 全部来自上游 40×25 帧的包围盒降采样（18×9），保留可辨认的鲸鱼侧影；
+    // 只使用 FIELD_RAMP 里已有的字形，因此可以直接写进频谱那一张字符矩阵。
+    const MASTER_WIDTH = 18;
+
+    const WHALE_POSES = Object.freeze({
+      standard: [
+        '...........@@...@@',
+        '...........@%%@@%%',
+        '..@@@@@@...@%%%%%@',
+        '@%%%%%%%%%@.@%%%@.',
+        '@%%%%%%%%%%%%%%%..',
+        '@%%%%%%%%%%%%%%@..',
+        '@%oooooo%%%%%%@...',
+        '.@-oooooo@%%@@@...',
+        '..@--oo--@@%%@@...',
+      ],
+      fin: [
+        '...........@@...@@',
+        '...........@%%@@%%',
+        '..@@@@@@...@%%%%%@',
+        '@%%%%%%%%%@.@%%%@.',
+        '@%%%%%%%%%%%%%%%..',
+        '@%%%%%%%%%%%%%%@..',
+        '@%oooooo%%%%%%@...',
+        '.@-oooooo@%%%@@...',
+        '..@--oo---@%%%@...',
+      ],
+      tail: [
+        '............@@....',
+        '..@@@@......@%..@@',
+        '.@%%%%%@....@%@@%@',
+        '@%%%%%%%%@..@%%%%.',
+        '@%%%%%%%%%%%%%%%..',
+        '@%%%%%%%%%%%%%@...',
+        '@%ooooo%%%@%%@....',
+        '.--ooooo@%%@@.....',
+        '..@-ooo-@%%%@.....',
+      ],
+      spout: [
+        '..------...@@.....',
+        '.-------...@%@.@@@',
+        '..@@@@@@...@%%%%%@',
+        '.@%%%%%%%@@.@%%%@.',
+        '@%%%%%%%%%%%%%%%..',
+        '@%%%%%%%%%%%%%%@..',
+        '@%ooooo%%%%%%%%...',
+        '.@-oooooo@%%@@@...',
+        '..@--oo--@@%%@@...',
+      ],
+    });
+
+    // 水上／水下用不同的亮度档：水上要显眼，水下只留一层更淡的影子。
+    // 键必须覆盖字母格里出现的全部非透明字形。
+    const UNDER_WATER = { '@': '\'', '%': ',', '-': ',', o: '\'' };
+    const WAKE = ["'", ',', ':'];
+
+    const scaledCache = new Map();
+
+    /**
+     * 把 18 宽的母版按块多数决降到目标宽度，保持形状不变、笔画变少。
+     * 宽度不小于母版时原样返回。
+     */
+    function scaleWhaleFrame(frame, width) {
+      const target = Math.max(4, Math.min(28, Math.round(Number(width) || MASTER_WIDTH)));
+      const source = Array.isArray(frame) && frame.length ? frame : WHALE_POSES.standard;
+      const sourceWidth = source.reduce((max, row) => Math.max(max, row.length), 0) || MASTER_WIDTH;
+      if (target >= sourceWidth) return source.map(row => row.padEnd(sourceWidth, '.'));
+      const key = `${target}:${source.join('\n')}`;
+      const cached = scaledCache.get(key);
+      if (cached) return cached;
+      const sourceHeight = source.length;
+      const targetHeight = Math.max(3, Math.round((sourceHeight * target) / sourceWidth));
+      const rows = [];
+      for (let y = 0; y < targetHeight; y++) {
+        let line = '';
+        for (let x = 0; x < target; x++) {
+          const y0 = Math.floor((y * sourceHeight) / targetHeight);
+          const y1 = Math.max(y0 + 1, Math.ceil(((y + 1) * sourceHeight) / targetHeight));
+          const x0 = Math.floor((x * sourceWidth) / target);
+          const x1 = Math.max(x0 + 1, Math.ceil(((x + 1) * sourceWidth) / target));
+          const tally = new Map();
+          for (let sy = y0; sy < y1; sy++) {
+            for (let sx = x0; sx < x1; sx++) {
+              const glyph = source[sy]?.[sx] ?? '.';
+              if (glyph === '.' || glyph === ' ') continue;
+              tally.set(glyph, (tally.get(glyph) || 0) + 1);
+            }
+          }
+          const winner = [...tally.entries()].sort((a, b) => b[1] - a[1])[0];
+          line += winner ? winner[0] : '.';
+        }
+        rows.push(line);
+      }
+      scaledCache.set(key, rows);
+      return rows;
+    }
+
+    /** 按可用列数挑鲸鱼宽度：网格越窄画得越小，太窄就返回 0 表示跳过。 */
+    function whaleWidthFor(columns) {
+      const cols = Math.round(Number(columns) || 0);
+      if (cols < WHALE_MIN_COLUMNS) return 0;
+      return Math.max(7, Math.min(MASTER_WIDTH, Math.floor(cols * 0.58)));
+    }
+
+    // 一段动画的分段：submerge 0＝完全出水，1＝完全没入。lurk 与 emerge 让鲸鱼
+    // 从水下慢慢浮起，breach 出水，dive 再沉回去，最后只剩涟漪。
+    const PHASES = [
+      { name: 'lurk', seconds: 0.9, from: 0.82, to: 0.66 },
+      { name: 'emerge', seconds: 0.6, from: 0.66, to: 0.1 },
+      { name: 'breach', seconds: 1.3, from: 0.1, to: 0.02 },
+      { name: 'dive', seconds: 1, from: 0.02, to: 0.94 },
+      { name: 'ripple', seconds: 1.5, from: 1, to: 1 },
+    ];
+    const WHALE_EVENT_SECONDS = PHASES.reduce((sum, phase) => sum + phase.seconds, 0);
+
+    function poseAt(name, progress) {
+      if (name !== 'breach') return WHALE_POSES.standard;
+      if (progress < 0.22) return WHALE_POSES.fin;
+      if (progress < 0.46) return WHALE_POSES.tail;
+      if (progress < 0.72) return WHALE_POSES.spout;
+      return WHALE_POSES.standard;
+    }
+
+    /**
+     * 彩蛋导演：只决定"鲸鱼此刻在哪、什么姿态、淹到多深"，不碰 DOM。
+     * 触发是低频的——播放中每 10 秒掷一次 30% 的骰子，且距上次结束至少
+     * WHALE_COOLDOWN_S 秒；非播放、网格过窄、动效非完整时一律不出场。
+     */
+    function createWhaleDirector({
+      seed = 0,
+      cooldown = WHALE_COOLDOWN_S,
+      firstDelay = WHALE_FIRST_DELAY_S,
+      random = null,
+      chance = ROLL_CHANCE,
+    } = {}) {
+      const rng = typeof random === 'function' ? random : mulberryFrom(seed);
+      let sinceLast = 0, untilRoll = Math.max(0, firstDelay), event = null;
+      let centerRatio = 0.46, width = 0;
+
+      function cancel() { event = null; sinceLast = 0; untilRoll = Math.max(ROLL_INTERVAL_S, cooldown * 0.4); }
+
+      function start(columns) {
+        const w = whaleWidthFor(columns);
+        if (!w) return false;
+        width = w;
+        // 位置每轮轻微变化，避免每次都在同一列跃出。
+        centerRatio = 0.34 + rng() * 0.3;
+        event = { time: 0, columns };
+        return true;
+      }
+
+      function advance(dt, { active = false, columns = 0, rows = 0, allowed = true } = {}) {
+        const delta = Math.max(0, Math.min(0.25, Number(dt) || 0));
+        if (!active || !allowed) { cancel(); return null; }
+        if (whaleWidthFor(columns) === 0 || rows < 6) { event = null; return null; }
+
+        if (event) {
+          width = whaleWidthFor(columns);
+          event.time += delta;
+          event.columns = columns;
+          let elapsed = 0;
+          for (let index = 0; index < PHASES.length; index++) {
+            const phase = PHASES[index];
+            if (event.time < elapsed + phase.seconds || index === PHASES.length - 1) {
+              const local = Math.min(1, Math.max(0, (event.time - elapsed) / phase.seconds));
+              const submerge = phase.from + (phase.to - phase.from) * local;
+              // ripple 阶段身子已经沉下去了，只剩水面上的圈：不给 frame，
+              // 保证调用方不会在涟漪里又画出一只半只鲸鱼。
+              const frame = phase.name === 'ripple' ? null : scaleWhaleFrame(poseAt(phase.name, local), width);
+              const span = frame ? frame[0].length : Math.max(1, Math.round(width / 2));
+              const visual = {
+                phase: phase.name,
+                progress: local,
+                submerge,
+                frame,
+                column: Math.max(1, Math.min(columns - span - 1,
+                  Math.round(columns * centerRatio - span / 2))),
+                ripple: phase.name === 'ripple'
+                  ? { radius: 1 + local * 5, fade: 1 - local }
+                  : null,
+                pose: phase.name,
+              };
+              if (phase.name === 'ripple' && local >= 1) { event = null; sinceLast = 0; }
+              return visual;
+            }
+            elapsed += phase.seconds;
+          }
+          event = null;
+          return null;
+        }
+
+        sinceLast += delta;
+        untilRoll -= delta;
+        if (untilRoll > 0) return null;
+        untilRoll = ROLL_INTERVAL_S;
+        if (sinceLast < cooldown) return null;
+        if (rng() > chance) return null;
+        start(columns);
+        return null;
+      }
+
+      return {
+        advance,
+        cancel,
+        // 状态只读出来给测试与调试用，渲染不依赖它。
+        get active() { return Boolean(event); },
+        get cooldownLeft() { return Math.max(0, cooldown - sinceLast); },
+        setChance(next) { chance = Math.max(0, Math.min(1, Number(next) || 0)); },
+      };
+    }
+
+    function mulberryFrom(seed) {
+      let state = (seed >>> 0) || 0x9e3779b9;
+      return () => {
+        state = (state + 0x6d2b79f5) | 0;
+        let mixed = Math.imul(state ^ (state >>> 15), 1 | state);
+        mixed = (mixed + Math.imul(mixed ^ (mixed >>> 7), 61 | mixed)) ^ mixed;
+        return ((mixed ^ (mixed >>> 14)) >>> 0) / 4294967296;
+      };
+    }
+
+    /**
+     * 把鲸鱼与它的涟漪直接写进海水字符网格：露出水面的部分用原字形，没入水下的
+     * 部分换成更淡的影子，出水处的浪被抬起来，涟漪从入水点向两侧扩。
+     * 返回是否真的画上了东西（没有画上就不该让调用方以为有变化）。
+     */
+    function stampWhale(grid, whale, { waterLine = 0, columns = 0, offsets = null } = {}) {
+      if (!Array.isArray(grid) || !grid.length || !whale) return false;
+      const cols = Math.max(0, Math.min(columns || grid[0].length, grid[0].length));
+      const rows = grid.length;
+      const line = Math.round(waterLine);
+      let painted = false;
+      const put = (row, column, glyph) => {
+        if (row < 0 || row >= rows || column < 0 || column >= cols) return;
+        if (!glyph || glyph === '.' || glyph === ' ') return;
+        grid[row][column] = glyph;
+        if (offsets?.[row]) offsets[row][column] = 0;
+        painted = true;
+      };
+
+      const frame = whale.frame;
+      if (Array.isArray(frame) && frame.length) {
+        const height = frame.length;
+        // submerge 0＝整个身子在水面之上，1＝完全没入；中间是逐渐下沉。
+        const above = Math.max(0, Math.min(height, Math.round(height * (1 - whale.submerge))));
+        const top = line - above + 1;
+        // 水下只留一层浅影，再深就化进海水里，避免整只鲸压在正文旁。
+        const shadowRows = Math.max(1, Math.round(height * 0.3));
+        for (let y = 0; y < height; y++) {
+          const row = top + y;
+          if (row > line + shadowRows) break;
+          const under = row > line;
+          const glyphs = frame[y];
+          // 擦掉实体轮廓内部的原柱体（包括鲸鱼自身的空白），不只覆盖有墨的格。
+          // 两侧透明角保留背景；重置亚字符位移，鲸鱼仍严格落在统一网格上。
+          const first = glyphs.search(/[^. ]/);
+          let last = glyphs.length - 1;
+          while (last >= 0 && (glyphs[last] === '.' || glyphs[last] === ' ')) last--;
+          if (first >= 0 && row >= 0 && row < rows) for (let x = first; x <= last; x++) {
+            const col = whale.column + x;
+            if (col < 0 || col >= cols) continue;
+            grid[row][col] = ' ';
+            if (offsets?.[row]) offsets[row][col] = 0;
+          }
+          for (let x = 0; x < glyphs.length; x++) {
+            const glyph = glyphs[x];
+            if (glyph === '.' || glyph === ' ') continue;
+            put(row, whale.column + x, under ? UNDER_WATER[glyph] : glyph);
+          }
+        }
+        // 出水处的浪被顶起来：紧贴鲸鱼身侧的一行画成浪尖，全部落在空白处。
+        for (const x of [-1, frame[0]?.length || 0]) {
+          const column = whale.column + x;
+          if (column < 0 || column >= cols) continue;
+          if (grid[line]?.[column] === ' ') put(line, column, WAKE[Math.abs(x) % WAKE.length]);
+        }
+      }
+
+      if (whale.ripple) {
+        const { radius, fade } = whale.ripple;
+        const centerColumn = whale.column + Math.round((frame?.[0]?.length || 0) / 2);
+        const rings = Math.min(2, Math.max(1, Math.round(radius)));
+        const glyph = fade > 0.6 ? ':' : fade > 0.3 ? ',' : '\'';
+        for (let ring = 0; ring < rings; ring++) {
+          const spread = Math.round(radius * (0.5 + ring / Math.max(1, rings)));
+          for (const side of [-1, 1]) {
+            put(line + (ring % 2 === 0 ? 0 : 1), centerColumn + side * spread, glyph);
+          }
+        }
+      }
+      return painted;
+    }
+
+    const WHALE_SEED_VERSION = SEED_VERSION;
+
+    // src/ui/client/spectrum-canvas.mjs
+    // 仅在初始化/字体变化时读一次小字形图集，按实际墨量排序。不是逐帧像素回读。
+    function calibrateSpectrumRamp(context, font) {
+      context.canvas.width = 32; context.canvas.height = 24;
+      context.font = font; context.textBaseline = 'top';
+      const density = [...FIELD_RAMP.trim()].map(glyph => {
+        context.clearRect(0, 0, 32, 24);
+        context.fillStyle = '#000'; context.fillText(glyph, 4, 4);
+        const pixels = context.getImageData(0, 0, 32, 24).data;
+        let ink = 0;
+        for (let i = 3; i < pixels.length; i += 4) ink += pixels[i];
+        return { glyph, ink };
+      });
+      density.sort((a, b) => a.ink - b.ink);
+      return ' ' + density.map(entry => entry.glyph).join('');
+    }
+
+    function drawSpectrumScene(context, scene, { width, height, font, color, pixelRatio = 1 } = {}) {
+      if (!context || !(width > 0) || !(height > 0)) return 0;
+      const ratio = Math.max(1, Math.min(2, Number(pixelRatio) || 1));
+      const canvas = context.canvas;
+      const w = Math.round(width * ratio), h = Math.round(height * ratio);
+      if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; }
+      context.setTransform(ratio, 0, 0, ratio, 0, 0);
+      context.clearRect(0, 0, width, height);
+      context.font = font; context.fillStyle = color;
+      context.textAlign = 'center'; context.textBaseline = 'middle';
+      const rows = scene.grid.length, cols = scene.grid[0]?.length ?? 0;
+      if (!rows || !cols) return 0;
+      const cellWidth = width / cols, cellHeight = height / rows;
+      let glyphs = 0;
+      for (let y = 0; y < rows; y++) for (let x = 0; x < cols; x++) {
+        const glyph = scene.grid[y][x];
+        if (glyph === ' ') continue;
+        const offset = scene.offsets[y]?.[x] || 0;
+        context.fillText(glyph, (x + 0.5) * cellWidth, (y + 0.5 + offset) * cellHeight);
+        glyphs++;
+      }
+      return glyphs;
+    }
+
+    function createSpectrumPainter(canvas) {
+      const context = canvas?.getContext?.('2d');
+      if (!context) return null;
+      let font = '', ramp = FIELD_RAMP;
+      return {
+        get ramp() { return ramp; },
+        paint(scene) {
+          const style = getComputedStyle(canvas);
+          const nextFont = `${style.fontSize} ${style.fontFamily}`;
+          if (font !== nextFont) {
+            font = nextFont;
+            try { ramp = calibrateSpectrumRamp(document.createElement('canvas').getContext('2d', { willReadFrequently: true }), font); }
+            catch { ramp = FIELD_RAMP; }
+          }
+          return drawSpectrumScene(context, scene, { width: canvas.clientWidth, height: canvas.clientHeight,
+            font, color: style.color, pixelRatio: window.devicePixelRatio });
+        },
+      };
+    }
+
+    // src/ui/client/spectrum-backdrop.mjs
+    // 工作区背景层：DSH 没有会话背景插槽（0.2.1-rc.3 的 slot 只有 main／
+    // conversation.content／shell.*），因此挂在本插件可用的 shell.overlay 条目上，
+    // 但几何完全由宿主真实容器推导：目标为 [data-conversation-content]（会话正文
+    // 容器，带稳定语义属性），左缘留白取自 [data-width-handle=left]（会话宽度
+    // 手柄）与正文的 24px 间距，并随窗口缩放、侧栏拖动、正文宽度拖动重新测量。
+    // 不使用固定屏幕坐标，不在没有会话正文时渲染。
+    const OVERLAY = '[data-shell-overlay]';
+    const TARGET = '[data-conversation-content]';
+    const MAX_WIDTH = 160; // 参考截图的初始宽度；容器更窄时按留白自适应
+    const MIN_WIDTH = 72; // 小于此宽度会压到正文，直接不渲染
+    const FRAME_INTERVAL = 1000 / 24; // 完整档：亚字符运动，固定模拟步长仍为 1/60s
+    const REDUCED_INTERVAL = 240; // “轻量”档的绘制节拍；模拟时钟仍按真实时间推进
+
+    // performance.now 与 rAF 时间戳同一时间基准；缺失时退回 Date.now。
+    const performanceNow = () => {
+      try {
+        if (typeof performance !== 'undefined' && typeof performance.now === 'function') return performance.now();
+      } catch { /* 某些嵌入环境屏蔽 performance */ }
+      return Date.now();
+    };
+
+    let charCanvas = null;
+    function measureCharWidth(sample) {
+      try {
+        charCanvas = charCanvas ?? document.createElement('canvas');
+        const context = charCanvas.getContext('2d');
+        context.font = getComputedStyle(sample).font;
+        const width = context.measureText('M').width;
+        return width > 0 ? width : 6;
+      } catch { return 6; }
+    }
+
+    function readGeometry(root, target) {
+      const overlay = root?.closest?.(OVERLAY);
+      if (!overlay || !target || !target.isConnected) return null;
+      const frame = overlay.getBoundingClientRect();
+      const rect = target.getBoundingClientRect();
+      if (rect.width < 240 || rect.height < 200) return null;
+      // 左缘留白：优先用会话宽度手柄（存在时）右缘 + 24px 内容间距；空会话没有
+      // 手柄时退回 [data-composer-card]（宿主按正文宽度 + 32px 渲染的输入卡片）；
+      // 两者都缺时用宿主正文宽度公式 clamp(680px, 64%, 920px)。
+      const handle = target.querySelector('[data-width-handle="left"]');
+      const card = target.querySelector('[data-composer-card]');
+      let gutter = handle ? handle.getBoundingClientRect().right - rect.left + 24 : NaN;
+      if (!(gutter > 0) && card) gutter = card.getBoundingClientRect().left - rect.left + 16;
+      if (!(gutter > 0)) {
+        const contentWidth = Math.max(680, Math.min(920, rect.width * 0.64));
+        gutter = (rect.width - contentWidth) / 2;
+      }
+      const width = Math.min(MAX_WIDTH, gutter - 12);
+      if (width < MIN_WIDTH) return null;
+      return { left: Math.round(rect.left - frame.left), top: Math.round(rect.top - frame.top),
+        width: Math.round(width), height: Math.round(rect.height) };
+    }
+
+    const sameGeometry = (a, b) => (a === b) || (a && b
+      && a.left === b.left && a.top === b.top && a.width === b.width && a.height === b.height);
+
+    // 柱群与鲸鱼共用合成路径：先生成亮度场，再将鲸鱼写进同一张字符矩阵，
+    // 最后用一个透明 Canvas 绘制。尺寸变化
+    // 后的重画也要经过这里，否则鲸鱼会在重画后凭空消失一帧。
+    function composeField(painter, frame, whale, columns, rows, phase, fluid = true) {
+      if (!painter || !frame) return;
+      const strength = whale ? whale.phase === 'lurk' ? 0.65 : whale.phase === 'ripple' ? whale.ripple.fade * 0.35 : 0.4 : 0;
+      const fieldOptions = { phase, fluid, ramp: painter.ramp };
+      let scene = renderSpectrumScene(frame.values, frame.peaks, columns, rows, fieldOptions);
+      if (whale) {
+        // 选定一个纵向频段带，从该带的右端附近浮出。行带不随条长变化；同次事件
+        // 固定行/列比例，避免被伸缩的条端拖着跳；缩窗仍在同一张字符网格内重画。
+        if (!Number.isFinite(whale.waterLineRatio)) whale.waterLineRatio = spectrumWhaleLine(scene, whale) / rows;
+        const line = Math.round(whale.waterLineRatio * rows);
+        const width = whale.frame?.[0]?.length ?? 8;
+        if (!Number.isFinite(whale.columnRatio)) {
+          const band = scene.bars.reduce((closest, item) => Math.abs(item.center - line) < Math.abs(closest.center - line) ? item : closest,
+            scene.bars[0]);
+          whale.columnRatio = Math.max(1, Math.min(columns - width - 1, Math.round((band?.end ?? columns * 0.6) - width * 0.65))) / columns;
+        }
+        const column = Math.max(1, Math.min(columns - width - 1, Math.round(whale.columnRatio * columns)));
+        scene = renderSpectrumScene(frame.values, frame.peaks, columns, rows, { ...fieldOptions,
+          disturbance: { center: line, width: (whale.frame?.length ?? 5) * 1.6, strength } });
+        stampWhale(scene.grid, { ...whale, column }, { waterLine: line, columns, offsets: scene.offsets });
+      }
+      painter.paint(scene);
+    }
+
+    // whaleEager 只给预览 harness 与回归用：生产注册不传，彩蛋保持默认的低频
+    // 节奏。用布尔 props 而不是 window 开关，避免页面脚本能改写彩蛋频率。
+    function SpectrumBackdrop({ controller, usePanelInfo, whaleEager = false, spectrumFluid = true }) {
+      const state = React.useSyncExternalStore(controller.subscribe, controller.getSnapshot);
+      const activePanelId = typeof usePanelInfo === 'function' ? usePanelInfo(info => info.activePanelId) : null;
+      const rootRef = React.useRef(null);
+      const canvasRef = React.useRef(null);
+      const painterRef = React.useRef(null);
+      const engineRef = React.useRef(null);
+      const frameRef = React.useRef(null);
+      const phaseRef = React.useRef(0);
+      const activeRef = React.useRef(false);
+      const listeningRef = React.useRef(false);
+      const whaleVisualRef = React.useRef(null);
+      const seedSourceRef = React.useRef('standby');
+      const columnsRef = React.useRef(24);
+      const rowsRef = React.useRef(48);
+      const progressRef = React.useRef(0);
+      const geometryRef = React.useRef(null);
+      const [geometry, setGeometry] = React.useState(null);
+      const [columns, setColumns] = React.useState(24);
+      const [rows, setRows] = React.useState(48);
+      const [rowPixels, setRowPixels] = React.useState(ROW_HEIGHT);
+      const [systemReduced, setSystemReduced] = React.useState(() =>
+        Boolean(window.matchMedia?.('(prefers-reduced-motion: reduce)').matches));
+      React.useEffect(() => {
+        const query = window.matchMedia?.('(prefers-reduced-motion: reduce)');
+        const changed = event => setSystemReduced(event.matches);
+        query?.addEventListener?.('change', changed);
+        return () => query?.removeEventListener?.('change', changed);
+      }, []);
+      const snapshot = state.snapshot;
+      const current = snapshot?.current;
+      const presentation = playbackPresentation(snapshot, state.connected);
+      // 彩蛋的"在听"判据比界面播放态更宽松：切歌时 Core 会短暂进入 resolving，
+      // 界面因此掉出 active。如果按界面状态推进，每次换歌都会把冷却清零，彩蛋
+      // 永远攒不够时间。暂停、停止、出错才是用户真的不想听了，必须立刻取消。
+      const listening = Boolean(state.connected && snapshot) && !snapshot.paused
+        && !snapshot.lastError && snapshot.status !== 'idle';
+      // 已开始的音乐跨 resolving 间隙保持背景能量，避免水平条突然全部缩回左端。
+      // 首次准备不提前启动，暂停/停止仍取消。
+      const playing = presentation.active || (listening && activeRef.current);
+      const seedSource = current
+        ? `${current.playInstanceId ?? ''}:${current.track?.provider ?? ''}:${current.track?.providerTrackId ?? ''}`
+        : 'standby';
+      // 播放状态与进度都走 ref：它们每几秒就变一次，写进 effect 依赖会让整条
+      // 动画循环重启。模拟循环在下一帧自己读取最新值。
+      React.useEffect(() => { progressRef.current = progressPercent(current) / 100; });
+      React.useEffect(() => { activeRef.current = playing; });
+      React.useEffect(() => { listeningRef.current = listening; });
+      React.useEffect(() => { seedSourceRef.current = seedSource; }, [seedSource]);
+      // 面板打开或用户关闭背景时整层不渲染，动画循环也随之停止，不留后台空转。
+      const visible = Boolean(state.spectrumVisible) && activePanelId !== 'fishfm';
+      // 真实容器测量：目标出现／消失、侧栏拖动、正文宽度拖动和窗口缩放都会重算。
+      React.useEffect(() => {
+        if (!visible) return undefined;
+        const root = rootRef.current;
+        if (!root) return undefined;
+        let scheduled = 0;
+        let observed = null;
+        const observer = typeof ResizeObserver === 'function' ? new ResizeObserver(() => schedule()) : null;
+        function schedule() {
+          if (scheduled) return;
+          scheduled = requestAnimationFrame(() => {
+            scheduled = 0;
+            const target = document.querySelector(TARGET);
+            if (observer && target !== observed) {
+              if (observed) observer.unobserve(observed);
+              observed = target;
+              if (target) observer.observe(target);
+            }
+            const next = readGeometry(root, target);
+            if (!sameGeometry(next, geometryRef.current)) {
+              geometryRef.current = next;
+              setGeometry(next);
+            }
+            if (next) {
+              const charWidth = measureCharWidth(canvasRef.current ?? root);
+              const nextColumns = Math.max(8, Math.min(40, Math.floor((next.width - 4) / charWidth)));
+              const nextRows = Math.max(10, Math.min(96, Math.floor(next.height / ROW_HEIGHT)));
+              const nextRowPixels = Math.round(next.height / nextRows * 10) / 10;
+              columnsRef.current = nextColumns;
+              rowsRef.current = nextRows;
+              setColumns(previous => (previous === nextColumns ? previous : nextColumns));
+              setRows(previous => (previous === nextRows ? previous : nextRows));
+              setRowPixels(previous => (previous === nextRowPixels ? previous : nextRowPixels));
+            }
+          });
+        }
+        schedule();
+        window.addEventListener('resize', schedule);
+        // 目标挂载／卸载与宽度偏好变化不都会触发 ResizeObserver，低频巡检兜底。
+        const poll = setInterval(schedule, 800);
+        return () => {
+          cancelAnimationFrame(scheduled);
+          clearInterval(poll);
+          window.removeEventListener('resize', schedule);
+          observer?.disconnect();
+        };
+      }, [activePanelId, visible]);
+      // 引擎与种子：reseed 自己判断种子是否真变了，普通快照刷新不会重置频段目标。
+      React.useEffect(() => {
+        const seed = hashSeed(seedSource);
+        if (!engineRef.current || engineRef.current.bands !== STRIP_BANDS) {
+          engineRef.current = createSpectrumEngine({ bands: STRIP_BANDS, seed });
+        } else {
+          engineRef.current.reseed(seed);
+        }
+      }, [seedSource]);
+      // 动画循环：时间推进与绘制节拍分开。模拟按固定步长由真实时间驱动，绘制
+      // 只做采样，因此 60Hz／144Hz 屏幕和 24fps／240ms 两档得到的运动速度一致；
+      // 标签页挂起后靠驱动层的追赶上限平滑恢复，不补画整段空档。
+      React.useEffect(() => {
+        if (!visible) return undefined;
+        const engine = engineRef.current;
+        if (!engine) return undefined;
+        const level = state.motion === 'off' ? 'off'
+          : state.motion === 'reduced' || systemReduced ? 'reduced' : 'full';
+        painterRef.current = createSpectrumPainter(canvasRef.current);
+        const driver = createSpectrumDriver({ engine,
+          initialFrame: frameRef.current, initialPhase: phaseRef.current });
+        const whale = createWhaleDirector({
+          seed: hashSeed(`whale:${seedSourceRef.current}`),
+          // 预览里点了「鲸鱼彩蛋」就跳过长冷却，方便截图；生产不传这个 prop。
+          ...(whaleEager ? { cooldown: 0, firstDelay: 0, chance: 1 } : {}),
+        });
+        const paint = () => {
+          const { frame, phase } = driver;
+          frameRef.current = frame;
+          phaseRef.current = phase;
+          if (!canvasRef.current || !geometryRef.current) return;
+          composeField(painterRef.current, frame, whaleVisualRef.current,
+            columnsRef.current, rowsRef.current, phase, spectrumFluid);
+          // 只给验收与排障读：彩蛋此刻的阶段，不参与渲染决策。
+          if (rootRef.current) rootRef.current.dataset.whale = whaleVisualRef.current?.phase ?? 'none';
+        };
+        const options = () => ({ energy: spectrumEnergy(progressRef.current), active: activeRef.current });
+        // 静态档也响应宿主主题：Canvas 的字色烘进像素，不能只靠 CSS 换透明度。
+        const themeObserver = typeof MutationObserver === 'function' ? new MutationObserver(paint) : null;
+        for (const target of [document.documentElement, document.body]) if (target) themeObserver?.observe(target,
+          { attributes: true, attributeFilter: ['class', 'data-theme', 'data-ds-dark-theme'] });
+        if (level === 'off') {
+          // 关闭动效：预积分一段静默时间，只画一张静态呼吸基线，鲸鱼不出现。
+          driver.settle(2.4, { energy: spectrumEnergy(progressRef.current), active: false });
+          whaleVisualRef.current = null;
+          paint();
+          return () => { themeObserver?.disconnect(); painterRef.current = null; };
+        }
+        // 从当前时刻起算，并先积一步，避免第一帧 rAF 前出现空白字符场。
+        driver.reset(performanceNow());
+        if (!frameRef.current) driver.settle(0, options());
+        paint();
+        let animationFrame = 0, timer = 0, lastDraw = 0;
+        let activeSeconds = 0;
+        const tick = () => {
+          const now = performanceNow();
+          if (!geometryRef.current) {
+            driver.reset(now); whale.cancel(); whaleVisualRef.current = null;
+            return;
+          }
+          const ticked = driver.advance(now, options());
+          // 彩蛋只在完整动效、真实播放且网格够宽时推进；任何一条不满足都会
+          // 立刻取消当前动画（暂停、停止、关闭效果、减少动态都由这里兜住）。
+          const motion = level === 'full';
+          const delta = ticked.changed ? ticked.steps * driver.step : 0;
+          const listening = listeningRef.current && motion;
+          const visual = whale.advance(delta, {
+            active: listening,
+            allowed: motion && Boolean(geometryRef.current),
+            columns: columnsRef.current,
+            rows: rowsRef.current,
+          });
+          if (listening) activeSeconds += delta;
+          if (visual) {
+            visual.waterLineRatio = whaleVisualRef.current?.waterLineRatio;
+            visual.columnRatio = whaleVisualRef.current?.columnRatio;
+          }
+          whaleVisualRef.current = visual ?? null;
+          if (now - lastDraw < FRAME_INTERVAL) return;
+          lastDraw = now - ((now - lastDraw) % FRAME_INTERVAL);
+          paint();
+          // 只给验收与排障读：彩蛋导演累计推进了多久（暂停期间不增长）。
+          if (rootRef.current) rootRef.current.dataset.whaleAge = activeSeconds.toFixed(1);
+        };
+        const onVisibility = () => {
+          // 后台期间不推进模拟；回到前台从当前时刻重新计时，避免整段追赶。
+          driver.reset(performanceNow());
+          // 后台期间彩蛋也停掉，避免回到前台看到半截鲸鱼。
+          whale.cancel();
+          whaleVisualRef.current = null;
+          lastDraw = 0;
+          paint();
+        };
+        // 页面隐藏时 rAF 本就不派发；这里只为 setInterval 档和恢复时刻兜底。
+        const hidden = () => typeof document !== 'undefined' && document.hidden === true;
+        if (level === 'full') {
+          animationFrame = requestAnimationFrame(function loop() {
+            if (!hidden()) tick();
+            animationFrame = requestAnimationFrame(loop);
+          });
+        } else {
+          timer = setInterval(() => { if (!hidden()) tick(); }, REDUCED_INTERVAL);
+        }
+        document.addEventListener?.('visibilitychange', onVisibility);
+        return () => {
+          cancelAnimationFrame(animationFrame);
+          clearInterval(timer);
+          document.removeEventListener?.('visibilitychange', onVisibility);
+          themeObserver?.disconnect();
+          whale.cancel();
+          whaleVisualRef.current = null;
+          painterRef.current = null;
+        };
+      }, [visible, state.motion, whaleEager, spectrumFluid, systemReduced]);
+      // 网格尺寸变化只影响采样分辨率，不重启动画：用最近一帧按新列数／行数重画。
+      // 这里必须带上当前鲸鱼，否则改窗口宽度的瞬间鲸鱼会从画面里消失。
+      React.useEffect(() => {
+        composeField(painterRef.current, frameRef.current, whaleVisualRef.current,
+          columnsRef.current, rowsRef.current, phaseRef.current, spectrumFluid);
+      }, [columns, rows, rowPixels, visible]);
+      if (!visible) return null;
+      const style = geometry
+        ? { left: `${geometry.left}px`, top: `${geometry.top}px`, width: `${geometry.width}px`, height: `${geometry.height}px`, '--fm-row': `${rowPixels}px` }
+        : { display: 'none' };
+      return h('div', { ref: rootRef, className: 'fm-spectrum-bg', 'data-active': playing,
+        'data-ready': geometry ? 'true' : undefined, 'data-motion': state.motion || 'full',
+        'data-columns': columns, 'data-rows': rows,
+        'aria-hidden': 'true', style: { ...style, pointerEvents: 'none' } }, h('canvas', { ref: canvasRef }));
+    }
+
     // src/ui/client/entry.mjs
     function Icon() {
       return h('svg', { width: 20, height: 20, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 1.7, 'aria-hidden': true },
@@ -1805,6 +2797,11 @@ window.__ModuleLoader__.load({
       ctx.slots.inject('settings.section', () => ctx.slots.register({ name: 'settings.section', id: 'fishfm', order: 65, label: () => '肥鱼电台', inject }, Panel));
       ctx.slots.inject('shell.overlay', () => ctx.slots.register({ name: 'shell.overlay', id: 'fishfm.player', order: 30,
         inject: () => ({ controller, layout: ctx.layout }) }, FloatingPlayer));
+      // 同一槽位的第二个条目：工作区背景层。DSH 没有会话背景插槽，条目挂在
+      // shell.overlay，但几何由 [data-conversation-content] 实测推导，不占布局、
+      // 不拦截交互；真实宿主挂载与位置需隔离 profile 验证（见 PROJECT_PLAN）。
+      ctx.slots.inject('shell.overlay', () => ctx.slots.register({ name: 'shell.overlay', id: 'fishfm.spectrum', order: 31,
+        inject: () => ({ controller }) }, SpectrumBackdrop));
     }
     return { apply, inject: ['slots', 'connection', 'layout'] };
   },

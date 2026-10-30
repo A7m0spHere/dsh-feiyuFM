@@ -1,6 +1,6 @@
 # 技术架构
 
-更新：2026-10-18。本文维护进程、模块职责和数据流；字段、数值门控与恢复细节见 [控制契约](CORE_CONTRACT.md)，部署及验收状态只看 [开发状态](PROJECT_PLAN.md)。
+更新：2026-10-30。本文维护进程、模块职责和数据流；字段、数值门控与恢复细节见 [控制契约](CORE_CONTRACT.md)，部署及验收状态只看 [开发状态](PROJECT_PLAN.md)。
 
 ## 运行结构
 
@@ -61,3 +61,5 @@ Windows 使用隐藏 STA PowerShell 中的 WPF `MediaPlayer`，优先 `pwsh`、�
 运行证据有界脱敏，写失败必须可见；未采集的 DSH 请求／上下文指标保持 `unknown`。来源事实的本地投影不等于推荐质量，研究回放也不等于完整 Core 重演。
 
 `src/ui/client/` 为维护源，`src/ui/dsh-client.js` 为受 Git 管理的生成 bundle，改后构建同步。React 由宿主提供；`preview:ui` 仅服务 loopback 白名单和模拟 RPC。独立 `bridge/ipc/window-state` 验证模块不代表产品交付独立桌面窗。目录、生成物和维护命令统一查 [仓库入口](REPOSITORY.md)。
+
+工作区背景由 `spectrum-backdrop` 挂到 `shell.overlay` 并测量真实会话留白；`spectrum-bars` 负责固定步长模拟与连续亮度场，`spectrum-whale` 只改写同一字符矩阵，`spectrum-canvas` 用上下亚字符位移将左锚水平条绘制到一个透明局部 Canvas。它只读安全播放投影，不承载音频或改变布局；未来频段输入的本地边界见契约，视觉取舍见 [U22](spikes/U22-ascii-spectrum-backdrop.md)。
