@@ -377,6 +377,19 @@ export const css = `
   .fm-feedback-record-copy { display:grid; gap:4px; flex:1 1 140px; min-width:0; overflow-wrap:anywhere; }
   .fm-feedback-record-copy strong { font-size:13px; }
   .fm-feedback-record .fm-button { flex-shrink:0; }
+  /* Animate native details without replacing its keyboard or toggle behaviour. */
+  @supports (interpolate-size:allow-keywords) and selector(details::details-content) {
+    .fishfm details::details-content {
+      interpolate-size:allow-keywords; block-size:0; overflow:clip; opacity:0;
+      transition:block-size var(--fm-base) var(--fm-ease),
+        opacity var(--fm-fast) var(--fm-ease),content-visibility var(--fm-base) allow-discrete;
+    }
+    .fishfm details[open]::details-content { block-size:auto; opacity:1; }
+    .fishfm[data-motion=off] details::details-content { transition:none!important; }
+    @media(prefers-reduced-motion:reduce) {
+      .fishfm details::details-content { transition:none!important; }
+    }
+  }
   @keyframes fm-page-in { from{opacity:0;transform:translateY(var(--fm-motion-shift));filter:blur(1px)} to{opacity:1;transform:none;filter:none} }
   @keyframes fm-rise { from{opacity:0;transform:translateY(var(--fm-motion-shift))} to{opacity:1;transform:none} }
   @keyframes fm-swap { from{opacity:0;transform:translateY(var(--fm-motion-shift))} to{opacity:1;transform:none} }
