@@ -6,6 +6,7 @@
 
 | 状态面 | 已确认内容与边界 |
 |---|---|
+| #7 研究工具补齐 | 2026-11-01：修正六种账本状态计数，新增本机歌曲评价表与新发现评价分母。研究相关回归 **34/34**；全套离线回归 **649 项、646 通过、0 失败、3 项真实媒体跳过**（并发 2，`FISHFM_TEST_REAL_AUDIO=0`）；172 模块检查、完整构建/debug smoke、110 份文档零坏链接与 `git diff --check` 通过。真实批次已只读冻结，人工反馈回放与匿名结果单列；本轮未调用模型、平台或播放器，未重载日常 Desktop、未发布 npm |
 | U23 折叠动效追加 | 2026-11-01 按截图反馈加入原生折叠的高度伸缩／淡入淡出；完整 220ms、轻量 121ms，关闭／系统减少动态效果为即时切换。Chrome 已逐帧确认四处展开与收起、快速反向操作、窄窗口及降级偏好；客户端回归 **52/52**。仍未加载日常 DSH，详见 [U23](spikes/U23-controls-and-panel.md) |
 | U23 最新交付 | [界面收敛与控制响应](spikes/U23-controls-and-panel.md)：主面板收起低频设置、歌单先展示 3 首、浮条直接暂停／换曲；播放命令即时等待反馈、暂停抢占、迟到应答去旧、准备期间 500ms 轻量快照。Windows／Node 24.22.1：相关回归 **70/70**，全套 **645 项、642 通过、0 失败、3 项真实媒体跳过**（并发 2）；构建/debug smoke 通过。独立 Chrome 模拟已验浅深色、极窄容器无横向溢出及 1600ms 慢应答下暂停保持。未加载日常 Desktop，实际平台／音频耗时 `unknown`，未发布 npm |
 | 产品路径 | 默认 `filtered`：参考歌曲 → 网易云候选 → LLM 筛选 → 本地播放。自动播放只取入选曲；QQ 暂缓，Last.fm 富化未开工 |
@@ -30,7 +31,7 @@
 | 议题 | 已交付 | 剩余工作 |
 |---|---|---|
 | [#12 HTTP 凭据边界](https://github.com/A7m0spHere/dsh-feiyuFM/issues/12) | [REV-05](spikes/REV-05-http-transport-boundaries.md)：实际端点与接口包盘点、单 origin 与路径 Cookie、同源跳转、正文／Cookie 限额、新扫码隔离、错误脱敏；新增安全回归 19/19 与既有平台／登录回归 72/72 通过 | 原生 Node 跨端口跳转未复现 Cookie 转发，不记为泄露；本地模拟完成，不补记真实账号／平台／Desktop，接口包内部 Axios 未重写 |
-| [#7 推荐质量](https://github.com/A7m0spHere/dsh-feiyuFM/issues/7) | [研究入口](research/README.md)：只读脱敏单批快照、生产解析器回放、冻结候选重排、指标与人工评价模板；12 项回归，初始提交 `ffec5b2` | 无真实样本／人工反馈，保留当前策略，Issue 打开 |
+| [#7 推荐质量](https://github.com/A7m0spHere/dsh-feiyuFM/issues/7) | [研究入口](research/README.md)：只读脱敏单批快照、生产解析器回放、冻结候选重排、指标与人工评价模板。2026-11-01 补齐六种账本状态统计，`failedCalls` 仅计失败；增加本机 `review.md` 与新发现评价分母。研究相关回归 **34/34**；已只读冻结真实批次 **4 候选／1 入选** | 保留当前生产策略，真人反馈回放与首轮匿名报告另记；本轮保持 Issue 打开，不扩大 #11 试用 |
 | [#11 真实试用](https://github.com/A7m0spHere/dsh-feiyuFM/issues/11) | [操作卡](research/TRIAL.md)、每人本机材料与匿名汇总；9 项回归 | 按该研究流程收集的样本仍为 0 人、0 分钟、0 有效评价，质量比例 `null`、`awaiting_real_trial`；本次两小时播放反馈单列 R2，未包含质量评价材料；Issue 打开 |
 | [#9 偏好信号](https://github.com/A7m0spHere/dsh-feiyuFM/issues/9) | [语义与对照](research/PREFERENCE_SIGNALS.md)：16 项固定输入对照；候选逐曲 `liked/reduced` 进入筛选事实，撤销移除；4 项新增回归 | 传递缺口已修，不改权重／迁移／模型调用；质量与新算法收益待 #7/#11 |
 | [#10 可控探索](https://github.com/A7m0spHere/dsh-feiyuFM/issues/10) | [设计与离线工具](research/EXPLORATION.md)：熟悉／相邻／未知证据、0/20/70/100 对照及三种排名假设；9 项回归 | 保留产品 `filtered` 策略，不把未知包装成跨风格发现；无真实收益证据，Issue 打开 |

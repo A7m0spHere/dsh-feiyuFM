@@ -116,6 +116,7 @@ export function qualityMetrics(rows, s, feedback) {
     unavailableRate: ratio(rows.filter(c => c.playable === false).length, rows.filter(c => c.playable !== null).length),
     humanJudged: judged.length, humanCoverage: ratio(judged.length, rows.length),
     worthRate: ratio(judged.filter(r => r.rating === 'worth').length, judged.length),
+    newDiscoveryJudged: heard.length,
     newDiscoveryCount: heard.length ? heard.filter(r => r.heardBefore === false && r.rating === 'worth').length : null,
     newDiscoveryRate: ratio(heard.filter(r => r.heardBefore === false && r.rating === 'worth').length, heard.length),
     reasonJudged: reasons.length, reasonSupportRate: ratio(reasons.filter(r => r.reasonSupported).length, reasons.length),
@@ -138,8 +139,10 @@ export function evaluate(s, {feedback = null, topK = 6} = {}) {
   for (const c of eligible) { if (!c.artist || used.has(c.artist)) rest.push(c); else { used.add(c.artist); first.push(c); } }
   const baseline = eligible.slice(0, topK), variant = [...first, ...rest].slice(0, topK);
   const sums = {inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0, reasoningTokens: 0};
+  const statusCounts = Object.fromEntries(STATES.map(status => [status, 0]));
   let unknownUsageCalls = 0, reservedForUnknown = 0;
   for (const c of s.calls) {
+    statusCounts[c.status]++;
     if (!c.usage) { unknownUsageCalls++; reservedForUnknown += c.reservedTokens; }
     else for (const k of Object.keys(sums)) sums[k] += c.usage[k] ?? 0;
   }
@@ -151,14 +154,26 @@ export function evaluate(s, {feedback = null, topK = 6} = {}) {
     platformPool: {metrics: qualityMetrics(s.candidates, s, feedback)},
     baseline: {ids: baseline.map(c => c.id), metrics: qualityMetrics(baseline, s, feedback)},
     variant: {name: 'distinct-artist-first', ids: variant.map(c => c.id), metrics: qualityMetrics(variant, s, feedback)},
-    costs: {recordedCalls: s.calls.length, failedCalls: s.calls.filter(c => c.status !== 'completed').length,
+    costs: {recordedCalls: s.calls.length, failedCalls: statusCounts.failed, statusCounts,
       knownUsage: sums, unknownUsageCalls, reservedForUnknown, replayNewCalls: 0, replayNewTokens: 0},
     humanFeedback: {confirmed: feedback?.confirmedHuman === true, judgedCandidates: feedback?.confirmedHuman ? feedback.ratings.filter(r => r.rating !== 'unknown').length : 0},
     decision: s.kind === 'synthetic' ? 'synthetic_only' : feedback?.confirmedHuman && feedback.ratings.some(r => r.rating !== 'unknown') ? 'review_required' : 'awaiting_human_feedback',
     productionChange: false};
 }
+// Keep catalogue text inert in Markdown tables, including links, images and HTML.
+const cell = value => String(value ?? '').replace(/[&<>\\|`*_\[\]()!#~]/g, c => `&#${c.codePointAt(0)};`).replace(/\r\n|\r|\n/g, '<br>');
+export function reviewMarkdown(s) {
+  validateSnapshot(s);
+  const selection = parsedSelection(s), picks = new Map(selection.picks.map(p => [p.trackKey, p]));
+  const rows = s.candidates.map(c => {
+    const pick = picks.get(c.id);
+    return `| ${cell(c.id)} | ${cell(c.title) || '未知'} | ${cell(c.artist) || '未知'} | ${selection.code ? '未知' : pick ? '是' : '否'} | ${pick?.rank ?? '—'} | ${pick ? cell(pick.reason) || '未提供' : '未提供'} |`;
+  });
+  const references = s.references.map(r => `| ${cell(r.title) || '未知'} | ${cell(r.artist) || '未知'} |`);
+  return `# 本机歌曲评价表\n\n输入 hash：\`${digest(s)}\`。样本：${s.kind}；目录元数据：${s.metadataMode}；批次时间：${new Date(s.asOf).toISOString()}。\n\n本文件可能包含歌曲、艺人和个人喜好线索，只留本机，不提交或上传。别名无法识别歌曲时，请用 --metadata 重新导出并使用新的输入 hash，不编辑已有快照。\n\n## 候选对照\n\n原模型入选和排名经生产解析器复核，尚未应用回放的共同排除，不代表实际播放顺序；未入选不等于歌曲不好。筛选状态：${selection.code ?? '已解析'}。未保留的未入选原因不补猜。\n\n| 编号 | 歌曲 | 艺人 | 原模型入选 | 原排名 | 已保存理由 |\n|---|---|---|---|---|---|\n${rows.join('\n')}\n\n## 参考歌曲\n\n| 歌曲 | 艺人 |\n|---|---|\n${references.length ? references.join('\n') : '| 未提供 | 未提供 |'}\n\n## 请按编号评价\n\n每首回复：编号；愿再听／一般／不喜欢／无法判断；以前听过／没听过／不确定；实际播放过／无法播放／未知；理由可信／不可信／无法判断。没有已保存理由时，理由可信度填无法判断。\n\n可以在聊天中按此顺序回复，或复制 feedback.template.json 填写。四档评价对应 worth/try/not-worth/unknown；是否听过和理由可信度对应 true/false/null；实际播放对应 played/unavailable/unknown。输入 hash 和 candidateId 保持原样。\n\n仅由真人提交的评价可置 confirmedHuman=true；生成表格、播放开始、跳过、静音及未知项都不构成人工评价。缺失项保留 unknown/null，未实际播放不填 played。合成材料即使填写测试评价也不算真实结果。\n\n评价只用于本次离线分析，不写入产品偏好，不调用模型或播放器，也不自动发送或分享。\n`;
+}
 const show = value => value === null ? '未知' : typeof value === 'number' ? String(Number(value.toFixed(4))) : String(value);
 export function qualityMarkdown(r) {
-  const metrics = ['count', 'artistDiversity', 'artistCoverage', 'repeatRate', 'unfamiliarRate', 'unavailableRate', 'humanJudged', 'worthRate', 'newDiscoveryRate', 'reasonSupportRate'];
-  return `# 推荐质量离线回放\n\n输入摘要：\`${r.inputHash}\`。样本：${r.kind}；固定时间：${new Date(r.asOf).toISOString()}。\n\n比较平台原始候选、已保存筛选名单前 ${r.topK} 首与 distinct-artist-first 重排。平台列包含原批次的不可播等项，筛选列共同排除；这不是同等可播集合的因果比较，也不代表 Core 自动播放顺序或模型重新推理。\n\n| 指标 | 平台原始候选 | 原筛选排名 | 研究变体 |\n|---|---|---|---|\n${metrics.map(k => `| ${k} | ${show(r.platformPool.metrics[k])} | ${show(r.baseline.metrics[k])} | ${show(r.variant.metrics[k])} |`).join('\n')}\n\n筛选状态：${r.selectionCode ?? '已解析'}；排除项：\`${JSON.stringify(r.exclusions)}\`。\n\n历史调用 ${r.costs.recordedCalls} 次，其中非完成 ${r.costs.failedCalls} 次、用量未知 ${r.costs.unknownUsageCalls} 次；实际用量字段见 report.json。预留值不当作实际消耗，不推算价格。回放新增模型调用与 tokens 均为 0。\n\n结论状态：${r.decision}。没有人工评价时质量指标保留未知；合成样本只验证工具。保留生产策略，不据此上线算法或主动分享。\n`;
+  const metrics = ['count', 'artistDiversity', 'artistCoverage', 'repeatRate', 'knownStatusCount', 'unfamiliarRate', 'playbackKnownCount', 'unavailableRate', 'humanJudged', 'humanCoverage', 'worthRate', 'newDiscoveryJudged', 'newDiscoveryCount', 'newDiscoveryRate', 'reasonJudged', 'reasonSupportRate', 'humanPlaybackJudged', 'humanUnavailableRate'];
+  return `# 推荐质量离线回放\n\n输入摘要：\`${r.inputHash}\`。样本：${r.kind}；固定时间：${new Date(r.asOf).toISOString()}。\n\n比较平台原始候选、已保存筛选名单前 ${r.topK} 首与 distinct-artist-first 重排。平台列包含原批次的不可播等项，筛选列共同排除；这不是同等可播集合的因果比较，也不代表 Core 自动播放顺序或模型重新推理。\n\n| 指标 | 平台原始候选 | 原筛选排名 | 研究变体 |\n|---|---|---|---|\n${metrics.map(k => `| ${k} | ${show(r.platformPool.metrics[k])} | ${show(r.baseline.metrics[k])} | ${show(r.variant.metrics[k])} |`).join('\n')}\n\n各比例使用已知或已评价项作分母：艺人覆盖与人工覆盖以各列 count 为分母，熟悉度、权限、人工评价、理由及人工播放的有效数量在表中分别列出。newDiscoveryRate 的分母是同时提供明确评价和是否听过的曲目数，不是平台候选总数。repeatRate 使用快照中的历史短窗，不作为最近 50 次硬窗口验收。\n\n筛选状态：${r.selectionCode ?? '已解析'}；排除项：\`${JSON.stringify(r.exclusions)}\`。\n\n历史调用 ${r.costs.recordedCalls} 次，其中失败 ${r.costs.failedCalls} 次、用量未知 ${r.costs.unknownUsageCalls} 次。状态分别为：完成 ${r.costs.statusCounts.completed}、失败 ${r.costs.statusCounts.failed}、取消 ${r.costs.statusCounts.cancelled}、中断 ${r.costs.statusCounts.interrupted}、预留 ${r.costs.statusCounts.reserved}、运行中 ${r.costs.statusCounts.running}；实际用量字段见 report.json。预留值不当作实际消耗，不推算价格。回放新增模型调用与 tokens 均为 0。\n\n结论状态：${r.decision}。没有人工评价时质量指标保留未知；合成样本只验证工具。保留生产策略，不据此上线算法或主动分享。\n`;
 }

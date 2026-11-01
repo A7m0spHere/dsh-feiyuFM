@@ -6,7 +6,7 @@ import {join} from 'node:path';
 import {spawnSync} from 'node:child_process';
 import {createHash} from 'node:crypto';
 import {MusicStore} from '../src/storage.mjs';
-import {evaluate, feedbackTemplate, digest} from '../scripts/research/quality.mjs';
+import {evaluate, feedbackTemplate, digest, qualityMarkdown, reviewMarkdown} from '../scripts/research/quality.mjs';
 import {exportSnapshot} from '../scripts/research/snapshot.mjs';
 import {parseArgs, writeBundle} from '../scripts/recommendation-research.mjs';
 
@@ -43,6 +43,73 @@ test('production parser rejects invalid picks and deduplicates; variant never ad
   assert.deepEqual(r.baseline.ids, ['c003']);
   assert.deepEqual(r.variant.ids, ['c003']);
   assert.equal(r.invalidPickCount, 2);
+});
+
+test('ledger states are counted separately and pending or cancelled calls are not failures', () => {
+  const s = fixture(), call = s.calls[0];
+  s.calls = ['completed', 'failed', 'cancelled', 'interrupted', 'reserved', 'running'].map(status => ({...call, status}));
+  const r = evaluate(s);
+  assert.equal(r.costs.recordedCalls, 6);
+  assert.equal(r.costs.failedCalls, 1);
+  assert.deepEqual(r.costs.statusCounts, {completed: 1, failed: 1, cancelled: 1, interrupted: 1, reserved: 1, running: 1});
+  assert.equal(Object.values(r.costs.statusCounts).reduce((sum, count) => sum + count, 0), 6);
+  assert.equal(r.costs.unknownUsageCalls, 6);
+  assert.equal(r.costs.reservedForUnknown, 6 * call.reservedTokens);
+  assert.match(qualityMarkdown(r), /其中失败 1 次/);
+  assert.match(qualityMarkdown(r), /取消 1、中断 1、预留 1、运行中 1/);
+  s.calls = [];
+  const empty = evaluate(s);
+  assert.equal(empty.costs.failedCalls, 0);
+  assert.ok(Object.values(empty.costs.statusCounts).every(count => count === 0));
+});
+
+test('human quality denominators exclude unknown judgments without inventing playback evidence', () => {
+  const s = fixture(), f = feedbackTemplate(s);
+  f.confirmedHuman = true;
+  Object.assign(f.ratings[0], {rating: 'worth', heardBefore: false, reasonSupported: true, playback: 'played'});
+  Object.assign(f.ratings[1], {rating: 'try', heardBefore: true, reasonSupported: false, playback: 'unavailable'});
+  Object.assign(f.ratings[2], {heardBefore: false});
+  Object.assign(f.ratings[3], {rating: 'not-worth', playback: 'played'});
+  const r = evaluate(s, {feedback: f}), m = r.baseline.metrics;
+  assert.equal(m.count, 4);
+  assert.equal(m.humanJudged, 3);
+  assert.equal(m.humanCoverage, 3 / 4);
+  assert.equal(m.worthRate, 1 / 3);
+  assert.equal(m.newDiscoveryJudged, 2);
+  assert.equal(m.newDiscoveryCount, 1);
+  assert.equal(m.newDiscoveryRate, 1 / 2);
+  assert.equal(m.reasonJudged, 2);
+  assert.equal(m.reasonSupportRate, 1 / 2);
+  assert.equal(m.humanPlaybackJudged, 3);
+  assert.equal(m.humanUnavailableRate, 1 / 3);
+  assert.match(qualityMarkdown(r), /newDiscoveryJudged/);
+  assert.equal(r.costs.replayNewCalls, 0);
+});
+
+test('review table maps parser-validated original picks and escapes catalogue Markdown', () => {
+  const s = fixture(), payload = '歌|曲\n<img src=x>![x](https://example.test)*`';
+  s.candidates[0].title = payload;
+  s.candidates[0].artist = 'A\\B';
+  s.references[0].title = payload;
+  s.selection.response.picks = [{i: 2, why: payload}, {i: 2, why: 'duplicate'}, {i: 0, why: 'second'}, {i: 99, why: 'invalid'}];
+  const before = JSON.stringify(s), markdown = reviewMarkdown(s);
+  assert.match(markdown, /\| c003 \| 合成歌曲 3 \| 艺人 B \| 是 \| 1 \|/);
+  assert.match(markdown, /\| c002 \| 合成歌曲 2 \| 艺人 A \| 否 \| — \| 未提供 \|/);
+  assert.match(markdown, /&#124;/);
+  assert.match(markdown, /<br>/);
+  assert.match(markdown, /&#60;img/);
+  assert.match(markdown, /&#92;/);
+  assert.match(markdown, /&#96;/);
+  assert.equal(markdown.includes('<img'), false);
+  assert.equal(markdown.includes('![x]'), false);
+  assert.equal(markdown.includes('duplicate'), false);
+  assert.match(markdown, new RegExp(digest(s)));
+  assert.equal(markdown, reviewMarkdown(JSON.parse(before)));
+  assert.equal(JSON.stringify(s), before);
+  assert.equal(evaluate(s).humanFeedback.judgedCandidates, 0);
+  s.selection.owner = 'other';
+  assert.match(reviewMarkdown(s), /\| c003 \| 合成歌曲 3 \| 艺人 B \| 未知 \| — \| 未提供 \|/);
+  assert.match(reviewMarkdown(s), /account_mismatch/);
 });
 
 test('empty, failed, expired and mismatched snapshots cannot produce apparently successful recommendations', () => {
@@ -165,7 +232,25 @@ test('CLI writes reviewable reports once and refuses to overwrite human feedback
   assert.equal(first.status, 0, first.stderr);
   const report = JSON.parse(readFileSync(join(out, 'report.json'), 'utf8'));
   assert.equal(report.baseline.metrics.artistDiversity, 2 / 3);
-  assert.equal(JSON.parse(readFileSync(join(out, 'feedback.template.json'), 'utf8')).confirmedHuman, false);
+  const feedback = JSON.parse(readFileSync(join(out, 'feedback.template.json'), 'utf8'));
+  assert.equal(feedback.confirmedHuman, false);
+  assert.equal(readFileSync(join(out, 'review.md'), 'utf8'), reviewMarkdown(fixture()));
+  assert.equal(evaluate(fixture(), {feedback}).humanFeedback.judgedCandidates, 0);
   assert.equal(spawnSync(process.execPath, args, {encoding: 'utf8'}).status, 1);
   assert.throws(() => writeBundle(out, {'report.json': {}}), /已存在/);
+}));
+
+test('export CLI creates a local catalogue review without modifying source bytes or confirming feedback', () => temporary(directory => {
+  const path = database(directory), before = readFileSync(path), out = join(directory, 'export');
+  const result = spawnSync(process.execPath, ['scripts/recommendation-research.mjs', 'export', '--database', path, '--out', out, '--metadata'], {encoding: 'utf8'});
+  assert.equal(result.status, 0, result.stderr);
+  assert.deepEqual(readFileSync(path), before);
+  const s = JSON.parse(readFileSync(join(out, 'snapshot.json'), 'utf8'));
+  const markdown = readFileSync(join(out, 'review.md'), 'utf8');
+  assert.equal(markdown, reviewMarkdown(s));
+  assert.match(markdown, /\| c001 \| Public song \| Public artist \| 是 \| 1 \| Public reason \|/);
+  assert.equal(markdown.includes('private-account'), false);
+  assert.equal(markdown.includes('NEVER_EXPORT'), false);
+  assert.equal(JSON.parse(readFileSync(join(out, 'report.json'), 'utf8')).decision, 'awaiting_human_feedback');
+  assert.equal(JSON.parse(readFileSync(join(out, 'feedback.template.json'), 'utf8')).confirmedHuman, false);
 }));

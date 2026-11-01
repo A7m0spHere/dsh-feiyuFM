@@ -2,7 +2,7 @@
 import {readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync, lstatSync} from 'node:fs';
 import {resolve, join} from 'node:path';
 import {fileURLToPath} from 'node:url';
-import {evaluate, feedbackTemplate, qualityMarkdown, fail} from './research/quality.mjs';
+import {evaluate, feedbackTemplate, qualityMarkdown, reviewMarkdown, fail} from './research/quality.mjs';
 import {exportSnapshot} from './research/snapshot.mjs';
 import {summarizeTrial, trialFiles, trialMarkdown} from './research/trial.mjs';
 import {runPreferenceSignals, signalsMarkdown} from './research/preference-signals.mjs';
@@ -87,7 +87,7 @@ export function run(argv) {
     return;
   }
   const r = evaluate(s, {feedback, topK: o['--top-k'] === undefined ? 6 : Number(o['--top-k'])});
-  const out = writeBundle(o['--out'], {'snapshot.json': s, 'report.json': r, 'report.md': qualityMarkdown(r), 'feedback.template.json': feedbackTemplate(s)});
+  const out = writeBundle(o['--out'], {'snapshot.json': s, 'report.json': r, 'report.md': qualityMarkdown(r), 'review.md': reviewMarkdown(s), 'feedback.template.json': feedbackTemplate(s)});
   console.log(JSON.stringify({out, inputHash: r.inputHash, decision: r.decision, replayNewCalls: 0}));
 }
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

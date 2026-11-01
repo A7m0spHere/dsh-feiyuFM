@@ -16,7 +16,7 @@
 npm run research -- replay --input scripts/fixtures/research/snapshot.json --out .tmp/research-demo --top-k 3
 ```
 
-输出 `snapshot.json`、`report.json`、`report.md`、`feedback.template.json`。样本明确为 `synthetic`；输入 SHA-256 相同且参数相同时，报告一致。已有输出目录会被拒绝，重新运行请换目录。
+`export` 和 `replay` 输出 `snapshot.json`、`report.json`、`report.md`、`review.md`、`feedback.template.json`。`review.md` 是本机候选对照与评价说明，生成文件不代表已收到人工评价。示例样本明确为 `synthetic`；输入 SHA-256 相同且参数相同时，报告一致。已有输出目录会被拒绝，重新运行请换目录。
 
 真实使用结束后，可从自己有权访问的数据库导出一批历史结果：
 
@@ -43,13 +43,19 @@ npm run research -- export --database C:/Users/你的用户名/.dsh/fishfm/music
 | `unfamiliarRate` | 已知熟悉状态曲目中 `known=false` 的比例 | 缺失历史不自动变为陌生；列 `knownStatusCount`。明确喜欢可进入熟悉播放范围，但不将 known 改为已听过 |
 | `unavailableRate` | 已知播放权限曲目中不可播的比例 | 没有权限实测时 `null`，空值不记失败 |
 | `worthRate` | 真人标“值得推荐”的数量 / 非 unknown 的人工评价数 | 没有人工评价时 `null`，同时列 `humanJudged/humanCoverage` |
-| `newDiscoveryRate` | 真人同时标“此前未听过且愿再听”的数量 / 同时提供评价和是否听过的曲目数 | 没有双项评价时 `null`；不等同陌生曲比例 |
+| `newDiscoveryRate` | 真人同时标“此前未听过且愿再听”的数量 / 同时提供明确评价和是否听过的曲目数 | 分子为 `newDiscoveryCount`，分母为 `newDiscoveryJudged`；没有双项评价时 `null`，不等同陌生曲比例或 #11 的实际播放新发现 |
 | `reasonSupportRate` | 真人确认依据可信的数量 / 对理由作出判断的数量 | 缺失不自动通过；流派/情绪无证据时未知 |
 | 调用与成本 | 同一 `fact_hash`、截至原结果完成时的至多 100 条筛选账本；分列失败和未知用量 | 预留与实际字段分开；不推算价格、不重复计算变体成本 |
 
 `cacheReadTokens/cacheWriteTokens/reasoningTokens` 按原用量字段分别报告，不与 input/output 相加宣称“总 token”，避免 Provider 的重叠口径。回放新增调用和 tokens 为 0。
 
+`costs.statusCounts` 分列 `completed/failed/cancelled/interrupted/reserved/running`，合计等于 `recordedCalls`；`failedCalls` 只计 `failed`。取消、中断、预留和运行中不再合并为失败，用量未知仍与实际用量分列。`repeatRate` 仅描述快照中的历史短窗重合，不作为 N26 最近 50 次硬窗口的验收。
+
 ## 人工评价
+
+先查看 `review.md` 的候选编号、歌名、艺人及已保存的原模型排名和理由。排名经生产解析器复核，尚未应用回放的共同排除；未入选不等于不值得推荐，未保存的拒绝理由保持未知。表内目录文字转义后显示，不把候选文字当作链接、图片或指令执行。需要识别歌曲时先使用 `--metadata` 生成新的本机快照。
+
+可以按编号在聊天中提交“愿再听／一般／不喜欢／无法判断、以前是否听过、是否实际播放、理由是否可信”，由维护者将明确回复录入本机反馈文件。缺失项保留未知；没有已保存理由时不代填理由可信度。仅实际提交的真人评价可确认 `confirmedHuman`，生成评价表或播放行为不算评价。最新状态统一看 [PROJECT_PLAN](../PROJECT_PLAN.md)。
 
 复制 `feedback.template.json` 为自己的反馈文件，修改 `reviewer` 为匿名别名；完成后由填写者置 `confirmedHuman=true`。`rating` 取 `worth/try/not-worth/unknown`，对应愿再听／可尝试但一般／不喜欢／无法判断。`heardBefore` 和 `reasonSupported` 分别取 `true/false/null`；`playback` 取 `played/unavailable/unknown`。不要把跳过、静音、暂停或失败自动填写为不喜欢。`inputHash` 和候选 ID 保持原样。
 
