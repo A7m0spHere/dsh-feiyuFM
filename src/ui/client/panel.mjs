@@ -119,7 +119,7 @@ export function Panel({ controller, back, close }) {
 
   const preferencesColumn = h('div', {className:'fm-main-column'},
         h(FeedbackSettings,{state,controller}),
-        insights&&h('section',null,h('h2',null,'听歌记录'),h('details',{className:'fm-card fm-profile-details'},h('summary',null,'查看偏好与听歌记录'),
+        insights&&h('section',null,h('h2',null,'听歌记录'),h('details',{className:'fm-card fm-profile-details',open:true},h('summary',null,'查看偏好与听歌记录'),
           h('p',{className:'fm-note'},'本地画像 · 来自已保存的独立偏好'),
           ...(insights.profile?.artists?.length?insights.profile.artists.slice(0,5).map(a=>h('div',{className:'fm-row',key:a.key},
             h('span',null,a.name),h('span',{className:'fm-badge'},`权重 ${Math.round(a.affinity*100)}% · ${['listen','listen_silent'].includes(a.source)?'有效经历':a.source==='legacy_artist_link'?'旧偏好链接':'初始化/维护'}`))):[h('p',{className:'fm-note'},'还没有足够的艺人偏好记录。')]),

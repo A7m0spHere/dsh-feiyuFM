@@ -1533,7 +1533,7 @@ window.__ModuleLoader__.load({
           available?h('p',{className:'fm-note'},`输入曲库 ${state.library?.total??0} 首 · 喜欢 ${feedback.liked} 首 · 少推荐 ${feedback.reduced} 首。`)
             :h('p',{className:'fm-note'},'当前 Core 尚未提供反馈功能，重新加载新版插件后可用。'),
           feedback?.managementVersion===1&&h(FeedbackManager,{state,controller}),
-          h('details',{className:'fm-disclosure'},h('summary',null,'偏好重置与恢复'),h('div',{className:'fm-disclosure-body'},
+          h('details',{className:'fm-disclosure',open:true},h('summary',null,'偏好重置与恢复'),h('div',{className:'fm-disclosure-body'},
             h('p',{className:'fm-note'},'清空曲库会移除输入名单和积累偏好；仅重置成长会保留输入歌曲。账号、播放历史和 token 账本保留。'),
             feedback?.resetAt&&h('p',{className:'fm-note'},`最近重置：${new Date(feedback.resetAt).toLocaleString()}`),
             confirm?h('div',{className:'fm-reset-confirm'},
@@ -1727,7 +1727,7 @@ window.__ModuleLoader__.load({
 
       const preferencesColumn = h('div', {className:'fm-main-column'},
             h(FeedbackSettings,{state,controller}),
-            insights&&h('section',null,h('h2',null,'听歌记录'),h('details',{className:'fm-card fm-profile-details'},h('summary',null,'查看偏好与听歌记录'),
+            insights&&h('section',null,h('h2',null,'听歌记录'),h('details',{className:'fm-card fm-profile-details',open:true},h('summary',null,'查看偏好与听歌记录'),
               h('p',{className:'fm-note'},'本地画像 · 来自已保存的独立偏好'),
               ...(insights.profile?.artists?.length?insights.profile.artists.slice(0,5).map(a=>h('div',{className:'fm-row',key:a.key},
                 h('span',null,a.name),h('span',{className:'fm-badge'},`权重 ${Math.round(a.affinity*100)}% · ${['listen','listen_silent'].includes(a.source)?'有效经历':a.source==='legacy_artist_link'?'旧偏好链接':'初始化/维护'}`))):[h('p',{className:'fm-note'},'还没有足够的艺人偏好记录。')]),

@@ -39,7 +39,7 @@ export function FeedbackSettings({state,controller}) {
       available?h('p',{className:'fm-note'},`输入曲库 ${state.library?.total??0} 首 · 喜欢 ${feedback.liked} 首 · 少推荐 ${feedback.reduced} 首。`)
         :h('p',{className:'fm-note'},'当前 Core 尚未提供反馈功能，重新加载新版插件后可用。'),
       feedback?.managementVersion===1&&h(FeedbackManager,{state,controller}),
-      h('details',{className:'fm-disclosure'},h('summary',null,'偏好重置与恢复'),h('div',{className:'fm-disclosure-body'},
+      h('details',{className:'fm-disclosure',open:true},h('summary',null,'偏好重置与恢复'),h('div',{className:'fm-disclosure-body'},
         h('p',{className:'fm-note'},'清空曲库会移除输入名单和积累偏好；仅重置成长会保留输入歌曲。账号、播放历史和 token 账本保留。'),
         feedback?.resetAt&&h('p',{className:'fm-note'},`最近重置：${new Date(feedback.resetAt).toLocaleString()}`),
         confirm?h('div',{className:'fm-reset-confirm'},
