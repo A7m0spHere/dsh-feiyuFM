@@ -57,7 +57,7 @@ npm run research -- export --database C:/Users/你的用户名/.dsh/fishfm/music
 
 可以按编号在聊天中提交“愿再听／一般／不喜欢／无法判断、以前是否听过、是否实际播放、理由是否可信”，由维护者将明确回复录入本机反馈文件。缺失项保留未知；没有已保存理由时不代填理由可信度。仅实际提交的真人评价可确认 `confirmedHuman`，生成评价表或播放行为不算评价。最新状态统一看 [PROJECT_PLAN](../PROJECT_PLAN.md)。
 
-实际采样方法、首轮单曲评价、匿名指标及限制见 [#7 首轮真实基线](ISSUE_7_BASELINE_20261101.md)。
+两批自然数据的采样方法、独立人工评价、筛选输入审计、匿名指标及结项边界见 [#7 真实基线与结项](ISSUE_7_BASELINE_20261101.md)。后续研究沿用相同冻结与评价规则；#7 的研究结项不代表长期推荐质量或 #11 连续试用通过。
 
 复制 `feedback.template.json` 为自己的反馈文件，修改 `reviewer` 为匿名别名；完成后由填写者置 `confirmedHuman=true`。`rating` 取 `worth/try/not-worth/unknown`，对应愿再听／可尝试但一般／不喜欢／无法判断。`heardBefore` 和 `reasonSupported` 分别取 `true/false/null`；`playback` 取 `played/unavailable/unknown`。不要把跳过、静音、暂停或失败自动填写为不喜欢。`inputHash` 和候选 ID 保持原样。
 

@@ -1,0 +1,289 @@
+{
+  "version": 1,
+  "sourceRevision": "a969553d24610d8a7e192f7f2df53d2ba4c7187e",
+  "databaseReadOnly": true,
+  "newModelCalls": 0,
+  "first": {
+    "inputHash": "d991189f0a44ae022063c2fc890e84e8710fd67cc082fe64a1938f86b6a8c84a",
+    "asOf": 1793517579675,
+    "candidateCount": 4,
+    "savedPickCount": 1,
+    "exactPromptRevisionHashVerified": true,
+    "systemAndOutputLimitRecorded": false,
+    "promptFields": [
+      "taste",
+      "candidates",
+      "references"
+    ],
+    "candidateFields": [
+      "i",
+      "key",
+      "title",
+      "artist",
+      "from"
+    ],
+    "explicitCandidateFeedbackCount": 0,
+    "referenceCount": 4,
+    "completeReferenceLibraryRecorded": false,
+    "candidateTitleTruncationCount": 0,
+    "candidateArtistTruncationCount": 0,
+    "sentPromptBytes": 919,
+    "reservedTokens": 4964,
+    "budgetReconstructionsUnderCurrentCode": [
+      {
+        "maxOutputTokens": 2560,
+        "maxPicks": 12,
+        "systemPlusPromptBytes": 1380
+      }
+    ],
+    "currentInputLimitBytes": 2600,
+    "originalLoadedPluginRevision": "unknown",
+    "rejectedCandidateReasonsRecorded": false
+  },
+  "second": {
+    "inputHash": "8d2d83ddb87eabb0f7f14a2f73d7dc822ed67bac04ce9cb1cfd33799c379416d",
+    "asOf": 1793520102454,
+    "candidateCount": 4,
+    "savedPickCount": 1,
+    "exactPromptRevisionHashVerified": true,
+    "systemAndOutputLimitRecorded": false,
+    "promptFields": [
+      "taste",
+      "candidates",
+      "references"
+    ],
+    "candidateFields": [
+      "i",
+      "key",
+      "title",
+      "artist",
+      "from"
+    ],
+    "explicitCandidateFeedbackCount": 0,
+    "referenceCount": 4,
+    "completeReferenceLibraryRecorded": false,
+    "candidateTitleTruncationCount": 0,
+    "candidateArtistTruncationCount": 0,
+    "sentPromptBytes": 910,
+    "reservedTokens": 4955,
+    "budgetReconstructionsUnderCurrentCode": [
+      {
+        "maxOutputTokens": 2560,
+        "maxPicks": 12,
+        "systemPlusPromptBytes": 1371
+      }
+    ],
+    "currentInputLimitBytes": 2600,
+    "originalLoadedPluginRevision": "unknown",
+    "rejectedCandidateReasonsRecorded": false
+  },
+  "crossBatch": {
+    "exactTrackKeyComparison": true,
+    "overlapCount": 3,
+    "distinctTrackCount": 5,
+    "firstBatchPositiveAlias": "c004",
+    "secondBatchSameTrackAlias": "c004",
+    "secondBatchSameTrackSelected": false,
+    "noUnconfirmedFeedbackReuse": true,
+    "secondFeedbackSource": "new track explicitly rated; three same-track ratings explicitly reconfirmed by the same user"
+  },
+  "syntheticParserProbe": {
+    "kind": "synthetic",
+    "sameCandidateAccepted": true,
+    "realModelCalls": 0
+  },
+  "conclusion": "keep-current-production-policy; insufficient evidence for new ranking or filtering algorithm",
+  "humanStudy": {
+    "reviewerCount": 1,
+    "batchCount": 2,
+    "ratingsByBatch": [
+      4,
+      4
+    ],
+    "distinctTrackCount": 5,
+    "overlappingTrackCount": 3,
+    "independentPopulationSample": false
+  },
+  "comparison": [
+    {
+      "batch": "first",
+      "inputHash": "d991189f0a44ae022063c2fc890e84e8710fd67cc082fe64a1938f86b6a8c84a",
+      "platform": {
+        "count": 4,
+        "distinctArtists": 4,
+        "artistDiversity": 1,
+        "artistCoverage": 1,
+        "repeatRate": 0,
+        "knownStatusCount": 1,
+        "unfamiliarRate": 0,
+        "playbackKnownCount": 0,
+        "unavailableRate": null,
+        "humanJudged": 4,
+        "humanCoverage": 1,
+        "worthRate": 0.25,
+        "newDiscoveryJudged": 4,
+        "newDiscoveryCount": 1,
+        "newDiscoveryRate": 0.25,
+        "reasonJudged": 1,
+        "reasonSupportRate": 1,
+        "humanPlaybackJudged": 1,
+        "humanUnavailableRate": 0
+      },
+      "baseline": {
+        "count": 1,
+        "distinctArtists": 1,
+        "artistDiversity": 1,
+        "artistCoverage": 1,
+        "repeatRate": 0,
+        "knownStatusCount": 1,
+        "unfamiliarRate": 0,
+        "playbackKnownCount": 0,
+        "unavailableRate": null,
+        "humanJudged": 1,
+        "humanCoverage": 1,
+        "worthRate": 0,
+        "newDiscoveryJudged": 1,
+        "newDiscoveryCount": 0,
+        "newDiscoveryRate": 0,
+        "reasonJudged": 1,
+        "reasonSupportRate": 1,
+        "humanPlaybackJudged": 1,
+        "humanUnavailableRate": 0
+      },
+      "variant": {
+        "count": 1,
+        "distinctArtists": 1,
+        "artistDiversity": 1,
+        "artistCoverage": 1,
+        "repeatRate": 0,
+        "knownStatusCount": 1,
+        "unfamiliarRate": 0,
+        "playbackKnownCount": 0,
+        "unavailableRate": null,
+        "humanJudged": 1,
+        "humanCoverage": 1,
+        "worthRate": 0,
+        "newDiscoveryJudged": 1,
+        "newDiscoveryCount": 0,
+        "newDiscoveryRate": 0,
+        "reasonJudged": 1,
+        "reasonSupportRate": 1,
+        "humanPlaybackJudged": 1,
+        "humanUnavailableRate": 0
+      },
+      "costs": {
+        "recordedCalls": 1,
+        "failedCalls": 0,
+        "statusCounts": {
+          "completed": 1,
+          "failed": 0,
+          "cancelled": 0,
+          "interrupted": 0,
+          "reserved": 0,
+          "running": 0
+        },
+        "knownUsage": {
+          "inputTokens": 422,
+          "outputTokens": 36,
+          "cacheReadTokens": 0,
+          "cacheWriteTokens": 0,
+          "reasoningTokens": 0
+        },
+        "unknownUsageCalls": 0,
+        "reservedForUnknown": 0,
+        "replayNewCalls": 0,
+        "replayNewTokens": 0
+      }
+    },
+    {
+      "batch": "second",
+      "inputHash": "8d2d83ddb87eabb0f7f14a2f73d7dc822ed67bac04ce9cb1cfd33799c379416d",
+      "platform": {
+        "count": 4,
+        "distinctArtists": 4,
+        "artistDiversity": 1,
+        "artistCoverage": 1,
+        "repeatRate": 0,
+        "knownStatusCount": 1,
+        "unfamiliarRate": 0,
+        "playbackKnownCount": 0,
+        "unavailableRate": null,
+        "humanJudged": 4,
+        "humanCoverage": 1,
+        "worthRate": 0.5,
+        "newDiscoveryJudged": 4,
+        "newDiscoveryCount": 1,
+        "newDiscoveryRate": 0.25,
+        "reasonJudged": 1,
+        "reasonSupportRate": 1,
+        "humanPlaybackJudged": 1,
+        "humanUnavailableRate": 0
+      },
+      "baseline": {
+        "count": 1,
+        "distinctArtists": 1,
+        "artistDiversity": 1,
+        "artistCoverage": 1,
+        "repeatRate": 0,
+        "knownStatusCount": 1,
+        "unfamiliarRate": 0,
+        "playbackKnownCount": 0,
+        "unavailableRate": null,
+        "humanJudged": 1,
+        "humanCoverage": 1,
+        "worthRate": 1,
+        "newDiscoveryJudged": 1,
+        "newDiscoveryCount": 0,
+        "newDiscoveryRate": 0,
+        "reasonJudged": 1,
+        "reasonSupportRate": 1,
+        "humanPlaybackJudged": 1,
+        "humanUnavailableRate": 0
+      },
+      "variant": {
+        "count": 1,
+        "distinctArtists": 1,
+        "artistDiversity": 1,
+        "artistCoverage": 1,
+        "repeatRate": 0,
+        "knownStatusCount": 1,
+        "unfamiliarRate": 0,
+        "playbackKnownCount": 0,
+        "unavailableRate": null,
+        "humanJudged": 1,
+        "humanCoverage": 1,
+        "worthRate": 1,
+        "newDiscoveryJudged": 1,
+        "newDiscoveryCount": 0,
+        "newDiscoveryRate": 0,
+        "reasonJudged": 1,
+        "reasonSupportRate": 1,
+        "humanPlaybackJudged": 1,
+        "humanUnavailableRate": 0
+      },
+      "costs": {
+        "recordedCalls": 1,
+        "failedCalls": 0,
+        "statusCounts": {
+          "completed": 1,
+          "failed": 0,
+          "cancelled": 0,
+          "interrupted": 0,
+          "reserved": 0,
+          "running": 0
+        },
+        "knownUsage": {
+          "inputTokens": 421,
+          "outputTokens": 36,
+          "cacheReadTokens": 0,
+          "cacheWriteTokens": 0,
+          "reasoningTokens": 0
+        },
+        "unknownUsageCalls": 0,
+        "reservedForUnknown": 0,
+        "replayNewCalls": 0,
+        "replayNewTokens": 0
+      }
+    }
+  ]
+}
