@@ -5,15 +5,16 @@ import {qualifiesAsListen} from './growth.mjs';
 import {STRATEGY_KEY,STRATEGY_PURPOSE,parseModelRecommendations,modelRecommendations,recommendationMode} from './model-recommendations.mjs';
 import {trackFeedback} from './feedback.mjs';
 import {mergeApprovedFilter} from './approved-pool.mjs';
+import {SUPPLY_POLICY,reviewContext,recordCandidateReviews} from './recommendation-supply.mjs';
 
 // A summary may only start when the profile is newer than the last one, there is
 // enough fresh evidence, and a real cooldown has passed. The thresholds are part
 // of the policy object so the UI can show what actually gates a run.
-export const SUMMARY_POLICY={dailyTokens:4000,maxOutputTokens:256,minOutputTokens:64,cooldownMs:3600000,
+export const SUMMARY_POLICY={dailyTokens:100000,maxOutputTokens:256,minOutputTokens:64,cooldownMs:3600000,
  maxPromptBytes:1500,maxDailyAttempts:3,autoMinNewListens:50,autoMinIntervalMs:86400000};
 // 发现候选筛选是独立用途：调用更频繁、输入更大，但只统计自己的次数。
 export const DISCOVERY_FILTER_PURPOSE='discovery-filter';
-export const FILTER_POLICY=Object.freeze({dailyAttempts:12,cooldownMs:15*60_000,maxPicks:12,maxCandidates:30,maxPromptBytes:2600,
+export const FILTER_POLICY=Object.freeze({dailyAttempts:null,cooldownMs:0,retryMs:SUPPLY_POLICY.retryMs,maxPicks:12,maxCandidates:30,maxPromptBytes:2600,
  minReasonLength:1,maxReasonLength:40,maxSummaryLength:60});
 export const BUDGET_RANGE={min:0,max:100000};
 export const OUTPUT_RANGE={min:SUMMARY_POLICY.minOutputTokens,max:4096};
@@ -119,18 +120,20 @@ function aggregate(rows){
 // UI and reservation share the persisted call ledger; local clicks are not a clock.
 function modelCallAvailability(rows,policy,now,purpose,automatic=false){
  const filter=purpose===DISCOVERY_FILTER_PURPOSE,limit=filter?FILTER_POLICY.dailyAttempts:SUMMARY_POLICY.maxDailyAttempts;
- const attempts=rows.filter(row=>row.day===dayOf(now)&&(!filter||row.purpose===purpose)).length;
+ const attempts=rows.filter(row=>row.day===dayOf(now)&&(filter?row.purpose===purpose:row.purpose!==DISCOVERY_FILTER_PURPOSE)).length;
  const running=rows.find(row=>['reserved','running'].includes(row.status));
  const last=rows.find(row=>row.purpose===purpose);
  const knownFailure=last?.status==='failed'&&Boolean(parseUsage(last.usage_json));
- // 用户手动换批不等待；后台筛选继续限频，共享并发、次数与预算门控。
- const cooldownMs=filter?(automatic?FILTER_POLICY.cooldownMs:0):SUMMARY_POLICY.cooldownMs;
- const retryAt=cooldownMs&&last&&!knownFailure?last.started_at+cooldownMs:null;
+ // Fresh successful batches may refill immediately. Automatic failures back off;
+ // manual retries, the single-flight reservation and the shared budget remain.
+ const retryAt=filter
+  ?automatic&&last&&last.status!=='completed'?(last.finished_at??last.started_at)+FILTER_POLICY.retryMs:null
+  :last&&!knownFailure?last.started_at+SUMMARY_POLICY.cooldownMs:null;
  const reset=new Date(now);reset.setHours(24,0,0,0);
  const remainingTokens=Math.max(0,policy.dailyTokens-aggregate(rows.filter(row=>row.day===dayOf(now))).chargedTokens);
- const reason=running?'summary_busy':attempts>=limit?'summary_retry_limit':retryAt>now?'summary_cooldown':remainingTokens===0?'budget_exhausted':null;
+ const reason=running?'summary_busy':limit!==null&&attempts>=limit?'summary_retry_limit':retryAt>now?'summary_cooldown':remainingTokens===0?'budget_exhausted':null;
  return{reason,serverNow:now,retryAt:retryAt>now?retryAt:null,retryAfterMs:Math.max(0,(retryAt??now)-now),
-  resetAt:reset.getTime(),remainingAttempts:Math.max(0,limit-attempts),dailyAttempts:limit,runningPurpose:running?.purpose??null};
+  resetAt:reset.getTime(),remainingAttempts:limit===null?null:Math.max(0,limit-attempts),dailyAttempts:limit,runningPurpose:running?.purpose??null};
 }
 
 export function assertRecommendationAvailable(availability){
@@ -167,7 +170,7 @@ function automaticStatus({store,now,summary,bundle,ledger,policy,evidence}){
  if(last&&!knownFailure&&now-last.started_at<SUMMARY_POLICY.cooldownMs)return{due:false,reason:'cooldown'};
  if(bundle.bytes>SUMMARY_POLICY.maxPromptBytes)return{due:false,reason:'input_size'};
  if(ledger.remainingTokens<bundle.bytes+1024+policy.maxOutputTokens)return{due:false,reason:'budget'};
- const attempts=store.db.prepare('SELECT count(*) count FROM music_model_calls WHERE day=?').get(dayOf(now)).count;
+ const attempts=store.db.prepare('SELECT count(*) count FROM music_model_calls WHERE day=? AND purpose!=?').get(dayOf(now),DISCOVERY_FILTER_PURPOSE).count;
  if(attempts>=SUMMARY_POLICY.maxDailyAttempts)return{due:false,reason:'attempt_limit'};
  const newListens=evidence.newListens;
  if(newListens<SUMMARY_POLICY.autoMinNewListens)return{due:false,reason:'not_enough_new_listens',newListens};
@@ -212,8 +215,9 @@ export function reserveSummary({store,snapshot,provider,model,now=Date.now(),aut
   }
   // Local batch identity is stored for acceptance, never sent in the model prompt.
   if(purpose===DISCOVERY_FILTER_PURPOSE&&candidateRevision){bundle.facts.candidateRevision=candidateRevision;bundle.facts.candidateOwner=candidateOwner;
+   bundle.facts.reviewContext=reviewContext(store,snapshot);
    bundle.facts.localCandidates=candidates.slice(0,bundle.facts.candidates.length);
-   bundle.factHash=createHash('sha256').update(`${bundle.factHash}|${candidateRevision}`).digest('hex');}
+   bundle.factHash=createHash('sha256').update(`${bundle.factHash}|${candidateOwner}|${candidateRevision}|${bundle.facts.reviewContext}`).digest('hex');}
   if(purpose===STRATEGY_PURPOSE&&policy.maxOutputTokens<128)fail('strategy_output_limit');
   if(purpose===STRATEGY_PURPOSE&&!bundle.facts.songs.length&&!bundle.facts.liked.length)fail('no_facts');
   if(purpose===DISCOVERY_FILTER_PURPOSE&&!bundle.facts.candidates.length)fail('no_facts');
@@ -291,7 +295,7 @@ export function finishSummary({store,callId,status='failed',usage=null,text='',c
    text:strategy?.summary??strategy?.text??text.trim().slice(0,1200),generatedAt:now,usage:actual,source:strategy&&row.purpose===STRATEGY_PURPOSE?'llm-recommendations':row.purpose===DISCOVERY_FILTER_PURPOSE?'llm-discovery-filter':'llm_summary',trigger:row.trigger??'manual',
    validListens:Number.isSafeInteger(row.valid_listens)?row.valid_listens:null,
    growthWatermark:Number.isSafeInteger(row.baseline_growth_rowid)?row.baseline_growth_rowid:null};
-   if(row.purpose===DISCOVERY_FILTER_PURPOSE)mergeApprovedFilter(store,completed,now);
+   if(row.purpose===DISCOVERY_FILTER_PURPOSE){mergeApprovedFilter(store,completed,now);recordCandidateReviews(store,JSON.parse(row.facts_json),now);}
    store.setSetting(row.purpose===STRATEGY_PURPOSE?STRATEGY_KEY:row.purpose===DISCOVERY_FILTER_PURPOSE?'discovery_filter_v1':'persona_summary_v1',completed);
   }
   if(success&&row.purpose===STRATEGY_PURPOSE&&store.getSetting('recommendation_pipeline_v1',null)!==1)store.setSetting('recommendation_mode_v1','llm');

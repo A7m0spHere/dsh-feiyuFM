@@ -1285,7 +1285,7 @@ window.__ModuleLoader__.load({
     function Persona({ state, controller }) {
       const view = state.persona;
       const [selected, setSelected] = React.useState('');
-      const [budget, setBudget] = React.useState(4000), [output, setOutput] = React.useState(256);
+      const [budget, setBudget] = React.useState(100000), [output, setOutput] = React.useState(256);
       const [localNow,setLocalNow]=React.useState(()=>Date.now());
       const clock=React.useRef({view,receivedAt:Date.now()});
       if(clock.current.view!==view)clock.current={view,receivedAt:Date.now()};

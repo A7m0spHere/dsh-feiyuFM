@@ -14,6 +14,8 @@ beta.3 的模型协议／最终回答与日常原生 Desktop 重启补验见 [N2
 
 [N26 最近 50 次硬性窗口](N26-hard-repeat-window.md) 取消 N25 的小池重播回退；自动续播、普通下一首与队列均等待窗口外新曲，按实际开始而非听完计数。
 
+[N27 持续补歌](N27-continuous-recommendation-supply.md) 按整个有效池预补、轮换种子并去重评审，取消每日筛选次数及成功冷却，初始日预算提高到 100000。
+
 [REV-05 HTTP 凭据与跳转边界](REV-05-http-transport-boundaries.md) 记录 #12 的实际端点／接口包调用盘点、单 origin Cookie 与流式大小限制、本地服务器安全回归，以及未证实的泄露假设和现场未验范围。
 
 本目录存报告与证据；可执行的早期探针在 [根 spikes](../../spikes/README.md)，归档交接文字在 [archive](../archive/README.md)。

@@ -156,10 +156,10 @@ export function apply(ctx, config = {}) {
     const offPipeline=bridge.onState(snapshot=>{
       const status=snapshot?.discovery;
       if(status?.pipeline!=='platform-filter')return;
-      const signal=`${status.candidateRevision}|${status.count}|${status.remaining}|${status.filterCallId}|${snapshot.settings.listening}|${snapshot.blockUntil}`;
+      const signal=`${status.candidateRevision}|${status.playbackPool?.available}|${status.playbackPool?.replenishing}|${status.filterCallId}|${snapshot.settings.listening}|${snapshot.blockUntil}`;
       if(signal===lastPipelineSignal)return;
       lastPipelineSignal=signal;
-      if(status.count>0&&!status.refreshing&&!status.filtering&&(status.picked===0||status.remaining<=1))void scheduler.checkDiscoveryFilter();
+      if(!status.refreshing&&!status.filtering&&status.playbackPool?.replenishing)void scheduler.checkDiscoveryFilter();
     });
     modelCtx.effect(()=>()=>{offPipeline();scheduler.stop();service.dispose();if(summaryService.current===service)summaryService.current=null;delete summaryService.discoveryFilterRun;},'fishfm: optional summaries');
   });

@@ -104,3 +104,23 @@ test('a background discovery request never blocks a user pause and keeps ready a
     assert.equal(host.snapshot().paused,true,'refresh does not start music');
   } finally { await host.close(); f.cache.close(); f.store.close(); }
 });
+
+test('refill rotates reference seeds, accumulates fresh candidates and persists its cursor across restart',async()=>{
+ const store=new MusicStore(),rounds=[];let time=1000,cache;
+ const references=Array.from({length:12},(_,i)=>({...t(i+1),artist:`Artist ${i+1}`}));
+ importSeedTracks({store,provider:'netease',source:'playlist',tracks:references,requested:12,now:time});
+ const registry=new ProviderRegistry({providers:{netease:{getAccount:()=>({status:'authorized',accountId:'a'}),
+  getCapabilities:()=>({recommendation:{status:'available'}}),getDiscoveryTracks:async({seeds})=>{
+   rounds.push(seeds.map(t=>t.providerTrackId));return seeds.map(t=>({...t,providerTrackId:String(100+Number(t.providerTrackId))}));
+  }}}});
+ try{
+  cache=createDiscoveryCache({registry,store,now:()=>time});cache.setEnabled(true);await cache.refresh();
+  time+=60_000;await cache.refresh({replenish:true});
+  assert.equal(rounds.length,2,'a low reserve need not wait thirty minutes for recall');
+  assert.equal(new Set(rounds.flat()).size,6);assert.equal(cache.candidates().length,6,'new recalls retain unexpired earlier candidates');
+  cache.close();time+=60_000;
+  cache=createDiscoveryCache({registry,store,now:()=>time});cache.setEnabled(true);await cache.refresh({replenish:true});
+  assert.equal(new Set(rounds.flat()).size,9,'restart does not reset seed rotation');
+  assert.equal(cache.candidates().length,9);
+ }finally{cache?.close();store.close();}
+});

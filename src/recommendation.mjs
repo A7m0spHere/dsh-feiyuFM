@@ -4,7 +4,7 @@ import {environmentWeight} from './environment.mjs';
 import {feedbackScore,trackFeedback} from './feedback.mjs';
 import {buildTrackGraph,artistKeys} from './track-graph.mjs';
 export {artistKeys};
-export function selectRecommendationSeeds({store,provider='netease',limit=3,now=Date.now(),graph=null}={}) {
+export function selectRecommendationSeeds({store,provider='netease',limit=3,now=Date.now(),graph=null,offset=0}={}) {
   if(!store)return[];
   // 图中心度：边多的种子能从 simi_song 引回一整簇相关候选，而不是单曲的孤例。
   const graphInstance=graph??buildTrackGraph(store,{});
@@ -16,12 +16,14 @@ export function selectRecommendationSeeds({store,provider='netease',limit=3,now=
     const preference=store.getPreference('track',row.track_key)?.affinity??0.5;
     return{track,key:row.track_key,score:preference*0.8+Math.min(1,environmentWeight(store.listEnvironmentSources(track),now)/1.65)*0.2+feedbackScore(store,track)+0.15*centrality(row.track_key)};
   }).filter(r=>!banned.has(r.key)&&trackFeedback(store,r.track)!==-1&&store.isTrackAvailable(r.track,now)).sort((a,b)=>b.score-a.score||(a.key<b.key?-1:1));
+  const start=ranked.length?Math.max(0,Math.floor(offset))%ranked.length:0;
+  const rotated=[...ranked.slice(start),...ranked.slice(0,start)];
   const chosen=[],used=new Set();
-  for(const item of ranked) {
+  for(const item of rotated) {
     const keys=artistKeys(item.track);if(keys.some(k=>used.has(k)))continue;
     chosen.push(item.track);keys.forEach(k=>used.add(k));if(chosen.length>=Math.min(3,limit))return chosen;
   }
-  for(const item of ranked) {
+  for(const item of rotated) {
     if(chosen.some(t=>trackId(t)===item.key))continue;
     if(chosen.filter(t=>artistKeys(t).some(k=>artistKeys(item.track).includes(k))).length>=2)continue;
     chosen.push(item.track);if(chosen.length>=Math.min(3,limit))break;

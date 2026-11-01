@@ -89,7 +89,7 @@ Host 的 `feedback-list/feedback-clear` 越过慢平台队列；撤销只使投�
 
 ## 4. 推荐缓存与歌单核对
 
-网易云 `getDiscoveryTracks` 在有界刷新中接收最多 3 个种子，来源包括 `netease_similar/netease_daily/netease_personal_fm`。缓存容量 200、TTL 6 小时，自动间隔 30 分钟、手动最短间隔 1 分钟、失败重试间隔 5 分钟。账号切换、关闭、清理与代次取消拒绝迟到结果。
+网易云 `getDiscoveryTracks` 在有界刷新中接收最多 3 个种子，来源包括 `netease_similar/netease_daily/netease_personal_fm`。缓存容量 200、TTL 6 小时；新召回与未过期旧候选合并去重，内容相同的刷新不改变 revision。种子按偏好排序后轮换，`discovery_cache_v1.seedOffset` 保存游标，重启继续、切号／清理重置。默认 filtered 在需要补池且未评候选耗尽时，平台最短刷新间隔 1 分钟；其他模式保留自动 30 分钟，手动最短 1 分钟，平台失败重试间隔 5 分钟并持久化 `failureUntil`。账号切换、关闭、清理与代次取消拒绝迟到结果。
 
 陌生候选排除已导入、有效听过、喜欢或不可播曲目。`snapshot.discovery` 包含 `state/count/cached/sources`、刷新时刻和 `picked/filtering`；`picked` 统计仍可用且已加入模型排名的条目，不计缓存外/不可用排名。
 
@@ -103,11 +103,13 @@ Host 的 `feedback-list/feedback-clear` 越过慢平台队列；撤销只使投�
 
 选择只使用：窗口外且满足 30 分钟冷却 → 窗口外但放宽时间冷却；不再允许窗口内最久未播回退。自动续播、推荐队列和普通 next 的曲库回退均适用，内部旧 `allowRepeatFallback` 参数也不能放宽。当前或刚播完同曲、禁播和不可播不放宽。成功选择的 `lastSelection.detail.repeat` 含 `window=50`、`relaxed`、`reason=null/cooldown-exhausted` 与 `distance=null`；只允许放宽时间冷却。窗口内歌曲导致无可选曲时返回 `track=null`、`reason=recent-window-exhausted`，`detail.algorithm=local-v7`、`detail.repeat={window:50,relaxed:false,reason:'recent-window-exhausted',distance:null}`。自动续播保持无 current 等待，普通 next 返回 `no_candidates` 并保留当前曲目／暂停状态；明确 `requestTrack` 保留重播例外。
 
-窗口不足不增加逐曲模型请求，不改变自动筛选门控、次数或 token 预算。filtered 新批准批次完成后沿用 `persona-finish` 的自主续播入口，只在听歌开启、未暂停、未受停止约束且无 current 时开始窗口外歌曲；新批次不能撤销暂停。旧 `recent-exhausted` 表示历史小池重播，新的等待状态不复用该原因码。无需修改数据库 schema 或清理现有开始窗口。
+窗口不足不增加逐曲模型请求，后台按 N27 的整个池水位与共享 token 预算补批。filtered 新批准批次完成后沿用 `persona-finish` 的自主续播入口，只在听歌开启、未暂停、未受停止约束且无 current 时开始窗口外歌曲；新批次不能撤销暂停。旧 `recent-exhausted` 表示历史小池重播，新的等待状态不复用该原因码。无需修改数据库 schema 或清理现有开始窗口。
 
 `filtered_playback_pool_v1` 为 `{version:1,owner,entries:[{approvedAt,track}]}`，owner 沿用候选账号指纹。成功且仍属当前账号／候选代次的筛选完成时，与账本和当前批次同事务合并最多 100 首，同平台 ID 采用最新批准信息并保留来源、rank/reason、modelCallId 和原 expiry；先去过期，再淘汰最早批准。旧库只从当前有效且可核验批次兼容读取，下一成功批次一起落盘；不由旧候选账本反推批准。账号变化、清缓存及现有重置／撤销重置流程清理池，迟到／取消／失败结果不入池。数据仍在 settings，schema 版本不变。
 
-`snapshot.discovery`／`persona.recommendationPipeline` 可选增加 `playbackPool:{total,available,recentBlocked}`：有效入选总数、窗口外且探索设置允许的可选数、近期窗口内暂避数；当前曲目不计 available，计数不要求相加相等。原 `picked/tracks/summary/filterCallId` 继续描述当前批次，`remaining` 按播放窗口排除当前批次已播曲。候选送 LLM 前使用同一窗口，不新增逐曲调用或提高自动调用上限。详见 [N25](spikes/N25-recent-playback-and-approved-pool.md)。
+`snapshot.discovery`／`persona.recommendationPipeline` 的 `playbackPool:{total,available,recentBlocked,replenishing,lowWater,target}` 描述整个有效池：`available` 排除最近 50 次、当前曲、禁播、不可播、到期及探索设置不允许的歌曲。余量 <=12 进入补池，>=24 停止，启动默认补至 24，区间内保持状态；`lowWater=12/target=24`。原 `picked/tracks/summary/filterCallId/remaining` 继续描述当前批次，不能作为整个池的低水位。`discovery-filter-status` 增加可选 `playbackPool/candidateSignature`，`count` 在 filtered 下是未评且窗口外候选数；调度器按不同候选签名连续处理批次，达到目标／无新候选／失败／预算不足即停止，30 秒轮询兜底。详见 [N27](spikes/N27-continuous-recommendation-supply.md)。
+
+`discovery_reviews_v1` 为 `{version:1,owner,context,entries:[{key,reviewedAt,expiresAt}]}`，最多 400 条、最多保留 6 小时；只在成功且未迟到的筛选事务中登记实际送入的候选，包括明确未选中或空批。相同歌曲不因刷新时间或 revision 改变而重评；参考曲目集合、明确反馈 revision、偏好重置、探索设置和模型路线改变时 context 失效。已有效批准的歌曲无需再次筛选。切号／清缓存／重置清理，失败／取消／过期响应及事务回滚不写入；不发送 context 或该记录给模型。
 
 `fishfm/persona-recommendations` 现在先保存已配置模型路线、触发并等待平台推荐，再运行 `discovery-filter`；不调用直接生成歌名的用途。内部 `recommendation-route` 保存路线并进入 filtered 模式；启动/导入/候选变化/歌单低水位按需筛选，首次可沿用已配置模型，不要求先生成总结。推荐 DTO 使用 `persona.recommendationPipeline`（状态、歌曲、理由、剩余数量）与 `recommendationRoute`。见 [N22](spikes/N22-platform-first-recommendations.md)。
 
@@ -121,15 +123,15 @@ Host 的 `feedback-list/feedback-clear` 越过慢平台队列；撤销只使投�
 
 用途为 `persona-summary/model-recommendations/discovery-filter`，经 `persona-reserve → persona-start → persona-finish`，用预留时的事实映射和同一 token 账本。逐曲执行和解释不调用模型。
 
-默认共享日预算 4000 tokens，可设 0–100000；单次输出默认 256，可设 64–4096，歌单至少 128。提高输出上限须仍能满足共享日预算的保守预留，不自动扩大预算。并发预留/运行只能一条，相同事实与模型复用缓存。未知 usage 按保守预留记账，失败不抹费用；重启把未结束调用标为 interrupted。模型结束原因为 max-tokens 时记为 model_output_limit，即使已有可解析文本也不应用；只有推理块而无最终文本时记为 model_no_final_text，不将推理内容作为结果，也不在同一次调用中自动提高输出上限或重试。
+默认共享日预算 100000 tokens，可设 0–100000；已有显式预算（包括 0）不覆盖。单次输出默认 256，可设 64–4096，歌单至少 128。提高输出上限须仍能满足共享日预算的保守预留，不自动扩大预算。并发预留/运行只能一条，相同事实与模型复用缓存。未知 usage 按保守预留记账，失败不抹费用；重启把未结束调用标为 interrupted。模型结束原因为 max-tokens 时记为 model_output_limit，即使已有可解析文本也不应用；只有推理块而无最终文本时记为 model_no_final_text，不将推理内容作为结果，也不在同一次调用中自动提高输出上限或重试。
 
-总结/歌单遵循日尝试上限 3，当前查询覆盖当日全部音乐模型调用；筛选单独计数，每日最多 12 次。普通用途冷却 1 小时，后台自动筛选冷却 15 分钟；手动 `discovery-filter` 不受模型冷却限制，失败/中断仍入账，预算与次数限制继续生效。精确门控见 [persona.mjs](../src/persona.mjs)。
+总结/旧歌单遵循日尝试上限 3，次数不含 discovery-filter，普通用途冷却 1 小时。候选筛选无固定每日次数上限，成功后没有模型冷却；仅后台失败／取消／中断按完成时间（缺失则开始时间）退避 1 分钟，手动重试无需等待。并发与共享 token 预算继续生效，所有尝试仍入账。此项修订 N22／U18 的筛选 12 次及自动 15 分钟规则，精确门控见 [persona.mjs](../src/persona.mjs)。
 
-`persona.recommendationAvailability` 含 `reason/serverNow/retryAt/retryAfterMs/resetAt/remainingAttempts/dailyAttempts/runningPurpose`，表示手动按钮可用性；`retryAt=null/retryAfterMs=0`，不投影后台冷却，仅任务占用、次数和预算可阻塞。时间为服务端毫秒时间戳，日界线按服务端本地日历计算；非零余额能否容纳本批仍由预留检查。门控错误的 RPC `details` 只转发有效计时／次数字段，旧宿主缺字段或返回冷却时用普通提示，不显示分钟倒计时。
+`persona.recommendationAvailability` 含 `reason/serverNow/retryAt/retryAfterMs/resetAt/remainingAttempts/dailyAttempts/runningPurpose`，表示手动按钮可用性；筛选的 `remainingAttempts/dailyAttempts=null` 表示不设次数上限，`retryAt=null/retryAfterMs=0`，不投影后台退避，仅任务占用和预算可阻塞。时间为服务端毫秒时间戳，日界线按服务端本地日历计算；非零余额能否容纳本批仍由预留检查。门控错误的 RPC `details` 只转发有效计时／次数字段，旧宿主缺字段或返回冷却时用普通提示，不显示分钟倒计时。
 
 手动挑歌在平台刷新前读取门控，预留事务按真实 `automatic` 参数区分手动／自动并最终复验；预留／启动使调用投影缓存失效。平台保留 1 分钟刷新节流，过密请求可复用同批缓存、不重复扣费，见 [U18](spikes/U18-manual-picking-without-countdown.md)。
 
-旧画像自动总结仍保留内部契约，filtered 模式不再调度这条独立展示任务。自动候选筛选作为推荐流程按需运行，不要求自动总结开关，仍受 due、15 分钟冷却、每日 12 次和共享预算限制；播放/下一首不调用模型。默认输出 256 时提示最多六首，低上限减少数量；结构解析最多保留十二个有效去重序号，明确空筛选不循环。
+旧画像自动总结仍保留内部契约，filtered 模式不再调度这条独立展示任务。自动候选筛选作为推荐流程按需运行，不要求自动总结开关，受整个池的 due、失败退避、单任务并发和共享预算限制；播放/下一首不调用模型。默认输出 256 时提示最多六首，低上限减少数量；结构解析最多保留十二个有效去重序号，明确空筛选登记已评候选，不循环重试相同输入。
 
 候选 revision、账号归属摘要与完整候选元数据只存本机预留，不发送给模型。模型输出依预留索引映射；finish 检查当前 revision，候选变化时失败但记用量。普通刷新保留同账号有效的旧筛选歌曲；账号切换、清空输入或缓存清理使其失效，不让旧输出覆盖新候选。
 

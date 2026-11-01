@@ -6,7 +6,7 @@ import {createPersonaScheduler} from '../src/persona-scheduler.mjs';
 const snapshot={settings:{discoveryRate:.7,discovery:true,strategy:'normal'},current:null};
 const route={provider:'deepseek',model:'configured-model'};
 
-test('recommendation availability follows billed failures, interrupted calls and the local daily boundary',()=>{
+test('recommendation availability retains failure backoff and billing without a daily filter count cap',()=>{
  const store=new MusicStore();
  const candidates=[{provider:'netease',providerTrackId:'42',title:'Song',artist:'Artist',discovery:{source:'netease_similar'}}];
  const reserve=now=>reserveSummary({store,snapshot,...route,now,purpose:'discovery-filter',candidates});
@@ -23,10 +23,10 @@ test('recommendation availability follows billed failures, interrupted calls and
    finishSummary({store,callId:plan.callId,status:'failed',usage:{inputTokens:1,outputTokens:0},now:901003+index*900001});
   }
   const limited=personaView(store,snapshot,10000000).recommendationAvailability;
-  assert.equal(limited.reason,'summary_retry_limit');assert.equal(limited.remainingAttempts,0);
-  assert.throws(()=>reserve(10000000),error=>error.code==='summary_retry_limit'&&error.details.resetAt===limited.resetAt);
+  assert.equal(limited.reason,null);assert.equal(limited.remainingAttempts,null);assert.equal(limited.dailyAttempts,null);
+  plan=reserve(10000000);finishSummary({store,callId:plan.callId,status:'failed',usage:{inputTokens:1,outputTokens:0},now:10000001});
   const tomorrow=personaView(store,snapshot,limited.resetAt).recommendationAvailability;
-  assert.equal(tomorrow.reason,null);assert.equal(tomorrow.remainingAttempts,12);
+  assert.equal(tomorrow.reason,null);assert.equal(tomorrow.remainingAttempts,null);
  }finally{store.close();}
 });
 test('summary cache reuses actual usage and never modifies independent preferences or paused playback',()=>{
@@ -181,6 +181,8 @@ test('a per-call cap lowers the model request without changing the stored settin
 
 test('a saved reasoning-sized output cap is reserved before dispatch and remains within the daily budget',async()=>{
  const f=modelFixture();try{
+  assert.equal(personaView(f.store,snapshot).policy.dailyTokens,100000);
+  setSummaryBudget(f.store,4000);
   setSummaryOutputTokens(f.store,4096);
   assert.equal(personaView(f.store,snapshot).policy.outputMaximumTokens,4096);
   await assert.rejects(()=>f.service.summarize(route),{code:'budget_exhausted'});

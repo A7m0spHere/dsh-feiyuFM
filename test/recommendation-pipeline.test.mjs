@@ -10,13 +10,14 @@ import {setTrackFeedback} from '../src/feedback.mjs';
 import {finishSummary} from '../src/persona.mjs';
 import {APPROVED_POOL_KEY,mergeApprovedFilter} from '../src/approved-pool.mjs';
 import {recentPlayback} from '../src/recent-playback.mjs';
+import {REVIEW_KEY,SUPPLY_POLICY} from '../src/recommendation-supply.mjs';
 
 const route = { provider: 'configured', model: 'picker' };
 const track = id => ({ provider: 'netease', providerTrackId: String(id), title: `Song ${id}`, artist: `Artist ${id}`, durationMs: 180000 });
 const picked = { summary: '沿着参考歌曲挑了两首', picks: [{ i: 0, why: '与参考歌曲相近' }, { i: 2, why: '想试一点不同的' }] };
 async function waitForPick(f){const deadline=Date.now()+2000;while(f.calls()===0&&Date.now()<deadline)await new Promise(resolve=>setTimeout(resolve,10));assert.equal(f.calls(),1);}
 
-function fixture({ output = picked, empty = false, hold = null } = {}) {
+function fixture({ output = picked, empty = false, hold = null,recall=null } = {}) {
   const store = new MusicStore(), messages = [], prompts = [], stages = [];
   let now = 1000, account = 'test-account', id = 0, calls = 0, searches = 0,candidateIds=[2,3,4];
   store.setSetting('recommendation_mode_v1', 'filtered');
@@ -30,6 +31,7 @@ function fixture({ output = picked, empty = false, hold = null } = {}) {
     getCapabilities: () => ({ recommendation: { status: 'available' } }),
     async getDiscoveryTracks(options) {
       stages.push('netease');
+      if(recall)return recall(options);
       assert.ok(options.seeds.some(seed => seed.providerTrackId === '1'), 'reference songs drive platform recall');
       return empty ? [] : candidateIds.map(id => ({ ...track(id), discovery: { source: 'netease_similar', seedTrackKey: 'netease:1' } }));
     },
@@ -60,7 +62,7 @@ function fixture({ output = picked, empty = false, hold = null } = {}) {
       prompts.push(JSON.parse(options.messages[1].content[0].text));
       return (async function* () {
         if (hold) await hold;
-        yield { type: 'text-delta', text: JSON.stringify(output) };
+        yield { type: 'text-delta', text: JSON.stringify(typeof output==='function'?output(prompts.at(-1)):output) };
         yield { type: 'usage', usage: { inputTokens: 100, outputTokens: 40 } };
         yield { type: 'finish', reason: { kind: 'stop' } };
       })();
@@ -121,7 +123,7 @@ test('a model cannot introduce a song that NetEase did not return', async () => 
   } finally { await f.close(); }
 });
 
-test('an empty LLM selection avoids automatic repeats but allows immediate manual picking', async () => {
+test('an empty LLM selection avoids repeated reviews while distinct manual candidates need no cooldown', async () => {
   const f = fixture({ output: { summary: '这批暂时没有合适的', picks: [] } });
   try {
     await prepareRecommendations({ ...f, route });
@@ -133,6 +135,9 @@ test('an empty LLM selection avoids automatic repeats but allows immediate manua
     assert.equal(f.calls(), 1);
     f.time(62000); // 平台刷新仍保留 1 分钟节流，模型不再等待 15 分钟。
     assert.equal((await f.bridge.request({type:'persona'})).persona.recommendationAvailability.reason,null);
+    await assert.rejects(prepareRecommendations({...f,route}),{code:'no_candidates'});
+    assert.equal(f.calls(),1,'a timestamp-only refresh cannot bill the same rejected songs again');
+    f.time(123000);f.candidates([5,6,7]);
     await prepareRecommendations({...f,route});
     assert.equal(f.calls(),2,'no_candidates does not impose a manual waiting period');
     assert.equal(f.host.snapshot().paused,true);
@@ -175,6 +180,71 @@ test('automatic filtering can bootstrap from configured models without generatin
   } finally { await f.close(); }
 });
 
+test('whole-pool refill survives 120 rapid local skips and more than twelve automatic batches in one day',async()=>{
+ let recallCount=0;
+ const f=fixture({recall:()=>Array.from({length:40},(_,i)=>track(1000+40*recallCount+i)).map(t=>({...t,
+  discovery:{source:'netease_similar',seedTrackKey:'netease:1'}})),
+  output:facts=>({summary:'controlled supply',picks:facts.candidates.slice(0,6).map((_,i)=>({i,why:'controlled'}))})});
+ const scheduler=createPersonaScheduler(f);let time=1000;
+ try{
+  await f.bridge.start();await f.facade.refreshDiscovery();
+  await scheduler.checkDiscoveryFilter();
+  for(let attempt=0;attempt<3&&f.facade.discoveryStatus().playbackPool.available<SUPPLY_POLICY.target;attempt++){
+   time+=60_000;f.time(time);recallCount++;await scheduler.checkDiscoveryFilter();
+  }
+  assert.ok(f.facade.discoveryStatus().playbackPool.available>=SUPPLY_POLICY.target,JSON.stringify({status:f.facade.discoveryStatus(),last:scheduler.last,calls:f.calls(),prompts:f.prompts.map(p=>p.candidates.length)}));
+  assert.equal(f.host.snapshot().paused,true,'preloading preserves pause');
+  await f.bridge.command({type:'resume',commandId:'continuous-start'});await f.host.core.waitForIdle();
+  for(let i=0;i<120;i++){
+   const beforeCalls=f.calls(),recent=new Set(recentPlayback(f.store).map(e=>e.trackKey));
+   await f.bridge.command({type:'next',commandId:`rapid-skip-${i}`});await f.host.core.waitForIdle();
+   const current=f.host.snapshot().current;
+   assert.ok(current,`skip ${i} has a locally queued approved song`);
+   assert.equal(recent.has(`netease:${current.track.providerTrackId}`),false,`skip ${i} respects all fifty starts`);
+   assert.equal(f.calls(),beforeCalls,'next does not wait for or dispatch a model call');
+   time+=12_000;f.time(time);recallCount=Math.floor(i/3)+1;
+   await scheduler.checkDiscoveryFilter();
+  }
+  assert.ok(f.calls()>12,'the former daily count cap cannot interrupt continuous supply');
+  const pool=f.facade.discoveryStatus().playbackPool;
+  assert.ok(pool.available>0);assert.ok(pool.total<=100);
+  await f.bridge.command({type:'pause',commandId:'continuous-pause'});
+  await scheduler.checkDiscoveryFilter();assert.equal(f.host.snapshot().paused,true);
+ }finally{scheduler.stop();await f.close();}
+});
+
+test('a small latest batch does not trigger automatic calls when the whole reserve is full',async()=>{
+ const f=fixture();const scheduler=createPersonaScheduler(f);
+ try{
+  await prepareRecommendations({...f,route});
+  const owner=f.facade.discoveryStatus().candidateOwner;
+  const entries=Array.from({length:24},(_,i)=>({approvedAt:1000,track:{...track(100+i),discovery:{
+   source:'netease_similar',llmRank:1,modelCallId:'synthetic-approval',expiresAt:21_601_000}}}));
+  f.store.setSetting(APPROVED_POOL_KEY,{version:1,owner,entries});
+  assert.equal(f.facade.discoveryStatus().remaining,2);
+  assert.equal(f.facade.discoveryStatus().playbackPool.available,24);
+  f.candidates([5,6,7]);f.time(62000);await f.facade.refreshDiscovery({manual:true});
+  assert.equal((await scheduler.checkDiscoveryFilter()).filterSkipped,'not_due');
+  assert.equal(f.calls(),1);
+ }finally{scheduler.stop();await f.close();}
+});
+
+test('reviewed rejections survive new refresh IDs and explicit feedback allows a fresh review',async()=>{
+ const f=fixture({output:{summary:'none',picks:[]}});
+ try{
+  await prepareRecommendations({...f,route});const first=f.facade.discoveryStatus().candidateRevision;
+  assert.equal(f.store.getSetting(REVIEW_KEY).entries.length,3);
+  f.time(62000);await f.facade.refreshDiscovery({manual:true});
+  assert.equal(f.facade.discoveryStatus().candidateRevision,first,'identical contents do not create a new batch');
+  assert.equal(f.facade.recommendationCandidates().length,0);
+  f.store.setSetting('feedback_revision_v1',1);
+  assert.equal(f.facade.recommendationCandidates().length,3,'changed explicit preferences may reconsider prior rejections');
+  await prepareRecommendations({...f,route});assert.equal(f.calls(),2);
+  f.account('other');assert.equal(f.facade.recommendationCandidates().length,0);
+  assert.equal(f.store.getSetting(REVIEW_KEY,null),null,'account changes discard review scope');
+ }finally{await f.close();}
+});
+
 test('account changes discard selected songs and an exhausted playlist asks for another bounded batch', async () => {
   const f = fixture();
   try {
@@ -182,7 +252,9 @@ test('account changes discard selected songs and an exhausted playlist asks for 
     await f.bridge.command({ type: 'resume', commandId: 'start-batch' }); await f.host.core.waitForIdle();
     await f.bridge.command({ type: 'next', commandId: 'consume-first' }); await f.host.core.waitForIdle();
     const status=(await f.bridge.request({type:'discovery-filter-status'})).filter;
-    assert.equal(status.due,true,JSON.stringify({status,pipeline:f.facade.discoveryStatus(),candidates:f.facade.recommendationCandidates().map(track=>track.providerTrackId)}));
+    assert.equal(status.due,false,'reviewed rejections cannot be recycled into another paid batch');
+    f.time(62000);f.candidates([5,6,7]);await f.facade.refreshDiscovery({manual:true});
+    assert.equal((await f.bridge.request({type:'discovery-filter-status'})).filter.due,true);
     assert.equal(f.calls(), 1);
     const current = f.host.snapshot().current.track.providerTrackId;
     assert.ok(!f.facade.recommendationCandidates().some(item => item.providerTrackId === current));
@@ -194,14 +266,14 @@ test('manual batch replacement skips cooldown while shared budget still blocks p
   const f = fixture();
   try {
     await prepareRecommendations({ ...f, route });
-    f.time(62000); await f.facade.refreshDiscovery({ manual: true });
+    f.time(62000);f.candidates([5,6,7]); await f.facade.refreshDiscovery({ manual: true });
     const availability=(await f.bridge.request({type:'persona'})).persona.recommendationAvailability;
     assert.equal(availability.reason,null);
     assert.equal(availability.retryAt,null);
     assert.equal(availability.retryAfterMs,0);
     await prepareRecommendations({ ...f, route });
     assert.equal(f.calls(),2,'another batch can be picked within one minute');
-    assert.deepEqual(f.facade.discoveryTracks().map(track=>track.providerTrackId),['2','4']);
+    assert.deepEqual(f.facade.discoveryTracks().map(track=>track.providerTrackId).sort(),['2','4','5','7']);
     const beforeStages=f.stages.length;
     f.time(1000000); f.store.setSetting('summary_daily_tokens', 0);
     await assert.rejects(prepareRecommendations({ ...f, route }), { code: 'budget_exhausted' });
@@ -224,7 +296,7 @@ test('running filter is visible across clients and a second request leaves the f
   assert.equal(f.stages.length,beforeStages);
   gate.resolve();await pending;
   assert.equal((await f.bridge.request({type:'persona'})).persona.recommendationAvailability.reason,null);
-  f.time(62000);
+  f.time(62000);f.candidates([5,6,7]);
   await prepareRecommendations({...f,route});assert.equal(f.calls(),2);
   assert.equal(f.host.snapshot().paused,true);
  }finally{gate.resolve();await pending?.catch(()=>{});await f.close();}
@@ -293,7 +365,7 @@ test('successful batches retain old approvals while the journal stays on the new
   const view=(await f.bridge.request({type:'persona'})).persona;
   assert.deepEqual(view.recommendationPipeline.tracks.map(t=>t.providerTrackId),['5','7']);
   assert.equal(view.discoveryJournal.items.length,2);
-  assert.deepEqual(view.recommendationPipeline.playbackPool,{total:4,available:3,recentBlocked:1});
+  assert.deepEqual(view.recommendationPipeline.playbackPool,{total:4,available:3,recentBlocked:1,replenishing:true,lowWater:12,target:24});
   assert.equal(recentPlayback(f.store).length,1);
   f.candidates([2,8,9]);f.time(123000);await f.facade.refreshDiscovery({manual:true});
   assert.equal(f.facade.recommendationCandidates().some(t=>t.providerTrackId==='2'),false);

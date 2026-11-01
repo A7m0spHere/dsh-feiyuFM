@@ -20,10 +20,10 @@ export async function prepareRecommendations({bridge,service,route,signal}){
   await delay(250,undefined,{signal});
  }
  if(status?.refreshing)throw Object.assign(new Error('网易云还在找歌，稍后可以再试。'),{code:'provider_timeout'});
- if(!status?.count)throw Object.assign(new Error('网易云暂时没有返回合适的歌曲，请先导入参考音乐或稍后重试。'),{code:'no_candidates'});
+ if(!status?.count)throw Object.assign(new Error('暂时没有未评过的新候选，等待网易云补充新歌；仍可点播已有歌曲。'),{code:'no_candidates'});
  return service.summarize(route,{signal,purpose:'discovery-filter'});
 }
-export function createPersonaScheduler({bridge,service,onLog=()=>{},intervalMs=600000}){
+export function createPersonaScheduler({bridge,service,onLog=()=>{},intervalMs=30000}){
  let timer=null,checking=false,checkingFilter=false,stopped=false,last=null;
  const emit=entry=>{try{onLog(entry);}catch{/* Diagnostics do not decide whether a call succeeded. */}};
  async function check(){
@@ -60,6 +60,8 @@ export function createPersonaScheduler({bridge,service,onLog=()=>{},intervalMs=6
   if(!service?.available)return last={filterSkipped:'model_unavailable'};
   checkingFilter=true;
   try{
+   const processed=new Set();let ran=false;
+   while(!stopped){
    let status=null;
    for(let waited=0;waited<=30000;waited+=1000){
     const answer=await bridge.request({type:'discovery-filter-status'});
@@ -67,7 +69,9 @@ export function createPersonaScheduler({bridge,service,onLog=()=>{},intervalMs=6
     if(!status?.refreshing)break;
     await new Promise(resolve=>setTimeout(resolve,1000));
    }
-   if(!status?.due)return last={filterSkipped:'not_due'};
+   if(!status?.due)return last=ran?{filterRan:true}:{filterSkipped:'not_due'};
+   if(status.candidateSignature&&processed.has(status.candidateSignature))return last=ran?{filterRan:true}:{filterSkipped:'current'};
+   if(status.candidateSignature)processed.add(status.candidateSignature);
    if(stopped)return last={filterSkipped:'stopped'};
    const answer=await bridge.request({type:'persona'});
    let route=answer?.persona?.recommendationRoute??answer?.persona?.lastModelRoute;
@@ -82,7 +86,12 @@ export function createPersonaScheduler({bridge,service,onLog=()=>{},intervalMs=6
    const result=await service.summarize(route,{automatic:true,purpose:'discovery-filter'});
    if(result?.cached)return last={filterSkipped:'current',cached:true};
    emit({type:'discovery-filter-run',provider:route.provider,model:route.model});
-   return last={filterRan:true};
+   ran=true;
+   // Drain distinct pending batches towards the whole-pool target. Older hosts
+   // without a content signature keep their single-batch scheduler behavior.
+   if(!status.candidateSignature)return last={filterRan:true};
+   }
+   return last=ran?{filterRan:true}:{filterSkipped:'stopped'};
   }catch(error){
    const code=error?.code??'failed';
    emit({type:'discovery-filter-skipped',code});

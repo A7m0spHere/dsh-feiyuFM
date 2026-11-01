@@ -5,12 +5,14 @@ import {selectRecommendationSeeds} from './recommendation.mjs';
 import {trackFeedback} from './feedback.mjs';
 import { randomUUID, createHash } from 'node:crypto';
 import {APPROVED_POOL_KEY,approvedPlaybackTracks} from './approved-pool.mjs';
+import {SUPPLY_POLICY,REVIEW_KEY} from './recommendation-supply.mjs';
 export const DISCOVERY_PARAMETERS = Object.freeze({ limit: 40, capacity: 200, ttlMs: 6 * 60 * 60_000,
   lowWater: 10, intervalMs: 30 * 60_000, manualIntervalMs: 60_000, retryMs: 5 * 60_000 });
 export function createDiscoveryCache({ registry, store = null, now = () => Date.now(), onLog = () => {}, parameters = DISCOVERY_PARAMETERS } = {}) {
   let enabled = false, entries = [], lastAttemptAt = null, lastSuccessAt = null, nextAttemptAt = 0;
   let state = 'disabled', reason = null, generation = 0, inflight = null, controller = null;
   let owner = null, candidateRevision = randomUUID();
+  let seedOffset=0,failureUntil=0;
   const listeners = new Set();
   const normalize = track => {
     try {
@@ -29,13 +31,13 @@ export function createDiscoveryCache({ registry, store = null, now = () => Date.
     const a = provider.getAccount(); return `${name}:${a.status}:${a.accountId ?? ''}`;
   }).sort().join('|');
   const notify = () => listeners.forEach(fn => { try { fn(); } catch { /* UI is optional. */ } });
-  const persist = () => store?.setSetting('discovery_cache_v1', { owner, entries, lastSuccessAt, lastAttemptAt, nextAttemptAt, candidateRevision });
+  const persist = () => store?.setSetting('discovery_cache_v1', { owner, entries, lastSuccessAt, lastAttemptAt, nextAttemptAt, candidateRevision,seedOffset,failureUntil });
   const synchronizeAccount = () => {
     const key = accountKey();
     if (key === owner) return;
     owner = key; generation++; candidateRevision = randomUUID(); controller?.abort(); entries = []; lastSuccessAt = null;
-    lastAttemptAt = null; nextAttemptAt = 0; reason = null; state = enabled ? 'idle' : 'disabled';
-    try { store?.removeSetting?.('discovery_filter_v1');store?.removeSetting?.(APPROVED_POOL_KEY); } catch { /* a lost filter result is the safe direction */ }
+    lastAttemptAt = null; nextAttemptAt = 0; seedOffset=0;failureUntil=0;reason = null; state = enabled ? 'idle' : 'disabled';
+    try { store?.removeSetting?.('discovery_filter_v1');store?.removeSetting?.(APPROVED_POOL_KEY);store?.removeSetting?.(REVIEW_KEY); } catch { /* a lost filter result is the safe direction */ }
     persist(); notify();
   };
   owner = accountKey();
@@ -46,6 +48,8 @@ export function createDiscoveryCache({ registry, store = null, now = () => Date.
     lastSuccessAt = saved.lastSuccessAt ?? null;
     lastAttemptAt = Number.isFinite(saved.lastAttemptAt) ? saved.lastAttemptAt : null;
     nextAttemptAt = Number.isFinite(saved.nextAttemptAt) ? saved.nextAttemptAt : 0;
+    seedOffset=Number.isSafeInteger(saved.seedOffset)&&saved.seedOffset>=0?saved.seedOffset:0;
+    failureUntil=Number.isFinite(saved.failureUntil)?saved.failureUntil:0;
   }
   const candidates = () => entries.filter(track => {
     const expiry = track.discovery?.expiresAt;
@@ -89,11 +93,12 @@ export function createDiscoveryCache({ registry, store = null, now = () => Date.
     return stamped(source).filter(track => Number.isSafeInteger(track.discovery?.llmRank)&&track.discovery.llmRank>0)
       .sort((a,b) => a.discovery.llmRank - b.discovery.llmRank);
   };
-  const refresh = ({ manual = false, signal = null } = {}) => {
+  const refresh = ({ manual = false, signal = null, replenish = false } = {}) => {
     synchronizeAccount();
     if (!enabled) return Promise.resolve({ tracks: [], attempts: [], reason: 'discovery-disabled' });
     if (inflight) return inflight;
-    const earliest = manual && lastAttemptAt !== null ? lastAttemptAt + parameters.manualIntervalMs : nextAttemptAt;
+    const earliest = manual && lastAttemptAt !== null ? lastAttemptAt + parameters.manualIntervalMs
+      :replenish?Math.max(failureUntil,lastAttemptAt===null?0:lastAttemptAt+SUPPLY_POLICY.refreshMs):nextAttemptAt;
     if (now() < earliest) return Promise.resolve({ tracks: usable(), attempts: [], reason: 'refresh-budget' });
     const key = owner, version = generation;
     controller = new AbortController();
@@ -101,16 +106,18 @@ export function createDiscoveryCache({ registry, store = null, now = () => Date.
     lastAttemptAt = now(); nextAttemptAt = now() + parameters.intervalMs; state = 'refreshing'; reason = null;
     persist();
     const work = Promise.resolve().then(async () => {
-      const seeds=selectRecommendationSeeds({store,now:now()});
+      const seeds=selectRecommendationSeeds({store,now:now(),offset:seedOffset});
       const result = await collectDiscovery({ registry, limit: parameters.limit, signal: combined,seeds });
       if (combined.aborted || generation !== version || accountKey() !== key || !enabled) return { tracks: [], attempts: [], reason: 'cancelled' };
       const succeeded = result.attempts.some(a => a.ok);
       if (succeeded) {
-        const seen = new Set();
-        entries = result.tracks.map(normalize).filter(Boolean).filter(track => {
+        const seen = new Set(),previous=entries;
+        const identity=tracks=>JSON.stringify(tracks.map(t=>[trackId(t),t.title,t.artist,t.discovery?.seedTrackKey]).sort((a,b)=>a[0].localeCompare(b[0])));
+        entries = [...result.tracks.map(normalize).filter(Boolean),...previous.filter(t=>t.discovery.expiresAt>now())].filter(track => {
           const id = trackId(track); if (seen.has(id)) return false; seen.add(id); return true;
         }).slice(0, parameters.capacity);
-        candidateRevision = randomUUID();
+        if(identity(previous)!==identity(entries))candidateRevision = randomUUID();
+        seedOffset=(seedOffset+seeds.length)%1_000_000;failureUntil=0;
         lastSuccessAt = now(); state = usable().length ? 'ready' : 'empty';
         reason = usable().length ? null : 'no-unfamiliar-candidates';
         persist();
@@ -120,12 +127,13 @@ export function createDiscoveryCache({ registry, store = null, now = () => Date.
         state = usable().length ? 'ready' : !signedIn ? 'login_required' : unavailable ? 'unavailable' : 'error';
         reason = !signedIn ? 'login-required' : unavailable ? 'recommendation-unavailable' : 'refresh-failed';
         nextAttemptAt = now() + parameters.retryMs;
+        failureUntil=nextAttemptAt;
         persist();
       }
       onLog({ type: 'discovery', count: usable().length, status: state });
       return { ...result, tracks: stamped(usable()) };
     }).catch(error => {
-      if (generation === version && enabled) { state = usable().length ? 'ready' : 'error'; reason = 'refresh-failed'; nextAttemptAt = now() + parameters.retryMs; persist(); }
+      if (generation === version && enabled) { state = usable().length ? 'ready' : 'error'; reason = 'refresh-failed'; nextAttemptAt = now() + parameters.retryMs;failureUntil=nextAttemptAt; persist(); }
       onLog({ type: 'discovery-error', code: error.code ?? 'provider_failure' });
       return { tracks: combined.aborted ? [] : usable(), attempts: [], reason: combined.aborted ? 'cancelled' : 'refresh-failed' };
     }).finally(() => { if (inflight === work) { inflight = null; controller = null; } notify(); });
@@ -144,12 +152,13 @@ export function createDiscoveryCache({ registry, store = null, now = () => Date.
       else { state = usable().length ? 'ready' : 'idle'; }
       notify();
     },
-    tick() {
+    tick({replenish=null}={}) {
       synchronizeAccount();
+      if(replenish!==null){if(enabled&&!inflight&&replenish)void refresh({replenish:true});return;}
       if (enabled && !inflight && now() >= nextAttemptAt && (usable().length < parameters.lowWater || entries.some(t => t.discovery.expiresAt <= now()))) void refresh();
     },
-    clear() { generation++; candidateRevision = randomUUID(); controller?.abort(); entries = []; lastSuccessAt = null; nextAttemptAt = 0; state = enabled ? 'idle' : 'disabled';
-      try { store?.removeSetting?.('discovery_filter_v1');store?.removeSetting?.(APPROVED_POOL_KEY); } catch { /* nothing to keep */ }
+    clear() { generation++; candidateRevision = randomUUID(); controller?.abort(); entries = []; lastSuccessAt = null;lastAttemptAt=null;nextAttemptAt = 0;seedOffset=0;failureUntil=0; state = enabled ? 'idle' : 'disabled';
+      try { store?.removeSetting?.('discovery_filter_v1');store?.removeSetting?.(APPROVED_POOL_KEY);store?.removeSetting?.(REVIEW_KEY); } catch { /* nothing to keep */ }
       persist(); notify(); },
     onChange(fn) { listeners.add(fn); return () => listeners.delete(fn); },
     close() { generation++; enabled = false; controller?.abort(); listeners.clear(); },

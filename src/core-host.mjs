@@ -15,6 +15,7 @@ import { MusicCore } from './core.mjs';
 import { FakePlayback } from './fakes.mjs';
 import { createSelector } from './selection.mjs';
 import {repeatContext} from './recent-playback.mjs';
+import {SUPPLY_POLICY,reviewedKeys} from './recommendation-supply.mjs';
 import { createRng, readAgentSeed, initializeAgentPreferences, describeTaste } from './taste.mjs';
 import { importSeedTracks, describeEnvironment, describeEnvironmentProfile } from './environment.mjs';
 import { applyListenGrowth, decayPreferences, describeGrowth } from './growth.mjs';
@@ -237,6 +238,24 @@ export function createProviderFacade({ registry, store = null, now = () => Date.
     const currentKey=current?`${current.provider}:${current.providerTrackId}`:recent.lastTrackKey;
     return tracks.filter(track=>{const key=`${track.provider}:${track.providerTrackId}`;return !recent.keys.has(key)&&key!==currentKey;});
   };
+  let replenishing=true;
+  const playbackSupply=()=>{
+    const approved=discovery.playbackRecommendations(),recent=repeatContext(store),settings=store.getCoreState()?.settings;
+    const liked=new Set(settings&&(settings.discovery===false||settings.discoveryRate===0)?store.listLikedTracks().map(r=>r.track_key):[]);
+    const permitted=settings&&(settings.discovery===false||settings.discoveryRate===0)
+      ?approved.filter(t=>store.getEnvironmentEntry(t)||store.hasEffectiveListen(t)||liked.has(`${t.provider}:${t.providerTrackId}`)):approved;
+    const available=freshTracks(permitted).length;
+    if(available<=SUPPLY_POLICY.lowWater)replenishing=true;
+    if(available>=SUPPLY_POLICY.target)replenishing=false;
+    return{total:approved.length,available,recentBlocked:approved.filter(t=>recent.keys.has(`${t.provider}:${t.providerTrackId}`)).length,
+      replenishing,lowWater:SUPPLY_POLICY.lowWater,target:SUPPLY_POLICY.target};
+  };
+  const recommendationCandidates=()=>{
+    const owner=discovery.status().candidateOwner,reviewed=reviewedKeys(store,owner,now());
+    const approved=new Set(discovery.playbackRecommendations().map(t=>`${t.provider}:${t.providerTrackId}`));
+    return freshTracks(discovery.candidates().filter(track=>track.provider==='netease'))
+      .filter(t=>!reviewed.has(`${t.provider}:${t.providerTrackId}`)&&!approved.has(`${t.provider}:${t.providerTrackId}`));
+  };
 
   return {
     registry,
@@ -251,23 +270,18 @@ export function createProviderFacade({ registry, store = null, now = () => Date.
     /** Synchronous, cache-only: the selector must not perform network I/O. */
     discoveryTracks: () => recommendationMode(store)==='filtered'
       ? discovery.playbackRecommendations().filter(track=>track.provider==='netease') : discovery.tracks(),
-    recommendationCandidates: () => freshTracks(discovery.candidates().filter(track=>track.provider==='netease')),
+    recommendationCandidates,
     // LLM 模式下平台候选同样进入缓存，供 LLM 筛选（探索池）；歌单核对信息单列。
     discoveryStatus: () => {
       const status = discovery.status();
       if(recommendationMode(store)==='filtered'){
         const picks=discovery.recommendations().filter(track=>track.provider==='netease');
         const filter=store.getSetting('discovery_filter_v1',null);
-        const approved=discovery.playbackRecommendations(),recent=repeatContext(store);
-        const settings=store.getCoreState()?.settings;
-        const liked=new Set(settings&&(settings.discovery===false||settings.discoveryRate===0)?store.listLikedTracks().map(r=>r.track_key):[]);
-        const permitted=settings&&(settings.discovery===false||settings.discoveryRate===0)
-          ?approved.filter(t=>store.getEnvironmentEntry(t)||store.hasEffectiveListen(t)||liked.has(`${t.provider}:${t.providerTrackId}`)):approved;
         const selectionComplete=filter?.source==='llm-discovery-filter'&&filter.candidateRevision===status.candidateRevision;
         return {...status,pipeline:'platform-filter',count:discovery.candidates().filter(track=>track.provider==='netease').length,
           picked:picks.length,remaining:freshTracks(picks).length,filterCallId:filter?.callId??null,
           tracks:picks.slice(0,12),summary:selectionComplete||picks.length?filter?.text??'':'',selectionComplete,
-          playbackPool:{total:approved.length,available:freshTracks(permitted).length,recentBlocked:approved.filter(t=>recent.keys.has(`${t.provider}:${t.providerTrackId}`)).length},
+          playbackPool:playbackSupply(),
           referenceCount:store.countEnvironment(),playlist:null};
       }
       if (recommendationMode(store) !== 'llm') return status;
@@ -275,7 +289,13 @@ export function createProviderFacade({ registry, store = null, now = () => Date.
       return { ...status, playlist: record ? { verification: record.verification, verified: record.verified.length, total: record.songs.length } : null };
     },
     setDiscoveryEnabled: value => discovery.setEnabled(recommendationMode(store)==='filtered'?store.countEnvironment()>0:Boolean(value)),
-    tickDiscovery: () => { discovery.tick(); if (recommendationMode(store) === 'llm') modelResolver.tick(); },
+    tickDiscovery: () => {
+      if(recommendationMode(store)==='filtered'){
+        const snapshot=store.getCoreState(),status=discovery.status();
+        const allowed=snapshot?.settings.listening!==false&&!(snapshot?.blockUntil>now());
+        discovery.tick({replenish:allowed&&!status.filtering&&playbackSupply().replenishing&&recommendationCandidates().length===0});
+      }else{discovery.tick();if(recommendationMode(store)==='llm')modelResolver.tick();}
+    },
     onDiscoveryChange: fn => {listeners.add(fn);const off=discovery.onChange(fn);return()=>{listeners.delete(fn);off();};},
     closeDiscovery: () => {modelResolver.close();discovery.close();listeners.clear();},
 
@@ -703,6 +723,7 @@ export function createCoreHost({
           // 调度器/设置页据此决定是否跑一次发现候选筛选；判定保持诚实：
           // 没有候选、有调用进行中、筛选结果仍新于最近一次成功刷新，都不算 due。
           const llmMode = ['llm','filtered'].includes(store.getSetting('recommendation_mode_v1', null));
+          platformsFacade?.tickDiscovery();
           const status = platformsFacade?.discoveryStatus?.() ?? null;
           const filter = store.getSetting('discovery_filter_v1', null);
           const stale = !filter
@@ -713,9 +734,13 @@ export function createCoreHost({
             || (Number.isFinite(status?.lastSuccessAt) && Number.isFinite(filter.generatedAt) && filter.generatedAt < status.lastSuccessAt);
           const snapshot=core.snapshot();
           const automaticAllowed=status?.pipeline!=='platform-filter'||(snapshot.settings.listening&&!(snapshot.blockUntil>now()));
-          const due = Boolean(llmMode && automaticAllowed && status && status.count > 0 && !status.refreshing && !status.filtering && stale);
+          const pendingCandidates=status?.pipeline==='platform-filter'?platformsFacade.recommendationCandidates():null;
+          const due = Boolean(llmMode && automaticAllowed && status && !status.refreshing && !status.filtering
+            &&(pendingCandidates?status.playbackPool.replenishing&&pendingCandidates.length>0:status.count>0&&stale));
           send({ type: 'result', id, ok: true, filter: {
-            due, count: status?.count ?? 0, picked: status?.picked ?? 0,
+            due, count: pendingCandidates?.length??status?.count ?? 0, picked: status?.picked ?? 0,
+            candidateSignature:pendingCandidates?.map(t=>`${t.provider}:${t.providerTrackId}`).join('|')??null,
+            playbackPool:status?.playbackPool??null,
             filtering: status?.filtering === true, refreshing: status?.refreshing === true,
             hasFilter: Boolean(filter), llmMode, pipeline:status?.pipeline??null,
             referenceCount:store.countEnvironment(),
