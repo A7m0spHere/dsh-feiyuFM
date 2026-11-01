@@ -17,7 +17,7 @@ const writePreference = (key, value) => {
 
 export function createController(connection) {
   let state = {
-    snapshot: null, platforms: {}, busy: false, transportPending: null, platformBusy: false, connected: false, error: '', notice: '',
+    snapshot: null, platforms: {}, busy: false, transportPending: null, platformBusy: false, connected: false, error: '', notice: '', recommendationChoice: '',
     libraryBusy: false, libraryError: '', libraryQuery: '',
     expression: null, expressionBusy: false, expressionError: '', expressionNotice: '',
     feedbackPage: null, feedbackListBusy: false, feedbackClearBusy: false, feedbackError: '', feedbackNotice: '',
@@ -88,6 +88,10 @@ export function createController(connection) {
       || (incoming.revision === current.revision && incoming.commandVersion < current.commandVersion));
     if ((older || libraryVersion !== libraryEpoch) && patch.persona?.discoveryJournal) {
       patch.persona = {...patch.persona, discoveryJournal: state.persona?.discoveryJournal};
+    }
+    if ((older || libraryVersion !== libraryEpoch || (playbackVersion !== null && playbackVersion !== playbackEpoch))
+      && patch.persona?.recommendationPipeline) {
+      patch.persona = {...patch.persona, recommendationPipeline: state.persona?.recommendationPipeline};
     }
     if (older || (playbackVersion !== null && playbackVersion !== playbackEpoch)) delete patch.snapshot;
     return patch;
@@ -183,6 +187,10 @@ export function createController(connection) {
       return () => { listeners.delete(fn); if (!listeners.size) { clearInterval(timer); clearTimeout(playbackTimer); ++epoch; read?.abort(); read = null; } };
     },
     refresh,
+    chooseRecommendationModel(value) {
+      if (typeof value !== 'string' || (value && !state.summaryModels?.some(route => JSON.stringify([route.provider, route.model]) === value))) return false;
+      emit({ recommendationChoice: value }); return true;
+    },
     setFeedbackOpen(open) {
       feedbackOpen = Boolean(open);
       if (feedbackOpen) void queryFeedback();
@@ -401,7 +409,7 @@ export function createController(connection) {
         // This operation never overwrites live playback with a late snapshot.
         const notice=['summary','recommendations'].includes(action)?(result.value.summaryResult?.cached?'这批歌已经挑好，可以继续听。':action==='recommendations'?'挑好了，歌单已经更新。':'总结已更新。')
           :action==='automatic'?(payload?.value?'自动总结已开启，只在画像更新且预算允许时运行。':'自动总结已关闭。')
-          :action==='output'?'单次输出上限已保存。':'总结预算已保存。';
+          :action==='output'?'单次输出上限已保存。':'模型预算已保存。';
         emit({persona:result.value.persona,summaryNotice:notice});
       }catch(error){
         if(action==='recommendations'){

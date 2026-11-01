@@ -2,7 +2,7 @@ import React from 'react';
 import {h} from './shared.mjs';
 
 const discoverySources = {netease_similar: '网易云相似推荐', netease_daily: '网易云每日推荐', netease_personal_fm: '网易云私人 FM', platform_recommendation: '平台推荐'};
-export function Discoveries({state}) {
+export function Discoveries({state,expanded=false}) {
   const journal = state.persona?.discoveryJournal;
   if (!journal) return null;
   const ready = state.connected && journal.status === 'ready';
@@ -12,7 +12,7 @@ export function Discoveries({state}) {
     : journal.reason === 'no-input' ? '导入参考歌曲后，这里会留下有依据的发现记录。'
     : '还没有当前有效歌单的发现记录，找一批歌后再来看看。';
   return h('section', {className: 'fm-discoveries'},
-    h('details', {className: 'fm-card fm-discoveries-card'},
+    h('details', {className: 'fm-card fm-discoveries-card',open:expanded?true:undefined},
       h('summary', null, h('span', {className: 'fm-label'}, '近期发现'), h('span', {className: 'fm-note'}, items.length ? `${items.length} 首 · 当前歌单` : '只记录有依据的发现')),
       !items.length ? h('p', {className: 'fm-note fm-discoveries-empty'}, message)
       : h(React.Fragment, null,

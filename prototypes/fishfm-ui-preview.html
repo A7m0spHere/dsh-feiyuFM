@@ -7,12 +7,13 @@
 *{box-sizing:border-box}body{margin:0;font-family:system-ui,'Segoe UI',sans-serif;background:#f3f5f8;color:#172235}
 .preview-toolbar{position:fixed;z-index:100;inset:0 0 auto;display:flex;align-items:center;flex-wrap:wrap;gap:8px;padding:10px 16px;background:#fff;border-bottom:1px solid #dfe3e9;font-size:12px}
 .preview-toolbar button{font:inherit;padding:5px 9px;border:1px solid #dfe3e9;border-radius:6px;background:transparent;color:inherit;cursor:pointer}
-.preview-note{margin-right:auto;color:#566171}.preview-shell{padding-top:65px;min-height:100vh;display:flex}.preview-sidebar{width:280px;flex:none;background:#fff;border-right:1px solid #dfe3e9}.preview-center{flex:1;min-width:0;position:relative;display:flex;flex-direction:column}.preview-main{width:100%;max-width:1050px;margin:auto;height:100%}
+.preview-note{margin-right:auto;color:#566171}.preview-shell{padding-top:65px;height:100vh;min-height:0;display:flex}.preview-sidebar{width:280px;flex:none;background:#fff;border-right:1px solid #dfe3e9}.preview-center{flex:1;min-width:0;min-height:0;position:relative;display:flex;flex-direction:column}.preview-main{width:100%;max-width:1050px;margin:auto;height:100%;min-height:0}
 [data-shell-overlay]{position:fixed;inset:65px 0 0;pointer-events:none}.preview-conversation{flex:1;display:flex;align-items:center;justify-content:center;padding:60px 24px;text-align:center;color:#566171}
 .preview-settings{max-width:440px;margin:24px auto;border:1px solid #dfe3e9;border-radius:10px;overflow:hidden;height:calc(100vh - 113px)}
 [data-ds-dark-theme] body{background:#11151d;color:#e4e9f2}[data-ds-dark-theme] .preview-toolbar{background:#1b202a;border-color:#303644}[data-ds-dark-theme] .preview-sidebar{background:#171b23;border-color:#303644}
 [data-ds-dark-theme] .preview-toolbar button{border-color:#303644}[data-ds-dark-theme] .preview-note{color:#a5adba}
 @media(max-width:600px){.preview-toolbar{gap:4px;padding:8px}.preview-note{width:100%;font-size:10px}.preview-shell{padding-top:88px}.preview-main{height:calc(100vh - 88px)}[data-shell-overlay]{top:88px}}
+.preview-shell{padding-top:var(--preview-top,65px)}.preview-main{height:100%}[data-shell-overlay]{top:var(--preview-top,65px)}.preview-settings{height:calc(100vh - var(--preview-top,65px) - 48px)}
 </style>
 <div id="root"></div>
 <script src="/react.js"></script><script src="/react-dom.js"></script>
@@ -39,8 +40,8 @@ let snapshot={revision:1,settings:{listening:true,humanPlayback:false,discovery:
 // Isolated display fixtures. These numbers are not production evidence or model usage.
 const persona={generatedAt:Date.now(),facts:{artists:[{key:'a1',name:'沿途电台'},{key:'a2',name:'夜航乐队'},{key:'a3',name:'落日飞行'}],validListens:42,exploration:70,discoveryEnabled:true},
  summary:{provider:'preview',model:'example-model',trigger:'manual',generatedAt:Date.now(),text:'最近的有效经历更偏向沿途电台与夜航乐队。接下来会结合这些艺人的相似歌曲，保留 70% 的探索目标，在熟悉与陌生候选之间选择。\n这些是已记录的音乐偏好，流派和情绪尚无数据。',usage:{inputTokens:166,outputTokens:83}},summaryStale:false,
- policy:{dailyTokens:4000,maxOutputTokens:256,outputMaximumTokens:256,minOutputTokens:64,maxPromptBytes:1500,factsBytes:682,automatic:false,automaticDue:false,automaticBlockedBy:'disabled',autoMinNewListens:50,automaticNewListens:2},
- ledger:{localDecisionRequests:0,today:{knownTokens:696},total:{knownTokens:696,attempts:2,unknownCalls:0},remainingTokens:3304,recent:[{callId:'preview-1',model:'example-model',status:'completed',startedAt:Date.now(),usage:{inputTokens:166,outputTokens:83}},{callId:'preview-2',model:'example-model',status:'failed',startedAt:Date.now()-60000,usage:{inputTokens:191,outputTokens:256}}]}};
+ policy:{dailyTokens:100000,maxOutputTokens:256,outputMaximumTokens:256,minOutputTokens:64,maxPromptBytes:1500,factsBytes:682,automatic:false,automaticDue:false,automaticBlockedBy:'disabled',autoMinNewListens:50,automaticNewListens:2},
+ ledger:{localDecisionRequests:0,today:{knownTokens:696},total:{knownTokens:696,attempts:2,unknownCalls:0},remainingTokens:99304,recent:[{callId:'preview-1',model:'example-model',status:'completed',startedAt:Date.now(),usage:{inputTokens:166,outputTokens:83}},{callId:'preview-2',model:'example-model',status:'failed',startedAt:Date.now()-60000,usage:{inputTokens:191,outputTokens:256}}]}};
 const insights={feedback:{version:1,current:0,liked:0,reduced:0,resetAt:null,canUndoReset:false},explanation:{text:'从沿途电台的相似候选中选择，避免连续重复同一位艺人。'},reply:{decisionId:'preview-1',text:'这首来自沿途电台的相似推荐。想沿着最近的偏好，听一点没听过的声音。'},profile:{artists:[{key:'a1',name:'沿途电台',affinity:.74,source:'listen_silent'},{key:'a2',name:'夜航乐队',affinity:.69,source:'listen'}],tracks:[{key:'t1',title:'示例歌曲 01',affinity:.53,source:'listen_silent'}]},recentChanges:[{playInstanceId:'preview-1',title:'示例歌曲 01',before:.5,after:.53,audible:false}],statistics:{retainedDecisions:42,explorationAttempts:28,unfamiliarSelections:17,observedStarts:42,validUnfamiliarListens:11,repeatedSelections:3},decisions:[]};
 // Synthetic feedback fixtures for UI checks; no production database is read.
 const votes=new Map(Array.from({length:25},(_,i)=>[String(i+1),i%2?-1:1]));
@@ -70,16 +71,22 @@ persona.recommendationsSupported=true;persona.referenceCoverage={total:tracks.le
 const previewPicks=()=>[1,3,5,7].map((index,rank)=>({...tracks[index],discovery:{source:'netease_similar',llmRank:rank+1,llmReason:rank%2?'想试一点不同的':'和参考歌曲相近'}}));
 persona.recommendationRoute={provider:'preview',model:'example-model'};
 persona.recommendationPipeline={pipeline:'platform-filter',state:'ready',count:34,picked:4,remaining:4,referenceCount:tracks.length,tracks:previewPicks(),summary:'沿着你常听的歌，挑了几首想试试的。',selectionComplete:true};
+const previewApprovedTracks=[...previewPicks(),...tracks.slice(10,12).map(track=>({...track,discovery:{source:'netease_daily',llmReason:'上一批保留的入选歌曲'}}))];
+function syncPoolPreview(){
+ const available=empty?[]:previewApprovedTracks.filter(track=>track.providerTrackId!==snapshot.current?.track.providerTrackId);
+ persona.recommendationPipeline.playbackPool={total:empty?0:previewApprovedTracks.length,available:available.length,recentBlocked:0,replenishing:true,lowWater:12,target:24,tracks:available};
+}
 snapshot.discovery=persona.recommendationPipeline;
 // Display-only journal fixtures. They are not real discoveries or listening evidence.
 function syncJournalPreview(){
+ syncPoolPreview();
  persona.discoveryJournal={version:1,status:empty?'empty':'ready',reason:empty?'no-input':null,recommendedAt:Date.now(),
   retained:pickerScenario==='failure'||pickerScenario==='filtering'||pickerScenario==='searching',
   items:empty?[]:previewPicks().map((track,index)=>({key:`netease:${track.providerTrackId}`,title:track.title,artist:track.artist,recommended:true,
    evidence:[{kind:'platform-source',value:index===3?'netease_daily':'netease_similar'},...(index===3?[]:[{kind:'platform-seed-relation'}])],
    userRequested:index===3,agentExperienced:index===1||index===2,silentExperienced:index===1,audibleHeard:index===2||index===3}))};
 }
-const summaryModels=[{provider:'preview',model:'example-model',label:'已配置模型 · 示例总结路线'}];
+const summaryModels=[{provider:'preview',model:'example-model',label:'已配置模型 · 示例路线'},{provider:'preview',model:'alternate-model',label:'另一模型 · 仅预览'}];
 let pickerScenario='ready',pickerRetryAt=0;
 const pickerNow=()=>Date.now()+300000; // Exercise a server clock five minutes ahead.
 function syncPickerScenario(){
@@ -136,6 +143,7 @@ const connection={rpc:{async call(_channel,endpoint,payload){
    pickerScenario='ready';pickerRetryAt=0;
   }
   if(endpoint==='fishfm/persona-budget')persona.policy.dailyTokens=payload.value;
+  if(endpoint==='fishfm/persona-budget')persona.ledger.remainingTokens=Math.max(0,payload.value-persona.ledger.today.knownTokens);
   if(endpoint==='fishfm/persona-output')persona.policy.maxOutputTokens=payload.value;
   if(endpoint==='fishfm/persona-automatic')persona.policy.automatic=payload.value;
   if(endpoint==='fishfm/persona-summary')await new Promise(r=>setTimeout(r,1500));
@@ -175,6 +183,7 @@ const panel=registrations.find(r=>r.options.name==='main'),overlays=registration
 window.__fishfmPreview={controller,connection};
 const previewStyle=document.querySelector('style[data-plugin="fishfm"]'),normalCss=previewStyle.textContent;
 function Harness(){
+ React.useEffect(()=>{const toolbar=document.querySelector('.preview-toolbar');if(!toolbar)return undefined;const observer=new ResizeObserver(()=>document.documentElement.style.setProperty('--preview-top',toolbar.getBoundingClientRect().height+'px'));observer.observe(toolbar);return()=>observer.disconnect();},[]);
  const [page,setPage]=React.useState(active),[dark,setDark]=React.useState(false),[settings,setSettings]=React.useState(false),[demo,setDemo]=React.useState(false),[whaleEager,setWhaleEager]=React.useState(false);changeActive=setPage;
  const show=id=>{active=id;setPage(id)};
  return React.createElement(React.Fragment,null,

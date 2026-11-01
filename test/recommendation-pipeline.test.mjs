@@ -365,7 +365,11 @@ test('successful batches retain old approvals while the journal stays on the new
   const view=(await f.bridge.request({type:'persona'})).persona;
   assert.deepEqual(view.recommendationPipeline.tracks.map(t=>t.providerTrackId),['5','7']);
   assert.equal(view.discoveryJournal.items.length,2);
-  assert.deepEqual(view.recommendationPipeline.playbackPool,{total:4,available:3,recentBlocked:1,replenishing:true,lowWater:12,target:24});
+  const {tracks:poolTracks,...supply}=view.recommendationPipeline.playbackPool;
+  assert.deepEqual(supply,{total:4,available:3,recentBlocked:1,replenishing:true,lowWater:12,target:24});
+  assert.deepEqual(poolTracks.map(t=>t.providerTrackId),['4','5','7'],'UI includes older approvals and omits the recent/current track');
+  assert.deepEqual(Object.keys(poolTracks[0]).sort(),['artist','discovery','durationMs','provider','providerTrackId','title']);
+  assert.deepEqual(Object.keys(poolTracks[0].discovery).sort(),['llmReason','source'],'UI projection excludes internal handles and model call metadata');
   assert.equal(recentPlayback(f.store).length,1);
   f.candidates([2,8,9]);f.time(123000);await f.facade.refreshDiscovery({manual:true});
   assert.equal(f.facade.recommendationCandidates().some(t=>t.providerTrackId==='2'),false);

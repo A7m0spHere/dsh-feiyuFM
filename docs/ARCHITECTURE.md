@@ -63,3 +63,5 @@ Windows 使用隐藏 STA PowerShell 中的 WPF `MediaPlayer`，优先 `pwsh`、�
 `src/ui/client/` 为维护源，`src/ui/dsh-client.js` 为受 Git 管理的生成 bundle，改后构建同步。React 由宿主提供；`preview:ui` 仅服务 loopback 白名单和模拟 RPC。独立 `bridge/ipc/window-state` 验证模块不代表产品交付独立桌面窗。目录、生成物和维护命令统一查 [仓库入口](REPOSITORY.md)。
 
 工作区背景由 `spectrum-backdrop` 挂到 `shell.overlay` 并测量真实会话留白；`spectrum-bars` 负责固定步长模拟与连续亮度场，`spectrum-whale` 只改写同一字符矩阵，`spectrum-canvas` 用上下亚字符位移将左锚水平条绘制到一个透明局部 Canvas。它只读安全播放投影，不承载音频或改变布局；未来频段输入的本地边界见契约，视觉取舍见 [U22](spikes/U22-ascii-spectrum-backdrop.md)。
+
+U24 主面板按陪伴视图组织，设置使用浏览器原生 dialog 的模态与焦点管理，外观为右侧抽屉；主页面、抽屉、原生设置席位和悬浮条仍共享客户端控制器与同一 Core。可选歌曲从整个有效批准池投影安全元数据，不把 UI 列表当成固定播放队列；没有新增播放器宿主或模型调用路径。见 [U24](spikes/U24-companion-player.md)。

@@ -323,7 +323,7 @@ test('expression drafts survive polling and conflicts until the user adopts save
   }finally{f.dispose();}
 });
 
-test('discovery prototype is collapsed and read-only, separates listening states and hides stale data when disconnected', async () => {
+test('discovery page is expanded and read-only, separates listening states and hides stale data when disconnected', async () => {
   let available = true, calls = 0;
   const journal = {status: 'ready', items: [
     {key: 'netease:1', title: 'Only recommended', artist: 'A', evidence: [{kind: 'platform-source', value: 'netease_similar'}]},
@@ -336,7 +336,7 @@ test('discovery prototype is collapsed and read-only, separates listening states
   try {
     await f.controller.refresh();
     const card = all(f.render()).find(n => n.type === 'details' && n.props.className?.includes('fm-discoveries-card'));
-    assert.ok(card); assert.equal(card.props.open, undefined);
+    assert.ok(card); assert.equal(card.props.open, true);
     const words = all(card).flatMap(n => n.children.filter(c => typeof c === 'string')).join(' ');
     assert.match(words, /已推荐/); assert.match(words, /静音有效经历/); assert.match(words, /有效听过/); assert.match(words, /本机点播/);
     assert.equal(all(card).some(n => n.type === 'button'), false);
@@ -642,6 +642,45 @@ test('the panel exposes a spectrum switch that flips the stored preference', asy
   } finally { off(); f.dispose(); }
 });
 
+test('companion panel keeps one settings entry, shared model selection and the complete pool instead of only the newest batch', async () => {
+  const older={provider:'netease',providerTrackId:'older',title:'Old approved',artist:'Artist'};
+  const latest={...older,providerTrackId:'latest',title:'Newest batch'};
+  let requested;
+  const f=fixture(async(_channel,endpoint,payload)=>{
+    if(endpoint==='fishfm/persona-recommendations')requested=payload;
+    return{ok:true,value:{snapshot:snapshot(1),library:{total:1,tracks:[]},features:{personaSummary:true},
+      summaryModels:[{provider:'p',model:'a',label:'A'},{provider:'p',model:'b',label:'B'}],
+      persona:{generatedAt:1,policy:{dailyTokens:100000,maxOutputTokens:256},ledger:{today:{knownTokens:0},total:{knownTokens:0,attempts:0},remainingTokens:100000},
+        recommendationRoute:{provider:'p',model:'a'},recommendationPipeline:{pipeline:'platform-filter',referenceCount:1,tracks:[latest],playbackPool:{total:2,available:1,recentBlocked:1,tracks:[older]}}}}};
+  });
+  try{
+    await f.controller.refresh();let nodes=all(f.render());
+    assert.equal(nodes.filter(n=>n.type==='button'&&n.children.includes('电台设置')).length,1);
+    assert.ok(nodes.some(n=>n.props['aria-label']==='播放 Old approved · Artist'));
+    assert.equal(nodes.some(n=>n.props['aria-label']==='播放 Newest batch · Artist'),false);
+    nodes.find(n=>n.type==='button'&&n.children.includes('电台设置')).props.onClick();
+    let dialog=all(f.render()).find(n=>n.type==='dialog');assert.equal(dialog.props['data-open'],true);
+    all(dialog).find(n=>n.props['aria-label']==='推荐模型').props.onChange({target:{value:JSON.stringify(['p','b'])}});
+    assert.equal(all(f.render({close(){}})).find(n=>n.props['aria-label']==='推荐模型').props.value,JSON.stringify(['p','b']),'native settings seat shares the model choice');
+    nodes=all(f.render());await nodes.find(n=>n.type==='button'&&n.children.includes('补充歌单')).props.onClick();
+    assert.equal(requested.model,'b','the settings selection drives the visible pool action');
+    dialog=all(f.render()).find(n=>n.type==='dialog');dialog.props.onCancel({preventDefault(){}});
+    assert.equal(all(f.render()).find(n=>n.type==='dialog').props['data-open'],false);
+  }finally{f.dispose();}
+});
+
+test('a delayed platform reply cannot restore an older pool at an equal persona timestamp',async()=>{
+  let release,current=1;
+  const response=revision=>({ok:true,value:{snapshot:snapshot(revision),persona:{generatedAt:100,
+    recommendationPipeline:{pipeline:'platform-filter',playbackPool:{tracks:[{providerTrackId:String(revision)}]}}}}});
+  const f=fixture(async(_channel,endpoint)=>endpoint==='fishfm/playlists'?new Promise(resolve=>{release=resolve;}):response(current));
+  try{
+    await f.controller.refresh();const old=f.controller.platformAction('playlists','netease');
+    current=3;await f.controller.refresh();release(response(2));await old;
+    assert.equal(f.controller.getSnapshot().persona.recommendationPipeline.playbackPool.tracks[0].providerTrackId,'3');
+  }finally{f.dispose();}
+});
+
 test('client contributes native sidebar, main and settings seats; controls send Core commands', async () => {
   const calls = [];
   const f = fixture(async (channel, endpoint, payload) => { calls.push({ channel, endpoint, payload }); return state(snapshot(calls.length, endpoint !== 'fishfm/command')); });
@@ -725,7 +764,7 @@ test('legacy cooldowns use plain feedback while current gates allow manual picki
   assert.ok(!all(f.render()).some(node=>node.children.some(child=>typeof child==='string'&&child.includes('后可换'))));
   assert.equal(all(f.render()).find(node=>node.props['aria-label']==='播放 Song · Artist').props.disabled,false);
   now=901000;gate={reason:null,serverNow:now};await f.controller.refresh();
-  assert.ok(all(f.render()).some(node=>node.type==='button'&&node.children.includes('换一批')&&!node.props.disabled));
+  assert.ok(all(f.render()).some(node=>node.type==='button'&&node.children.includes('补充歌单')&&!node.props.disabled));
   assert.equal(requests,1,'expiry itself does not trigger a model call');
   error={code:'provider_failure',message:'服务暂不可用'};
   await f.controller.personaAction('recommendations',{provider:'p',model:'m'});

@@ -16,7 +16,19 @@ export function Panel({ controller, back, close }) {
   const [importSource,setImportSource]=React.useState('auto');
   const [playlistId,setPlaylistId]=React.useState('');
   const rateId = React.useId();
-  const settingsRef = React.useRef(null);
+  const dialogRef = React.useRef(null);
+  const feedbackRef = React.useRef(null);
+  const [settingsOpen, setSettingsOpen] = React.useState(false);
+  const [view, setView] = React.useState('listen');
+  const selectedModel = state.recommendationChoice || '';
+  const setSelectedModel = value => controller.chooseRecommendationModel(value);
+  React.useEffect(() => {
+    const dialog = dialogRef.current;
+    if (!dialog || close) return undefined;
+    if (settingsOpen && !dialog.open) dialog.showModal();
+    if (!settingsOpen && dialog.open) dialog.close();
+    return () => { if (dialog.open) dialog.close(); };
+  }, [settingsOpen, close]);
   React.useEffect(() => { if (snapshot) setRate(Math.round(settings.discoveryRate * 100)); }, [settings.discoveryRate]);
   React.useEffect(() => {
     if (!['waiting', 'scanned'].includes(state.login?.status)) return undefined;
@@ -106,9 +118,8 @@ export function Panel({ controller, back, close }) {
       h('p', { className: 'fm-platform-note' }, '近期记录优先，读取失败时尝试喜欢列表和用户歌单。QQ 接入暂缓。登录材料仅保存在本机。')));
 
   const preferencesColumn = h('div', {className:'fm-main-column'},
-        h(Persona,{state,controller}),
-        h(Discoveries,{state}),
-        insights&&close&&h('section',null,h('h2',null,'听歌记录'),h('details',{className:'fm-card fm-profile-details'},h('summary',null,'查看偏好与听歌记录'),
+        h(FeedbackSettings,{state,controller}),
+        insights&&h('section',null,h('h2',null,'听歌记录'),h('details',{className:'fm-card fm-profile-details'},h('summary',null,'查看偏好与听歌记录'),
           h('p',{className:'fm-note'},'本地画像 · 来自已保存的独立偏好'),
           ...(insights.profile?.artists?.length?insights.profile.artists.slice(0,5).map(a=>h('div',{className:'fm-row',key:a.key},
             h('span',null,a.name),h('span',{className:'fm-badge'},`权重 ${Math.round(a.affinity*100)}% · ${['listen','listen_silent'].includes(a.source)?'有效经历':a.source==='legacy_artist_link'?'旧偏好链接':'初始化/维护'}`))):[h('p',{className:'fm-note'},'还没有足够的艺人偏好记录。')]),
@@ -145,7 +156,7 @@ export function Panel({ controller, back, close }) {
         h('section', null, h('h2', null, '输入与连接',h('small',null,'LIBRARY')),
           h('details',{className:'fm-input-library'},h('summary',null,close?'输入音乐 · 查看和点播':`输入曲库 · ${state.library?.total??0} 首（展开查看）`),h(Library,{state,controller})),
           h('details',{className:'fm-platform-details fm-input-library'},h('summary',null,'音乐平台',h('span',{className:'fm-disclosure-meta'},accountHint)),platformSection)),
-        h(FeedbackSettings,{state,controller}),
+        h(Persona,{key:'settings',state,controller,settingsOnly:true,selectedModel,onSelectModel:setSelectedModel}),
         h('section', null, h('h2', null, '界面选项', h('small', null, 'INTERFACE')), h('details', { className: 'fm-card fm-interface-details' }, h('summary',null,'界面与悬浮条'),
           h(ExpressionSettings,{state,controller}),
           h('div', { className: 'fm-motion-row' }, h('label', { htmlFor: `${rateId}-motion` }, '动态效果'),
@@ -158,76 +169,98 @@ export function Panel({ controller, back, close }) {
               onClick: () => controller.setSpectrumVisible(!state.spectrumVisible) }, h('span'))),
           h('p', { className: 'fm-note' }, '对话区左缘的 ASCII 频谱背景；模拟观感，非音频测量，随窗口与会话宽度自适应。'),
           h('div', { className: 'fm-widget-note' }, h(Svg, { type: 'grip' }),
-            h('span', null, state.widgetVisible ? '离开面板后显示，可拖动吸附。' : '悬浮条已隐藏，可随时显示。')))));
-  const grid = h('div', { className: 'fm-grid' }, preferencesColumn);
+            h('span', null, state.widgetVisible ? '离开面板后显示，可拖动吸附。' : '悬浮条已隐藏，可随时显示。'), h('button', { type: 'button', className: 'fm-button fm-widget-pref',
+              'aria-pressed': state.widgetVisible, 'aria-label': '显示或隐藏悬浮条',
+              onClick: () => controller.setWidgetVisible(!state.widgetVisible) }, state.widgetVisible ? '隐藏' : '显示')))));
+  const settingsBody = h('div', { className: 'fm-settings-body' }, controlsColumn, management);
+  const replyCurrent = !current?.decisionId || !insights?.reply?.decisionId || current.decisionId === insights.reply.decisionId;
+  const selectView = value => {
+    controller.setFeedbackOpen(value === 'taste' && feedbackRef.current?.querySelector('.fm-feedback-manager')?.open === true);
+    setView(value);
+  };
+  const dock = (compact = false) => h('div', { className: 'fm-player-dock' + (compact ? ' fm-player-dock-compact' : ''), 'aria-label': '播放控制' },
+    h('div', { className: 'fm-dock-track' }, h('strong', null, current?.track?.title || '肥鱼电台'), h('span', null, current?.track?.artist || '等待音乐')),
+    h('div', { className: 'fm-dock-center' }, h('div', { className: 'fm-controls' },
+      h('button', { type: 'button', className: 'fm-button fm-primary fm-transport', disabled: transport.playDisabled,
+        'aria-busy': state.transportPending === 'pause', onClick: () => transport.action === 'pause' ? controller.command('pause') : controller.playOrPause() },
+        h(Svg, { type: transport.icon }), transport.label),
+      h('button', { type: 'button', className: 'fm-button fm-transport', disabled: transport.nextDisabled,
+        'aria-busy': state.transportPending === 'next', onClick: () => controller.command('next') }, h(Svg, { type: 'next' }), transport.nextLabel)),
+      current && h('div', { className: 'fm-dock-timeline' }, h('span', null, minutes(positionMs)),
+        h('div', { className: 'fm-progress', 'aria-label': '播放进度' }, h('span', { style: { width: `${progressPercent({ ...current, positionMs })}%` } })),
+        h('span', null, current.track.durationMs ? minutes(current.track.durationMs) : '--:--'))),
+    h('button', { type: 'button', className: 'fm-button fm-sound-action', disabled,
+      'aria-label': settings.humanPlayback ? '关闭电脑声音' : '开启电脑声音', 'aria-pressed': Boolean(settings.humanPlayback),
+      onClick: () => controller.command('setHumanPlayback', !settings.humanPlayback) },
+      h(Svg, { type: settings.humanPlayback ? 'sound' : 'muted' }), h('span', null, settings.humanPlayback ? '声音开启' : '已静音')));
 
-  return h('div', { className: 'fishfm', 'data-view':close?'settings':'main', 'data-motion': state.motion || 'full' },
+
+  const hero = h('section', { className: 'fm-hero fm-companion-hero', 'aria-label': '当前播放' },
+    h('div', { className: 'fm-art' }, h('span', { className: 'fm-character-halo', 'aria-hidden': true }),
+      h(PlaybackArtwork, { art, active: presentation.active, motion: state.motion, effects: state.playbackEffects, available: state.features?.artwork?.gif, alt: '鲸鱼娘音乐状态' }),
+      h('button', { type: 'button', className: 'fm-toggle fm-effects-toggle', role: 'switch', 'aria-label': '小开关',
+        'aria-checked': Boolean(state.playbackEffects && state.features?.artwork?.gif), disabled: !state.features?.artwork?.gif,
+        onClick: () => controller.setPlaybackEffects(!state.playbackEffects), onKeyDown: event => {
+          if (!['ArrowLeft', 'ArrowRight'].includes(event.key)) return;
+          event.preventDefault(); controller.setPlaybackEffects(event.key === 'ArrowRight');
+        } }, h('span', { 'aria-hidden': true }))),
+    h('div', { className: 'fm-hero-copy' },
+      h('div', { className: 'fm-live', role: 'status' }, h(StatusMark, { active: presentation.active }), transport.message || presentation.label,
+        h('span', { className: 'fm-mode-label' }, modes.find(([id]) => id === mode)?.[1] || '手动')),
+      h('div', { className: 'fm-track-swap', key: `track:${current?.playInstanceId || 'empty'}` },
+        h('div', { className: 'fm-track' }, current?.track?.title || '今天，从哪一首开始？'),
+        h('p', { className: 'fm-artist' }, current?.track?.artist || (state.library?.total ? '让大肥鱼挑一首，或点播你想听的歌。' : '打开电台设置，连接网易云并导入音乐。'))),
+      current && h('div', { className: 'fm-feedback-actions', 'aria-label': '当前歌曲推荐反馈' },
+        ...[[1, '喜欢', '♥'], [-1, '少推荐', '↓']].map(([score, label, mark]) => h('button', {
+          type: 'button', key: score, className: 'fm-button fm-feedback-button', 'aria-pressed': insights?.feedback?.current === score,
+          disabled: disabled || insights?.feedback?.version !== 1,
+          onClick: () => controller.command('setTrackFeedback', { track: current.track, playInstanceId: current.playInstanceId, value: insights.feedback.current === score ? 0 : score }),
+        }, h('span', { 'aria-hidden': true }, mark), label))),
+      current && (insights?.feedback?.version !== 1 || insights.feedback.current === 1 || insights.feedback.current === -1) &&
+        h('p', { className: 'fm-feedback-note', role: 'status', 'data-current-feedback': insights?.feedback?.version === 1 }, insights?.feedback?.version !== 1 ? '反馈功能需重新加载新版 Core。'
+          : insights.feedback.current === 1 ? '已喜欢，再次点击可撤销。' : '已少推荐，再次点击可撤销。'),
+      current && replyCurrent && insights?.explanation && h('div', { className: 'fm-reply', key: `reply:${insights.reply?.decisionId || current.playInstanceId}` },
+        h('p', { className: 'fm-label' }, '大肥鱼说'),
+        h('p', { className: 'fm-reply-text' }, insights.reply?.variants?.[state.expression?.style ?? 'current'] || insights.reply?.text || insights.explanation.variants?.[state.expression?.style ?? 'current'] || insights.explanation.text),
+        h('details', null, h('summary', null, '展开选歌依据'),
+          h('p', null, `来源：${({ llm_recommendation: '大肥鱼推荐歌单', netease_similar: '与你常听的歌相似', netease_daily: '网易云每日推荐', netease_personal_fm: '网易云私人 FM', platform_recommendation: '平台推荐' })[current.origin?.source] ?? (current.selectedBy === 'user' ? '你点播' : '常听歌曲')}`),
+          current.selectedBy === 'agent' && snapshot?.lastSelection?.detail && h('p', null, `排序得分 ${snapshot.lastSelection.score?.toFixed(3)}；近期已播 ${snapshot.lastSelection.detail.repeatPlays ?? 0} 次。`),
+          h('p', null, '喜欢 / 少推荐只影响本机推荐；逐曲说明由已记录的决策生成，不新增模型请求。')))));
+  return h('div', { className: 'fishfm', 'data-view': close ? 'settings' : 'main', 'data-motion': state.motion || 'full' },
     h(DollLayer, { active: presentation.active && state.playbackEffects && state.features?.artwork?.gif, motion: state.motion, names: state.features?.artwork?.dolls }),
     h('div', { className: 'fm-wrap' },
-    h('header', { className: 'fm-top' },
-      h('div', { className: 'fm-heading' }, h('span', { className: 'fm-brand', 'aria-hidden': true }, h(Svg, { type: 'headphones' })),
-        h('div', null, h('h1', null, '肥鱼电台'), h('p', { className: 'fm-subtitle' }, '你的音乐环境，DeepSeek 的听歌偏好。'))),
-      h('div', { className: 'fm-top-actions' }, h('button', { type: 'button', className: 'fm-button fm-widget-pref',
-        'aria-pressed': state.widgetVisible, 'aria-label': '显示或隐藏悬浮条', onClick: () => controller.setWidgetVisible(!state.widgetVisible) }, state.widgetVisible ? '悬浮条已显示' : '显示悬浮条'),
-      !close && h('button', { type: 'button', className: 'fm-button', onClick: () => {
-        if (settingsRef.current) {
-          settingsRef.current.open = true;
-          settingsRef.current.querySelector?.('summary')?.focus({ preventScroll: true });
-          settingsRef.current.scrollIntoView?.({ block: 'start' });
-        }
-      } }, '电台设置'),
-      h('button', { type: 'button', className: 'fm-button', onClick: close || back }, close ? '关闭设置' : '返回对话'))),
-    h('section', { className: 'fm-hero', 'aria-label': '当前播放' },
-      h('div', { className: 'fm-art' }, h(PlaybackArtwork, { art, active: presentation.active, motion: state.motion,
-        effects: state.playbackEffects, available: state.features?.artwork?.gif, alt: '鲸鱼娘音乐状态' }),
-        h('button', { type: 'button', className: 'fm-toggle fm-effects-toggle', role: 'switch', 'aria-label': '小开关',
-          'aria-checked': Boolean(state.playbackEffects && state.features?.artwork?.gif), disabled: !state.features?.artwork?.gif,
-          onClick: () => controller.setPlaybackEffects(!state.playbackEffects),
-          onKeyDown: event => {
-            if (!['ArrowLeft', 'ArrowRight'].includes(event.key)) return;
-            event.preventDefault(); controller.setPlaybackEffects(event.key === 'ArrowRight');
-          } }, h('span', { 'aria-hidden': true }))),
-      h('div', { className: 'fm-hero-copy' },
-        h('div', { className: 'fm-live', role: 'status' }, h(StatusMark, { active: presentation.active }), transport.message || presentation.label),
-        h('div', { className: 'fm-track-swap', key: current?.playInstanceId || 'empty' },
-          h('div', { className: 'fm-track' }, current?.track?.title || '今天，从哪一首开始？'),
-          h('p', { className: 'fm-artist' }, current?.track?.artist || (state.library?.total ? '从音乐库点播，或让电台为你选一首。' : '连接网易云，导入常听的音乐。'))),
-        current && h(React.Fragment, null,
-          h('div', { className: 'fm-progress', 'aria-label': '播放进度' }, h('span', { style: { width: `${progressPercent({ ...current, positionMs })}%` } })),
-          h('div', { className: 'fm-time' }, h('span', null, minutes(positionMs)),
-            h('span',{className:'fm-track-origin'},current.selectionTrigger==='legacy-unknown'?'旧版选曲 · 来源未区分':current.selectedBy==='user'?'你点播的歌曲':current.selectionTrigger==='user-next'?'你触发换曲 · 大肥鱼推荐':'大肥鱼自主选择'),
-            h('span', null, current.track.durationMs ? minutes(current.track.durationMs) : '--:--')))),
-      h('div', { className: 'fm-controls' },
-          h('button', { type: 'button', className: 'fm-button fm-primary fm-transport', disabled: transport.playDisabled,
-            'aria-busy': state.transportPending === 'pause', onClick: () => transport.action === 'pause' ? controller.command('pause') : controller.playOrPause() }, h(Svg, { type: transport.icon }), transport.label),
-          h('button', { type: 'button', className: 'fm-button fm-transport', disabled: transport.nextDisabled,
-            'aria-busy': state.transportPending === 'next', onClick: () => controller.command('next') }, h(Svg, { type: 'next' }), transport.nextLabel),
-        current&&h('div',{className:'fm-feedback-actions','aria-label':'当前歌曲推荐反馈'},
-            ...[[1,'喜欢','♥'],[-1,'少推荐','↓']].map(([score,label,mark])=>h('button',{type:'button',key:score,className:'fm-button fm-feedback-button','aria-pressed':insights?.feedback?.current===score,
-              disabled:disabled||insights?.feedback?.version!==1,onClick:()=>controller.command('setTrackFeedback',{track:current.track,playInstanceId:current.playInstanceId,value:insights.feedback.current===score?0:score})},h('span',{'aria-hidden':true},mark),label)))),
-        current&&(insights?.feedback?.version!==1||insights.feedback.current===1||insights.feedback.current===-1)&&h('p',{className:'fm-feedback-note',role:'status','aria-live':'polite'},insights?.feedback?.version!==1?'反馈功能需重新加载新版 Core。'
-            :insights.feedback.current===1?'已喜欢：提高这首歌的排序权重。再次点击可撤销。'
-            :insights.feedback.current===-1?'已少推荐：降低权重，不再作为相似推荐种子。再次点击可撤销。'
-            :''),
-        insights?.explanation&&h('div',{className:'fm-reply',role:'status',key:insights.reply?.decisionId},h('p',{className:'fm-label'},'大肥鱼说'),h('p',{className:'fm-reply-text'},insights.reply?.variants?.[state.expression?.style??'current']||insights.reply?.text||insights.explanation.variants?.[state.expression?.style??'current']||insights.explanation.text),
-          h('details',null,h('summary',null,'展开选歌依据'),h('p',null,`来源：${({llm_recommendation:'大肥鱼推荐歌单',netease_similar:'与你常听的歌相似',netease_daily:'网易云每日推荐',netease_personal_fm:'网易云私人 FM',platform_recommendation:'平台推荐'})[current?.origin?.source]??(current?.selectedBy==='user'?'你点播':'常听歌曲')}`),
-            current?.selectedBy==='agent'&&snapshot?.lastSelection?.detail&&h('p',null,`排序得分 ${snapshot.lastSelection.score?.toFixed(3)}；与常听歌曲的关联 ${(snapshot.lastSelection.detail.relationship??0).toFixed(3)}；近期已播 ${snapshot.lastSelection.detail.repeatPlays??0} 次；避免连续同一艺人的调整 -${(snapshot.lastSelection.detail.diversityPenalty??0).toFixed(3)}。`),
-            Number.isFinite(snapshot?.lastSelection?.detail?.graphAffinity)&&snapshot.lastSelection.detail.graphAffinity>0&&h('p',null,`与最近常听歌曲的相近度 +${snapshot.lastSelection.detail.graphAffinity.toFixed(3)}。`),
-            Number.isFinite(snapshot?.lastSelection?.detail?.llmBoost)&&snapshot.lastSelection.detail.llmBoost>0&&h('p',null,`大肥鱼试听挑选的加分 +${snapshot.lastSelection.detail.llmBoost.toFixed(2)}（第 ${snapshot.lastSelection.detail.llmRank} 名）。`),
-            Number.isFinite(snapshot?.lastSelection?.detail?.feedback)&&h('p',null,`你的反馈对这次排序的影响：${snapshot.lastSelection.detail.feedback>0?'+':''}${snapshot.lastSelection.detail.feedback.toFixed(2)}。之后的反馈从下一次决策生效。`),
-            h('p',null,'喜欢 / 少推荐仅影响肥鱼电台推荐；再次点击可撤销。'),
-            h('p',null,'解释由实际决策记录生成，逐曲不新增模型请求。')))),
-    state.error && h('div', { className: 'fm-notice', 'data-error': true, role: 'alert' }, state.error,
-      ' ', h('button', { className: 'fm-button', type: 'button', disabled: state.busy,
-        onClick: state.errorCode==='no_candidates'&&['llm','filtered'].includes(state.insights?.recommendationMode)?()=>controller.platformAction('discovery','netease'):controller.refresh },
-        state.errorCode==='no_candidates'&&state.insights?.recommendationMode==='filtered'?'重新找歌':state.errorCode==='no_candidates'&&state.insights?.recommendationMode==='llm'?'重新核对歌单':state.connected?'刷新状态':'重新连接')),
-    snapshot?.lastError && h('div', { className: 'fm-notice', role: 'status' }, playbackNotice(snapshot)),
-    snapshot?.blockUntil > Date.now() && h('div', { className: 'fm-notice' }, '今天已停止自主听歌。到期后仍会保持暂停，直到你主动恢复。',
-      h('button', { className: 'fm-button', type: 'button', disabled: state.busy || !state.connected,
-        onClick: () => controller.command('chooseSelf') }, '恢复自主听歌')),
-    grid,
-    h('details', { ref: settingsRef, className: 'fm-settings-shell', open: close ? true : undefined },
-      h('summary', null, '电台设置', h('span', { className: 'fm-disclosure-meta' }, '听歌方式 · 音乐平台 · 界面')),
-      h('div', { className: 'fm-settings-content' }, controlsColumn, management)),
-    h('footer', { className: 'fm-foot' }, '关闭面板后，音乐仍在后台运行。')));
+      h('header', { className: 'fm-top' },
+        h('div', { className: 'fm-heading' }, h('span', { className: 'fm-brand', 'aria-hidden': true }, h(Svg, { type: 'headphones' })),
+          h('div', null, h('h1', null, '肥鱼电台', h('small', { className: 'fm-brand-latin' }, 'FeiyuFM')), h('p', { className: 'fm-subtitle' }, '你的音乐，大肥鱼的偏好。'))),
+        h('div', { className: 'fm-top-actions' },
+          !close && h('button', { type: 'button', className: 'fm-button', onClick: () => setSettingsOpen(true), 'aria-haspopup': 'dialog', 'aria-controls': `${rateId}-settings` }, h(Svg, { type: 'settings' }), '电台设置'),
+          h('button', { type: 'button', className: 'fm-button', onClick: close || back }, close ? '关闭设置' : '返回对话'))),
+      !close && h('nav', { className: 'fm-page-nav', 'aria-label': '电台页面' },
+        ...[['listen', '正在听'], ['discover', '发现记录'], ['taste', '偏好与反馈']].map(([id, label]) => h('button', {
+          type: 'button', key: id, 'aria-pressed': view === id, 'aria-controls': `${rateId}-${id}`, onClick: () => selectView(id),
+        }, label))),
+      state.error && h('div', { className: 'fm-notice', 'data-error': true, role: 'alert' }, state.error,
+        h('button', { className: 'fm-button', type: 'button', disabled: state.busy,
+          onClick: state.errorCode === 'no_candidates' && ['llm', 'filtered'].includes(state.insights?.recommendationMode) ? () => controller.platformAction('discovery', 'netease') : controller.refresh },
+        state.errorCode === 'no_candidates' && state.insights?.recommendationMode === 'filtered' ? '重新找歌' : state.errorCode === 'no_candidates' && state.insights?.recommendationMode === 'llm' ? '重新核对歌单' : state.connected ? '刷新状态' : '重新连接')),
+      snapshot?.lastError && h('div', { className: 'fm-notice', role: 'status' }, playbackNotice(snapshot)),
+      snapshot?.blockUntil > Date.now() && h('div', { className: 'fm-notice' }, '今天已停止自主听歌。到期后保持暂停，直到你主动恢复。',
+        h('button', { className: 'fm-button', type: 'button', disabled: state.busy || !state.connected, onClick: () => controller.command('chooseSelf') }, '恢复自主听歌')),
+      close ? h(React.Fragment, null, hero, settingsBody, preferencesColumn)
+        : h(React.Fragment, null,
+          h('div', { className: 'fm-listen-page', id: `${rateId}-listen`, hidden: view !== 'listen' }, hero,
+            h(Persona, { key: 'pool', state, controller, selectedModel, onSelectModel: setSelectedModel })),
+          h('div', { className: 'fm-discover-page', id: `${rateId}-discover`, hidden: view !== 'discover' }, h(Discoveries, { state, expanded: true })),
+          h('div', { ref: feedbackRef, className: 'fm-taste-page', id: `${rateId}-taste`, hidden: view !== 'taste' }, preferencesColumn)),
+      dock(),
+      !close && h('dialog', { ref: dialogRef, id: `${rateId}-settings`, className: 'fm-settings-dialog', 'aria-label': '电台设置', 'data-open': settingsOpen,
+        onCancel: event => { event.preventDefault(); setSettingsOpen(false); }, onClose: () => setSettingsOpen(false),
+        onClick: event => {
+          if (event.target !== event.currentTarget) return;
+          const rect = event.currentTarget.getBoundingClientRect();
+          if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) setSettingsOpen(false);
+        } },
+        h('div', { className: 'fm-settings-dialog-head' }, h('h2', null, '电台设置'),
+          h('button', { type: 'button', className: 'fm-button', 'aria-label': '关闭电台设置', onClick: () => setSettingsOpen(false) }, h(Svg, { type: 'close' }), '完成')),
+        settingsBody, dock(true))));
 }

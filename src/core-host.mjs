@@ -9,7 +9,7 @@
 // No music decision here contacts a model. Session events only gate local work.
 import { createInterface } from 'node:readline';
 import { randomUUID } from 'node:crypto';
-import { MusicError } from './contracts.mjs';
+import { MusicError, normalizeTrack } from './contracts.mjs';
 import { MusicStore } from './storage.mjs';
 import { MusicCore } from './core.mjs';
 import { FakePlayback } from './fakes.mjs';
@@ -239,16 +239,20 @@ export function createProviderFacade({ registry, store = null, now = () => Date.
     return tracks.filter(track=>{const key=`${track.provider}:${track.providerTrackId}`;return !recent.keys.has(key)&&key!==currentKey;});
   };
   let replenishing=true;
-  const playbackSupply=()=>{
+  const playbackSupply=(includeTracks=false)=>{
     const approved=discovery.playbackRecommendations(),recent=repeatContext(store),settings=store.getCoreState()?.settings;
     const liked=new Set(settings&&(settings.discovery===false||settings.discoveryRate===0)?store.listLikedTracks().map(r=>r.track_key):[]);
     const permitted=settings&&(settings.discovery===false||settings.discoveryRate===0)
       ?approved.filter(t=>store.getEnvironmentEntry(t)||store.hasEffectiveListen(t)||liked.has(`${t.provider}:${t.providerTrackId}`)):approved;
-    const available=freshTracks(permitted).length;
+    const availableTracks=freshTracks(permitted),available=availableTracks.length;
     if(available<=SUPPLY_POLICY.lowWater)replenishing=true;
     if(available>=SUPPLY_POLICY.target)replenishing=false;
     return{total:approved.length,available,recentBlocked:approved.filter(t=>recent.keys.has(`${t.provider}:${t.providerTrackId}`)).length,
-      replenishing,lowWater:SUPPLY_POLICY.lowWater,target:SUPPLY_POLICY.target};
+      replenishing,lowWater:SUPPLY_POLICY.lowWater,target:SUPPLY_POLICY.target,
+      ...(includeTracks?{tracks:availableTracks.slice(0,100).map(track=>({
+        ...normalizeTrack(track),discovery:{source:track.discovery?.source??'platform_recommendation',
+          llmReason:typeof track.discovery?.llmReason==='string'?track.discovery.llmReason.slice(0,420):''},
+      }))}:{})};
   };
   const recommendationCandidates=()=>{
     const owner=discovery.status().candidateOwner,reviewed=reviewedKeys(store,owner,now());
@@ -281,7 +285,7 @@ export function createProviderFacade({ registry, store = null, now = () => Date.
         return {...status,pipeline:'platform-filter',count:discovery.candidates().filter(track=>track.provider==='netease').length,
           picked:picks.length,remaining:freshTracks(picks).length,filterCallId:filter?.callId??null,
           tracks:picks.slice(0,12),summary:selectionComplete||picks.length?filter?.text??'':'',selectionComplete,
-          playbackPool:playbackSupply(),
+          playbackPool:playbackSupply(true),
           referenceCount:store.countEnvironment(),playlist:null};
       }
       if (recommendationMode(store) !== 'llm') return status;
