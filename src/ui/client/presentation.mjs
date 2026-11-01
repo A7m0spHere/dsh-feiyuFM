@@ -38,6 +38,30 @@ export function playbackPresentation(snapshot, connected) {
   return { label: '电台待命', art: 'whale-idle', active: false };
 }
 
+// Pending acknowledges a request, never claims that audio has started.
+export function playbackControls(state) {
+  const snapshot = state.snapshot, pending = state.transportPending;
+  const current = snapshot?.current;
+  const preparing = !snapshot?.paused && ['resolving', 'selecting'].includes(snapshot?.status);
+  const canPause = (pending && !['pause', 'stopForToday'].includes(pending))
+    || (current && !snapshot.paused) || preparing;
+  const hasMusic = current || state.library?.total || snapshot?.queue?.length
+    || state.persona?.recommendationPipeline?.playbackPool?.available
+    || state.persona?.recommendationPipeline?.tracks?.length || state.persona?.recommendations?.verified?.length;
+  return {
+    action: canPause ? 'pause' : current ? 'resume' : 'start',
+    label: pending === 'pause' ? '暂停中…' : pending === 'stopForToday' ? '停止中…'
+      : canPause ? '暂停' : current ? '继续播放' : '开始听歌',
+    icon: canPause ? 'pause' : 'play',
+    playDisabled: !state.connected || pending === 'pause' || pending === 'stopForToday'
+      || (!canPause && (state.busy || !hasMusic)),
+    nextDisabled: !state.connected || state.busy || Boolean(pending) || !hasMusic,
+    nextLabel: pending === 'next' ? '切换中…' : '下一首',
+    message: ({ pause: '正在暂停…', resume: '正在继续播放…', next: '正在切换下一首…',
+      requestTrack: '正在准备歌曲…', stopForToday: '正在停止…' })[pending] ?? '',
+  };
+}
+
 export function playbackNotice(snapshot) {
   if (!snapshot?.lastError) return null;
   if (snapshot.status === 'resolving' && snapshot.current?.recoveryAttempts > 0) {

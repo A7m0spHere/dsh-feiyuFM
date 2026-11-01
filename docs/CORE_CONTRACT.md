@@ -1,6 +1,6 @@
 # 内部控制契约
 
-更新：2026-10-23。本文只维护内部字段、命令与边界，DSH 外部接口经 Adapter 映射；职责见 [架构](ARCHITECTURE.md)，用户行为见 [MVP](MVP.md)，实现／部署／验收状态只看 [开发状态](PROJECT_PLAN.md)。历史理由查 [决策摘要](DECISIONS.md) 与 [实验记录](spikes/README.md)。
+更新：2026-11-01。本文只维护内部字段、命令与边界，DSH 外部接口经 Adapter 映射；职责见 [架构](ARCHITECTURE.md)，用户行为见 [MVP](MVP.md)，实现／部署／验收状态只看 [开发状态](PROJECT_PLAN.md)。历史理由查 [决策摘要](DECISIONS.md) 与 [实验记录](spikes/README.md)。
 
 ## 1. 曲目、账号与资源
 
@@ -57,7 +57,7 @@ UI 经宿主认证 `/api` 调用；完整白名单见 [dsh-settings.mjs](../src/
 
 | RPC | 返回/用途 |
 |---|---|
-| `fishfm/state` | `snapshot/platforms/library/insights/persona/features`；可携带 `library:{query,offset,limit}` 保留当前查询页 |
+| `fishfm/state` | 默认返回 `snapshot/platforms/library/insights/persona/features`，可携带 `library:{query,offset,limit}` 保留查询页；`playbackOnly:true` 仅返回权威 `snapshot`，不读曲库／画像／模型清单 |
 | `fishfm/library` | 全库搜索与分页，只返回 `library`，不覆盖播放状态 |
 | `fishfm/command` | 白名单用户命令与更新状态 |
 | `fishfm/login-start/login-poll/logout` | 网易云扫码、账号确认、退出 |
@@ -68,6 +68,8 @@ UI 经宿主认证 `/api` 调用；完整白名单见 [dsh-settings.mjs](../src/
 | `fishfm/expression-style` | 独立表达配置，参数和版本规则见第 8 节；不返回播放快照 |
 | `fishfm/feedback-list` | `query/filter/offset/limit`，返回 `feedbackPage`，不返回播放快照 |
 | `fishfm/feedback-clear` | `track/commandId/expectedRevision/view`，返回 `feedbackPage/feedback`，版本属于反馈域 |
+
+U23 客户端将请求中状态与音频状态分开投影；暂停可抢占当前页面未确认的播放／换曲，撤销其 RPC 等待并忽略迟到的应答／错误，已写入 Core 的命令仍由 Core 接管。每个写请求有自己的取消控制器与超时；旧请求不能释放新请求的 UI 锁或覆盖其快照。待确认或 `resolving/selecting` 时，以 500ms 间隔串行读取 `playbackOnly`；正常轮询仍为 2200ms，隐藏、取消订阅、停用时清理加速计时器。不增加模型调用或更改原生音频协议。见 [U23](spikes/U23-controls-and-panel.md)。
 
 `logout` 分离会话停用与持久化清理：清理失败返回 `credential_cleanup_failed`（可重试），带 `cleanupPending/sessionDisabled`；内存 secret、cookie jar、扫码会话与发现缓存仍清空。数据库保留 `revoked` 引用，重启不复用残留凭据；账号显示 `login_required/cleanupPending`，再次退出可重试删除。只有删除完成或凭据已不存在才移除引用并提示清理成功。
 

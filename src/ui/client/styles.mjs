@@ -51,6 +51,7 @@ export const css = `
     height:100%; min-height:0; overflow:auto; overscroll-behavior:contain;
     animation:fm-page-in var(--fm-page) var(--fm-ease) both; }
   .fishfm h1,.fishfm h2,.fishfm p { margin:0; }
+  .fm-wrap { max-width:840px; margin:0 auto; }
   .fm-doll-anchor { position:sticky; top:0; height:0; z-index:5; pointer-events:none; }
   .fm-doll-layer { display:block; position:absolute; top:0; left:0; pointer-events:none; }
   .fm-art .fm-effects-toggle { position:relative; margin-top:8px; z-index:6; }
@@ -100,6 +101,9 @@ export const css = `
   .fm-time { display:flex; justify-content:space-between; gap:8px; color:var(--fm-faint);
     font-size:10px; font-variant-numeric:tabular-nums; }
   .fm-controls { grid-column:1; display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
+  .fm-transport { min-width:94px; min-height:38px; }
+  :is(.fishfm,.fm-float) button[aria-busy=true] { cursor:progress; }
+  :is(.fishfm,.fm-float) button[aria-busy=true] svg { opacity:.5; }
   .fm-controls .fm-feedback-actions { margin-left:auto; }
   .fm-track-origin { text-align:center; overflow-wrap:anywhere; }
   .fm-feedback-note { grid-column:1/-1; color:var(--fm-muted); font-size:11px; overflow-wrap:anywhere; }
@@ -108,8 +112,17 @@ export const css = `
     animation:fm-wave 850ms ease-in-out infinite alternate; }
   .fm-wave i:nth-child(2) { animation-delay:-300ms; height:12px; }
   .fm-wave i:nth-child(3) { animation-delay:-550ms; }
-  .fm-grid { display:grid; grid-template-columns:minmax(0,1fr) minmax(300px,.7fr); align-items:start; gap:12px; }
-  .fm-management { display:grid; grid-template-columns:minmax(0,1.15fr) minmax(0,1fr) minmax(0,1fr); align-items:start; gap:12px; margin-top:12px; }
+  .fm-grid { display:grid; grid-template-columns:minmax(0,1fr); align-items:start; gap:12px; }
+  .fm-management { display:grid; grid-template-columns:minmax(0,1fr); align-items:start; gap:16px; }
+  .fm-settings-shell { margin-top:16px; border-top:1px solid var(--fm-line); }
+  .fm-settings-shell>summary { display:flex; align-items:center; gap:12px; padding:16px 0;
+    color:var(--fm-muted); font-size:12px; cursor:pointer; list-style:none; }
+  .fm-settings-shell>summary::-webkit-details-marker { display:none; }
+  .fm-settings-shell>summary::before { content:'›'; transition:transform var(--fm-fast); }
+  .fm-settings-shell[open]>summary::before { transform:rotate(90deg); }
+  .fm-settings-content { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); align-items:start; gap:24px; padding-bottom:12px; }
+  .fm-settings-content .fm-controls-column>section:first-child>h2 { margin-top:0; }
+  .fm-save-line .fm-button { flex-shrink:0; }
   .fm-management>section>h2 { margin-top:0; }
   .fm-main-column,.fm-controls-column { min-width:0; }
   .fm-grid>*>section:first-child h2 { margin-top:0; }
@@ -374,6 +387,13 @@ export const css = `
   .fm-float[data-dragging=false] .fm-float-pill { animation:fm-settle var(--fm-base) var(--fm-ease); }
   .fishfm[data-view=settings] .fm-grid { grid-template-columns:1fr; }
   .fishfm[data-view=settings] .fm-management { grid-template-columns:1fr; }
+  .fishfm[data-view=settings] .fm-settings-content { grid-template-columns:1fr; }
+  @container fishfm (max-width:640px) { .fm-settings-content{grid-template-columns:1fr;gap:16px} .fm-settings-shell>summary .fm-disclosure-meta{margin-left:auto;font-size:10px} }
+  @container fishfm (max-width:460px) {
+    .fm-top-actions{flex:1 1 100%;min-width:0;max-width:100%;flex-wrap:wrap}
+    .fm-settings-shell>summary{flex-wrap:wrap;gap:6px}
+    .fm-settings-shell>summary .fm-disclosure-meta{margin-left:14px;white-space:normal}
+  }
   @container fishfm (max-width:740px) { .fm-grid,.fm-management{grid-template-columns:1fr;gap:12px} .fm-hero{grid-template-columns:minmax(0,1fr) 80px;padding:14px;gap:10px} .fm-art img{width:80px;height:96px} .fm-track{font-size:21px} }
   @container fishfm (max-width:460px) { .fm-top{gap:8px} .fm-heading{flex:1 1 108px;gap:8px} .fm-brand{width:28px;height:28px} .fishfm h1{font-size:18px;white-space:nowrap} .fm-top-actions{width:auto;flex-shrink:0} .fm-top-actions .fm-button{padding:6px 8px;gap:5px} .fm-subtitle{display:none} .fm-hero{grid-template-columns:minmax(0,1fr) 64px;padding:12px;gap:8px} .fm-art img{width:64px;height:82px} .fm-track{font-size:18px} .fm-controls .fm-button{padding:5px 8px;min-height:32px;font-size:11px} .fm-controls .fm-feedback-actions{margin-left:0} .fm-library-search{width:100%} .fm-summary-actions .fm-button{width:100%} .fm-library-foot{flex-wrap:wrap} .fm-profile-details .fm-badge{white-space:normal} }
   @container fishfm (max-width:460px) { .fm-art{grid-row:1} .fm-controls{grid-column:1/-1} }

@@ -172,6 +172,7 @@ const connection={rpc:{async call(_channel,endpoint,payload){
 const layout={selectPanel(id){active=id;changeActive?.(id)}};
 harnessBundle.apply({connection,layout,effect(fn){fn()},slots:{inject(_name,fn){fn()},register(options,component){registrations.push({options,component});return()=>{}}}});
 const panel=registrations.find(r=>r.options.name==='main'),overlays=registrations.filter(r=>r.options.name==='shell.overlay'),controller=panel.options.inject().controller;
+window.__fishfmPreview={controller,connection};
 const previewStyle=document.querySelector('style[data-plugin="fishfm"]'),normalCss=previewStyle.textContent;
 function Harness(){
  const [page,setPage]=React.useState(active),[dark,setDark]=React.useState(false),[settings,setSettings]=React.useState(false),[demo,setDemo]=React.useState(false),[whaleEager,setWhaleEager]=React.useState(false);changeActive=setPage;

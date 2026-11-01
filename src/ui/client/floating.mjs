@@ -1,4 +1,4 @@
-import { playbackPresentation, popupPlacement, playbackNotice } from './presentation.mjs';
+import { playbackPresentation, playbackControls, popupPlacement, playbackNotice } from './presentation.mjs';
 import React from 'react';
 import { h, minutes, progressPercent, modes } from './shared.mjs';
 import { Svg, SwipeHandle, usePresence, StatusMark, PlaybackArtwork, useSmoothProgress } from './components.mjs';
@@ -28,6 +28,7 @@ export function FloatingPlayer({ controller, layout, usePanelInfo }) {
   const settings = snapshot?.settings || {};
   const mode = !settings.listening ? (settings.humanPlayback ? 'manual' : 'off') : !settings.humanPlayback ? 'silent' : settings.strategy === 'focus' ? 'focus' : 'normal';
   const presentation = playbackPresentation(snapshot, state.connected);
+  const transport = playbackControls(state);
   const positionMs = useSmoothProgress(current, presentation.active);
   const image = presentation.art;
   const blocked = !state.connected || state.busy;
@@ -154,10 +155,11 @@ export function FloatingPlayer({ controller, layout, usePanelInfo }) {
             state.errorCode === 'no_candidates' && state.insights?.recommendationMode === 'filtered' ? '重新找歌' : state.errorCode === 'no_candidates' && state.insights?.recommendationMode === 'llm' ? '重新核对歌单' : state.connected ? '刷新状态' : '重新连接')),
         snapshot?.lastError && h('div', { className: 'fm-notice', role: 'status' }, playbackNotice(snapshot)),
         h('div', { className: 'fm-float-controls' },
-          h('button', { type: 'button', className: 'fm-button fm-primary', disabled: blocked || (!current && !state.library?.total && !snapshot?.queue?.length),
-            'aria-label': !current ? '开始听歌' : paused ? '继续播放' : '暂停', onClick: () => controller.playOrPause() }, h(Svg, { type: !current || paused ? 'play' : 'pause' }), !current ? '开始听歌' : paused ? '继续播放' : '暂停'),
-          h('button', { type: 'button', className: 'fm-button', disabled: blocked || (!current && !snapshot?.queue?.length && !state.library?.total),
-            'aria-label': '播放下一首', onClick: () => controller.command('next') }, h(Svg, { type: 'next' }), '下一首')))),
+          h('button', { type: 'button', className: 'fm-button fm-primary', disabled: transport.playDisabled,
+            'aria-label': transport.label, 'aria-busy': state.transportPending === 'pause',
+            onClick: () => transport.action === 'pause' ? controller.command('pause') : controller.playOrPause() }, h(Svg, { type: transport.icon }), transport.label),
+          h('button', { type: 'button', className: 'fm-button', disabled: transport.nextDisabled,
+            'aria-label': '播放下一首', 'aria-busy': state.transportPending === 'next', onClick: () => controller.command('next') }, h(Svg, { type: 'next' }), transport.nextLabel)))),
     menuPresence.mounted && h('div', { className: 'fm-float-menu', role: 'menu', 'aria-label': '音乐快捷菜单',
       'data-phase': menuPresence.phase, onAnimationEnd: menuPresence.onAnimationEnd,
       'aria-hidden': menuOpen ? undefined : true, ref: element => { if (element) element.inert = !menuOpen; } },
@@ -184,8 +186,15 @@ export function FloatingPlayer({ controller, layout, usePanelInfo }) {
             effects: state.playbackEffects, available: state.features?.artwork?.gif })),
         h('span', { className: 'fm-float-copy' }, h('span', { className: 'fm-float-title' }, current?.track?.title || '肥鱼电台 · 待命'),
           h('span', { className: 'fm-float-artist' }, current?.track?.artist || (state.connected ? '点击展开快捷控制' : '连接本地音乐服务中')),
-          h('span', { className: 'fm-float-status' }, h(StatusMark, { active: presentation.active }), presentation.label))),
-      h('div', { className: 'fm-float-actions' }, h('button', { type: 'button', className: 'fm-float-icon fm-float-more', 'aria-label': '更多音乐设置',
+          h('span', { className: 'fm-float-status', role: 'status' }, h(StatusMark, { active: presentation.active }), transport.message || presentation.label))),
+      h('div', { className: 'fm-float-actions' },
+        h('button', { type: 'button', className: 'fm-float-icon', 'aria-label': transport.label, title: transport.label,
+          'aria-busy': state.transportPending === 'pause', disabled: transport.playDisabled,
+          onClick: () => transport.action === 'pause' ? controller.command('pause') : controller.playOrPause() }, h(Svg, { type: transport.icon })),
+        h('button', { type: 'button', className: 'fm-float-icon', 'aria-label': '播放下一首', title: transport.nextLabel,
+          'aria-busy': state.transportPending === 'next', disabled: transport.nextDisabled,
+          onClick: () => controller.command('next') }, h(Svg, { type: 'next' })),
+        h('button', { type: 'button', className: 'fm-float-icon fm-float-more', 'aria-label': '更多音乐设置',
         'aria-haspopup': 'menu', 'aria-expanded': menuOpen, onClick: () => menuOpen ? closeOverlay() : openMenu() }, h(Svg, { type: 'more' })))),
   );
 }

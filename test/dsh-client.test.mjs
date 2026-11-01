@@ -962,6 +962,61 @@ test('the floating drawer shows operation errors with the same recovery actions 
 });
 
 
+test('pending next gives immediate feedback, coalesces duplicate clicks and lets pause supersede late replies', async t => {
+  for (const lateFailure of [false, true]) await t.test(lateFailure ? 'late failure' : 'late success', async () => {
+    let releaseNext;
+    const calls = [];
+    const playing = revision => ({ ...snapshot(revision), paused: false, status: 'playing',
+      current: { playInstanceId: 'song', track: { provider: 'netease', providerTrackId: '1', title: 'Song' } } });
+    const f = fixture(async (_channel, endpoint, payload, signal) => {
+      calls.push({ endpoint, payload, signal });
+      if (endpoint === 'fishfm/command' && payload.type === 'next') return new Promise(resolve => { releaseNext = resolve; });
+      if (endpoint === 'fishfm/command') return state({ ...playing(3), paused: true, status: 'paused' });
+      return state(playing(1));
+    });
+    try {
+      await f.controller.refresh();
+      const next = f.controller.command('next');
+      assert.equal(f.controller.getSnapshot().transportPending, 'next');
+      const nodes = all(f.render());
+      assert.equal(nodes.find(n => n.type === 'button' && n.children.includes('切换中…')).props.disabled, true);
+      assert.equal(nodes.find(n => n.type === 'button' && n.children.includes('暂停')).props.disabled, false);
+      await f.controller.command('next');
+      assert.equal(calls.filter(c => c.payload?.type === 'next').length, 1);
+      await f.controller.refresh();
+      assert.equal(calls.at(-1).payload.playbackOnly, true, 'polling continues while the command is pending');
+      await f.controller.command('pause');
+      assert.equal(calls.find(c => c.payload?.type === 'next').signal.aborted, true, 'cancel unacknowledged work; accepted commands remain owned by Core');
+      assert.equal(f.controller.getSnapshot().snapshot.paused, true);
+      assert.equal(f.controller.getSnapshot().busy, false, 'superseded next no longer holds the UI lock');
+      releaseNext(lateFailure ? { ok: false, error: { code: 'media_unavailable', message: 'Old next failed' } } : state(playing(2)));
+      await next;
+      assert.equal(f.controller.getSnapshot().snapshot.paused, true);
+      assert.equal(f.controller.getSnapshot().error, '');
+      assert.equal(f.controller.getSnapshot().transportPending, null);
+    } finally { f.dispose(); }
+  });
+});
+
+test('resolving audio keeps pause available and uses playback-only reads until ready', async () => {
+  const calls = [];
+  let resolving = false;
+  const f = fixture(async (_channel, endpoint, payload) => {
+    calls.push({ endpoint, payload });
+    if (endpoint === 'fishfm/command') resolving = true;
+    return state({ ...snapshot(calls.length), paused: false, status: resolving ? 'resolving' : 'playing',
+      current: { playInstanceId: 'song', track: { provider: 'netease', providerTrackId: '1' } } });
+  });
+  try {
+    await f.controller.refresh(); await f.controller.command('next');
+    assert.equal(f.controller.getSnapshot().transportPending, null);
+    assert.equal(all(f.render()).find(n => n.type === 'button' && n.children.includes('暂停')).props.disabled, false);
+    await f.controller.refresh(); assert.equal(calls.at(-1).payload.playbackOnly, true);
+    resolving = false; await f.controller.refresh(); await f.controller.refresh();
+    assert.ok(calls.at(-1).payload.library, 'normal projections resume after audio is ready');
+  } finally { f.dispose(); }
+});
+
 test('slow import keeps playback controls and polling available without accepting stale playback', async () => {
   let complete, polls = 0, paused = false, platformSignal;
   const f = fixture(async (_channel, endpoint, payload, signal) => {

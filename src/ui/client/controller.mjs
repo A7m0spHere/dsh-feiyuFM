@@ -17,7 +17,7 @@ const writePreference = (key, value) => {
 
 export function createController(connection) {
   let state = {
-    snapshot: null, platforms: {}, busy: false, platformBusy: false, connected: false, error: '', notice: '',
+    snapshot: null, platforms: {}, busy: false, transportPending: null, platformBusy: false, connected: false, error: '', notice: '',
     libraryBusy: false, libraryError: '', libraryQuery: '',
     expression: null, expressionBusy: false, expressionError: '', expressionNotice: '',
     feedbackPage: null, feedbackListBusy: false, feedbackClearBusy: false, feedbackError: '', feedbackNotice: '',
@@ -28,7 +28,9 @@ export function createController(connection) {
     spectrumVisible: readPreference(SPECTRUM_VISIBLE_KEY, true) !== false,
     motion: ['full', 'reduced', 'off'].includes(readPreference(MOTION_KEY, 'full')) ? readPreference(MOTION_KEY, 'full') : 'full',
   };
-  let epoch = 0, playbackEpoch = 0, libraryEpoch = 0, timer, read, write, platformWrite, libraryRead,summaryWrite,expressionWrite, disposed = false;
+  let epoch = 0, playbackEpoch = 0, libraryEpoch = 0, timer, playbackTimer, read, transportWrite, settingsWrite, platformWrite, libraryRead,summaryWrite,expressionWrite, disposed = false;
+  const writes = new Set();
+  const transportCommands = new Set(['pause', 'resume', 'next', 'requestTrack', 'stopForToday']);
   let libraryOptions = { query: '', offset: 0, limit: 12 };
   let feedbackOptions = { query: '', filter: 'all', offset: 0, limit: 12 };
   let feedbackOpen = false, feedbackEpoch = 0, feedbackRead, feedbackWrite, feedbackRetry;
@@ -71,6 +73,8 @@ export function createController(connection) {
     if (value !== state.playbackEffects) emit({ playbackEffects: value });
   };
   window.addEventListener?.('storage', syncPlaybackEffects);
+  const syncVisibility = () => { if (document.hidden) clearTimeout(playbackTimer); else followPlayback(); };
+  document.addEventListener?.('visibilitychange', syncVisibility);
   const failure = error => `${error?.message || '音乐服务连接失败，请刷新重试。'}${error?.code ? ` (${error.code})` : ''}`;
   const unreachable = error => !error?.code || error.code === 'core_unavailable';
   const project = (value, libraryVersion, playbackVersion = null) => {
@@ -118,8 +122,15 @@ export function createController(connection) {
       if (feedbackRead === request) { feedbackRead = null; emit({ feedbackListBusy: false }); }
     }
   }
+  function followPlayback() {
+    clearTimeout(playbackTimer);
+    if (!disposed && listeners.size && !document.hidden && state.connected
+      && (state.transportPending || ['resolving', 'selecting'].includes(state.snapshot?.status))) {
+      playbackTimer = setTimeout(() => { void refresh(); }, 500);
+    }
+  }
   async function refresh() {
-    if (disposed || state.busy || read) return;
+    if (disposed || read) return;
     const version = ++epoch;
     const libraryVersion = libraryEpoch;
     const playbackVersion = playbackEpoch;
@@ -127,7 +138,8 @@ export function createController(connection) {
     read = controller;
     const timeout = setTimeout(() => controller.abort(), 18000);
     try {
-      const result = await connection.rpc.call('/api', 'fishfm/state', { library: libraryOptions }, controller.signal);
+      const playbackOnly = Boolean(state.transportPending || ['resolving', 'selecting'].includes(state.snapshot?.status));
+      const result = await connection.rpc.call('/api', 'fishfm/state', playbackOnly ? { playbackOnly: true } : { library: libraryOptions }, controller.signal);
       if (version !== epoch) return;
       if (!result.ok) throw result.error;
       const projected = project(result.value, libraryVersion, playbackVersion);
@@ -142,6 +154,7 @@ export function createController(connection) {
     } finally {
       clearTimeout(timeout);
       if (read === controller) read = null;
+      followPlayback();
     }
   }
   return {
@@ -167,7 +180,7 @@ export function createController(connection) {
     subscribe(fn) {
       listeners.add(fn);
       if (listeners.size === 1) { refresh(); timer = setInterval(() => { if (!document.hidden) refresh(); }, 2200); }
-      return () => { listeners.delete(fn); if (!listeners.size) { clearInterval(timer); ++epoch; read?.abort(); read = null; } };
+      return () => { listeners.delete(fn); if (!listeners.size) { clearInterval(timer); clearTimeout(playbackTimer); ++epoch; read?.abort(); read = null; } };
     },
     refresh,
     setFeedbackOpen(open) {
@@ -248,23 +261,37 @@ export function createController(connection) {
       emit({ widgetPosition: next });
     },
     async command(type, value) {
-      if (disposed || state.busy || !state.connected) return;
+      const transport = transportCommands.has(type);
+      if (disposed || !state.connected || (!transport && (state.busy || state.transportPending))) return;
+      // Pause must reach Core even when a preceding play/skip request is slow.
+      // Other duplicate transport clicks are coalesced until acknowledged.
+      if (transport && state.transportPending && (type !== 'pause' || state.transportPending === 'pause')) return;
       if (state.platformBusy && ['resetTaste', 'resetLibrary', 'undoTasteReset'].includes(type)) return;
-      ++playbackEpoch;
+      const playbackVersion = ++playbackEpoch;
       const libraryVersion = libraryEpoch;
       ++epoch; read?.abort(); read = null;
-      emit({ busy: true, error: '', notice: ['pause', 'resume', 'next', 'requestTrack'].includes(type) ? '正在更新播放…' : '正在保存…' });
-      write = new AbortController();
-      const timeout = setTimeout(() => write?.abort(), 25000);
+      const request = new AbortController(); writes.add(request);
+      if (transport) {
+        const superseded = transportWrite;
+        transportWrite = request;
+        superseded?.abort();
+      }
+      else settingsWrite = request;
+      emit({ busy: true, ...(transport ? { transportPending: type } : {}), error: '',
+        notice: transport ? '' : '正在保存…' });
+      followPlayback();
+      const timeout = setTimeout(() => request.abort(), 25000);
       try {
         const payload = type === 'requestTrack' ? {type,track:value} : type === 'setTrackFeedback' ? {type,...value} : {type,value};
         const result = await connection.rpc.call('/api', 'fishfm/command',
-          ['setTrackFeedback','resetTaste','resetLibrary','undoTasteReset','setRecommendationMode'].includes(type) ? { ...payload, library: libraryOptions } : payload, write.signal);
+          ['setTrackFeedback','resetTaste','resetLibrary','undoTasteReset','setRecommendationMode'].includes(type) ? { ...payload, library: libraryOptions } : payload, request.signal);
+        if (transport && transportWrite !== request) return;
         if (!result.ok) throw result.error;
         const feedbackNotice = type==='setTrackFeedback' ? value.value===1?'已喜欢，将提高这首歌的排序权重':value.value===-1?'已降低这首歌的排序权重':'已撤销这首歌的反馈'
           :type==='resetTaste'?'已重置成长偏好，输入曲库保留':type==='resetLibrary'?'已清空输入曲库并重建偏好，可撤销':type==='undoTasteReset'?'已恢复最近一次重置前的数据':type==='setRecommendationMode'?'推荐来源已更新':null;
-        emit({ ...project(result.value, libraryVersion),...(['resetTaste','resetLibrary','undoTasteReset','setRecommendationMode'].includes(type)?{summaryNotice:'',summaryError:''}:{}),...(type==='resetLibrary'?{imported:null,importAttempts:[]}:{}), notice: feedbackNotice || (['pause', 'resume', 'next', 'requestTrack'].includes(type) ? '播放控制已更新' : '已保存到本机') });
+        emit({ ...project(result.value, libraryVersion, playbackVersion),...(['resetTaste','resetLibrary','undoTasteReset','setRecommendationMode'].includes(type)?{summaryNotice:'',summaryError:''}:{}),...(type==='resetLibrary'?{imported:null,importAttempts:[]}:{}), notice: feedbackNotice || (transport ? '' : '已保存到本机') });
       } catch (error) {
+        if (transport && transportWrite !== request) return;
         const actionError = ['no_candidates', 'autonomy_blocked', 'constraint_conflict', 'invalid_command', 'media_unavailable','stale_track','summary_busy','no_reset_backup','invalid_track'].includes(error?.code);
         // 连接语义只看"Core 是否可达"：RPC 有应答（带 code 的业务/内部错误）
         // 说明服务在线，不得把未知错误码误报成连接中断；仅传输层失败或
@@ -272,7 +299,14 @@ export function createController(connection) {
         const coreUnreachable = unreachable(error);
         emit({ connected: coreUnreachable ? false : true, error: failure(error), errorCode:error?.code??null, notice: actionError ? '请调整曲目或设置后重试' : coreUnreachable ? '未确认操作，请刷新核对' : '操作没有生效，请重试或展开详情' });
       }
-      finally { clearTimeout(timeout); write = null; emit({ busy: false }); }
+      finally {
+        clearTimeout(timeout); writes.delete(request);
+        if (transport) {
+          if (transportWrite === request) { transportWrite = null; emit({ transportPending: null }); }
+        } else if (settingsWrite === request) settingsWrite = null;
+        emit({ busy: Boolean(transportWrite || settingsWrite) });
+        followPlayback();
+      }
     },
     async platformAction(action, provider, options = {}) {
       if (disposed || state.busy || state.platformBusy || !state.connected) return;
@@ -379,7 +413,8 @@ export function createController(connection) {
       }
       finally{clearTimeout(timeout);summaryWrite=null;emit({summaryBusy:false});}
     },
-    dispose() { disposed = true; ++epoch; ++libraryEpoch; ++feedbackEpoch; feedbackRead?.abort(); feedbackWrite?.abort(); clearInterval(timer); read?.abort(); write?.abort(); platformWrite?.abort(); libraryRead?.abort();summaryWrite?.abort();expressionWrite?.abort(); listeners.clear();
-      window.removeEventListener?.('storage', syncPlaybackEffects); },
+    dispose() { disposed = true; ++epoch; ++libraryEpoch; ++feedbackEpoch; feedbackRead?.abort(); feedbackWrite?.abort(); clearInterval(timer); clearTimeout(playbackTimer); read?.abort(); writes.forEach(request => request.abort()); platformWrite?.abort(); libraryRead?.abort();summaryWrite?.abort();expressionWrite?.abort(); listeners.clear();
+      window.removeEventListener?.('storage', syncPlaybackEffects);
+      document.removeEventListener?.('visibilitychange', syncVisibility); },
   };
 }

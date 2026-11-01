@@ -81,6 +81,11 @@ export function createSettingsHandler(bridge,summaryService={current:null}) {
       if (endpoint !== STATE_ENDPOINT && endpoint !== LIBRARY_ENDPOINT && endpoint !== EXPRESSION_ENDPOINT && !FEEDBACK_ENDPOINTS.has(endpoint) && endpoint !== 'fishfm/command' && !PLATFORM_ENDPOINTS.has(endpoint)&&!PERSONA_ENDPOINTS.has(endpoint)) {
         throw Object.assign(new Error('Unknown FishFM endpoint'), { code: 'not_found' });
       }
+      if (endpoint === STATE_ENDPOINT && payload?.playbackOnly === true) {
+        await bridge.start();
+        const value = await bridge.request({ type: 'snapshot' }, { signal, abortable: true });
+        return { ok: true, value: { snapshot: value.snapshot } };
+      }
       if (FEEDBACK_ENDPOINTS.has(endpoint)) {
         const clear=endpoint==='fishfm/feedback-clear';
         const view=validateFeedbackQuery(clear?payload?.view??{}:payload??{});

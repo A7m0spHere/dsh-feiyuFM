@@ -1,4 +1,4 @@
-import { playbackPresentation, discoveryPresentation, playbackNotice } from './presentation.mjs';
+import { playbackPresentation, playbackControls, discoveryPresentation, playbackNotice } from './presentation.mjs';
 import React from 'react';
 import { h, minutes, progressPercent, modes, sourceNames, stageNames } from './shared.mjs';
 import { Svg, StatusMark, PlaybackArtwork, useSmoothProgress } from './components.mjs';
@@ -16,6 +16,7 @@ export function Panel({ controller, back, close }) {
   const [importSource,setImportSource]=React.useState('auto');
   const [playlistId,setPlaylistId]=React.useState('');
   const rateId = React.useId();
+  const settingsRef = React.useRef(null);
   React.useEffect(() => { if (snapshot) setRate(Math.round(settings.discoveryRate * 100)); }, [settings.discoveryRate]);
   React.useEffect(() => {
     if (!['waiting', 'scanned'].includes(state.login?.status)) return undefined;
@@ -27,6 +28,7 @@ export function Panel({ controller, back, close }) {
   const current = snapshot?.current;
   const playing = snapshot?.status === 'playing';
   const presentation = playbackPresentation(snapshot, state.connected);
+  const transport = playbackControls(state);
   const positionMs = useSmoothProgress(current, presentation.active);
   const insights=state.insights;
   const art = presentation.art;
@@ -123,7 +125,8 @@ export function Panel({ controller, back, close }) {
         h('section', null, h('h2', null, '听歌方式', h('small', null, 'MODES')), h('div', { className: 'fm-modes' }, modes.map(([id, title, desc]) =>
           h('button', { type: 'button', key: id, className: 'fm-mode', 'data-selected': mode === id, 'aria-pressed': mode === id, disabled,
             title: desc, onClick: () => controller.command('setMode', id) }, h('strong', null, title), h('span', null, desc)))),
-          mode === 'manual' && h('p', { className: 'fm-note' }, '仅手动点播：保留声音，不自动选歌。')),
+          mode === 'manual' && h('p', { className: 'fm-note' }, '仅手动点播：保留声音，不自动选歌。'),
+          button('今天停止', 'stopForToday', Boolean(state.transportPending))),
         h('section', null, h('h2', null, '听歌偏好', h('small', null, 'PREFERENCES')), h('div', { className: 'fm-card' },
           toggle('DeepSeek 自主听歌', '自动选歌、续播并积累偏好。', 'listening', 'setListening'),
           toggle('电脑输出声音', '关闭只静音，不暂停听歌。', 'humanPlayback', 'setHumanPlayback'),
@@ -156,7 +159,7 @@ export function Panel({ controller, back, close }) {
           h('p', { className: 'fm-note' }, '对话区左缘的 ASCII 频谱背景；模拟观感，非音频测量，随窗口与会话宽度自适应。'),
           h('div', { className: 'fm-widget-note' }, h(Svg, { type: 'grip' }),
             h('span', null, state.widgetVisible ? '离开面板后显示，可拖动吸附。' : '悬浮条已隐藏，可随时显示。')))));
-  const grid = h('div', { className: 'fm-grid' }, ...(close?[controlsColumn,preferencesColumn]:[preferencesColumn,controlsColumn]));
+  const grid = h('div', { className: 'fm-grid' }, preferencesColumn);
 
   return h('div', { className: 'fishfm', 'data-view':close?'settings':'main', 'data-motion': state.motion || 'full' },
     h(DollLayer, { active: presentation.active && state.playbackEffects && state.features?.artwork?.gif, motion: state.motion, names: state.features?.artwork?.dolls }),
@@ -166,6 +169,13 @@ export function Panel({ controller, back, close }) {
         h('div', null, h('h1', null, '肥鱼电台'), h('p', { className: 'fm-subtitle' }, '你的音乐环境，DeepSeek 的听歌偏好。'))),
       h('div', { className: 'fm-top-actions' }, h('button', { type: 'button', className: 'fm-button fm-widget-pref',
         'aria-pressed': state.widgetVisible, 'aria-label': '显示或隐藏悬浮条', onClick: () => controller.setWidgetVisible(!state.widgetVisible) }, state.widgetVisible ? '悬浮条已显示' : '显示悬浮条'),
+      !close && h('button', { type: 'button', className: 'fm-button', onClick: () => {
+        if (settingsRef.current) {
+          settingsRef.current.open = true;
+          settingsRef.current.querySelector?.('summary')?.focus({ preventScroll: true });
+          settingsRef.current.scrollIntoView?.({ block: 'start' });
+        }
+      } }, '电台设置'),
       h('button', { type: 'button', className: 'fm-button', onClick: close || back }, close ? '关闭设置' : '返回对话'))),
     h('section', { className: 'fm-hero', 'aria-label': '当前播放' },
       h('div', { className: 'fm-art' }, h(PlaybackArtwork, { art, active: presentation.active, motion: state.motion,
@@ -178,7 +188,7 @@ export function Panel({ controller, back, close }) {
             event.preventDefault(); controller.setPlaybackEffects(event.key === 'ArrowRight');
           } }, h('span', { 'aria-hidden': true }))),
       h('div', { className: 'fm-hero-copy' },
-        h('div', { className: 'fm-live', role: 'status' }, h(StatusMark, { active: presentation.active }), presentation.label),
+        h('div', { className: 'fm-live', role: 'status' }, h(StatusMark, { active: presentation.active }), transport.message || presentation.label),
         h('div', { className: 'fm-track-swap', key: current?.playInstanceId || 'empty' },
           h('div', { className: 'fm-track' }, current?.track?.title || '今天，从哪一首开始？'),
           h('p', { className: 'fm-artist' }, current?.track?.artist || (state.library?.total ? '从音乐库点播，或让电台为你选一首。' : '连接网易云，导入常听的音乐。'))),
@@ -187,9 +197,11 @@ export function Panel({ controller, back, close }) {
           h('div', { className: 'fm-time' }, h('span', null, minutes(positionMs)),
             h('span',{className:'fm-track-origin'},current.selectionTrigger==='legacy-unknown'?'旧版选曲 · 来源未区分':current.selectedBy==='user'?'你点播的歌曲':current.selectionTrigger==='user-next'?'你触发换曲 · 大肥鱼推荐':'大肥鱼自主选择'),
             h('span', null, current.track.durationMs ? minutes(current.track.durationMs) : '--:--')))),
-      h('div', { className: 'fm-controls' }, button(!current ? '开始听歌' : snapshot?.paused ? '继续播放' : '暂停', 'resume', !current && !state.library?.total && !snapshot?.queue?.length && !state.persona?.recommendations?.verified?.length,
-          { className: 'fm-button fm-primary', onClick: () => controller.playOrPause() }),
-          button('下一首', 'next', !current && !snapshot?.queue?.length && !state.library?.total && !state.persona?.recommendations?.verified?.length), button('今天停止', 'stopForToday'),
+      h('div', { className: 'fm-controls' },
+          h('button', { type: 'button', className: 'fm-button fm-primary fm-transport', disabled: transport.playDisabled,
+            'aria-busy': state.transportPending === 'pause', onClick: () => transport.action === 'pause' ? controller.command('pause') : controller.playOrPause() }, h(Svg, { type: transport.icon }), transport.label),
+          h('button', { type: 'button', className: 'fm-button fm-transport', disabled: transport.nextDisabled,
+            'aria-busy': state.transportPending === 'next', onClick: () => controller.command('next') }, h(Svg, { type: 'next' }), transport.nextLabel),
         current&&h('div',{className:'fm-feedback-actions','aria-label':'当前歌曲推荐反馈'},
             ...[[1,'喜欢','♥'],[-1,'少推荐','↓']].map(([score,label,mark])=>h('button',{type:'button',key:score,className:'fm-button fm-feedback-button','aria-pressed':insights?.feedback?.current===score,
               disabled:disabled||insights?.feedback?.version!==1,onClick:()=>controller.command('setTrackFeedback',{track:current.track,playInstanceId:current.playInstanceId,value:insights.feedback.current===score?0:score})},h('span',{'aria-hidden':true},mark),label)))),
@@ -213,6 +225,9 @@ export function Panel({ controller, back, close }) {
     snapshot?.blockUntil > Date.now() && h('div', { className: 'fm-notice' }, '今天已停止自主听歌。到期后仍会保持暂停，直到你主动恢复。',
       h('button', { className: 'fm-button', type: 'button', disabled: state.busy || !state.connected,
         onClick: () => controller.command('chooseSelf') }, '恢复自主听歌')),
-    grid, management,
-    h('footer', { className: 'fm-foot' }, h('span', null, '设置和登录材料保存在本机 · 关闭面板不会结束音乐服务'), h('span', null, '逐曲回复由本地规则生成 · 模型总结按需调用'))));
+    grid,
+    h('details', { ref: settingsRef, className: 'fm-settings-shell', open: close ? true : undefined },
+      h('summary', null, '电台设置', h('span', { className: 'fm-disclosure-meta' }, '听歌方式 · 音乐平台 · 界面')),
+      h('div', { className: 'fm-settings-content' }, controlsColumn, management)),
+    h('footer', { className: 'fm-foot' }, '关闭面板后，音乐仍在后台运行。')));
 }

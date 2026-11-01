@@ -1,0 +1,20 @@
+{
+  "date": "2026-11-01",
+  "evidenceKind": "isolated_browser_simulation",
+  "environment": { "os": "Windows", "node": "24.22.1", "browser": "Chrome headless", "source": "production client bundle with preview RPC" },
+  "simulatedNextResponseDelayMs": 1600,
+  "pendingNextLabel": "切换中…",
+  "pauseAvailableWhileNextPending": true,
+  "pausedAfterLateNextResponse": true,
+  "mainSettingsInitiallyOpen": false,
+  "playlistInitiallyVisible": 3,
+  "viewports": [[1440, 1000], [760, 960], [520, 960]],
+  "lightAndDarkInspected": true,
+  "horizontalOverflow": false,
+  "floatingDirectControls": ["play/pause", "next", "menu"],
+  "uncaughtBrowserExceptions": 0,
+  "nativeDesktopLoaded": "unknown",
+  "realPlatformLatency": "unknown",
+  "nativeAudioPauseLatency": "unknown",
+  "realModelCalls": 0
+}

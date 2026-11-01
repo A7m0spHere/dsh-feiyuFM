@@ -57,6 +57,7 @@ window.__ModuleLoader__.load({
         height:100%; min-height:0; overflow:auto; overscroll-behavior:contain;
         animation:fm-page-in var(--fm-page) var(--fm-ease) both; }
       .fishfm h1,.fishfm h2,.fishfm p { margin:0; }
+      .fm-wrap { max-width:840px; margin:0 auto; }
       .fm-doll-anchor { position:sticky; top:0; height:0; z-index:5; pointer-events:none; }
       .fm-doll-layer { display:block; position:absolute; top:0; left:0; pointer-events:none; }
       .fm-art .fm-effects-toggle { position:relative; margin-top:8px; z-index:6; }
@@ -106,6 +107,9 @@ window.__ModuleLoader__.load({
       .fm-time { display:flex; justify-content:space-between; gap:8px; color:var(--fm-faint);
         font-size:10px; font-variant-numeric:tabular-nums; }
       .fm-controls { grid-column:1; display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
+      .fm-transport { min-width:94px; min-height:38px; }
+      :is(.fishfm,.fm-float) button[aria-busy=true] { cursor:progress; }
+      :is(.fishfm,.fm-float) button[aria-busy=true] svg { opacity:.5; }
       .fm-controls .fm-feedback-actions { margin-left:auto; }
       .fm-track-origin { text-align:center; overflow-wrap:anywhere; }
       .fm-feedback-note { grid-column:1/-1; color:var(--fm-muted); font-size:11px; overflow-wrap:anywhere; }
@@ -114,8 +118,17 @@ window.__ModuleLoader__.load({
         animation:fm-wave 850ms ease-in-out infinite alternate; }
       .fm-wave i:nth-child(2) { animation-delay:-300ms; height:12px; }
       .fm-wave i:nth-child(3) { animation-delay:-550ms; }
-      .fm-grid { display:grid; grid-template-columns:minmax(0,1fr) minmax(300px,.7fr); align-items:start; gap:12px; }
-      .fm-management { display:grid; grid-template-columns:minmax(0,1.15fr) minmax(0,1fr) minmax(0,1fr); align-items:start; gap:12px; margin-top:12px; }
+      .fm-grid { display:grid; grid-template-columns:minmax(0,1fr); align-items:start; gap:12px; }
+      .fm-management { display:grid; grid-template-columns:minmax(0,1fr); align-items:start; gap:16px; }
+      .fm-settings-shell { margin-top:16px; border-top:1px solid var(--fm-line); }
+      .fm-settings-shell>summary { display:flex; align-items:center; gap:12px; padding:16px 0;
+        color:var(--fm-muted); font-size:12px; cursor:pointer; list-style:none; }
+      .fm-settings-shell>summary::-webkit-details-marker { display:none; }
+      .fm-settings-shell>summary::before { content:'›'; transition:transform var(--fm-fast); }
+      .fm-settings-shell[open]>summary::before { transform:rotate(90deg); }
+      .fm-settings-content { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); align-items:start; gap:24px; padding-bottom:12px; }
+      .fm-settings-content .fm-controls-column>section:first-child>h2 { margin-top:0; }
+      .fm-save-line .fm-button { flex-shrink:0; }
       .fm-management>section>h2 { margin-top:0; }
       .fm-main-column,.fm-controls-column { min-width:0; }
       .fm-grid>*>section:first-child h2 { margin-top:0; }
@@ -380,6 +393,13 @@ window.__ModuleLoader__.load({
       .fm-float[data-dragging=false] .fm-float-pill { animation:fm-settle var(--fm-base) var(--fm-ease); }
       .fishfm[data-view=settings] .fm-grid { grid-template-columns:1fr; }
       .fishfm[data-view=settings] .fm-management { grid-template-columns:1fr; }
+      .fishfm[data-view=settings] .fm-settings-content { grid-template-columns:1fr; }
+      @container fishfm (max-width:640px) { .fm-settings-content{grid-template-columns:1fr;gap:16px} .fm-settings-shell>summary .fm-disclosure-meta{margin-left:auto;font-size:10px} }
+      @container fishfm (max-width:460px) {
+        .fm-top-actions{flex:1 1 100%;min-width:0;max-width:100%;flex-wrap:wrap}
+        .fm-settings-shell>summary{flex-wrap:wrap;gap:6px}
+        .fm-settings-shell>summary .fm-disclosure-meta{margin-left:14px;white-space:normal}
+      }
       @container fishfm (max-width:740px) { .fm-grid,.fm-management{grid-template-columns:1fr;gap:12px} .fm-hero{grid-template-columns:minmax(0,1fr) 80px;padding:14px;gap:10px} .fm-art img{width:80px;height:96px} .fm-track{font-size:21px} }
       @container fishfm (max-width:460px) { .fm-top{gap:8px} .fm-heading{flex:1 1 108px;gap:8px} .fm-brand{width:28px;height:28px} .fishfm h1{font-size:18px;white-space:nowrap} .fm-top-actions{width:auto;flex-shrink:0} .fm-top-actions .fm-button{padding:6px 8px;gap:5px} .fm-subtitle{display:none} .fm-hero{grid-template-columns:minmax(0,1fr) 64px;padding:12px;gap:8px} .fm-art img{width:64px;height:82px} .fm-track{font-size:18px} .fm-controls .fm-button{padding:5px 8px;min-height:32px;font-size:11px} .fm-controls .fm-feedback-actions{margin-left:0} .fm-library-search{width:100%} .fm-summary-actions .fm-button{width:100%} .fm-library-foot{flex-wrap:wrap} .fm-profile-details .fm-badge{white-space:normal} }
       @container fishfm (max-width:460px) { .fm-art{grid-row:1} .fm-controls{grid-column:1/-1} }
@@ -443,6 +463,30 @@ window.__ModuleLoader__.load({
       return { label: '电台待命', art: 'whale-idle', active: false };
     }
 
+    // Pending acknowledges a request, never claims that audio has started.
+    function playbackControls(state) {
+      const snapshot = state.snapshot, pending = state.transportPending;
+      const current = snapshot?.current;
+      const preparing = !snapshot?.paused && ['resolving', 'selecting'].includes(snapshot?.status);
+      const canPause = (pending && !['pause', 'stopForToday'].includes(pending))
+        || (current && !snapshot.paused) || preparing;
+      const hasMusic = current || state.library?.total || snapshot?.queue?.length
+        || state.persona?.recommendationPipeline?.playbackPool?.available
+        || state.persona?.recommendationPipeline?.tracks?.length || state.persona?.recommendations?.verified?.length;
+      return {
+        action: canPause ? 'pause' : current ? 'resume' : 'start',
+        label: pending === 'pause' ? '暂停中…' : pending === 'stopForToday' ? '停止中…'
+          : canPause ? '暂停' : current ? '继续播放' : '开始听歌',
+        icon: canPause ? 'pause' : 'play',
+        playDisabled: !state.connected || pending === 'pause' || pending === 'stopForToday'
+          || (!canPause && (state.busy || !hasMusic)),
+        nextDisabled: !state.connected || state.busy || Boolean(pending) || !hasMusic,
+        nextLabel: pending === 'next' ? '切换中…' : '下一首',
+        message: ({ pause: '正在暂停…', resume: '正在继续播放…', next: '正在切换下一首…',
+          requestTrack: '正在准备歌曲…', stopForToday: '正在停止…' })[pending] ?? '',
+      };
+    }
+
     function playbackNotice(snapshot) {
       if (!snapshot?.lastError) return null;
       if (snapshot.status === 'resolving' && snapshot.current?.recoveryAttempts > 0) {
@@ -497,7 +541,7 @@ window.__ModuleLoader__.load({
 
     function createController(connection) {
       let state = {
-        snapshot: null, platforms: {}, busy: false, platformBusy: false, connected: false, error: '', notice: '',
+        snapshot: null, platforms: {}, busy: false, transportPending: null, platformBusy: false, connected: false, error: '', notice: '',
         libraryBusy: false, libraryError: '', libraryQuery: '',
         expression: null, expressionBusy: false, expressionError: '', expressionNotice: '',
         feedbackPage: null, feedbackListBusy: false, feedbackClearBusy: false, feedbackError: '', feedbackNotice: '',
@@ -508,7 +552,9 @@ window.__ModuleLoader__.load({
         spectrumVisible: readPreference(SPECTRUM_VISIBLE_KEY, true) !== false,
         motion: ['full', 'reduced', 'off'].includes(readPreference(MOTION_KEY, 'full')) ? readPreference(MOTION_KEY, 'full') : 'full',
       };
-      let epoch = 0, playbackEpoch = 0, libraryEpoch = 0, timer, read, write, platformWrite, libraryRead,summaryWrite,expressionWrite, disposed = false;
+      let epoch = 0, playbackEpoch = 0, libraryEpoch = 0, timer, playbackTimer, read, transportWrite, settingsWrite, platformWrite, libraryRead,summaryWrite,expressionWrite, disposed = false;
+      const writes = new Set();
+      const transportCommands = new Set(['pause', 'resume', 'next', 'requestTrack', 'stopForToday']);
       let libraryOptions = { query: '', offset: 0, limit: 12 };
       let feedbackOptions = { query: '', filter: 'all', offset: 0, limit: 12 };
       let feedbackOpen = false, feedbackEpoch = 0, feedbackRead, feedbackWrite, feedbackRetry;
@@ -551,6 +597,8 @@ window.__ModuleLoader__.load({
         if (value !== state.playbackEffects) emit({ playbackEffects: value });
       };
       window.addEventListener?.('storage', syncPlaybackEffects);
+      const syncVisibility = () => { if (document.hidden) clearTimeout(playbackTimer); else followPlayback(); };
+      document.addEventListener?.('visibilitychange', syncVisibility);
       const failure = error => `${error?.message || '音乐服务连接失败，请刷新重试。'}${error?.code ? ` (${error.code})` : ''}`;
       const unreachable = error => !error?.code || error.code === 'core_unavailable';
       const project = (value, libraryVersion, playbackVersion = null) => {
@@ -598,8 +646,15 @@ window.__ModuleLoader__.load({
           if (feedbackRead === request) { feedbackRead = null; emit({ feedbackListBusy: false }); }
         }
       }
+      function followPlayback() {
+        clearTimeout(playbackTimer);
+        if (!disposed && listeners.size && !document.hidden && state.connected
+          && (state.transportPending || ['resolving', 'selecting'].includes(state.snapshot?.status))) {
+          playbackTimer = setTimeout(() => { void refresh(); }, 500);
+        }
+      }
       async function refresh() {
-        if (disposed || state.busy || read) return;
+        if (disposed || read) return;
         const version = ++epoch;
         const libraryVersion = libraryEpoch;
         const playbackVersion = playbackEpoch;
@@ -607,7 +662,8 @@ window.__ModuleLoader__.load({
         read = controller;
         const timeout = setTimeout(() => controller.abort(), 18000);
         try {
-          const result = await connection.rpc.call('/api', 'fishfm/state', { library: libraryOptions }, controller.signal);
+          const playbackOnly = Boolean(state.transportPending || ['resolving', 'selecting'].includes(state.snapshot?.status));
+          const result = await connection.rpc.call('/api', 'fishfm/state', playbackOnly ? { playbackOnly: true } : { library: libraryOptions }, controller.signal);
           if (version !== epoch) return;
           if (!result.ok) throw result.error;
           const projected = project(result.value, libraryVersion, playbackVersion);
@@ -622,6 +678,7 @@ window.__ModuleLoader__.load({
         } finally {
           clearTimeout(timeout);
           if (read === controller) read = null;
+          followPlayback();
         }
       }
       return {
@@ -647,7 +704,7 @@ window.__ModuleLoader__.load({
         subscribe(fn) {
           listeners.add(fn);
           if (listeners.size === 1) { refresh(); timer = setInterval(() => { if (!document.hidden) refresh(); }, 2200); }
-          return () => { listeners.delete(fn); if (!listeners.size) { clearInterval(timer); ++epoch; read?.abort(); read = null; } };
+          return () => { listeners.delete(fn); if (!listeners.size) { clearInterval(timer); clearTimeout(playbackTimer); ++epoch; read?.abort(); read = null; } };
         },
         refresh,
         setFeedbackOpen(open) {
@@ -728,23 +785,37 @@ window.__ModuleLoader__.load({
           emit({ widgetPosition: next });
         },
         async command(type, value) {
-          if (disposed || state.busy || !state.connected) return;
+          const transport = transportCommands.has(type);
+          if (disposed || !state.connected || (!transport && (state.busy || state.transportPending))) return;
+          // Pause must reach Core even when a preceding play/skip request is slow.
+          // Other duplicate transport clicks are coalesced until acknowledged.
+          if (transport && state.transportPending && (type !== 'pause' || state.transportPending === 'pause')) return;
           if (state.platformBusy && ['resetTaste', 'resetLibrary', 'undoTasteReset'].includes(type)) return;
-          ++playbackEpoch;
+          const playbackVersion = ++playbackEpoch;
           const libraryVersion = libraryEpoch;
           ++epoch; read?.abort(); read = null;
-          emit({ busy: true, error: '', notice: ['pause', 'resume', 'next', 'requestTrack'].includes(type) ? '正在更新播放…' : '正在保存…' });
-          write = new AbortController();
-          const timeout = setTimeout(() => write?.abort(), 25000);
+          const request = new AbortController(); writes.add(request);
+          if (transport) {
+            const superseded = transportWrite;
+            transportWrite = request;
+            superseded?.abort();
+          }
+          else settingsWrite = request;
+          emit({ busy: true, ...(transport ? { transportPending: type } : {}), error: '',
+            notice: transport ? '' : '正在保存…' });
+          followPlayback();
+          const timeout = setTimeout(() => request.abort(), 25000);
           try {
             const payload = type === 'requestTrack' ? {type,track:value} : type === 'setTrackFeedback' ? {type,...value} : {type,value};
             const result = await connection.rpc.call('/api', 'fishfm/command',
-              ['setTrackFeedback','resetTaste','resetLibrary','undoTasteReset','setRecommendationMode'].includes(type) ? { ...payload, library: libraryOptions } : payload, write.signal);
+              ['setTrackFeedback','resetTaste','resetLibrary','undoTasteReset','setRecommendationMode'].includes(type) ? { ...payload, library: libraryOptions } : payload, request.signal);
+            if (transport && transportWrite !== request) return;
             if (!result.ok) throw result.error;
             const feedbackNotice = type==='setTrackFeedback' ? value.value===1?'已喜欢，将提高这首歌的排序权重':value.value===-1?'已降低这首歌的排序权重':'已撤销这首歌的反馈'
               :type==='resetTaste'?'已重置成长偏好，输入曲库保留':type==='resetLibrary'?'已清空输入曲库并重建偏好，可撤销':type==='undoTasteReset'?'已恢复最近一次重置前的数据':type==='setRecommendationMode'?'推荐来源已更新':null;
-            emit({ ...project(result.value, libraryVersion),...(['resetTaste','resetLibrary','undoTasteReset','setRecommendationMode'].includes(type)?{summaryNotice:'',summaryError:''}:{}),...(type==='resetLibrary'?{imported:null,importAttempts:[]}:{}), notice: feedbackNotice || (['pause', 'resume', 'next', 'requestTrack'].includes(type) ? '播放控制已更新' : '已保存到本机') });
+            emit({ ...project(result.value, libraryVersion, playbackVersion),...(['resetTaste','resetLibrary','undoTasteReset','setRecommendationMode'].includes(type)?{summaryNotice:'',summaryError:''}:{}),...(type==='resetLibrary'?{imported:null,importAttempts:[]}:{}), notice: feedbackNotice || (transport ? '' : '已保存到本机') });
           } catch (error) {
+            if (transport && transportWrite !== request) return;
             const actionError = ['no_candidates', 'autonomy_blocked', 'constraint_conflict', 'invalid_command', 'media_unavailable','stale_track','summary_busy','no_reset_backup','invalid_track'].includes(error?.code);
             // 连接语义只看"Core 是否可达"：RPC 有应答（带 code 的业务/内部错误）
             // 说明服务在线，不得把未知错误码误报成连接中断；仅传输层失败或
@@ -752,7 +823,14 @@ window.__ModuleLoader__.load({
             const coreUnreachable = unreachable(error);
             emit({ connected: coreUnreachable ? false : true, error: failure(error), errorCode:error?.code??null, notice: actionError ? '请调整曲目或设置后重试' : coreUnreachable ? '未确认操作，请刷新核对' : '操作没有生效，请重试或展开详情' });
           }
-          finally { clearTimeout(timeout); write = null; emit({ busy: false }); }
+          finally {
+            clearTimeout(timeout); writes.delete(request);
+            if (transport) {
+              if (transportWrite === request) { transportWrite = null; emit({ transportPending: null }); }
+            } else if (settingsWrite === request) settingsWrite = null;
+            emit({ busy: Boolean(transportWrite || settingsWrite) });
+            followPlayback();
+          }
         },
         async platformAction(action, provider, options = {}) {
           if (disposed || state.busy || state.platformBusy || !state.connected) return;
@@ -859,8 +937,9 @@ window.__ModuleLoader__.load({
           }
           finally{clearTimeout(timeout);summaryWrite=null;emit({summaryBusy:false});}
         },
-        dispose() { disposed = true; ++epoch; ++libraryEpoch; ++feedbackEpoch; feedbackRead?.abort(); feedbackWrite?.abort(); clearInterval(timer); read?.abort(); write?.abort(); platformWrite?.abort(); libraryRead?.abort();summaryWrite?.abort();expressionWrite?.abort(); listeners.clear();
-          window.removeEventListener?.('storage', syncPlaybackEffects); },
+        dispose() { disposed = true; ++epoch; ++libraryEpoch; ++feedbackEpoch; feedbackRead?.abort(); feedbackWrite?.abort(); clearInterval(timer); clearTimeout(playbackTimer); read?.abort(); writes.forEach(request => request.abort()); platformWrite?.abort(); libraryRead?.abort();summaryWrite?.abort();expressionWrite?.abort(); listeners.clear();
+          window.removeEventListener?.('storage', syncPlaybackEffects);
+          document.removeEventListener?.('visibilitychange', syncVisibility); },
       };
     }
 
@@ -1251,21 +1330,21 @@ window.__ModuleLoader__.load({
       return h('section', { 'aria-label': '大肥鱼的歌单' },
         h('h2', null, '大肥鱼的歌单'),
         h('div', { className: 'fm-card fm-persona-card', 'aria-busy':Boolean(busy) },
-          state.connected&&playbackPool&&h('p',{className:'fm-note'},`待播池 ${playbackPool.total} 首 · 窗口外可选 ${playbackPool.available} 首 · 近 50 次已播 ${playbackPool.recentBlocked} 首`),
           h('div', { className: 'fm-picks-head' }, h('p', { className: 'fm-note', role: 'status', 'aria-live': 'polite' }, status),
             h('button', { type: 'button', className: 'fm-button fm-primary', disabled: disabled || busy || action.disabled || !route || !referenceCount || !state.features?.personaSummary,
               onClick: () => controller.personaAction('recommendations', { provider: route.provider, model: route.model }) }, busy ? filtering?'正在挑歌…':'正在找歌…' : action.label|| (state.summaryError?'再试一次':tracks.length ? '换一批' : '找一批歌'))),
           action.message&&h('p',{className:'fm-recommendation-status',role:'status'},action.message),
-          pipeline.summary && h('p', { className: 'fm-summary-text' }, pipeline.summary),
-          tracks.length > 0 && h('div', { className: 'fm-picks' }, tracks.slice(0, 6).map(song)),
-          tracks.length > 6 && h('details', { className: 'fm-disclosure' }, h('summary', null, `还有 ${tracks.length - 6} 首`),
-            h('div', { className: 'fm-picks' }, tracks.slice(6).map((track, index) => song(track, index + 6)))),
+          tracks.length > 0 && h('div', { className: 'fm-picks' }, tracks.slice(0, 3).map(song)),
+          tracks.length > 3 && h('details', { className: 'fm-disclosure' }, h('summary', null, `还有 ${tracks.length - 3} 首`),
+            h('div', { className: 'fm-picks' }, tracks.slice(3).map((track, index) => song(track, index + 3)))),
           state.summaryError && h('div', { className: 'fm-notice', 'data-error': true, role: 'alert' }, state.summaryError,
             h('p',null,tracks.length?'已有歌单保留，可以继续点播。':referenceCount?'可先点播输入曲库，或稍后重试。':'可先导入参考歌曲，再重新挑歌。'),
             state.summaryErrorCode&&h('details',{className:'fm-error-details'},h('summary',null,'技术详情'),h('code',null,state.summaryErrorCode))),
           !state.summaryError && state.summaryNotice && !busy && !action.message && !staleLimit && h('p', { className: 'fm-note', role: 'status' }, state.summaryNotice),
           h('details', { className: 'fm-disclosure fm-recommendation-settings' }, h('summary', null, '推荐设置'),
             h('div', { className: 'fm-disclosure-body' },
+              state.connected&&playbackPool&&h('p',{className:'fm-note'},`待播池 ${playbackPool.total} 首 · 窗口外可选 ${playbackPool.available} 首 · 近 50 次已播 ${playbackPool.recentBlocked} 首`),
+              pipeline.summary && h('p', { className: 'fm-note' }, pipeline.summary),
               h('label', { className: 'fm-label' }, '帮我挑歌的模型'),
               h('div', { className: 'fm-summary-actions' }, h('select', { 'aria-label': '推荐模型', value: chosen, disabled: disabled || !routes.length,
                 onChange: event => setSelected(event.target.value) }, ...(routes.length ? routes.map(item => h('option', { key: key(item), value: key(item) }, item.label))
@@ -1419,6 +1498,7 @@ window.__ModuleLoader__.load({
       const [importSource,setImportSource]=React.useState('auto');
       const [playlistId,setPlaylistId]=React.useState('');
       const rateId = React.useId();
+      const settingsRef = React.useRef(null);
       React.useEffect(() => { if (snapshot) setRate(Math.round(settings.discoveryRate * 100)); }, [settings.discoveryRate]);
       React.useEffect(() => {
         if (!['waiting', 'scanned'].includes(state.login?.status)) return undefined;
@@ -1430,6 +1510,7 @@ window.__ModuleLoader__.load({
       const current = snapshot?.current;
       const playing = snapshot?.status === 'playing';
       const presentation = playbackPresentation(snapshot, state.connected);
+      const transport = playbackControls(state);
       const positionMs = useSmoothProgress(current, presentation.active);
       const insights=state.insights;
       const art = presentation.art;
@@ -1526,7 +1607,8 @@ window.__ModuleLoader__.load({
             h('section', null, h('h2', null, '听歌方式', h('small', null, 'MODES')), h('div', { className: 'fm-modes' }, modes.map(([id, title, desc]) =>
               h('button', { type: 'button', key: id, className: 'fm-mode', 'data-selected': mode === id, 'aria-pressed': mode === id, disabled,
                 title: desc, onClick: () => controller.command('setMode', id) }, h('strong', null, title), h('span', null, desc)))),
-              mode === 'manual' && h('p', { className: 'fm-note' }, '仅手动点播：保留声音，不自动选歌。')),
+              mode === 'manual' && h('p', { className: 'fm-note' }, '仅手动点播：保留声音，不自动选歌。'),
+              button('今天停止', 'stopForToday', Boolean(state.transportPending))),
             h('section', null, h('h2', null, '听歌偏好', h('small', null, 'PREFERENCES')), h('div', { className: 'fm-card' },
               toggle('DeepSeek 自主听歌', '自动选歌、续播并积累偏好。', 'listening', 'setListening'),
               toggle('电脑输出声音', '关闭只静音，不暂停听歌。', 'humanPlayback', 'setHumanPlayback'),
@@ -1559,7 +1641,7 @@ window.__ModuleLoader__.load({
               h('p', { className: 'fm-note' }, '对话区左缘的 ASCII 频谱背景；模拟观感，非音频测量，随窗口与会话宽度自适应。'),
               h('div', { className: 'fm-widget-note' }, h(Svg, { type: 'grip' }),
                 h('span', null, state.widgetVisible ? '离开面板后显示，可拖动吸附。' : '悬浮条已隐藏，可随时显示。')))));
-      const grid = h('div', { className: 'fm-grid' }, ...(close?[controlsColumn,preferencesColumn]:[preferencesColumn,controlsColumn]));
+      const grid = h('div', { className: 'fm-grid' }, preferencesColumn);
 
       return h('div', { className: 'fishfm', 'data-view':close?'settings':'main', 'data-motion': state.motion || 'full' },
         h(DollLayer, { active: presentation.active && state.playbackEffects && state.features?.artwork?.gif, motion: state.motion, names: state.features?.artwork?.dolls }),
@@ -1569,6 +1651,13 @@ window.__ModuleLoader__.load({
             h('div', null, h('h1', null, '肥鱼电台'), h('p', { className: 'fm-subtitle' }, '你的音乐环境，DeepSeek 的听歌偏好。'))),
           h('div', { className: 'fm-top-actions' }, h('button', { type: 'button', className: 'fm-button fm-widget-pref',
             'aria-pressed': state.widgetVisible, 'aria-label': '显示或隐藏悬浮条', onClick: () => controller.setWidgetVisible(!state.widgetVisible) }, state.widgetVisible ? '悬浮条已显示' : '显示悬浮条'),
+          !close && h('button', { type: 'button', className: 'fm-button', onClick: () => {
+            if (settingsRef.current) {
+              settingsRef.current.open = true;
+              settingsRef.current.querySelector?.('summary')?.focus({ preventScroll: true });
+              settingsRef.current.scrollIntoView?.({ block: 'start' });
+            }
+          } }, '电台设置'),
           h('button', { type: 'button', className: 'fm-button', onClick: close || back }, close ? '关闭设置' : '返回对话'))),
         h('section', { className: 'fm-hero', 'aria-label': '当前播放' },
           h('div', { className: 'fm-art' }, h(PlaybackArtwork, { art, active: presentation.active, motion: state.motion,
@@ -1581,7 +1670,7 @@ window.__ModuleLoader__.load({
                 event.preventDefault(); controller.setPlaybackEffects(event.key === 'ArrowRight');
               } }, h('span', { 'aria-hidden': true }))),
           h('div', { className: 'fm-hero-copy' },
-            h('div', { className: 'fm-live', role: 'status' }, h(StatusMark, { active: presentation.active }), presentation.label),
+            h('div', { className: 'fm-live', role: 'status' }, h(StatusMark, { active: presentation.active }), transport.message || presentation.label),
             h('div', { className: 'fm-track-swap', key: current?.playInstanceId || 'empty' },
               h('div', { className: 'fm-track' }, current?.track?.title || '今天，从哪一首开始？'),
               h('p', { className: 'fm-artist' }, current?.track?.artist || (state.library?.total ? '从音乐库点播，或让电台为你选一首。' : '连接网易云，导入常听的音乐。'))),
@@ -1590,9 +1679,11 @@ window.__ModuleLoader__.load({
               h('div', { className: 'fm-time' }, h('span', null, minutes(positionMs)),
                 h('span',{className:'fm-track-origin'},current.selectionTrigger==='legacy-unknown'?'旧版选曲 · 来源未区分':current.selectedBy==='user'?'你点播的歌曲':current.selectionTrigger==='user-next'?'你触发换曲 · 大肥鱼推荐':'大肥鱼自主选择'),
                 h('span', null, current.track.durationMs ? minutes(current.track.durationMs) : '--:--')))),
-          h('div', { className: 'fm-controls' }, button(!current ? '开始听歌' : snapshot?.paused ? '继续播放' : '暂停', 'resume', !current && !state.library?.total && !snapshot?.queue?.length && !state.persona?.recommendations?.verified?.length,
-              { className: 'fm-button fm-primary', onClick: () => controller.playOrPause() }),
-              button('下一首', 'next', !current && !snapshot?.queue?.length && !state.library?.total && !state.persona?.recommendations?.verified?.length), button('今天停止', 'stopForToday'),
+          h('div', { className: 'fm-controls' },
+              h('button', { type: 'button', className: 'fm-button fm-primary fm-transport', disabled: transport.playDisabled,
+                'aria-busy': state.transportPending === 'pause', onClick: () => transport.action === 'pause' ? controller.command('pause') : controller.playOrPause() }, h(Svg, { type: transport.icon }), transport.label),
+              h('button', { type: 'button', className: 'fm-button fm-transport', disabled: transport.nextDisabled,
+                'aria-busy': state.transportPending === 'next', onClick: () => controller.command('next') }, h(Svg, { type: 'next' }), transport.nextLabel),
             current&&h('div',{className:'fm-feedback-actions','aria-label':'当前歌曲推荐反馈'},
                 ...[[1,'喜欢','♥'],[-1,'少推荐','↓']].map(([score,label,mark])=>h('button',{type:'button',key:score,className:'fm-button fm-feedback-button','aria-pressed':insights?.feedback?.current===score,
                   disabled:disabled||insights?.feedback?.version!==1,onClick:()=>controller.command('setTrackFeedback',{track:current.track,playInstanceId:current.playInstanceId,value:insights.feedback.current===score?0:score})},h('span',{'aria-hidden':true},mark),label)))),
@@ -1616,8 +1707,11 @@ window.__ModuleLoader__.load({
         snapshot?.blockUntil > Date.now() && h('div', { className: 'fm-notice' }, '今天已停止自主听歌。到期后仍会保持暂停，直到你主动恢复。',
           h('button', { className: 'fm-button', type: 'button', disabled: state.busy || !state.connected,
             onClick: () => controller.command('chooseSelf') }, '恢复自主听歌')),
-        grid, management,
-        h('footer', { className: 'fm-foot' }, h('span', null, '设置和登录材料保存在本机 · 关闭面板不会结束音乐服务'), h('span', null, '逐曲回复由本地规则生成 · 模型总结按需调用'))));
+        grid,
+        h('details', { ref: settingsRef, className: 'fm-settings-shell', open: close ? true : undefined },
+          h('summary', null, '电台设置', h('span', { className: 'fm-disclosure-meta' }, '听歌方式 · 音乐平台 · 界面')),
+          h('div', { className: 'fm-settings-content' }, controlsColumn, management)),
+        h('footer', { className: 'fm-foot' }, '关闭面板后，音乐仍在后台运行。')));
     }
 
     // src/ui/client/floating.mjs
@@ -1647,6 +1741,7 @@ window.__ModuleLoader__.load({
       const settings = snapshot?.settings || {};
       const mode = !settings.listening ? (settings.humanPlayback ? 'manual' : 'off') : !settings.humanPlayback ? 'silent' : settings.strategy === 'focus' ? 'focus' : 'normal';
       const presentation = playbackPresentation(snapshot, state.connected);
+      const transport = playbackControls(state);
       const positionMs = useSmoothProgress(current, presentation.active);
       const image = presentation.art;
       const blocked = !state.connected || state.busy;
@@ -1773,10 +1868,11 @@ window.__ModuleLoader__.load({
                 state.errorCode === 'no_candidates' && state.insights?.recommendationMode === 'filtered' ? '重新找歌' : state.errorCode === 'no_candidates' && state.insights?.recommendationMode === 'llm' ? '重新核对歌单' : state.connected ? '刷新状态' : '重新连接')),
             snapshot?.lastError && h('div', { className: 'fm-notice', role: 'status' }, playbackNotice(snapshot)),
             h('div', { className: 'fm-float-controls' },
-              h('button', { type: 'button', className: 'fm-button fm-primary', disabled: blocked || (!current && !state.library?.total && !snapshot?.queue?.length),
-                'aria-label': !current ? '开始听歌' : paused ? '继续播放' : '暂停', onClick: () => controller.playOrPause() }, h(Svg, { type: !current || paused ? 'play' : 'pause' }), !current ? '开始听歌' : paused ? '继续播放' : '暂停'),
-              h('button', { type: 'button', className: 'fm-button', disabled: blocked || (!current && !snapshot?.queue?.length && !state.library?.total),
-                'aria-label': '播放下一首', onClick: () => controller.command('next') }, h(Svg, { type: 'next' }), '下一首')))),
+              h('button', { type: 'button', className: 'fm-button fm-primary', disabled: transport.playDisabled,
+                'aria-label': transport.label, 'aria-busy': state.transportPending === 'pause',
+                onClick: () => transport.action === 'pause' ? controller.command('pause') : controller.playOrPause() }, h(Svg, { type: transport.icon }), transport.label),
+              h('button', { type: 'button', className: 'fm-button', disabled: transport.nextDisabled,
+                'aria-label': '播放下一首', 'aria-busy': state.transportPending === 'next', onClick: () => controller.command('next') }, h(Svg, { type: 'next' }), transport.nextLabel)))),
         menuPresence.mounted && h('div', { className: 'fm-float-menu', role: 'menu', 'aria-label': '音乐快捷菜单',
           'data-phase': menuPresence.phase, onAnimationEnd: menuPresence.onAnimationEnd,
           'aria-hidden': menuOpen ? undefined : true, ref: element => { if (element) element.inert = !menuOpen; } },
@@ -1803,8 +1899,15 @@ window.__ModuleLoader__.load({
                 effects: state.playbackEffects, available: state.features?.artwork?.gif })),
             h('span', { className: 'fm-float-copy' }, h('span', { className: 'fm-float-title' }, current?.track?.title || '肥鱼电台 · 待命'),
               h('span', { className: 'fm-float-artist' }, current?.track?.artist || (state.connected ? '点击展开快捷控制' : '连接本地音乐服务中')),
-              h('span', { className: 'fm-float-status' }, h(StatusMark, { active: presentation.active }), presentation.label))),
-          h('div', { className: 'fm-float-actions' }, h('button', { type: 'button', className: 'fm-float-icon fm-float-more', 'aria-label': '更多音乐设置',
+              h('span', { className: 'fm-float-status', role: 'status' }, h(StatusMark, { active: presentation.active }), transport.message || presentation.label))),
+          h('div', { className: 'fm-float-actions' },
+            h('button', { type: 'button', className: 'fm-float-icon', 'aria-label': transport.label, title: transport.label,
+              'aria-busy': state.transportPending === 'pause', disabled: transport.playDisabled,
+              onClick: () => transport.action === 'pause' ? controller.command('pause') : controller.playOrPause() }, h(Svg, { type: transport.icon })),
+            h('button', { type: 'button', className: 'fm-float-icon', 'aria-label': '播放下一首', title: transport.nextLabel,
+              'aria-busy': state.transportPending === 'next', disabled: transport.nextDisabled,
+              onClick: () => controller.command('next') }, h(Svg, { type: 'next' })),
+            h('button', { type: 'button', className: 'fm-float-icon fm-float-more', 'aria-label': '更多音乐设置',
             'aria-haspopup': 'menu', 'aria-expanded': menuOpen, onClick: () => menuOpen ? closeOverlay() : openMenu() }, h(Svg, { type: 'more' })))),
       );
     }

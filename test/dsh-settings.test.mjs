@@ -7,6 +7,17 @@ import { join, resolve } from 'node:path';
 import { CoreBridge } from '../src/dsh-adapter.mjs';
 import { createSettingsHandler, registerSettingsApi } from '../src/ui/dsh-settings.mjs';
 
+test('playback-only state reads return an authoritative snapshot without querying library, persona or models', async () => {
+  const calls = [];
+  const api = createSettingsHandler({ async start() {}, async request(message) {
+    calls.push(message.type);
+    return { snapshot: { revision: 9, paused: true, status: 'paused' }, private: 'not for UI' };
+  } }, { current: { warm() { throw new Error('playback polling must not warm models'); } } });
+  const result = await api('fishfm/state', { playbackOnly: true });
+  assert.deepEqual(calls, ['snapshot']);
+  assert.deepEqual(result, { ok: true, value: { snapshot: { revision: 9, paused: true, status: 'paused' } } });
+});
+
 test('logout RPC exposes cleanup status without swallowing failure or disclosing backend details', async () => {
   const api = createSettingsHandler({ async start() {}, async request() {
     throw Object.assign(new Error('账号已退出，但本机凭据清理失败'), { code: 'credential_cleanup_failed', retryable: true,
