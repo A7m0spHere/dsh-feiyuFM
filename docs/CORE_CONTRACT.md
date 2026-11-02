@@ -1,6 +1,6 @@
 # 内部控制契约
 
-更新：2026-11-01。本文只维护内部字段、命令与边界，DSH 外部接口经 Adapter 映射；职责见 [架构](ARCHITECTURE.md)，用户行为见 [MVP](MVP.md)，实现／部署／验收状态只看 [开发状态](PROJECT_PLAN.md)。历史理由查 [决策摘要](DECISIONS.md) 与 [实验记录](spikes/README.md)。
+更新：2026-11-02。本文只维护内部字段、命令与边界，DSH 外部接口经 Adapter 映射；职责见 [架构](ARCHITECTURE.md)，用户行为见 [MVP](MVP.md)，实现／部署／验收状态只看 [开发状态](PROJECT_PLAN.md)。历史理由查 [决策摘要](DECISIONS.md) 与 [实验记录](spikes/README.md)。
 
 ## 1. 曲目、账号与资源
 
