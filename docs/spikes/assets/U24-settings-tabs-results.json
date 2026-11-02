@@ -1,0 +1,217 @@
+{
+  "date": "2026-11-02",
+  "environment": {
+    "os": "Windows",
+    "node": "24.22.1",
+    "browser": "Codex in-app Chromium",
+    "harness": "prototypes/fishfm-ui-preview.html",
+    "bundleSha256": "1d274c46d9b77472705bc3ec8583c565f27c72ab792d43fd92fa1417d386c6a7",
+    "data": "Simulated RPC, account, tracks and playback. No real provider or model calls."
+  },
+  "navigation": {
+    "order": [
+      "正在听",
+      "发现记录",
+      "偏好与反馈",
+      "电台设置"
+    ],
+    "default": "正在听",
+    "settings": "inline fourth page",
+    "dialogs": 0,
+    "playbackDocks": 1
+  },
+  "interactions": {
+    "draftDiscoveryRateSurvivesPages": true,
+    "draftImportSourceSurvivesPages": true,
+    "draftModelSurvivesPages": true,
+    "platformDisclosureSurvivesPages": true,
+    "discoveryRateSave": {
+      "from": 70,
+      "to": 71
+    },
+    "modelSharedWithNativeSettings": true,
+    "settingsDockResumePauseNext": true,
+    "nextTrack": {
+      "from": "示例歌曲 01",
+      "to": "示例歌曲 04"
+    },
+    "nativeSettings": {
+      "containerWidth": 440,
+      "panelWidth": 423,
+      "panelScrollWidth": 423,
+      "columns": 1,
+      "navigationHidden": true,
+      "closeReturnsToMain": true
+    },
+    "narrowExpandedSettings": {
+      "library": true,
+      "platform": true,
+      "interface": true,
+      "bottomWidgetToggleAndRestore": true
+    }
+  },
+  "layouts": [
+    {
+      "columns": "419.4px 512.6px",
+      "dockBottom": 1000,
+      "dockCount": 1,
+      "documentOverflow": false,
+      "navRows": 1,
+      "panelScrollWidth": 1050,
+      "panelWidth": 1050,
+      "theme": "light",
+      "viewport": [
+        1440,
+        1000
+      ]
+    },
+    {
+      "columns": "556.8px",
+      "dockBottom": 900,
+      "dockCount": 1,
+      "documentOverflow": false,
+      "navRows": 1,
+      "panelScrollWidth": 605,
+      "panelWidth": 605,
+      "theme": "light",
+      "viewport": [
+        900,
+        900
+      ]
+    },
+    {
+      "columns": "416.8px",
+      "dockBottom": 960,
+      "dockCount": 1,
+      "documentOverflow": false,
+      "navRows": 1,
+      "panelScrollWidth": 465,
+      "panelWidth": 465,
+      "theme": "light",
+      "viewport": [
+        760,
+        960
+      ]
+    },
+    {
+      "columns": "196.8px",
+      "dockBottom": 960,
+      "dockCount": 1,
+      "documentOverflow": false,
+      "navRows": 2,
+      "panelScrollWidth": 225,
+      "panelWidth": 225,
+      "theme": "light",
+      "viewport": [
+        520,
+        960
+      ]
+    },
+    {
+      "columns": "419.4px 512.6px",
+      "dockBottom": 600,
+      "dockCount": 1,
+      "documentOverflow": false,
+      "navRows": 1,
+      "panelScrollWidth": 1035,
+      "panelWidth": 1035,
+      "theme": "light",
+      "viewport": [
+        1440,
+        600
+      ]
+    },
+    {
+      "columns": "419.4px 512.6px",
+      "dockBottom": 1000,
+      "dockCount": 1,
+      "documentOverflow": false,
+      "navRows": 1,
+      "panelScrollWidth": 1050,
+      "panelWidth": 1050,
+      "theme": "dark",
+      "viewport": [
+        1440,
+        1000
+      ]
+    },
+    {
+      "columns": "556.8px",
+      "dockBottom": 900,
+      "dockCount": 1,
+      "documentOverflow": false,
+      "navRows": 1,
+      "panelScrollWidth": 605,
+      "panelWidth": 605,
+      "theme": "dark",
+      "viewport": [
+        900,
+        900
+      ]
+    },
+    {
+      "columns": "416.8px",
+      "dockBottom": 960,
+      "dockCount": 1,
+      "documentOverflow": false,
+      "navRows": 1,
+      "panelScrollWidth": 465,
+      "panelWidth": 465,
+      "theme": "dark",
+      "viewport": [
+        760,
+        960
+      ]
+    },
+    {
+      "columns": "196.8px",
+      "dockBottom": 960,
+      "dockCount": 1,
+      "documentOverflow": false,
+      "navRows": 2,
+      "panelScrollWidth": 225,
+      "panelWidth": 225,
+      "theme": "dark",
+      "viewport": [
+        520,
+        960
+      ]
+    },
+    {
+      "columns": "419.4px 512.6px",
+      "dockBottom": 600,
+      "dockCount": 1,
+      "documentOverflow": false,
+      "navRows": 1,
+      "panelScrollWidth": 1035,
+      "panelWidth": 1035,
+      "theme": "dark",
+      "viewport": [
+        1440,
+        600
+      ]
+    },
+    {
+      "expandedSettings": {
+        "columns": "196.8px",
+        "dockBottom": 960,
+        "dockCount": 1,
+        "documentOverflow": false,
+        "navRows": 2,
+        "panelScrollWidth": 225,
+        "panelWidth": 225,
+        "theme": "dark",
+        "viewport": [
+          520,
+          960
+        ]
+      }
+    }
+  ],
+  "consoleIssues": [],
+  "boundaries": [
+    "Browser preview and offline checks only.",
+    "Daily Desktop not reloaded; loaded runtime version unknown.",
+    "No npm publication, real provider/model or native media acceptance."
+  ]
+}

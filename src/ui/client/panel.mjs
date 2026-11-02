@@ -16,19 +16,10 @@ export function Panel({ controller, back, close }) {
   const [importSource,setImportSource]=React.useState('auto');
   const [playlistId,setPlaylistId]=React.useState('');
   const rateId = React.useId();
-  const dialogRef = React.useRef(null);
   const feedbackRef = React.useRef(null);
-  const [settingsOpen, setSettingsOpen] = React.useState(false);
   const [view, setView] = React.useState('listen');
   const selectedModel = state.recommendationChoice || '';
   const setSelectedModel = value => controller.chooseRecommendationModel(value);
-  React.useEffect(() => {
-    const dialog = dialogRef.current;
-    if (!dialog || close) return undefined;
-    if (settingsOpen && !dialog.open) dialog.showModal();
-    if (!settingsOpen && dialog.open) dialog.close();
-    return () => { if (dialog.open) dialog.close(); };
-  }, [settingsOpen, close]);
   React.useEffect(() => { if (snapshot) setRate(Math.round(settings.discoveryRate * 100)); }, [settings.discoveryRate]);
   React.useEffect(() => {
     if (!['waiting', 'scanned'].includes(state.login?.status)) return undefined;
@@ -178,7 +169,7 @@ export function Panel({ controller, back, close }) {
     controller.setFeedbackOpen(value === 'taste' && feedbackRef.current?.querySelector('.fm-feedback-manager')?.open === true);
     setView(value);
   };
-  const dock = (compact = false) => h('div', { className: 'fm-player-dock' + (compact ? ' fm-player-dock-compact' : ''), 'aria-label': '播放控制' },
+  const dock = () => h('div', { className: 'fm-player-dock', 'aria-label': '播放控制' },
     h('div', { className: 'fm-dock-track' }, h('strong', null, current?.track?.title || '肥鱼电台'), h('span', null, current?.track?.artist || '等待音乐')),
     h('div', { className: 'fm-dock-center' }, h('div', { className: 'fm-controls' },
       h('button', { type: 'button', className: 'fm-button fm-primary fm-transport', disabled: transport.playDisabled,
@@ -233,10 +224,9 @@ export function Panel({ controller, back, close }) {
         h('div', { className: 'fm-heading' }, h('span', { className: 'fm-brand', 'aria-hidden': true }, h(Svg, { type: 'headphones' })),
           h('div', null, h('h1', null, '肥鱼电台', h('small', { className: 'fm-brand-latin' }, 'FeiyuFM')), h('p', { className: 'fm-subtitle' }, '你的音乐，大肥鱼的偏好。'))),
         h('div', { className: 'fm-top-actions' },
-          !close && h('button', { type: 'button', className: 'fm-button', onClick: () => setSettingsOpen(true), 'aria-haspopup': 'dialog', 'aria-controls': `${rateId}-settings` }, h(Svg, { type: 'settings' }), '电台设置'),
           h('button', { type: 'button', className: 'fm-button', onClick: close || back }, close ? '关闭设置' : '返回对话'))),
       !close && h('nav', { className: 'fm-page-nav', 'aria-label': '电台页面' },
-        ...[['listen', '正在听'], ['discover', '发现记录'], ['taste', '偏好与反馈']].map(([id, label]) => h('button', {
+        ...[['listen', '正在听'], ['discover', '发现记录'], ['taste', '偏好与反馈'], ['settings', '电台设置']].map(([id, label]) => h('button', {
           type: 'button', key: id, 'aria-pressed': view === id, 'aria-controls': `${rateId}-${id}`, onClick: () => selectView(id),
         }, label))),
       state.error && h('div', { className: 'fm-notice', 'data-error': true, role: 'alert' }, state.error,
@@ -251,16 +241,7 @@ export function Panel({ controller, back, close }) {
           h('div', { className: 'fm-listen-page', id: `${rateId}-listen`, hidden: view !== 'listen' }, hero,
             h(Persona, { key: 'pool', state, controller, selectedModel, onSelectModel: setSelectedModel })),
           h('div', { className: 'fm-discover-page', id: `${rateId}-discover`, hidden: view !== 'discover' }, h(Discoveries, { state, expanded: true })),
-          h('div', { ref: feedbackRef, className: 'fm-taste-page', id: `${rateId}-taste`, hidden: view !== 'taste' }, preferencesColumn)),
-      dock(),
-      !close && h('dialog', { ref: dialogRef, id: `${rateId}-settings`, className: 'fm-settings-dialog', 'aria-label': '电台设置', 'data-open': settingsOpen,
-        onCancel: event => { event.preventDefault(); setSettingsOpen(false); }, onClose: () => setSettingsOpen(false),
-        onClick: event => {
-          if (event.target !== event.currentTarget) return;
-          const rect = event.currentTarget.getBoundingClientRect();
-          if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) setSettingsOpen(false);
-        } },
-        h('div', { className: 'fm-settings-dialog-head' }, h('h2', null, '电台设置'),
-          h('button', { type: 'button', className: 'fm-button', 'aria-label': '关闭电台设置', onClick: () => setSettingsOpen(false) }, h(Svg, { type: 'close' }), '完成')),
-        settingsBody, dock(true))));
+          h('div', { ref: feedbackRef, className: 'fm-taste-page', id: `${rateId}-taste`, hidden: view !== 'taste' }, preferencesColumn),
+          h('div', { className: 'fm-settings-page', id: `${rateId}-settings`, hidden: view !== 'settings' }, settingsBody)),
+      dock()));
 }

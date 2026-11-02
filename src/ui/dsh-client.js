@@ -430,7 +430,7 @@ window.__ModuleLoader__.load({
       .fm-brand-latin { margin-left:9px; font-size:11px; font-weight:400; letter-spacing:.03em; color:var(--fm-muted); }
       .fm-subtitle { font-size:12px; margin-top:3px!important; }
       .fm-top-actions .fm-button { min-height:36px; }
-      .fm-page-nav { display:flex; gap:24px; border-bottom:1px solid var(--fm-line); margin-bottom:24px; }
+      .fm-page-nav { display:flex; flex-wrap:wrap; gap:0 24px; border-bottom:1px solid var(--fm-line); margin-bottom:24px; }
       .fm-page-nav button { padding:8px 0 13px; border:0; border-bottom:2px solid transparent; margin-bottom:-1px;
         background:transparent; color:var(--fm-muted); font-size:13px; white-space:nowrap; }
       .fm-page-nav button[aria-pressed=true] { color:var(--fm-ink); border-bottom-color:var(--fm-accent); font-weight:600; }
@@ -474,7 +474,7 @@ window.__ModuleLoader__.load({
       .fm-pool-footer { display:flex; align-items:center; justify-content:space-between; gap:14px; flex-wrap:wrap;
         margin-top:18px; padding-top:12px; border-top:1px solid var(--fm-line); color:var(--fm-muted); font-size:12px; }
       .fm-pool-footer .fm-button { border:0; background:transparent; color:var(--fm-accent-ink); padding:4px 0; }
-      .fm-discover-page,.fm-taste-page { padding:0 0 28px; }
+      .fm-discover-page,.fm-taste-page,.fm-settings-page { padding:0 0 28px; }
       .fm-discover-page .fm-discoveries { margin-top:0; }
       .fm-taste-page .fm-main-column { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:24px; }
       .fm-taste-page h2 { margin-top:0; }
@@ -491,15 +491,9 @@ window.__ModuleLoader__.load({
         font-variant-numeric:tabular-nums; margin-top:10px; }
       .fm-dock-timeline .fm-progress { flex:1; height:3px; margin:0; }
       .fm-sound-action { justify-self:end; background:transparent; border:0; font-size:12px; color:var(--fm-muted); white-space:nowrap; }
-      .fm-settings-dialog { position:fixed; inset:0 0 0 auto; margin:0; width:min(460px,100vw); max-width:100vw;
-        height:100dvh; max-height:100dvh; padding:0 22px; border:0; border-left:1px solid var(--fm-line);
-        background:var(--fm-canvas); color:var(--fm-ink); box-shadow:-12px 0 38px hsl(222 35% 8% / .16); overflow-y:auto; }
-      .fm-settings-dialog::backdrop { background:rgb(13 20 31 / .32); }
-      .fm-settings-dialog[open] { animation:fm-settings-in var(--fm-base) var(--fm-ease); }
-      .fm-settings-dialog-head { position:sticky; top:0; z-index:8; display:flex; align-items:center; justify-content:space-between;
-        padding:20px 0; margin-bottom:4px; border-bottom:1px solid var(--fm-line); background:var(--fm-canvas); }
-      .fm-settings-dialog-head h2 { margin:0; font-size:20px; }
       .fm-settings-body { display:grid; grid-template-columns:minmax(0,1fr); gap:22px; padding:20px 0; }
+      .fm-settings-page .fm-settings-body { grid-template-columns:minmax(0,.9fr) minmax(0,1.1fr); align-items:start; gap:28px; padding:0; }
+      .fm-settings-body>* { min-width:0; }
       .fm-settings-body .fm-management { gap:22px; }
       .fm-settings-body h2 { margin:0 0 10px; font-size:15px; }
       .fm-settings-body h2 small { display:none; }
@@ -510,21 +504,18 @@ window.__ModuleLoader__.load({
       .fm-settings-body .fm-controls-column>section+section { margin-top:22px; }
       .fm-settings-body .fm-label { font-size:13px; }
       .fishfm .fm-note,.fishfm .fm-platform-note { font-size:12px; }
-      .fm-player-dock-compact { grid-template-columns:minmax(0,1fr) auto; gap:10px; margin-inline:-22px; padding:14px 22px; }
-      .fm-player-dock-compact .fm-dock-track { display:none; }
-      .fm-player-dock-compact .fm-sound-action span { display:none; }
       .fishfm[data-view=settings] .fm-companion-hero { grid-template-columns:90px minmax(0,1fr); gap:18px; padding:14px 0; }
       .fishfm[data-view=settings] .fm-companion-hero .fm-art { min-height:110px; }
       .fishfm[data-view=settings] .fm-companion-hero .fm-art img { width:80px; height:100px; }
       .fishfm[data-view=settings] .fm-companion-hero .fm-track { font-size:21px; }
       .fishfm[data-view=settings] .fm-companion-hero .fm-reply { display:none; }
-      @keyframes fm-settings-in { from{opacity:.5;transform:translateX(12px)} to{opacity:1;transform:none} }
       @container fishfm (max-width:740px) {
         .fm-companion-hero{grid-template-columns:minmax(140px,.8fr) minmax(0,1fr);gap:24px;padding:12px 8px 24px}
         .fm-companion-hero .fm-art{min-height:220px}.fm-companion-hero .fm-art img{width:190px;height:215px}
         .fm-companion-hero .fm-track{font-size:28px}.fm-picks{gap:16px}
         .fm-player-dock{grid-template-columns:minmax(0,1fr) auto;gap:10px}.fm-dock-track{display:none}.fm-sound-action span{display:none}
         .fm-taste-page .fm-main-column{grid-template-columns:1fr}
+        .fm-settings-page .fm-settings-body{grid-template-columns:minmax(0,1fr);gap:22px}
       }
       @container fishfm (max-width:560px) {
         .fm-top{align-items:flex-start}.fm-top-actions{flex:0 1 auto;width:auto;gap:5px}.fm-brand-latin{display:none}
@@ -534,11 +525,11 @@ window.__ModuleLoader__.load({
         .fm-companion-hero .fm-hero-copy{grid-column:1;grid-row:2}.fm-companion-hero .fm-live,.fm-companion-hero .fm-feedback-actions{justify-content:center}
         .fm-companion-hero .fm-reply{max-width:360px;margin-inline:auto;text-align:left}.fm-picks{grid-template-columns:1fr;gap:15px}
         .fm-persona-card{padding:19px 18px 14px}.fm-pick-reason{-webkit-line-clamp:2}.fm-pool-heading{gap:8px}
-        .fm-pool-footer{gap:6px}.fm-page-nav{gap:22px}.fm-page-nav button{font-size:13px}
+        .fm-pool-footer{gap:6px}.fm-page-nav{gap:0 22px}.fm-page-nav button{font-size:13px}
         .fm-player-dock .fm-controls .fm-button{font-size:12px;min-height:36px;padding:6px 9px}
         .fm-player-dock .fm-sound-action{padding:6px}.fm-dock-timeline{gap:6px}
       }
-      @media(max-width:600px) { .fishfm{padding:18px 14px 0}.fm-player-dock{margin-inline:-14px;padding-inline:14px}.fm-settings-dialog{padding-inline:18px}.fm-player-dock-compact{margin-inline:-18px;padding-inline:18px} }
+      @media(max-width:600px) { .fishfm{padding:18px 14px 0}.fm-player-dock{margin-inline:-14px;padding-inline:14px} }
       @container fishfm (min-width:561px) {
         @media(max-height:800px) {
           .fishfm[data-view=main] .fm-companion-hero{padding:4px 16px 12px;gap:24px;margin-bottom:16px}
@@ -1624,19 +1615,10 @@ window.__ModuleLoader__.load({
       const [importSource,setImportSource]=React.useState('auto');
       const [playlistId,setPlaylistId]=React.useState('');
       const rateId = React.useId();
-      const dialogRef = React.useRef(null);
       const feedbackRef = React.useRef(null);
-      const [settingsOpen, setSettingsOpen] = React.useState(false);
       const [view, setView] = React.useState('listen');
       const selectedModel = state.recommendationChoice || '';
       const setSelectedModel = value => controller.chooseRecommendationModel(value);
-      React.useEffect(() => {
-        const dialog = dialogRef.current;
-        if (!dialog || close) return undefined;
-        if (settingsOpen && !dialog.open) dialog.showModal();
-        if (!settingsOpen && dialog.open) dialog.close();
-        return () => { if (dialog.open) dialog.close(); };
-      }, [settingsOpen, close]);
       React.useEffect(() => { if (snapshot) setRate(Math.round(settings.discoveryRate * 100)); }, [settings.discoveryRate]);
       React.useEffect(() => {
         if (!['waiting', 'scanned'].includes(state.login?.status)) return undefined;
@@ -1786,7 +1768,7 @@ window.__ModuleLoader__.load({
         controller.setFeedbackOpen(value === 'taste' && feedbackRef.current?.querySelector('.fm-feedback-manager')?.open === true);
         setView(value);
       };
-      const dock = (compact = false) => h('div', { className: 'fm-player-dock' + (compact ? ' fm-player-dock-compact' : ''), 'aria-label': '播放控制' },
+      const dock = () => h('div', { className: 'fm-player-dock', 'aria-label': '播放控制' },
         h('div', { className: 'fm-dock-track' }, h('strong', null, current?.track?.title || '肥鱼电台'), h('span', null, current?.track?.artist || '等待音乐')),
         h('div', { className: 'fm-dock-center' }, h('div', { className: 'fm-controls' },
           h('button', { type: 'button', className: 'fm-button fm-primary fm-transport', disabled: transport.playDisabled,
@@ -1841,10 +1823,9 @@ window.__ModuleLoader__.load({
             h('div', { className: 'fm-heading' }, h('span', { className: 'fm-brand', 'aria-hidden': true }, h(Svg, { type: 'headphones' })),
               h('div', null, h('h1', null, '肥鱼电台', h('small', { className: 'fm-brand-latin' }, 'FeiyuFM')), h('p', { className: 'fm-subtitle' }, '你的音乐，大肥鱼的偏好。'))),
             h('div', { className: 'fm-top-actions' },
-              !close && h('button', { type: 'button', className: 'fm-button', onClick: () => setSettingsOpen(true), 'aria-haspopup': 'dialog', 'aria-controls': `${rateId}-settings` }, h(Svg, { type: 'settings' }), '电台设置'),
               h('button', { type: 'button', className: 'fm-button', onClick: close || back }, close ? '关闭设置' : '返回对话'))),
           !close && h('nav', { className: 'fm-page-nav', 'aria-label': '电台页面' },
-            ...[['listen', '正在听'], ['discover', '发现记录'], ['taste', '偏好与反馈']].map(([id, label]) => h('button', {
+            ...[['listen', '正在听'], ['discover', '发现记录'], ['taste', '偏好与反馈'], ['settings', '电台设置']].map(([id, label]) => h('button', {
               type: 'button', key: id, 'aria-pressed': view === id, 'aria-controls': `${rateId}-${id}`, onClick: () => selectView(id),
             }, label))),
           state.error && h('div', { className: 'fm-notice', 'data-error': true, role: 'alert' }, state.error,
@@ -1859,18 +1840,9 @@ window.__ModuleLoader__.load({
               h('div', { className: 'fm-listen-page', id: `${rateId}-listen`, hidden: view !== 'listen' }, hero,
                 h(Persona, { key: 'pool', state, controller, selectedModel, onSelectModel: setSelectedModel })),
               h('div', { className: 'fm-discover-page', id: `${rateId}-discover`, hidden: view !== 'discover' }, h(Discoveries, { state, expanded: true })),
-              h('div', { ref: feedbackRef, className: 'fm-taste-page', id: `${rateId}-taste`, hidden: view !== 'taste' }, preferencesColumn)),
-          dock(),
-          !close && h('dialog', { ref: dialogRef, id: `${rateId}-settings`, className: 'fm-settings-dialog', 'aria-label': '电台设置', 'data-open': settingsOpen,
-            onCancel: event => { event.preventDefault(); setSettingsOpen(false); }, onClose: () => setSettingsOpen(false),
-            onClick: event => {
-              if (event.target !== event.currentTarget) return;
-              const rect = event.currentTarget.getBoundingClientRect();
-              if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) setSettingsOpen(false);
-            } },
-            h('div', { className: 'fm-settings-dialog-head' }, h('h2', null, '电台设置'),
-              h('button', { type: 'button', className: 'fm-button', 'aria-label': '关闭电台设置', onClick: () => setSettingsOpen(false) }, h(Svg, { type: 'close' }), '完成')),
-            settingsBody, dock(true))));
+              h('div', { ref: feedbackRef, className: 'fm-taste-page', id: `${rateId}-taste`, hidden: view !== 'taste' }, preferencesColumn),
+              h('div', { className: 'fm-settings-page', id: `${rateId}-settings`, hidden: view !== 'settings' }, settingsBody)),
+          dock()));
     }
 
     // src/ui/client/floating.mjs

@@ -642,13 +642,23 @@ test('the panel exposes a spectrum switch that flips the stored preference', asy
   } finally { off(); f.dispose(); }
 });
 
-test('companion panel keeps one settings entry, shared model selection and the complete pool instead of only the newest batch', async () => {
+test('companion settings page retains drafts, shares models and keeps playback available across all four pages', async () => {
   const older={provider:'netease',providerTrackId:'older',title:'Old approved',artist:'Artist'};
   const latest={...older,providerTrackId:'latest',title:'Newest batch'};
-  let requested;
+  let requested, revision=1, paused=false, discoveryRate=.2;
+  const commands=[];
   const f=fixture(async(_channel,endpoint,payload)=>{
     if(endpoint==='fishfm/persona-recommendations')requested=payload;
-    return{ok:true,value:{snapshot:snapshot(1),library:{total:1,tracks:[]},features:{personaSummary:true},
+    if(endpoint==='fishfm/command'){
+      commands.push(payload);revision++;
+      if(payload.type==='pause')paused=true;
+      if(payload.type==='next')paused=false;
+      if(payload.type==='setDiscoveryRate')discoveryRate=payload.value;
+    }
+    return{ok:true,value:{snapshot:{...snapshot(revision),settings:{...snapshot(revision).settings,discoveryRate},paused,status:paused?'paused':'playing',
+      current:{playInstanceId:'current',track:{...older,providerTrackId:'current'}}},
+      library:{total:1,tracks:[]},features:{personaSummary:true,importSources:true},
+      platforms:{netease:{installed:true,account:{status:'authorized'}}},playlists:[{id:'first',title:'First'},{id:'second',title:'Second'}],
       summaryModels:[{provider:'p',model:'a',label:'A'},{provider:'p',model:'b',label:'B'}],
       persona:{generatedAt:1,policy:{dailyTokens:100000,maxOutputTokens:256},ledger:{today:{knownTokens:0},total:{knownTokens:0,attempts:0},remainingTokens:100000},
         recommendationRoute:{provider:'p',model:'a'},recommendationPipeline:{pipeline:'platform-filter',referenceCount:1,tracks:[latest],playbackPool:{total:2,available:1,recentBlocked:1,tracks:[older]}}}}};
@@ -656,16 +666,47 @@ test('companion panel keeps one settings entry, shared model selection and the c
   try{
     await f.controller.refresh();let nodes=all(f.render());
     assert.equal(nodes.filter(n=>n.type==='button'&&n.children.includes('电台设置')).length,1);
+    const nav=nodes.find(n=>n.type==='nav');
+    assert.deepEqual(nav.children.map(n=>n.children[0]),['正在听','发现记录','偏好与反馈','电台设置']);
+    const pageButtons=nav.children;
+    const activePage=()=>all(f.render()).filter(n=>pageButtons.some(b=>b.props['aria-controls']===n.props.id)&&!n.props.hidden);
+    assert.equal(activePage()[0].props.id,pageButtons[0].props['aria-controls']);
+    assert.equal(nodes.some(n=>n.type==='dialog'),false);
+    assert.equal(all(nodes.find(n=>n.type==='header')).filter(n=>n.type==='button').length,1);
     assert.ok(nodes.some(n=>n.props['aria-label']==='播放 Old approved · Artist'));
     assert.equal(nodes.some(n=>n.props['aria-label']==='播放 Newest batch · Artist'),false);
-    nodes.find(n=>n.type==='button'&&n.children.includes('电台设置')).props.onClick();
-    let dialog=all(f.render()).find(n=>n.type==='dialog');assert.equal(dialog.props['data-open'],true);
-    all(dialog).find(n=>n.props['aria-label']==='推荐模型').props.onChange({target:{value:JSON.stringify(['p','b'])}});
+    pageButtons[3].props.onClick();
+    let settingsPage=activePage()[0];assert.equal(settingsPage.props.className,'fm-settings-page');
+    all(settingsPage).find(n=>n.props['aria-label']==='新歌探索率').props.onChange({target:{value:'73'}});
+    all(settingsPage).find(n=>n.props['aria-label']==='导入来源').props.onChange({target:{value:'playlist'}});
+    await tick();
+    all(f.render()).find(n=>n.props['aria-label']==='输入歌单').props.onChange({target:{value:'second'}});
+    all(settingsPage).find(n=>n.props['aria-label']==='推荐模型').props.onChange({target:{value:JSON.stringify(['p','b'])}});
+    for(const button of pageButtons){
+      button.props.onClick();
+      assert.equal(activePage().length,1);
+      assert.equal(activePage()[0].props.id,button.props['aria-controls']);
+      nodes=all(f.render());
+      assert.equal(nodes.find(n=>n.type==='button'&&n.props['aria-controls']===button.props['aria-controls']).props['aria-pressed'],true);
+      assert.equal(nodes.filter(n=>n.props['aria-label']==='播放控制').length,1);
+    }
+    settingsPage=activePage()[0];
+    assert.equal(all(settingsPage).find(n=>n.props['aria-label']==='新歌探索率').props.value,73);
+    assert.equal(all(settingsPage).find(n=>n.props['aria-label']==='导入来源').props.value,'playlist');
+    assert.equal(all(settingsPage).find(n=>n.props['aria-label']==='输入歌单').props.value,'second');
+    assert.equal(requested,undefined,'page changes and model selection do not request recommendations');
     assert.equal(all(f.render({close(){}})).find(n=>n.props['aria-label']==='推荐模型').props.value,JSON.stringify(['p','b']),'native settings seat shares the model choice');
+    await all(settingsPage).find(n=>n.type==='button'&&n.children.includes('保存')).props.onClick();
+    assert.equal(commands.at(-1).type,'setDiscoveryRate');assert.equal(commands.at(-1).value,.73);
+    let dock=all(f.render()).find(n=>n.props['aria-label']==='播放控制');
+    await all(dock).find(n=>n.type==='button'&&n.children.includes('暂停')).props.onClick();
+    assert.equal(commands.at(-1).type,'pause');assert.equal(f.controller.getSnapshot().snapshot.paused,true);
+    dock=all(f.render()).find(n=>n.props['aria-label']==='播放控制');
+    const next=all(dock).find(n=>n.type==='button'&&n.children.includes('下一首'));
+    assert.equal(next.props.disabled,false);await next.props.onClick();assert.equal(commands.at(-1).type,'next');
+    pageButtons[0].props.onClick();
     nodes=all(f.render());await nodes.find(n=>n.type==='button'&&n.children.includes('补充歌单')).props.onClick();
     assert.equal(requested.model,'b','the settings selection drives the visible pool action');
-    dialog=all(f.render()).find(n=>n.type==='dialog');dialog.props.onCancel({preventDefault(){}});
-    assert.equal(all(f.render()).find(n=>n.type==='dialog').props['data-open'],false);
   }finally{f.dispose();}
 });
 
