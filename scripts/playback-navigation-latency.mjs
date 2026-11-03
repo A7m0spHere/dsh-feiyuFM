@@ -121,7 +121,7 @@ try {
   await cdp('Emulation.setFocusEmulationEnabled', { enabled: true });
   await until(async () => evaluate(`!!document.querySelector('body') && document.body.innerText.includes('肥鱼')`));
   await evaluate(`(()=>{const b=[...document.querySelectorAll('button')].find(e=>e.textContent.trim()==='继续');if(b)b.click();return true})()`);
-  // Open the real installed FishFM panel through the host sidebar.
+  // Open the real installed FeiyuFM panel through the host sidebar.
   await evaluate(`(()=>{const all=[...document.querySelectorAll('button,[role=button]')];const b=all.find(e=>e.getAttribute('aria-label')?.includes('肥鱼')||e.title?.includes('肥鱼')||e.textContent.trim()==='肥鱼电台');if(b)b.click();return all.map(e=>({text:e.textContent.trim().slice(0,40),label:e.getAttribute('aria-label'),title:e.title}));})()`)
     .then(v => { report.sidebar = v; save(); });
   await until(async () => evaluate(`!!document.querySelector('.fishfm')`));

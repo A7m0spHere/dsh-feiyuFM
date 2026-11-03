@@ -90,7 +90,7 @@ export function apply(ctx, config = {}) {
   try {
     disposers.push(ctx.tools.register({
       name: 'fishfm_desktop_probe',
-      description: 'FishFM F1 probe: report whether the music core child process is alive. No network access.',
+      description: 'FeiyuFM F1 probe: report whether the music core child process is alive. No network access.',
       parameters: {
         type: 'object',
         properties: { action: { type: 'string', enum: ['status'] } },
@@ -133,7 +133,7 @@ export function apply(ctx, config = {}) {
       commandCtx.effect(() => {
         const dispose = commandCtx.commands.register({
           name: 'fishfm-probe',
-          description: 'FishFM F1 probe: report the music core child process state.',
+          description: 'FeiyuFM F1 probe: report the music core child process state.',
           handler: () => ({ kind: 'success', text: `child pid ${child?.pid ?? 'none'}` }),
         });
         record('command-registered', { ok: true, name: 'fishfm-probe' });

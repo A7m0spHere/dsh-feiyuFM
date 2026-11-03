@@ -1,4 +1,4 @@
-# FishFM audio host: a hidden STA PowerShell process driving WPF MediaPlayer.
+# FeiyuFM audio host: a hidden STA PowerShell process driving WPF MediaPlayer.
 #
 # It owns sound only. It never decides what to play, never selects the next
 # track, and never touches the database. The music core talks to it over a

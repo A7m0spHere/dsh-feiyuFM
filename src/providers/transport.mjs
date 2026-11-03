@@ -129,7 +129,7 @@ async function readBoundedBody(response, maxBytes) {
 export function createHttpTransport({
   endpoints = {}, trustedOrigin = null, allowInsecureLoopback = false,
   fetchImpl = globalThis.fetch, timeoutMs = 15_000,
-  userAgent = 'FishFM/0.1 (+local music persona)',
+  userAgent = 'FeiyuFM/0.1 (+local music persona)',
   maxResponseBytes = HTTP_LIMITS.responseBytes, maxCookieBytes = HTTP_LIMITS.cookieBytes,
   maxRedirects = HTTP_LIMITS.redirects, onLog = () => {},
 } = {}) {

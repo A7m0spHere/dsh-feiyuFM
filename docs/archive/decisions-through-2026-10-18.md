@@ -12,7 +12,7 @@
 
 2026-10-01：先对照社区主线、无 Cookie 示例及网页登录 PR，再修复扫码。采用已固定包的 type 3 PC 流程、严格 803/MUSIC_U/UID 验证与一次同 key 重试，不引入未合并的网页登录方案。真实复用同一二维码完成授权；原始失败码为 502，但未证实响应头过大，不盲目修改头部上限。完整来源与理由见 [U6](../spikes/U6-qr-login-repair.md)。
 
-本轮决定：按用户要求，真实闭环优先使用本机官方 DSH `0.2.0-rc.2`，不再要求先启动 PHL。应用内 Plugin Manager 安装 desktop bundle，数据库/凭据独立于 PHL。rc.2 的唯一 `/api` interceptor 属于 Gateway，FishFM 用正式 Fetch registry 的精确路由共存并保留旧接口回退；root selector、overlay 边界和容器布局按安装包及现场故障修复，不修改宿主源码。证据与未验范围见 [U5](../spikes/U5-official-desktop.md)。
+本轮决定：按用户要求，真实闭环优先使用本机官方 DSH `0.2.0-rc.2`，不再要求先启动 PHL。应用内 Plugin Manager 安装 desktop bundle，数据库/凭据独立于 PHL。rc.2 的唯一 `/api` interceptor 属于 Gateway，FeiyuFM 用正式 Fetch registry 的精确路由共存并保留旧接口回退；root selector、overlay 边界和容器布局按安装包及现场故障修复，不修改宿主源码。证据与未验范围见 [U5](../spikes/U5-official-desktop.md)。
 
 ## 0. 第三方依赖与实测接口（2026-09-27）
 
@@ -66,7 +66,7 @@
 | D07 探索 | 默认开启、20%、用户可设 0%～100% | 用户要求可调；20% 来自最终 MVP 默认值 |
 | D08 默认角色（已由 D11 撤销） | 原记录认为 v0.1 需要一个默认角色 | 来自旧版 MVP 文案；经用户后续澄清不作为产品要求 |
 | D09 UI 生命周期 | 隐藏、关闭或崩溃 UI 后音乐核心继续 | 最终 MVP；继续播放所需宿主方式待验证 |
-| D10 项目名称 | 肥鱼电台 FishFM；仓库 `dsh-feiyuFM`；DeepSeek Music Persona 保留为定位描述 | 2026-09-27 按用户要求命名并创建公开仓库；SeekFM 为历史用名，npm 发布与许可证另行确定 |
+| D10 项目名称 | 肥鱼电台 FeiyuFM；仓库 `dsh-feiyuFM`；DeepSeek Music Persona 保留为定位描述 | 2026-09-27 按用户要求命名并创建公开仓库；SeekFM 为历史用名，npm 发布与许可证另行确定 |
 | D11 音乐控制 UI | v0.1 是可隐藏的音乐控制悬浮窗，不做桌宠；余额鲸鱼挂件只作 UI 参考；Tauri 2 未锁定 | 用户 2026-09-28 澄清；依据现成余额挂件截图/README；无代码/素材复用 |
 | D12 状态视觉动态 | 鲸鱼娘示意图是非交互式音乐状态视觉；待机/听歌/切歌可切换图像姿态并轻微浮动 | 用户 2026-09-28 明确希望动态；用既有 Codex 生成图，不引入宠物行为 |
 | D13 DSH 最新版兼容边界 | `0.2.0-rc.1` PHL Web profile 已加载 bundle 并启动 Core；工具调用、停用与 desktop profile 仍未验，不扩展为全版本兼容声明 | 本机 PHL 运行时、官方发行说明与插件/工具 API 文档（2026-09-28）；工具取消信号已接入；见 [P0-01 版本复核](../spikes/P0-01-dsh.md) |
@@ -108,7 +108,7 @@
 
 ## 6. 公开仓库与跨设备协作
 
-用户随后要求命名并创建公开仓库，用于跨设备开发。仓库地址为 [A7m0spHere/dsh-feiyuFM](https://github.com/A7m0spHere/dsh-feiyuFM)，默认分支 `main`；开发分支采用 `codex/` 前缀。项目名称沿用 DSH 社区常见的 `dsh-` 前缀，FishFM 将大肥鱼形象与音乐主题结合。
+用户随后要求命名并创建公开仓库，用于跨设备开发。仓库地址为 [A7m0spHere/dsh-feiyuFM](https://github.com/A7m0spHere/dsh-feiyuFM)，默认分支 `main`；开发分支采用 `codex/` 前缀。项目名称沿用 DSH 社区常见的 `dsh-` 前缀，FeiyuFM 将大肥鱼形象与音乐主题结合。
 
 本次命名参考了 [dsh-dafeiyu](https://github.com/QCYTSN/dsh-dafeiyu) 和 [dsh-music-player](https://github.com/kendu76/dsh-music-player) 的公开仓库名称；不代表前述参考项目的功能、许可与性能验证已经完成。跨设备操作说明维护在根目录 README。
 
@@ -260,11 +260,11 @@ MVP 要求"多 Session 不抢占播放"（A08）与"临时 Session 权重只少�
 
 ## 16. UI 产品方向修订（2026-09-28）
 
-用户明确澄清：FishFM 不是桌宠，前端应参考“DeepSeek 余额小鲸鱼挂件”现成插件，而不是宠物产品或其功能。产品本身仍是音乐控制插件；界面可借用右下角常驻标记、左侧信息气泡、三点菜单、快捷控制与分组设置卡，但不做喂食、随机台词、角色动画或宠物状态机。
+用户明确澄清：FeiyuFM 不是桌宠，前端应参考“DeepSeek 余额小鲸鱼挂件”现成插件，而不是宠物产品或其功能。产品本身仍是音乐控制插件；界面可借用右下角常驻标记、左侧信息气泡、三点菜单、快捷控制与分组设置卡，但不做喂食、随机台词、角色动画或宠物状态机。
 
-主要参考是 [`MeteorNOX/DeepSeek-Balance-Whale-Widget`](https://github.com/MeteorNOX/DeepSeek-Balance-Whale-Widget)：`whale-widget-prompt.md` 给出气泡挂件布局与视觉参数（描边 `#203170`、正文 `#536ba9`、提示 `#9fb0d9`、三点菜单、可隐藏）；本轮查看了仓库 README、`whale-widget-prompt.md`、`assets/DSH2.png` 和 `PROVENANCE.md`。另参考 [`dsh-api-dashboard`](https://github.com/133563825as-ai/dsh-api-dashboard) 的余额卡和设置截图。FishFM 将余额/用量信息替换为曲名/艺人、播放进度、播放/暂停/下一首、DeepSeek Listening、Human Playback 与探索率。
+主要参考是 [`MeteorNOX/DeepSeek-Balance-Whale-Widget`](https://github.com/MeteorNOX/DeepSeek-Balance-Whale-Widget)：`whale-widget-prompt.md` 给出气泡挂件布局与视觉参数（描边 `#203170`、正文 `#536ba9`、提示 `#9fb0d9`、三点菜单、可隐藏）；本轮查看了仓库 README、`whale-widget-prompt.md`、`assets/DSH2.png` 和 `PROVENANCE.md`。另参考 [`dsh-api-dashboard`](https://github.com/133563825as-ai/dsh-api-dashboard) 的余额卡和设置截图。FeiyuFM 将余额/用量信息替换为曲名/艺人、播放进度、播放/暂停/下一首、DeepSeek Listening、Human Playback 与探索率。
 
-只作 UI 参考，不复制代码或角色素材。`PROVENANCE.md` 明确声明余额挂件仓库的 `assets/**` 不属于 MIT 许可范围；FishFM 原型不使用其图片或音效。用户随后要求使用此前生成的鲸鱼娘图并加入动态展示，三张 Codex 生成图已复制到 `prototypes/assets/`，仅演示待机/听歌/DJ 姿态切换，来源映射见 [原型素材说明](../../prototypes/README.md#素材来源)。这不是桌宠：不增加喂食、抚摸、随机台词或主动宠物状态机。Tauri 2 仍未锁定；Core/Playback 独立于可见 UI 的约束不变。本决定取代 D04 与 D08 中的宠物产品/默认角色范围，并要求同步 [MVP](../MVP.md)、[ARCHITECTURE](../ARCHITECTURE.md)、[PROJECT_PLAN](../PROJECT_PLAN.md)、[DELIVERY](../DELIVERY.md) 和 U2 证据说明。
+只作 UI 参考，不复制代码或角色素材。`PROVENANCE.md` 明确声明余额挂件仓库的 `assets/**` 不属于 MIT 许可范围；FeiyuFM 原型不使用其图片或音效。用户随后要求使用此前生成的鲸鱼娘图并加入动态展示，三张 Codex 生成图已复制到 `prototypes/assets/`，仅演示待机/听歌/DJ 姿态切换，来源映射见 [原型素材说明](../../prototypes/README.md#素材来源)。这不是桌宠：不增加喂食、抚摸、随机台词或主动宠物状态机。Tauri 2 仍未锁定；Core/Playback 独立于可见 UI 的约束不变。本决定取代 D04 与 D08 中的宠物产品/默认角色范围，并要求同步 [MVP](../MVP.md)、[ARCHITECTURE](../ARCHITECTURE.md)、[PROJECT_PLAN](../PROJECT_PLAN.md)、[DELIVERY](../DELIVERY.md) 和 U2 证据说明。
 
 
 ## 17. 先提供 DSH 主界面设置入口（2026-09-29）
@@ -281,7 +281,7 @@ MVP 要求"多 Session 不抢占播放"（A08）与"临时 Session 权重只少�
 
 登录材料只在 Core 内存中交给社区 API；响应里有更新 Cookie 时合并并写入既有 DPAPI CurrentUser 存储。SQLite 仍只写凭据引用和账号 ID。社区模块输出被限制在 API 调用的异步上下文，避免其调试输出把 Cookie/令牌写到 Core JSON-lines 输出；错误响应只携带白名单中的阶段、HTTP/API 错误码和来源尝试，不回传原始响应或凭据。UID 取不到时停止种子请求并给出 `login_status` 错误。
 
-**悬浮音乐条只在 DSH `shell.overlay` 中显示。** 它连接原来的 Core，卡片、底部快捷抽屉、三点菜单和手势关闭均在现有 DSH 页面内；进入 FishFM 主面板时收起，侧栏面板可重新显示/隐藏。位置保存在本地并吸附左右边缘；菜单里的模式和播放控制都调用同一 Core RPC。主设置页使用本项目已有的 Codex 生成鲸鱼娘图。视觉参考 DeepSeek 余额鲸鱼挂件，但没有复制它的代码或素材；该仓库声明 `assets/**` 不在 MIT 范围。手势把手逻辑从 [`dsh-api-dashboard` v1.4.5 commit `3792f154`](https://github.com/133563825as-ai/dsh-api-dashboard/blob/3792f1547bce222260eeeca015c6e13b7d5f466e/client/client.js#L92-L135) 适配，保留 MIT 声明；其余 CSS 由 FishFM 实现。详见 [第三方声明](../../THIRD_PARTY_NOTICES.md)。
+**悬浮音乐条只在 DSH `shell.overlay` 中显示。** 它连接原来的 Core，卡片、底部快捷抽屉、三点菜单和手势关闭均在现有 DSH 页面内；进入 FeiyuFM 主面板时收起，侧栏面板可重新显示/隐藏。位置保存在本地并吸附左右边缘；菜单里的模式和播放控制都调用同一 Core RPC。主设置页使用本项目已有的 Codex 生成鲸鱼娘图。视觉参考 DeepSeek 余额鲸鱼挂件，但没有复制它的代码或素材；该仓库声明 `assets/**` 不在 MIT 范围。手势把手逻辑从 [`dsh-api-dashboard` v1.4.5 commit `3792f154`](https://github.com/133563825as-ai/dsh-api-dashboard/blob/3792f1547bce222260eeeca015c6e13b7d5f466e/client/client.js#L92-L135) 适配，保留 MIT 声明；其余 CSS 由 FeiyuFM 实现。详见 [第三方声明](../../THIRD_PARTY_NOTICES.md)。
 
 离线验收覆盖旧 UID 恢复、UID 传递、最近/喜欢/歌单回退、曲目元数据转换、真实来源计数、错误阶段和凭据隔离。PHL“2”真实 `login_status` 返回游客态（`account:null`、`profile:null`），因此已将本地凭据引用纠正为 `expired`；未请求歌曲来源或写入导入批次。该实例当时未启动 Web 服务（3080 端口拒绝连接），视觉/鼠标键盘验收仍待用户启动实例并重新扫码后完成。
 

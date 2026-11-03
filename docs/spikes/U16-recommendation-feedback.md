@@ -9,7 +9,7 @@
 | Navidrome，`52135913d4747c8f8ddcfd8e7004202b8f53b594`，GPL-3.0 | [LibraryScanButton.jsx](https://github.com/navidrome/navidrome/blob/52135913d4747c8f8ddcfd8e7004202b8f53b594/ui/src/library/LibraryScanButton.jsx)、[useScanElapsedTime.jsx](https://github.com/navidrome/navidrome/blob/52135913d4747c8f8ddcfd8e7004202b8f53b594/ui/src/layout/useScanElapsedTime.jsx) | 根据后台状态禁用重复操作，以服务端时间为锚更新时间展示，普通通知与失败分开 |
 | Music Assistant frontend，`1e8c8c381171b7f1b9b61f037a69f2d548d61d7f`，Apache-2.0 | [ShowCard.vue](https://github.com/music-assistant/frontend/blob/1e8c8c381171b7f1b9b61f037a69f2d548d61d7f/src/components/ai-radio/ShowCard.vue)、[useShows.ts](https://github.com/music-assistant/frontend/blob/1e8c8c381171b7f1b9b61f037a69f2d548d61d7f/src/composables/ai-radio/useShows.ts) | 处理中、历史状态与失败分别展示，并发拒绝后重新读取服务端状态 |
 
-只参考交互原则，没有复制代码、样式或素材，没有安装新依赖。倒计时结合 FishFM 自身门控实现，不声称上述项目都有推荐冷却倒计时。
+只参考交互原则，没有复制代码、样式或素材，没有安装新依赖。倒计时结合 FeiyuFM 自身门控实现，不声称上述项目都有推荐冷却倒计时。
 
 ## 改动
 

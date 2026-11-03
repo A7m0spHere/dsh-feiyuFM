@@ -120,7 +120,7 @@ function fail(message, hint) {
   process.exit(1);
 }
 
-console.log(`FishFM sign-in · ${providerName}`);
+console.log(`FeiyuFM sign-in · ${providerName}`);
 console.log(`  credential store: ${credentials.kind}${dryRun ? ' (nothing will be kept)' : ` at ${stateDirectory}`}`);
 
 // --- 1. ask for a QR ---------------------------------------------------------

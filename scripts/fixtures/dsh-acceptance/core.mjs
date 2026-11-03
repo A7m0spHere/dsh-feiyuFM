@@ -1,13 +1,16 @@
 // Native, muted playback over generated local media. No platform account is used.
 import {dirname,join} from 'node:path';
-import {runCoreHost,createProviderFacade,ProviderRegistry} from '../../../src/core-host.mjs';
-import {mergeApprovedFilter} from '../../../src/approved-pool.mjs';
+import {fileURLToPath,pathToFileURL} from 'node:url';
 import {createHash} from 'node:crypto';
-import {MusicStore} from '../../../src/storage.mjs';
-import {FakeProvider} from '../../../src/fakes.mjs';
-import {importSeedTracks} from '../../../src/environment.mjs';
-import {initializeAgentPreferences} from '../../../src/taste.mjs';
-import {createRuntimeEvidence} from '../../../src/runtime/evidence.mjs';
+const pluginRoot=process.env.FISHFM_ACCEPTANCE_PLUGIN_ROOT??fileURLToPath(new URL('../../../',import.meta.url));
+const load=name=>import(pathToFileURL(join(pluginRoot,'src',name)).href);
+const {runCoreHost,createProviderFacade,ProviderRegistry}=await load('core-host.mjs');
+const {mergeApprovedFilter}=await load('approved-pool.mjs');
+const {MusicStore}=await load('storage.mjs');
+const {FakeProvider}=await load('fakes.mjs');
+const {importSeedTracks}=await load('environment.mjs');
+const {initializeAgentPreferences}=await load('taste.mjs');
+const {createRuntimeEvidence}=await load('runtime/evidence.mjs');
 
 const db=process.argv[process.argv.indexOf('--db')+1];
 if(!db||!process.env.FISHFM_ACCEPTANCE_MEDIA)throw new Error('Explicit isolated database and media are required');

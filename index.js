@@ -1,4 +1,4 @@
-// FishFM plugin entry for the DeepSeek Harness (desktop profile).
+// FeiyuFM plugin entry for the DeepSeek Harness (desktop profile).
 //
 // The plugin is deliberately thin: it owns the lifecycle of an independent core
 // process and exposes user commands, so music never depends on the visible

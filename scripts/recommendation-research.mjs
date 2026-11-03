@@ -8,7 +8,7 @@ import {summarizeTrial, trialFiles, trialMarkdown} from './research/trial.mjs';
 import {runPreferenceSignals, signalsMarkdown} from './research/preference-signals.mjs';
 import {compareExploration, explorationMarkdown} from './research/exploration.mjs';
 
-const HELP = `FishFM 推荐研究（只读导出 / 离线回放，不启动模型或播放器）
+const HELP = `FeiyuFM 推荐研究（只读导出 / 离线回放，不启动模型或播放器）
   export --database <music.sqlite> --out <新目录> [--metadata]
   replay --input <snapshot.json> --out <新目录> [--feedback <人工反馈.json>] [--top-k 6]
   trial-init --input <snapshot.json> --participant <匿名标识> --out <新试用包目录> [--study pilot-01]

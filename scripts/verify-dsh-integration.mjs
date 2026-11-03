@@ -9,6 +9,7 @@ import {createHash} from 'node:crypto';
 import {writeTone} from './make-tone.mjs';
 const arg=(name,fallback)=>{const i=process.argv.indexOf(name);return i<0?fallback:process.argv[i+1];};
 const runtimeNode=arg('--runtime-node',null),runtime=arg('--runtime-root',null),output=arg('--out',null);
+const packageSource=arg('--package',null);
 if(process.platform!=='win32')throw new Error('This acceptance runner requires Windows native WPF playback');
 if(!runtimeNode||!runtime||!output)throw new Error('Pass --runtime-node <Electron executable> --runtime-root <bundled dsh directory> --out <new isolated directory> [--model-home <existing DSH home>]');
 const root=resolve(import.meta.dirname,'..'),out=resolve(output),home=join(out,'home'),workspace=join(out,'workspace');
@@ -36,7 +37,8 @@ const pause=ms=>new Promise(r=>setTimeout(r,ms));
 async function until(fn,{timeout=30000,interval=250}={}){const end=Date.now()+timeout;while(Date.now()<end){const value=await fn();if(value)return value;await pause(interval);}throw new Error('Acceptance condition timed out');}
 async function rpc(method,payload={}){
  const u=new URL(`/api/${method}`,baseUrl);
- const response=await fetch(u,{method:'POST',headers:{'content-type':'application/json',cookie},
+ // Process/SQLite snapshots block this driver; do not reuse an idle HTTP socket across them.
+ const response=await fetch(u,{method:'POST',headers:{'content-type':'application/json',connection:'close',cookie},
   body:JSON.stringify(method==='fishfm-acceptance'?payload:{type:'client-request',rpcId:crypto.randomUUID(),method,payload}),signal:AbortSignal.timeout(30000)});
  if(!response.ok)throw new Error(`RPC ${method}: HTTP ${response.status}`);
  const json=await response.json(),result=json.result??json;if(!result.ok)throw new Error(`RPC ${method}: ${result.error?.code}: ${result.error?.message}`);return result.value;
@@ -60,8 +62,13 @@ function processTree(parent){
 try{
  const setup=command([join(fixture,'setup.cjs'),runtime,home,root,...(modelHome?[modelHome]:[])]);
  report.setup=JSON.parse(setup.trim().split('\n').at(-1));
- const install=command([join(runtime,'node_modules/@deepseek-ai/dsh/lib/bin.js'),'plugin','--profile','fishfm-acceptance','add',root,'--offline']);
+ const install=command([join(runtime,'node_modules/@deepseek-ai/dsh/lib/bin.js'),'plugin','--profile','fishfm-acceptance','add',packageSource??root,'--offline']);
  writeFileSync(join(out,'install.log'),install);
+ const installed=JSON.parse(command(['-e',`const{createRequire}=require('node:module');const{dirname}=require('node:path');const r=createRequire(${JSON.stringify(join(home,'profiles/fishfm-acceptance/package.json'))});const p=dirname(r.resolve('dsh-feiyufm/package.json'));console.log(JSON.stringify({root:p,version:r('dsh-feiyufm/package.json').version}));`]).trim());
+ const expectedVersion=JSON.parse(readFileSync(join(root,'package.json'),'utf8')).version;
+ if(installed.version!==expectedVersion)throw new Error('Installed DSH plugin version differs from release source');
+ env.FISHFM_ACCEPTANCE_PLUGIN_ROOT=installed.root;
+ report.installation={source:packageSource?'release-package':'source-checkout',...installed};save();
  writeTone({path:env.FISHFM_ACCEPTANCE_MEDIA,seconds:16,amplitude:0});
  const server=createServer();await new Promise(r=>server.listen(0,'127.0.0.1',r));const port=server.address().port;await new Promise(r=>server.close(r));
  host=spawn(runtimeNode,[join(runtime,'node_modules/@deepseek-ai/dsh/lib/bin.js'),'--profile','fishfm-acceptance','--patch',join(home,'acceptance.patch.yml'),'--no-open','--port',String(port)],{env,cwd:workspace,windowsHide:true,stdio:['pipe','pipe','pipe']});
@@ -72,7 +79,7 @@ try{
  cookie=exchange.headers.getSetCookie().map(v=>v.split(';')[0]).join('; ');
  if(!cookie)throw new Error('DSH launch-token exchange returned no authenticated cookie');
  const ready=await until(async()=>{try{return await state();}catch(e){report.lastRpcError=e.message;save();return null;}},{timeout:45000});
- check('authenticated FishFM RPC and Core ready',Boolean(ready.snapshot));
+ check('authenticated FeiyuFM RPC and Core ready',Boolean(ready.snapshot));
  if(repeatPolicy){
   const pipeline=ready.persona?.recommendationPipeline;
   report.repeatPolicy={syntheticApprovals:true,initial: pipeline};
@@ -199,7 +206,7 @@ try{
  await probe({op:'shutdown'});
  await until(()=>host.exitCode!==null,{timeout:15000});
  check('isolated host shuts down',host.exitCode===0,{exitCode:host.exitCode});
-}catch(error){report.error={name:error.name,message:error.message};save();console.error(error.message);process.exitCode=1;}
+}catch(error){report.error={name:error.name,message:error.message,cause:error.cause?{code:error.cause.code,message:error.cause.message}:null,hostExitCode:host?.exitCode??null,hostSignal:host?.signalCode??null};save();console.error(JSON.stringify(report.error));process.exitCode=1;}
 finally{
  if(host&&host.exitCode===null){
   try{if(cookie){await probe({op:'toggle',disabled:true});await probe({op:'shutdown'});await until(()=>host.exitCode!==null,{timeout:10000});}}

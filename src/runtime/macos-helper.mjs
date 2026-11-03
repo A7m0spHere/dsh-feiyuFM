@@ -24,7 +24,7 @@ export function ensureMacHelper({
   swiftc = process.env.FISHFM_SWIFTC || '/usr/bin/swiftc',
   compile = spawnSync,
 } = {}) {
-  if (platform !== 'darwin') throw new Error(`The FishFM native helper is macOS-only (got ${platform})`);
+  if (platform !== 'darwin') throw new Error(`The FeiyuFM native helper is macOS-only (got ${platform})`);
   const sourceBytes = readFileSync(source);
   const digest = createHash('sha256').update(sourceBytes).update(process.arch).digest('hex').slice(0, 20);
   mkdirSync(cacheDirectory, { recursive: true, mode: 0o700 });
@@ -39,7 +39,7 @@ export function ensureMacHelper({
   if (result.error || result.status !== 0) {
     try { unlinkSync(temporary); } catch { /* no temporary output was created */ }
     const detail = (result.stderr || result.error?.message || `swiftc exited ${result.status}`).trim().split('\n').slice(-5).join('\n');
-    throw new Error(`Could not build the FishFM macOS helper. Install Xcode Command Line Tools and retry. ${detail}`);
+    throw new Error(`Could not build the FeiyuFM macOS helper. Install Xcode Command Line Tools and retry. ${detail}`);
   }
   try {
     chmodSync(temporary, 0o700);

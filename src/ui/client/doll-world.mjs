@@ -1,5 +1,5 @@
 // Original panel simulation. Workshop parameters and image proportions are
-// recorded in U12; no Workshop JavaScript is bundled into FishFM.
+// recorded in U12; no Workshop JavaScript is bundled into FeiyuFM.
 const dollClamp = (value, low, high) => Math.max(low, Math.min(high, value));
 export function dollShape(body, viewport) {
   const width = body.size * Math.min(1, body.aspect) * (1 + body.squash);

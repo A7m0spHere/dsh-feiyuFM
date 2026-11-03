@@ -58,7 +58,7 @@ npm run research -- trial-init --input .tmp/p01-source/snapshot.json --participa
 | `reasonUnderstandable` | 能理解推荐原因吗？ |
 | `tooConservative` | 推荐是否过于保守、像在重复旧歌？ |
 | `tooUnexpected` | 推荐是否偏离喜好太远？ |
-| `wouldUseAgain` | 下次愿意再让 FishFM 选歌吗？ |
+| `wouldUseAgain` | 下次愿意再让 FeiyuFM 选歌吗？ |
 | `disturbing` | 使用时是否受到不必要的打扰？ |
 
 下面只是字段示例，不是已发生的记录；用自己的真实时间替换后才添加到 `observations`：

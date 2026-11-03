@@ -122,7 +122,7 @@ export function runPreferenceSignals() {
     newModelCalls: 0, productionDatabaseTouched: false, qualityGain: null,
     limitations: ['Fixed RNG and equal initial affinities test signal semantics, not recommendation quality.',
       'Model facts are observable; a real model response or a human preference gain was not measured.',
-      'Account switching isolates cached discovery; local environment and feedback are shared within the same FishFM data directory.']};
+      'Account switching isolates cached discovery; local environment and feedback are shared within the same FeiyuFM data directory.']};
 }
 export function signalsMarkdown(r) {
   return `# 偏好信号语义对照\n\n合成合同审计：${r.passed}/${r.checkCount}；固定输入：\`${r.inputHash}\`。\n\n| 检查 | 结果 | 证据 |\n|---|---|---|\n${r.checks.map(c => `| ${c.name} | ${c.passed ? '通过' : '失败'} | ${JSON.stringify(c.evidence).replaceAll('|', '\\|')} |`).join('\n')}\n\n模型请求 0；不访问生产数据库；质量收益未知。\n\n${r.limitations.map(s => `- ${s}`).join('\n')}\n`;

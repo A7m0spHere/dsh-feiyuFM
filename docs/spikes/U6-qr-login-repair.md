@@ -11,7 +11,7 @@
 | [网页登录修复 PR #201](https://github.com/NeteaseCloudMusicApiEnhanced/api-enhanced/pull/201)、[YesPlayMusic 网页登录 PR](https://github.com/qier222/YesPlayMusic/pull/2474/files) | 引入网页登录、浏览器上下文和额外验证等替代路径；前者仍未合并 | 本次不引入浏览器模拟或宿主改造，先实测现有 PC 流程 |
 | [旧项目 Issue #1748](https://github.com/Binaryify/NeteaseCloudMusicApi/issues/1748) | 有扫码确认后 502 和响应头过大的报告 | 作为排查线索；本机这次成功响应头为 5728 字节，没有证据证明属于该问题，不改 HTTP 头上限 |
 
-第三方源码未复制。只调用已安装包的 `module/login_qr_key.js`、`module/login_qr_check.js` 和 `util/request.js`，范围与 MIT 许可见 [声明](../../THIRD_PARTY_NOTICES.md)。网络错误兼容层由 FishFM 实现。
+第三方源码未复制。只调用已安装包的 `module/login_qr_key.js`、`module/login_qr_check.js` 和 `util/request.js`，范围与 MIT 许可见 [声明](../../THIRD_PARTY_NOTICES.md)。网络错误兼容层由 FeiyuFM 实现。
 
 ## 实际问题
 

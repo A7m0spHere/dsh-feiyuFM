@@ -9,7 +9,7 @@
 - [ListenBrainz Feedback JSON](https://listenbrainz.readthedocs.io/en/latest/users/feedback-json.html) 明确定义 `1` 喜欢、`-1` 不喜欢、`0` 撤销反馈；其 [Feedback API](https://listenbrainz.readthedocs.io/en/latest/users/api/recordings.html) 按歌曲身份持久保存用户反馈。
 - [Navidrome](https://github.com/navidrome/navidrome) 与 [OpenSubsonic star](https://opensubsonic.netlify.app/docs/endpoints/star/) / [unstar](https://opensubsonic.netlify.app/docs/endpoints/unstar/) 提供可取消的歌曲收藏；收藏动作与播放动作分开。
 
-FishFM 采用“喜欢 / 少推荐 / 撤销”的独立反馈层。没有把社区的收藏接口当作推荐算法，也没有接入这些远程服务。重置与恢复点按本项目的历史/成长/账本边界自行实现。
+FeiyuFM 采用“喜欢 / 少推荐 / 撤销”的独立反馈层。没有把社区的收藏接口当作推荐算法，也没有接入这些远程服务。重置与恢复点按本项目的历史/成长/账本边界自行实现。
 
 ## 行为与参数
 

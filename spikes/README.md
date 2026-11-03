@@ -9,6 +9,6 @@
 | `P0-04-wpf-playback.ps1`、`P0-04-pipe-host.ps1`、`P0-04-pipe-client.mjs` | 早期真实 WPF/管道实验；[P0-04](../docs/spikes/P0-04-playback.md) |
 | `P0-05-window-probe.ps1` | 曾比较原生窗口方案；[P0-05](../docs/spikes/P0-05-desktop.md)，当前 UI 使用 DSH 页面席位 |
 
-不要将探针目录安装为 FishFM，或因文件仍在这里就重复操作真实 profile/账号/音频。当前安装见 [DELIVERY](../docs/DELIVERY.md)，维护与隔离验证见 [scripts](../scripts/README.md)。
+不要将探针目录安装为 FeiyuFM，或因文件仍在这里就重复操作真实 profile/账号/音频。当前安装见 [DELIVERY](../docs/DELIVERY.md)，维护与隔离验证见 [scripts](../scripts/README.md)。
 
 实现报告和截图位于 [docs/spikes/](../docs/spikes/README.md)，与本目录的可执行脚本分开维护。

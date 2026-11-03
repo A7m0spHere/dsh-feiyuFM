@@ -9,7 +9,7 @@ import { spawn } from 'node:child_process';
 if (!process.argv[2]) throw new Error('Usage: node scripts/verify-installed-package.mjs <consumer-directory>');
 const consumer = resolve(process.argv[2]);
 const requireConsumer = createRequire(join(consumer, 'package.json'));
-const root = dirname(requireConsumer.resolve('dsh-feiyufm-core/package.json'));
+const root = dirname(requireConsumer.resolve('dsh-feiyufm/package.json'));
 const checkout = fileURLToPath(new URL('../', import.meta.url));
 assert.ok(!root.startsWith(checkout) || process.argv.includes('--dsh-profile'), 'Clean consumer must be outside this checkout');
 const fromPackage = createRequire(join(root, 'package.json'));

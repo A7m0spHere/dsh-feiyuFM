@@ -15,7 +15,7 @@
 | `playback/supervisor.mjs:298` 子进程 stdout/stderr 逐行日志 | `try { onLog } catch {}` | 已覆盖 |
 | `index.js:110/167` 证据生命周期 | `ctx.effect` + `evidence.close()` | 已覆盖 |
 
-未发现 FishFM 存在参考项目那种「未捕获异常带走 DSH 宿主」的直接形态：所有 `onLog` 转发点均已包一层。**真正的缺口不是崩溃，而是证据静默失真。**
+未发现 FeiyuFM 存在参考项目那种「未捕获异常带走 DSH 宿主」的直接形态：所有 `onLog` 转发点均已包一层。**真正的缺口不是崩溃，而是证据静默失真。**
 
 ## 确认缺陷：日志写不下去时没有任何人知道
 
@@ -108,7 +108,7 @@ READER-GETS      null
 | `playback/supervisor.mjs:298` 子进程 stdout/stderr 逐行日志 | `try { onLog } catch {}` | 已覆盖 |
 | `index.js:110/167` 证据生命周期 | `ctx.effect` + `evidence.close()` | 已覆盖 |
 
-未发现 FishFM 存在参考项目那种「未捕获异常带走 DSH 宿主」的直接形态：所有 `onLog` 转发点均已包一层。**真正的缺口不是崩溃，而是证据静默失真。**
+未发现 FeiyuFM 存在参考项目那种「未捕获异常带走 DSH 宿主」的直接形态：所有 `onLog` 转发点均已包一层。**真正的缺口不是崩溃，而是证据静默失真。**
 
 ## 确认缺陷：日志写不下去时没有任何人知道
 

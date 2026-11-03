@@ -94,7 +94,7 @@ function coreSession({ dbPath, env = {} }) {
 
 // --- the checks ---------------------------------------------------------------
 
-console.log(`FishFM lifecycle verification`);
+console.log(`FeiyuFM lifecycle verification`);
 console.log(`  state directory: ${stateDirectory}`);
 console.log(`  node: ${process.version} on ${process.platform}`);
 console.log('');

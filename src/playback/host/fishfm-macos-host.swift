@@ -1,4 +1,4 @@
-// macOS audio and Keychain helper for FishFM.
+// macOS audio and Keychain helper for FeiyuFM.
 //
 // The playback mode owns one AF_UNIX socket and an AVPlayer. Secrets cross the
 // helper boundary only over stdin/stdout JSON, never in process arguments.
@@ -24,7 +24,7 @@ private func runCredentialCommand() throws {
           let account = request["reference"] as? String,
           !account.isEmpty,
           account.utf8.count <= 256 else {
-        throw NSError(domain: "FishFMKeychain", code: 1, userInfo: [NSLocalizedDescriptionKey: "Invalid credential request"])
+        throw NSError(domain: "FeiyuFMKeychain", code: 1, userInfo: [NSLocalizedDescriptionKey: "Invalid credential request"])
     }
 
     let query: [String: Any] = [
@@ -47,7 +47,7 @@ private func runCredentialCommand() throws {
         guard status == errSecSuccess,
               let data = result as? Data,
               let secret = String(data: data, encoding: .utf8) else {
-            throw NSError(domain: "FishFMKeychain", code: Int(status), userInfo: [NSLocalizedDescriptionKey: "Could not read the FishFM Keychain item (OSStatus \(status))"])
+            throw NSError(domain: "FeiyuFMKeychain", code: Int(status), userInfo: [NSLocalizedDescriptionKey: "Could not read the FeiyuFM Keychain item (OSStatus \(status))"])
         }
         try writeJSON(["value": secret])
 
@@ -61,12 +61,12 @@ private func runCredentialCommand() throws {
         } else if status == errSecItemNotFound {
             try writeJSON(["present": false])
         } else {
-            throw NSError(domain: "FishFMKeychain", code: Int(status), userInfo: [NSLocalizedDescriptionKey: "Could not inspect the FishFM Keychain item (OSStatus \(status))"])
+            throw NSError(domain: "FeiyuFMKeychain", code: Int(status), userInfo: [NSLocalizedDescriptionKey: "Could not inspect the FeiyuFM Keychain item (OSStatus \(status))"])
         }
 
     case "write":
         guard let secret = request["secret"] as? String, !secret.isEmpty else {
-            throw NSError(domain: "FishFMKeychain", code: 2, userInfo: [NSLocalizedDescriptionKey: "A non-empty credential is required"])
+            throw NSError(domain: "FeiyuFMKeychain", code: 2, userInfo: [NSLocalizedDescriptionKey: "A non-empty credential is required"])
         }
         let data = Data(secret.utf8)
         let update = [kSecValueData as String: data]
@@ -75,25 +75,25 @@ private func runCredentialCommand() throws {
             var item = query
             item[kSecValueData as String] = data
             item[kSecAttrAccessible as String] = kSecAttrAccessibleWhenUnlockedThisDeviceOnly
-            item[kSecAttrLabel as String] = "FishFM music platform session"
+            item[kSecAttrLabel as String] = "FeiyuFM music platform session"
             let addStatus = SecItemAdd(item as CFDictionary, nil)
             guard addStatus == errSecSuccess else {
-                throw NSError(domain: "FishFMKeychain", code: Int(addStatus), userInfo: [NSLocalizedDescriptionKey: "Could not save the FishFM Keychain item (OSStatus \(addStatus))"])
+                throw NSError(domain: "FeiyuFMKeychain", code: Int(addStatus), userInfo: [NSLocalizedDescriptionKey: "Could not save the FeiyuFM Keychain item (OSStatus \(addStatus))"])
             }
         } else if updateStatus != errSecSuccess {
-            throw NSError(domain: "FishFMKeychain", code: Int(updateStatus), userInfo: [NSLocalizedDescriptionKey: "Could not update the FishFM Keychain item (OSStatus \(updateStatus))"])
+            throw NSError(domain: "FeiyuFMKeychain", code: Int(updateStatus), userInfo: [NSLocalizedDescriptionKey: "Could not update the FeiyuFM Keychain item (OSStatus \(updateStatus))"])
         }
         try writeJSON(["saved": true])
 
     case "delete":
         let status = SecItemDelete(query as CFDictionary)
         guard status == errSecSuccess || status == errSecItemNotFound else {
-            throw NSError(domain: "FishFMKeychain", code: Int(status), userInfo: [NSLocalizedDescriptionKey: "Could not remove the FishFM Keychain item (OSStatus \(status))"])
+            throw NSError(domain: "FeiyuFMKeychain", code: Int(status), userInfo: [NSLocalizedDescriptionKey: "Could not remove the FeiyuFM Keychain item (OSStatus \(status))"])
         }
         try writeJSON(["deleted": true])
 
     default:
-        throw NSError(domain: "FishFMKeychain", code: 3, userInfo: [NSLocalizedDescriptionKey: "Unknown credential operation"])
+        throw NSError(domain: "FeiyuFMKeychain", code: 3, userInfo: [NSLocalizedDescriptionKey: "Unknown credential operation"])
     }
 }
 
@@ -193,7 +193,7 @@ private final class AudioHost {
             let path = Array(socketPath.utf8CString)
             let capacity = MemoryLayout.size(ofValue: address.sun_path)
             guard path.count <= capacity else {
-                throw NSError(domain: "FishFMAudio", code: 1, userInfo: [NSLocalizedDescriptionKey: "Playback socket path is too long"])
+                throw NSError(domain: "FeiyuFMAudio", code: 1, userInfo: [NSLocalizedDescriptionKey: "Playback socket path is too long"])
             }
             withUnsafeMutablePointer(to: &address.sun_path) { pointer in
                 pointer.withMemoryRebound(to: CChar.self, capacity: capacity) { destination in
@@ -607,19 +607,19 @@ private func argument(_ name: String, default fallback: String? = nil) -> String
 }
 
 @main
-private enum FishFMMacHost {
+private enum FeiyuFMMacHost {
     static func main() {
         do {
-            guard CommandLine.arguments.count > 1 else { throw NSError(domain: "FishFMMacHost", code: 1, userInfo: [NSLocalizedDescriptionKey: "Expected 'playback' or 'credential'"]) }
+            guard CommandLine.arguments.count > 1 else { throw NSError(domain: "FeiyuFMMacHost", code: 1, userInfo: [NSLocalizedDescriptionKey: "Expected 'playback' or 'credential'"]) }
             switch CommandLine.arguments[1] {
             case "credential": try runCredentialCommand()
             case "playback":
-                guard let socket = argument("--socket") else { throw NSError(domain: "FishFMMacHost", code: 2, userInfo: [NSLocalizedDescriptionKey: "Missing --socket"]) }
+                guard let socket = argument("--socket") else { throw NSError(domain: "FeiyuFMMacHost", code: 2, userInfo: [NSLocalizedDescriptionKey: "Missing --socket"]) }
                 let owner = pid_t(Int32(argument("--owner-pid", default: "0") ?? "0") ?? 0)
                 let version = Int(argument("--protocol", default: String(protocolVersionDefault)) ?? String(protocolVersionDefault)) ?? protocolVersionDefault
                 let host = AudioHost(socketPath: socket, ownerPID: owner, protocolVersion: version)
                 try host.run()
-            default: throw NSError(domain: "FishFMMacHost", code: 3, userInfo: [NSLocalizedDescriptionKey: "Unknown helper mode"])
+            default: throw NSError(domain: "FeiyuFMMacHost", code: 3, userInfo: [NSLocalizedDescriptionKey: "Unknown helper mode"])
             }
         } catch {
             fputs("fishfm-macos-host: \(error.localizedDescription)\n", stderr)

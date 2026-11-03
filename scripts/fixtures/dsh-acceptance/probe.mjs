@@ -49,7 +49,7 @@ export function apply(ctx){
   }
   if(m.op==='toggle'){
    const e=[...ctx.loader.entries()].find(e=>e.options.id==='fishfm');
-   if(!e)throw new Error('Acceptance FishFM entry missing');
+   if(!e)throw new Error('Acceptance FeiyuFM entry missing');
    await e.update({...e.options,disabled:m.disabled===true});
    return{disabled:e.options.disabled};
   }

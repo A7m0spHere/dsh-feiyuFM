@@ -31,5 +31,5 @@ const server = createServer((req, res) => {
   try { const data = route[0] ? readFileSync(route[0]) : Buffer.from(JSON.stringify(clientArtwork().capabilities)); res.writeHead(200, { 'content-type': route[1], 'cache-control': 'no-store' }); res.end(req.method === 'HEAD' ? undefined : data); }
   catch { res.writeHead(500); res.end('Preview asset unavailable'); }
 });
-server.listen(port, '127.0.0.1', () => console.log(`FishFM preview http://127.0.0.1:${port} pid=${process.pid}`));
+server.listen(port, '127.0.0.1', () => console.log(`FeiyuFM preview http://127.0.0.1:${port} pid=${process.pid}`));
 for (const signal of ['SIGINT', 'SIGTERM']) process.on(signal, () => server.close());

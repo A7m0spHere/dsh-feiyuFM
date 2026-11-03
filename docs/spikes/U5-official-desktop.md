@@ -13,7 +13,7 @@
 | 状态 RPC 返回 404 | 页面显示 `/api/fishfm/state: HTTP 404`；rc.2 只允许一个共享 Gateway interceptor | 用 `connection.fetch.register` 的六个精确 POST 路由与 Gateway 共存，继续经过宿主认证与原 Core；没有 Fetch registry 的旧宿主保留 interceptor 路径 |
 | 悬浮条未显示 | DevTools 的 `shell.overlay` 条目报告 `TypeError: ... is not a function` | root hook 改为 `usePanelInfo(info => info.activePanelId)` |
 | 拖动吸边错误 | 初次拖动跑到右上角；slot 包装层无尺寸 | 拖动、方向键和缩放读取真实 `[data-shell-overlay]` 边界，保留旧布局直接父元素回退 |
-| 设置窗口文字挤压 | 宽桌面中的设置面板内容约 460px，原 media query 仍排两列 | 根据 FishFM 容器宽度应用 760/440 响应布局；空曲目快捷按钮增加禁用样式 |
+| 设置窗口文字挤压 | 宽桌面中的设置面板内容约 460px，原 media query 仍排两列 | 根据 FeiyuFM 容器宽度应用 760/440 响应布局；空曲目快捷按钮增加禁用样式 |
 
 接口依据为安装包 `resources/app.asar/dsh/node_modules/@deepseek-ai/` 内 `dsh-client-connection`、`dsh-client-ui-layout`、`dsh-home-paths` 和 `dsh-desktop-host` 的 rc.2 实现。只读取契约，没有复制实现或安装依赖。桌面 Host 缓存后端模块，本轮需正常退出并重新启动应用才能应用后端修复；仅停用/启用不更新缓存。客户端文件本轮可热加载。
 

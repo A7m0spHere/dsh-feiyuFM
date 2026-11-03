@@ -7,7 +7,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-test('FishFM bundled artwork whitelist serves all 11 assets and unloads cleanly', () => {
+test('FeiyuFM bundled artwork whitelist serves all 11 assets and unloads cleanly', () => {
   const routes = new Map();
   let effectCleanup;
   let disposed = 0;

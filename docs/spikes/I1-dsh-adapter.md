@@ -63,7 +63,7 @@ profile 的 bundles: dsh-base, dsh-web-app, @local/fishfm-p0-desktop-probe, dsh-
 
 本机 PHL 管理实例使用 DSH `0.2.0-rc.1`、Node `24.21.0`，符合项目 `package.json` 的 `>=24.14.0 <25` 范围。当前官方文档仍使用 bundle patch、Cordis 插件入口、工具输出 schema 和 `session/event`；没有发现会破坏本适配层的 API 变化。工具执行需接收 DSH 的 `exec.signal`：只读状态调用现在可响应中止，播放命令在发送前检查中止，发送后等待 Core 确认以避免遗漏已接受动作。
 
-按用户要求把本仓库通过 `dsh plugin --profile web add <本仓库目录>` 安装到该 PHL 实例。profile bundle 清单和 `--dump-config` 均出现 FishFM；运行中的 DSH Web 服务保持响应，宿主启动了该插件拥有的独立 Core 进程。`test/dsh-adapter.test.mjs` 9 项通过。最新版的工具实际调用、插件卸载、desktop profile、真实会话事件和音乐平台播放仍未验。
+按用户要求把本仓库通过 `dsh plugin --profile web add <本仓库目录>` 安装到该 PHL 实例。profile bundle 清单和 `--dump-config` 均出现 FeiyuFM；运行中的 DSH Web 服务保持响应，宿主启动了该插件拥有的独立 Core 进程。`test/dsh-adapter.test.mjs` 9 项通过。最新版的工具实际调用、插件卸载、desktop profile、真实会话事件和音乐平台播放仍未验。
 ## 关于 DSH 源码可读性的一处更正（2026-09-27 复核）
 
 本会话环境说明给出的检出路径 `D:\dsh\resources\app.asar\dsh\` **无法用文件系统 API 读取**：`app.asar` 是打包归档（117 MB），不是目录，`Test-Path` 返回 False 属预期。

@@ -26,7 +26,7 @@ export const TOOL_NAMES = Object.freeze({
 export const COMMAND_NAMES = Object.freeze(['fishfm', 'fishfm-pause', 'fishfm-next']);
 
 function toolAbortError(signal) {
-  const error = new Error('FishFM tool call was cancelled', { cause: signal?.reason });
+  const error = new Error('FeiyuFM tool call was cancelled', { cause: signal?.reason });
   error.name = 'AbortError';
   error.code = 'cancelled';
   return error;
@@ -389,7 +389,7 @@ export function registerAdapter(ctx, { bridge, onLog = () => {}, hostCollector =
     const registerTool = spec => { const dispose = toolCtx.tools.register(spec); onLog({ type: 'prompt-register', kind: 'tool', name: spec.name }); return dispose; };
     disposers.push(registerTool({
       name: TOOL_NAMES.status,
-      description: 'Report FishFM music state: current track, queue length, listening switches and the last error. No network access.',
+      description: 'Report FeiyuFM music state: current track, queue length, listening switches and the last error. No network access.',
       parameters: {
         type: 'object',
         properties: {},
@@ -426,7 +426,7 @@ export function registerAdapter(ctx, { bridge, onLog = () => {}, hostCollector =
 
     disposers.push(registerTool({
       name: TOOL_NAMES.control,
-      description: 'Control FishFM playback: pause, resume, next, or stop autonomous listening for today. Local only; never contacts a music platform.',
+      description: 'Control FeiyuFM playback: pause, resume, next, or stop autonomous listening for today. Local only; never contacts a music platform.',
       parameters: {
         type: 'object',
         properties: { action: { type: 'string', enum: ['pause', 'resume', 'next', 'stop_for_today', 'choose_self'] } },
@@ -470,7 +470,7 @@ export function registerAdapter(ctx, { bridge, onLog = () => {}, hostCollector =
 
     disposers.push(registerTool({
       name: TOOL_NAMES.request,
-      description: 'Ask FishFM to play one specific track by platform id. Acceptance may report resolving; use fishfm_status to inspect later playback or platform failures. A banned track fails immediately with a named reason.',
+      description: 'Ask FeiyuFM to play one specific track by platform id. Acceptance may report resolving; use fishfm_status to inspect later playback or platform failures. A banned track fails immediately with a named reason.',
       parameters: {
         type: 'object',
         properties: {
@@ -512,31 +512,31 @@ export function registerAdapter(ctx, { bridge, onLog = () => {}, hostCollector =
     const registerCommand = spec => { const dispose = commandCtx.commands.register(spec); onLog({ type: 'prompt-register', kind: 'command', name: spec.name }); return dispose; };
     disposers.push(registerCommand({
       name: COMMAND_NAMES[0],
-      description: 'Show FishFM music state.',
+      description: 'Show FeiyuFM music state.',
       handler: async () => {
         const answer = await bridge.request({ type: 'snapshot' });
         const current = answer.snapshot?.current;
         const label = current ? `${current.track.title || current.track.providerTrackId}` : 'nothing is playing';
-        return { kind: 'success', text: `FishFM: ${label} (${answer.snapshot?.status ?? 'unknown'})` };
+        return { kind: 'success', text: `FeiyuFM: ${label} (${answer.snapshot?.status ?? 'unknown'})` };
       },
     }));
     disposers.push(registerCommand({
       name: COMMAND_NAMES[1],
-      description: 'Pause FishFM playback. Autonomous events cannot undo this.',
+      description: 'Pause FeiyuFM playback. Autonomous events cannot undo this.',
       handler: async () => {
         await bridge.command({ type: 'pause' });
-        return { kind: 'success', text: 'FishFM paused.' };
+        return { kind: 'success', text: 'FeiyuFM paused.' };
       },
     }));
     disposers.push(registerCommand({
       name: COMMAND_NAMES[2],
-      description: 'Play the next queued track in FishFM.',
+      description: 'Play the next queued track in FeiyuFM.',
       handler: async () => {
         try {
           await bridge.command({ type: 'next' });
-          return { kind: 'success', text: 'FishFM: next track.' };
+          return { kind: 'success', text: 'FeiyuFM: next track.' };
         } catch (error) {
-          return { kind: 'error', text: `FishFM: ${String(error.code ?? error.message)}` };
+          return { kind: 'error', text: `FeiyuFM: ${String(error.code ?? error.message)}` };
         }
       },
     }));

@@ -8,7 +8,7 @@
 
 | 日期 | 选择与原因 | 依据 |
 |---|---|---|
-| 2026-09-27 | 名称为肥鱼电台 FishFM，仓库 `dsh-feiyuFM`；v0.1 保留网易云与 QQ 双平台范围，用户可只连接一个。偏好独立于用户环境，未知特征不猜测 | [原文第 1–3、6 节](archive/decisions-through-2026-10-18.md)、[MVP](MVP.md) |
+| 2026-09-27 | 名称为肥鱼电台 FeiyuFM，仓库 `dsh-feiyuFM`；v0.1 保留网易云与 QQ 双平台范围，用户可只连接一个。偏好独立于用户环境，未知特征不猜测 | [原文第 1–3、6 节](archive/decisions-through-2026-10-18.md)、[MVP](MVP.md) |
 | 2026-09-28～29 | 产品是可隐藏的音乐控制 UI，鲸鱼图只表达音乐状态；界面落在 DSH 主面板／设置／`shell.overlay`。这取代早期桌宠、默认角色和独立 Tauri 窗口设想；原生窗与 DPI 探针保留为历史 | [U3](spikes/U3-dsh-settings.md)、[U4](spikes/U4-quick-login.md)、原文第 15–19 节 |
 | 2026-10-01～02 | 真实闭环优先官方 Desktop。复用宿主认证 RPC／Fetch registry，不修改宿主、手写 profile 或新增生产监听端口；`npm install` 仅分发，注册由 Plugin Manager／DSH CLI 完成 | [U5](spikes/U5-official-desktop.md)、[交付说明](DELIVERY.md) |
 | 2026-10-02 | 用户暂缓 QQ，优先网易云与 UI；不删除 QQ，也不把网易云专项通过算成双平台完成 | [原文第 20 节](archive/decisions-through-2026-10-18.md) |
@@ -91,3 +91,5 @@
 2026-11-03，用户补充角色图像作者与来源公告，要求版权信息集中到一个 Markdown 文件，README 只保留鲸鱼娘（大肥鱼）的形象来源。版权范围与第三方依赖清单合并到 THIRD_PARTY_NOTICES，取代单独维护 DEPENDENCY_LICENSES 的方式；生成器只更新标记区域，保留人工核对的署名、改动说明与原许可。旧报告中的许可结论按其记录日期阅读，当前来源与使用范围以统一声明为准。
 
 第三方来源、版本、文件范围与许可只维护在 [版权声明](../THIRD_PARTY_NOTICES.md)，不在决策表重复许可结论。未核实的参考项目仍保留在归档，不能当作已获授权或已验证接口。
+
+2026-11-04，用户确认首个正式版本使用 npm 包名 `dsh-feiyufm`，产品名称统一为肥鱼电台 FeiyuFM。客户端模块标识与 npm 包名同步；既有 RPC、命令、环境变量与本机数据目录保留兼容，以便换包来源后继续使用原曲库和偏好。已发布测试版的包名、标签和原始证据保留在历史发行记录中。

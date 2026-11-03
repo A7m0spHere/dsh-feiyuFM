@@ -1,10 +1,10 @@
-# 肥鱼电台 FishFM
+# 肥鱼电台 FeiyuFM
 
-<img src="https://raw.githubusercontent.com/A7m0spHere/dsh-feiyuFM/main/assets/readme/hero.svg" width="100%" alt="肥鱼电台 FishFM：给正在工作的 DeepSeek 一副耳机。">
+<img src="https://raw.githubusercontent.com/A7m0spHere/dsh-feiyuFM/main/assets/readme/hero.svg" width="100%" alt="肥鱼电台 FeiyuFM：给正在工作的 DeepSeek 一副耳机。">
 
 **在 DeepSeek Harness（DSH）里，开一间由你掌控的电台。** 导入常听的歌曲，让网易云找来候选，再由模型挑出一批。大肥鱼陪着当前歌曲待在主面板里，你随时可以点播、暂停、换曲或静音。
 
-**Windows · 网易云 · Beta**　[安装 beta.3](#开始使用) · [发布记录](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/releases/0.1.0-beta.3.md) · [使用说明](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/DELIVERY.md) · [文档索引](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/README.md)
+**Windows · 网易云 · 0.1.0**　[安装](#开始使用) · [发布记录](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/releases/0.1.0.md) · [使用说明](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/DELIVERY.md) · [文档索引](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/README.md)
 
 ## 电台长什么样
 
@@ -12,10 +12,10 @@
   <source media="(prefers-color-scheme: dark) and (max-width: 600px)" srcset="https://raw.githubusercontent.com/A7m0spHere/dsh-feiyuFM/main/assets/readme/panel-narrow-dark.png?v=20261102">
   <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/A7m0spHere/dsh-feiyuFM/main/assets/readme/panel-dark.png?v=20261102">
   <source media="(max-width: 600px)" srcset="https://raw.githubusercontent.com/A7m0spHere/dsh-feiyuFM/main/assets/readme/panel-narrow.png?v=20261102">
-  <img src="https://raw.githubusercontent.com/A7m0spHere/dsh-feiyuFM/main/assets/readme/panel.png?v=20261102" width="100%" alt="FishFM 当前源码客户端：大肥鱼与当前歌曲、可选歌曲池和底部播放控制。">
+  <img src="https://raw.githubusercontent.com/A7m0spHere/dsh-feiyuFM/main/assets/readme/panel.png?v=20261102" width="100%" alt="FeiyuFM 当前源码客户端：大肥鱼与当前歌曲、可选歌曲池和底部播放控制。">
 </picture>
 
-当前源码（`main`）的隔离预览，按浅深色和屏宽切换。歌曲、账号状态与模型结果均为模拟数据；截图展示当前源码的界面；已发布的 beta.3 仍是旧版主面板。
+陪伴电台界面的隔离预览，按浅深色和屏宽切换。截图取自 2026-11-02 的源码，歌曲、账号状态与模型结果均为模拟数据；取景与当前发行版一致，不是账号或音频验收证据。
 
 主面板采用陪伴电台布局：大肥鱼与当前歌曲并列，下方是整个可选歌曲池，播放控制在面板底部常驻。顶部四个页面——正在听、发现记录、偏好与反馈、电台设置——共用一个音乐服务，切换页面不会中断播放；可隐藏的悬浮条也共用同一服务。界面支持浅色、深色和减少动态效果，工作区左缘还可选 ASCII 频谱背景。
 
@@ -24,7 +24,7 @@
 在 DSH「插件 → 添加插件」的「包名或地址」中输入：
 
 ```text
-dsh-feiyufm-core@0.1.0-beta.3
+dsh-feiyufm@0.1.0
 ```
 
 安装完成后点击「立即启用」。首次使用只需三步：
@@ -33,9 +33,11 @@ dsh-feiyufm-core@0.1.0-beta.3
 2. 从近期播放、喜欢的歌曲或指定歌单导入参考歌曲。
 3. 用 DSH 已配置的模型挑歌，或直接点播输入曲库。没有模型也能手动听歌。
 
-跟随测试版可安装 `dsh-feiyufm-core@beta`。升级时在插件管理器卸载旧来源、添加新版，保留同一 profile 的音乐数据库；后端更新后完整退出 DSH（含托盘）再启动。同一 profile 只启用一份 FishFM。
+跟随正式版可安装 `dsh-feiyufm@latest`。升级时在插件管理器卸载旧来源、添加新版，保留同一 profile 的音乐数据库；后端更新后完整退出 DSH（含托盘）再启动。同一 profile 只启用一份 FeiyuFM。
 
-> 仓库 `main` 已包含尚未发布的陪伴界面、设置标签页、ASCII 频谱、持续补歌规则、R3/R4 播放延迟优化与 UI 单入口清理；已发布的 beta.3 仍是旧版界面与按批换歌。安装说明以 beta.3 为准，源码安装见 [贡献指南](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/CONTRIBUTING.md)。
+旧测试包名为 `dsh-feiyufm-core`；升级时先移除该旧来源，再安装 `dsh-feiyufm`。已有音乐数据沿用原目录，无需删除数据库或重新建立偏好。
+
+> `0.1.0` 包含陪伴界面、设置标签页、ASCII 频谱、持续补歌和播放延迟优化。源码安装见 [贡献指南](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/CONTRIBUTING.md)。
 
 <details>
 <summary>通过 DSH CLI 安装</summary>
@@ -43,7 +45,7 @@ dsh-feiyufm-core@0.1.0-beta.3
 以 Web profile 为例，`web` 应对应你实际启动的 profile：
 
 ```sh
-dsh plugin --profile web add dsh-feiyufm-core@0.1.0-beta.3 --registry https://registry.npmjs.org/
+dsh plugin --profile web add dsh-feiyufm@0.1.0 --registry https://registry.npmjs.org/
 ```
 
 安装后重启该实例。单独 `npm install` 不会完成 DSH 插件注册和启用。
@@ -56,9 +58,7 @@ dsh plugin --profile web add dsh-feiyufm-core@0.1.0-beta.3 --registry https://re
 
 网易云提供相似歌曲、每日推荐等真实候选；模型结合参考歌曲与反馈挑选，并给出简短理由。电台只从入选歌单中自主选歌、续播，记录有效收听经历，供后续推荐参考。
 
-当前源码按整个入选池的余量持续补歌：窗口外可播余量降到 12 首时补充、补到 24 首停止；初始日预算 100000 tokens，取消筛选的固定每日次数与成功冷却，相同候选和已评审的偏好不重复请求。自动续播、普通下一首和推荐队列都不得选择最近 50 次真正开始的歌曲；没有窗口外可播歌曲时等待补批，不靠重播续播。逐曲播放和「下一首」始终在本地执行，不请求模型。
-
-已发布 beta.3 仍是按批换歌、后台筛选限频的旧规则，差异见 [开发状态](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/PROJECT_PLAN.md)。
+电台按整个入选池的余量持续补歌：窗口外可播余量降到 12 首时补充、补到 24 首停止；初始日预算 100000 tokens，筛选没有固定每日次数或成功冷却，相同候选和已评审的偏好不重复请求。自动续播、普通下一首和推荐队列都不得选择最近 50 次真正开始的歌曲；没有窗口外可播歌曲时等待补批，不靠重播续播。逐曲播放和「下一首」始终在本地执行，不请求模型。
 
 “听歌”指选歌、播放与收听记录形成的体验，当前不做音频理解。播放范围受网易云账号权限和资源限制影响。
 
@@ -79,7 +79,7 @@ dsh plugin --profile web add dsh-feiyufm-core@0.1.0-beta.3 --registry https://re
 <summary>没有声音，或暂时不能补充歌单？</summary>
 
 - **没有声音：** 检查声音开关、静听模式、暂停状态，以及系统音量和输出设备。首次播放可能等待数秒。
-- **不能补充歌单（beta.3 为「换一批」）：** 当前任务、预算或平台节流可能限制请求；余量不足时后台也会自动补充，等待期间仍可点播、暂停或换曲。
+- **不能补充歌单：** 当前任务、预算或平台节流可能限制请求；余量不足时后台也会自动补充，等待期间仍可点播、暂停或换曲。
 - **升级后没有变化：** 后端模块可能仍在缓存中，请从托盘完整退出 DSH 再启动。升级不需要删除音乐数据库。
 
 更多排查方法见 [使用说明](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/DELIVERY.md#常见问题)。
@@ -90,14 +90,12 @@ dsh plugin --profile web add dsh-feiyufm-core@0.1.0-beta.3 --registry https://re
 
 | 项目 | 范围 |
 | --- | --- |
-| Windows + 网易云 | 已发布 `0.1.0-beta.3`，npm 与官方 DSH 安装链路均已验证 |
+| Windows + 网易云 | `0.1.0` 首个正式版本；安装包与隔离宿主验证见发布记录 |
 | DSH / Node.js | 本机隔离验证 DSH `0.2.1-rc.5`；Node `>=24.14.0 <25`，桌面宿主自带兼容版本时无需另装 |
 | macOS | 实验性适配随包提供；真实登录、音频与退出生命周期仍待真机验收 |
 | QQ 音乐 | 接入暂缓，当前没有可用登录与播放链路 |
 
-beta.3 包含模型最终回答校验、可调输出额度、DPAPI／PowerShell 5.1 修复、全库搜索与手动换批优化，并修复旧导入写回、退出清理误报和迟到快照覆盖问题。完整变更见 [发布记录](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/releases/0.1.0-beta.3.md)。
-
-仓库 `main` 在 beta.3 之后包含陪伴界面、设置标签页、ASCII 频谱、最近 50 次硬性防重复、按池持续补歌、R3/R4 播放延迟优化与 UI 单入口清理，均未随 npm 包发布。最近一次全套离线回归与验证边界统一见 [开发状态](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/PROJECT_PLAN.md)。当前 Beta 不代表稳定 v0.1 验收完成。
+`0.1.0` 汇总 beta.3 之后的陪伴界面、设置标签页、ASCII 频谱、最近 50 次硬性防重复、持续补歌、历史前后导航和播放延迟优化。完整变更见 [发布记录](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/releases/0.1.0.md)；完整产品验收仍有长期体验、平台与宿主组合的未验项，统一见 [开发状态](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/PROJECT_PLAN.md)。
 
 ## 数据与开发
 

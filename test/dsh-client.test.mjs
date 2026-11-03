@@ -650,7 +650,7 @@ test('an imported library restored from Core enables first playback and point pl
   } finally { off(); f.dispose(); }
 });
 
-test('the floating player selects the active panel from the host hook and returns after leaving FishFM', () => {
+test('the floating player selects the active panel from the host hook and returns after leaving FeiyuFM', () => {
   const f = fixture(async () => state(snapshot(1)));
   try {
     assert.ok(f.renderOverlay(), 'the conversation shows the widget');
@@ -659,7 +659,7 @@ test('the floating player selects the active panel from the host hook and return
   } finally { f.dispose(); }
 });
 
-test('the ASCII spectrum backdrop ships enabled, stays non-interactive and hides inside the FishFM panel', () => {
+test('the ASCII spectrum backdrop ships enabled, stays non-interactive and hides inside the FeiyuFM panel', () => {
   const f = fixture(async () => state(snapshot(1)));
   try {
     const strip = f.renderSpectrum();

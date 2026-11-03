@@ -1,12 +1,12 @@
 # 版权、素材来源与第三方许可
 
-本文件统一维护 FishFM 的版权范围、角色署名、第三方代码通知和运行依赖清单。项目原创代码与文档采用 [MIT License](LICENSE)，Copyright (c) 2026 A7m0spHere；第三方代码、角色形象与素材分别适用下述条款。根目录 `LICENSE` 保留标准 MIT 原文，不能据此将整个安装包中的音乐、图像或依赖统一按 MIT 使用。
+本文件统一维护 FeiyuFM 的版权范围、角色署名、第三方代码通知和运行依赖清单。项目原创代码与文档采用 [MIT License](LICENSE)，Copyright (c) 2026 A7m0spHere；第三方代码、角色形象与素材分别适用下述条款。根目录 `LICENSE` 保留标准 MIT 原文，不能据此将整个安装包中的音乐、图像或依赖统一按 MIT 使用。
 
 `package.json` 的 `license` 指向本文件，以标明安装包包含多种许可；这不改变项目原创代码与文档的 MIT 许可。
 
 ## 项目与平台内容
 
-FishFM 是独立维护的 DSH 社区插件，与 DeepSeek、网易云及其他相关厂商不存在官方隶属或背书关系。文中产品名称和标识用于识别相关产品，相关权利归各自权利人所有。
+FeiyuFM 是独立维护的 DSH 社区插件，与 DeepSeek、网易云及其他相关厂商不存在官方隶属或背书关系。文中产品名称和标识用于识别相关产品，相关权利归各自权利人所有。
 
 平台提供的音乐及相关内容不属于本项目的 MIT 授权范围。本项目不授予这些内容的复制、传播或商业使用权；播放可用性受账号权限、平台服务规则和资源状态影响。仓库与 npm 包不提供歌曲音频、账号凭据或运行数据库。
 
@@ -26,11 +26,11 @@ AI 生成是图像的制作方式，不改变原角色署名与上述使用条�
 
 | 文件 | 取得方式与改动 | 适用说明 |
 |---|---|---|
-| `src/ui/assets/whale-pot-dance.gif` | 用户提供 AI 动图；本项目逐帧去背景、统一裁切、调整透明蒙版与调色板，保留 50 帧动作及时序 | 鲸鱼娘衍生图，CC BY-NC-SA 4.0；署名上善无形、ZipZipPipe，注明 FishFM 抠图处理 |
+| `src/ui/assets/whale-pot-dance.gif` | 用户提供 AI 动图；本项目逐帧去背景、统一裁切、调整透明蒙版与调色板，保留 50 帧动作及时序 | 鲸鱼娘衍生图，CC BY-NC-SA 4.0；署名上善无形、ZipZipPipe，注明 FeiyuFM 抠图处理 |
 | `src/ui/assets/whale-pot-still.png` | 从同一动图第 16 帧提取并去背景 | 同上 |
 | `src/ui/assets/dolls/doll-deepseek.png` | 从 Workshop 原字节提取，没有重画、裁切或重采样 | 鲸鱼娘衍生图，CC BY-NC-SA 4.0；署名上善无形、ZipZipPipe |
 | `src/ui/assets/dolls/doll-{glm,claude,gemini,gpt,grok}.png` | 同批 Workshop AI 角色图，原字节提取 | 署名 ZipZipPipe，非商业性使用，按作者公开说明处理 |
-| `src/ui/assets/whale-idle.png`、`whale-listening.png`、`whale-dj.png` | 本项目使用 Codex ImageGen 生成的鲸鱼娘状态图，改编角色姿态与用途 | 鲸鱼娘衍生图，CC BY-NC-SA 4.0；署名上善无形、ZipZipPipe，注明 FishFM AI 状态图改编 |
+| `src/ui/assets/whale-idle.png`、`whale-listening.png`、`whale-dj.png` | 本项目使用 Codex ImageGen 生成的鲸鱼娘状态图，改编角色姿态与用途 | 鲸鱼娘衍生图，CC BY-NC-SA 4.0；署名上善无形、ZipZipPipe，注明 FeiyuFM AI 状态图改编 |
 
 Workshop 来源为 [Wallpaper Engine 项目 3811739493](https://steamcommunity.com/sharedfiles/filedetails/?id=3811739493)（应用 `431960`）。六张 PNG 的尺寸、SHA-256 与提取路径见 [U12 原始清单](https://github.com/A7m0spHere/dsh-feiyuFM/blob/233bffa52309c8f0ee9bc18b88275c54c82f3aa0/docs/spikes/U12-doll-assets.json)；GIF 原附件 hash、逐帧处理和验证见 [U10](https://github.com/A7m0spHere/dsh-feiyuFM/blob/233bffa52309c8f0ee9bc18b88275c54c82f3aa0/docs/spikes/U10-user-gif-cutout.md)。上述早期记录中的“作者/许可未确认”是当时状态，作者与使用条件以本文件 2026-11-03 的补核为准。原附件不入库，普通安装无需 Wallpaper Engine 或提取脚本。壁纸 `physics.js` / `app.js` 只作运动参考，没有复制其 JavaScript、音乐或视频。
 
@@ -48,7 +48,7 @@ Workshop 来源为 [Wallpaper Engine 项目 3811739493](https://steamcommunity.c
 
 ## PHL design tokens and motion reference — MIT
 
-FishFM's `src/ui/client/styles.mjs` adapts the light/dark neutral and azure values and timing vocabulary from the user's local `dsh-phl` project, inspected on 2026-10-02 at base commit `3ec73011d20d9b44c797bde302a4576b8671b1b3`: `src/index.css` and `src/lib/motion.ts`. `src/components/ui/Card.tsx`, `Button.tsx`, `Menu.tsx` and `src/components/layout/Page.tsx` were read as visual/interaction references. FishFM's components and CSS animation/presence implementation are maintained here; no PHL logo, launcher assets, Tauri code or motion library was copied or added as a runtime dependency. The local project declares MIT and includes this license:
+FeiyuFM's `src/ui/client/styles.mjs` adapts the light/dark neutral and azure values and timing vocabulary from the user's local `dsh-phl` project, inspected on 2026-10-02 at base commit `3ec73011d20d9b44c797bde302a4576b8671b1b3`: `src/index.css` and `src/lib/motion.ts`. `src/components/ui/Card.tsx`, `Button.tsx`, `Menu.tsx` and `src/components/layout/Page.tsx` were read as visual/interaction references. FeiyuFM's components and CSS animation/presence implementation are maintained here; no PHL logo, launcher assets, Tauri code or motion library was copied or added as a runtime dependency. The local project declares MIT and includes this license:
 
 ```text
 MIT License
@@ -76,7 +76,7 @@ SOFTWARE.
 
 ## dsh-api-dashboard — MIT
 
-The downward-swipe close behavior in `src/ui/client/components.mjs`'s `SwipeHandle` (bundled into `src/ui/dsh-client.js`) is adapted from `client/client.js` lines 92–135 of [`dsh-api-dashboard` v1.4.5, commit `3792f1547bce222260eeeca015c6e13b7d5f466e`](https://github.com/133563825as-ai/dsh-api-dashboard/blob/3792f1547bce222260eeeca015c6e13b7d5f466e/client/client.js). The panel and card styling were implemented for FishFM; no images, provider code, or account features were copied. The upstream project is MIT-licensed.
+The downward-swipe close behavior in `src/ui/client/components.mjs`'s `SwipeHandle` (bundled into `src/ui/dsh-client.js`) is adapted from `client/client.js` lines 92–135 of [`dsh-api-dashboard` v1.4.5, commit `3792f1547bce222260eeeca015c6e13b7d5f466e`](https://github.com/133563825as-ai/dsh-api-dashboard/blob/3792f1547bce222260eeeca015c6e13b7d5f466e/client/client.js). The panel and card styling were implemented for FeiyuFM; no images, provider code, or account features were copied. The upstream project is MIT-licensed.
 
 ```text
 MIT License
@@ -104,9 +104,9 @@ SOFTWARE.
 
 ## NetEase Cloud Music community Node API
 
-2026-10-01 QR repair additionally calls the pinned package's `module/login_qr_key.js`, `module/login_qr_check.js`, and `util/request.js`. FishFM's wrapper preserves a request rejection which the pinned QR module's catch otherwise masks. No upstream source was modified. Packages bundle the original runtime tree and its license files; the same pinned version and MIT declaration apply. Research and validation: [U6](https://github.com/A7m0spHere/dsh-feiyuFM/blob/233bffa52309c8f0ee9bc18b88275c54c82f3aa0/docs/spikes/U6-qr-login-repair.md).
+2026-10-01 QR repair additionally calls the pinned package's `module/login_qr_key.js`, `module/login_qr_check.js`, and `util/request.js`. FeiyuFM's wrapper preserves a request rejection which the pinned QR module's catch otherwise masks. No upstream source was modified. Packages bundle the original runtime tree and its license files; the same pinned version and MIT declaration apply. Research and validation: [U6](https://github.com/A7m0spHere/dsh-feiyuFM/blob/233bffa52309c8f0ee9bc18b88275c54c82f3aa0/docs/spikes/U6-qr-login-repair.md).
 
-`@neteasecloudmusicapienhanced/api@4.40.1` is a direct runtime dependency, pinned in `package.json` and `npm-shrinkwrap.json`. Its npm metadata declares MIT. FishFM calls its Node modules in process and does not start the package's Express server. The distributed license retains Copyright (c) 2013-2022 Binaryify. See [the package README](https://github.com/NeteaseCloudMusicApiEnhanced/api-enhanced/blob/main/README.MD) and [package manifest](https://github.com/NeteaseCloudMusicApiEnhanced/api-enhanced/blob/main/package.json). The npm package includes the original runtime tree without changing upstream source; nested licenses and notice locations are listed in the runtime dependency section below.
+`@neteasecloudmusicapienhanced/api@4.40.1` is a direct runtime dependency, pinned in `package.json` and `npm-shrinkwrap.json`. Its npm metadata declares MIT. FeiyuFM calls its Node modules in process and does not start the package's Express server. The distributed license retains Copyright (c) 2013-2022 Binaryify. See [the package README](https://github.com/NeteaseCloudMusicApiEnhanced/api-enhanced/blob/main/README.MD) and [package manifest](https://github.com/NeteaseCloudMusicApiEnhanced/api-enhanced/blob/main/package.json). The npm package includes the original runtime tree without changing upstream source; nested licenses and notice locations are listed in the runtime dependency section below.
 
 ## Navidrome / Music Assistant — interaction references only
 
@@ -114,7 +114,7 @@ SOFTWARE.
 
 ## DeepSeek Balance Whale Widget — reference only
 
-The widget's bubble, compact status, and three-dot menu informed the FishFM overlay. No code or artwork was copied. The upstream repository states that its code is MIT-licensed while `assets/**` is outside that grant; FishFM uses the separately generated character derivatives documented above in `src/ui/assets/`, subject to their character-art terms. See [upstream provenance](https://raw.githubusercontent.com/MeteorNOX/DeepSeek-Balance-Whale-Widget/main/PROVENANCE.md).
+The widget's bubble, compact status, and three-dot menu informed the FeiyuFM overlay. No code or artwork was copied. The upstream repository states that its code is MIT-licensed while `assets/**` is outside that grant; FeiyuFM uses the separately generated character derivatives documented above in `src/ui/assets/`, subject to their character-art terms. See [upstream provenance](https://raw.githubusercontent.com/MeteorNOX/DeepSeek-Balance-Whale-Widget/main/PROVENANCE.md).
 
 ## Pixel-whale ASCII frames — BSD-3-Clause
 
@@ -191,7 +191,7 @@ npm 包封装 `npm-shrinkwrap.json` 锁定的运行依赖，保留各依赖原�
 
 ### LGPL-3.0-only：@unblockneteasemusic/server
 
-- 版本 `0.28.0`，来源 [UnblockNeteaseMusic/server](https://github.com/UnblockNeteaseMusic/server)，由 `@neteasecloudmusicapienhanced/api` → `@neteasecloudmusicapienhanced/unblockmusic-utils` 的依赖链带入；不是本项目原创代码，FishFM 未修改其源码。
+- 版本 `0.28.0`，来源 [UnblockNeteaseMusic/server](https://github.com/UnblockNeteaseMusic/server)，由 `@neteasecloudmusicapienhanced/api` → `@neteasecloudmusicapienhanced/unblockmusic-utils` 的依赖链带入；不是本项目原创代码，FeiyuFM 未修改其源码。
 - 安装包中的库位于 `node_modules/@unblockneteasemusic/server/`。完整 JavaScript 源码在 `src/`，包入口为 `src/provider/match.js`；构建说明与配置随原包保留。`COPYING` 为 GPLv3 原文，`COPYING.LESSER` 为 LGPLv3 的附加许可，两份均保留。
 - 可完整退出 DSH，在实际插件安装目录中定位上述库，修改或替换其中接口兼容的源码，再重新启动插件。该库没有被内联进 `src/ui/dsh-client.js`；本项目允许为修改该库及调试这些修改而进行必要的替换和逆向工程。插件升级可能覆盖本机修改，应自行保留补丁。
 - 再分发原库或修改版本时保留原版权、两份许可与相应源码；修改版本注明改动并按 LGPL 条款处理。本项目的 MIT 不替代这项义务。[LGPLv3 全文](https://www.gnu.org/licenses/lgpl-3.0.html)。

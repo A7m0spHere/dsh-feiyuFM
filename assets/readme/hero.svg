@@ -1,11 +1,11 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="260" viewBox="0 0 1200 260" role="img" aria-labelledby="title desc">
-  <title id="title">肥鱼电台 FishFM</title>
+  <title id="title">肥鱼电台 FeiyuFM</title>
   <desc id="desc">给正在工作的 DeepSeek 一副耳机。DSH 社区音乐插件，由网易云找歌、模型挑歌，本地电台播放。</desc>
   <rect width="1200" height="260" rx="24" fill="#f3f5f8"/>
   <g font-family="Segoe UI, Microsoft YaHei, PingFang SC, sans-serif">
     <g id="title-block" transform="translate(56 48)">
       <text font-size="22" font-weight="600" fill="#2864db">DSH / 社区音乐插件</text>
-      <text y="92" font-size="82" font-weight="700" fill="#172235">肥鱼电台 <tspan fill="#2864db">FishFM</tspan></text>
+      <text y="92" font-size="82" font-weight="700" fill="#172235">肥鱼电台 <tspan fill="#2864db">FeiyuFM</tspan></text>
       <text y="150" font-size="38" fill="#566171">给正在工作的 DeepSeek 一副耳机。</text>
     </g>
     <g id="player-mark" transform="translate(1008 67)">

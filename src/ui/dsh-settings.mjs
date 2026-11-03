@@ -84,7 +84,7 @@ export function createSettingsHandler(bridge,summaryService={current:null}) {
   return async (endpoint, payload, signal) => {
     try {
       if (endpoint !== STATE_ENDPOINT && endpoint !== PROFILE_ENDPOINT && endpoint !== LIBRARY_ENDPOINT && endpoint !== EXPRESSION_ENDPOINT && !FEEDBACK_ENDPOINTS.has(endpoint) && endpoint !== 'fishfm/command' && !PLATFORM_ENDPOINTS.has(endpoint)&&!PERSONA_ENDPOINTS.has(endpoint)) {
-        throw Object.assign(new Error('Unknown FishFM endpoint'), { code: 'not_found' });
+        throw Object.assign(new Error('Unknown FeiyuFM endpoint'), { code: 'not_found' });
       }
       if (endpoint === STATE_ENDPOINT && payload?.playbackOnly === true) {
         await bridge.start();
@@ -276,7 +276,7 @@ export function registerSettingsApi(ctx, bridge,summaryService) {
             catch { return new Response('Invalid JSON', { status: 400 }); }
             const valid = message?.type === 'client-request' && typeof message.rpcId === 'string' && message.method === endpoint;
             const result = valid ? await handler(endpoint, message.payload, request.signal)
-              : { ok: false, error: { code: 'gateway/bad-request', message: 'Invalid FishFM RPC envelope' } };
+              : { ok: false, error: { code: 'gateway/bad-request', message: 'Invalid FeiyuFM RPC envelope' } };
             return Response.json({ type: 'server-response', rpcId: typeof message?.rpcId === 'string' ? message.rpcId : 'invalid-request', result });
           },
         }));
