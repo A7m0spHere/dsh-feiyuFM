@@ -95,7 +95,7 @@ R3 的 WPF → Core → UI 等待主要不是管道或 UI 轮询本身，而是 
 
 ## 七、日常原生 Desktop
 
-本轮**未实测**：没有关闭或重启用户正在使用的 DSH Desktop，也没有强制中断。隔离 DSH Web 的真实认证 RPC、真实网易云资源与真实静音 WPF 已验；日常 Desktop 的实际加载版本与手感仍需用户现场确认。
+本轮**未实测**：没有关闭或重启用户正在使用的 DSH Desktop，也没有强制中断。隔离 DSH Web 的真实认证 RPC、真实网易云资源与真实静音 WPF 已验；日常 Desktop 的实际加载版本与手感仍需用户现场确认。后续用户现场反馈见第十节。
 
 ## 八、仍需用户现场验证
 
@@ -113,3 +113,7 @@ R3 的 WPF → Core → UI 等待主要不是管道或 UI 轮询本身，而是 
 - 文档：本报告、`docs/spikes/README.md`、`docs/PROJECT_PLAN.md`、`docs/CORE_CONTRACT.md`、`CHANGELOG.md`、`scripts/README.md`。
 
 没有合并 main、没有发布 npm、没有改推荐评分、最近 50 次窗口、历史导航规则或成长逻辑。
+
+## 十、用户现场反馈（2026-11-03）
+
+用户在日常 Windows DSH Desktop 加载本轮代码后反馈：手感明显改善，延迟响应降低到可接受程度；未感觉到 CDN 波动；使用物理鼠标点击正常。该反馈按用户实测来源单列，不替代隔离测量、请求/资源归因或完整验收；精确加载版本/loadedCode、远端自然结束与长期稳定性仍未单独核对。
