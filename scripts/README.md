@@ -12,6 +12,7 @@
 | `npm test` | 自动化回归；Windows 默认包含静音 WPF 媒体回归，需可用音频环境 |
 | `npm run audit:acceptance` | 验收引用和文档链接核对，只检查证据存在，不替代运行验收 |
 | `npm run verify:lifecycle` | 在隔离临时状态目录验证生命周期，不访问真实 DSH home |
+| `node scripts/playback-navigation-latency.mjs --out <新目录> [--repo <源码目录>] [--real-provider] [--wait-natural]` | Windows 新建隔离 DSH Web profile、真实认证 RPC/挂载客户端/静音 WPF，记录 1/4/10/20 秒 next、快速点击、历史前进与自然续播。默认本地静音媒体；`--real-provider` 读取本机 FishFM 数据库和 DPAPI 凭据的副本，仅改隔离副本并禁用模型，远端自然结束需 `--wait-natural`。分别记录状态投影与 DOM 显示，范围和结果见 [R3](../docs/spikes/R3-playback-navigation-prefetch.md) |
 | `node scripts/verify-dsh-integration.mjs --runtime-node <exe> --runtime-root <bundled-dsh> --out <新目录> [--model-home <已有home>]` | Windows 后台真实 DSH Web profile、认证 RPC、Session 并发、静音 WPF、成长与停用；显式提供模型 home 才复用所选路线并调用模型。范围及复现见 [N24](../docs/spikes/N24-dsh-background-acceptance.md) |
 | 上述入口增加 `--repeat-policy`，不传 `--model-home` | 受控 filtered、两批合成批准、真实静音 WPF 的窗口／失败／重启／待播池验证，并核对小池耗尽等待、普通 next 不能绕过最近 50 次硬窗口；预算为 0，不调用真实模型，见 [N26](../docs/spikes/N26-hard-repeat-window.md)，旧证据见 N25 |
 | `npm run research -- --help` | #7 单批推荐只读导出、离线比较与人工评价；见 [研究说明](../docs/research/README.md)，不调用模型或播放 |

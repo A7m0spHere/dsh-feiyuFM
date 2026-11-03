@@ -118,6 +118,7 @@ beta.3 的模型协议／最终回答与日常原生 Desktop 重启补验见 [N2
 | [R1](R1-faults.md) | R1 故障与资源检查 |
 | [R2](R2-soak.md) | A09 / R2 请求计数与长跑证据 |
 | [R2 后续反馈](R2-two-hour-playback-20261030.md) | Windows DSH Desktop 两小时自动播放完成；只读实证 5 次隔 8 首重复与小池耗尽降级 |
+| [R3 播放控制](R3-playback-navigation-prefetch.md) | 双向历史导航、解析所有权与备用播放器生命周期、分阶段延迟测量 |
 
 ## 专项验收
 

@@ -1,0 +1,1942 @@
+{
+  "schema": 1,
+  "measuredOn": "2026-11-03",
+  "timezone": "Asia/Shanghai",
+  "timestampUnit": "Unix epoch milliseconds",
+  "unknown": null,
+  "interaction": "programmatic DOM button.click in the installed DSH Web client; rapid-next invokes the same controller four times synchronously",
+  "boundaries": {
+    "nativeDesktop": "not_executed",
+    "physicalPointer": "not_executed",
+    "remoteAudio": "real NetEase resources and real WPF with output volume zero",
+    "localAudio": "generated silent local WAV and real WPF",
+    "uiProjection": "controller subscriber",
+    "domDisplay": "MutationObserver and requestAnimationFrame matching actual title and playback-status DOM",
+    "preFixStarted": "Core receipt of started; precise WPF timestamps unavailable in 61fa5d4",
+    "naturalEnd": "Core receipt of ended; compare Core-started consistently across revisions",
+    "systemLoad": "early samples overlapped independent local/remote runs and test work; final-verified, final-natural-host-v2 and final-matrix ran without the test suite or another measurement run",
+    "nearEndResume": "A separate saved-position fixture; real WPF confirms seeking near the media end and emits real ended/started. Do not calculate a full-song improvement percentage against this sample."
+  },
+  "runs": [
+    {
+      "runId": "baseline-native-dom",
+      "phase": "61fa5d4",
+      "scope": "real-dsh-web-wpf-local-silent-media",
+      "sourceHashes": {
+        "src/core.mjs": "66c4ff36046fe9537102020ecb723320634f84fd3e84caf7c3890aced4b49ecd",
+        "src/core-host.mjs": "c0bb9d2bc6664f75da75a38f93495d091ea776f45eda73b2947396a40a5f33c4",
+        "src/ui/dsh-client.js": "62119a75d745f6c1afa3267fc9b47566baab932cdc6b7cc3a6a2868475d4e9ba",
+        "src/playback/service.mjs": "4a8f392e1bc39baf931ad56bc35301515da6f6d9ae7aadafbddc4e729df8a678",
+        "src/playback/host/wpf-media-host.ps1": "e8984ccffe7f7f0b0624747ceca9c13f6366a6c42f7207b1470aa87e67033bdc"
+      },
+      "runTime": {
+        "startedAt": "2026-11-03T09:06:57.880Z",
+        "finishedAt": "2026-11-03T09:08:37.113Z"
+      },
+      "codeVerified": {
+        "isolatedNewCore": true,
+        "sourceHashesUnchanged": true,
+        "installedFromSelectedRepo": true
+      },
+      "coreClosed": false,
+      "onboardingOverlay": true,
+      "scenarios": [
+        {
+          "scenario": "next-after-1s",
+          "status": "completed",
+          "traceId": null,
+          "playInstanceId": "b01901dd-3574-43c6-9a23-d3f434859fb9",
+          "trackKey": "netease:acceptance-4",
+          "acceptedPlayInstanceId": null,
+          "firstSelectedPlayInstanceId": "b01901dd-3574-43c6-9a23-d3f434859fb9",
+          "recoveredErrorCodes": [],
+          "historyForwardCorrect": null,
+          "resourceSources": [],
+          "preload": {
+            "standbyReady": null,
+            "usePreload": null,
+            "hostConfirmed": null,
+            "hostLoadMs": null
+          },
+          "timestamps": {
+            "uiClickAt": 1793696839477,
+            "rpcSentAt": null,
+            "coreReceivedAt": null,
+            "selectedAt": 1793696839531,
+            "coreAcceptedAt": null,
+            "rpcReceivedAt": null,
+            "uiCurrentAt": 1793696839574,
+            "domCurrentAt": 1793696839576,
+            "recoveredSelectedAt": null,
+            "recoveredDOMCurrentAt": null,
+            "loadStartedAt": null,
+            "wpfLoadStartedAt": null,
+            "wpfStartedAt": null,
+            "coreStartedAt": 1793696840649,
+            "uiPlayingAt": 1793696841145,
+            "domPlayingAt": 1793696841147,
+            "endedAt": null
+          },
+          "errorCode": null
+        },
+        {
+          "scenario": "next-after-4s",
+          "status": "completed",
+          "traceId": null,
+          "playInstanceId": "a756f227-4a7d-4dc8-bb96-5e2e1f9f27eb",
+          "trackKey": "netease:acceptance-3",
+          "acceptedPlayInstanceId": null,
+          "firstSelectedPlayInstanceId": "a756f227-4a7d-4dc8-bb96-5e2e1f9f27eb",
+          "recoveredErrorCodes": [],
+          "historyForwardCorrect": null,
+          "resourceSources": [],
+          "preload": {
+            "standbyReady": null,
+            "usePreload": null,
+            "hostConfirmed": null,
+            "hostLoadMs": null
+          },
+          "timestamps": {
+            "uiClickAt": 1793696846812,
+            "rpcSentAt": null,
+            "coreReceivedAt": null,
+            "selectedAt": 1793696846844,
+            "coreAcceptedAt": null,
+            "rpcReceivedAt": null,
+            "uiCurrentAt": 1793696846871,
+            "domCurrentAt": 1793696846875,
+            "recoveredSelectedAt": null,
+            "recoveredDOMCurrentAt": null,
+            "loadStartedAt": null,
+            "wpfLoadStartedAt": null,
+            "wpfStartedAt": null,
+            "coreStartedAt": 1793696847189,
+            "uiPlayingAt": 1793696847388,
+            "domPlayingAt": 1793696847390,
+            "endedAt": null
+          },
+          "errorCode": null
+        },
+        {
+          "scenario": "next-after-10s",
+          "status": "completed",
+          "traceId": null,
+          "playInstanceId": "2e432b9f-e77b-4ead-a879-5f57228a2318",
+          "trackKey": "netease:acceptance-7",
+          "acceptedPlayInstanceId": null,
+          "firstSelectedPlayInstanceId": "2e432b9f-e77b-4ead-a879-5f57228a2318",
+          "recoveredErrorCodes": [],
+          "historyForwardCorrect": null,
+          "resourceSources": [],
+          "preload": {
+            "standbyReady": null,
+            "usePreload": null,
+            "hostConfirmed": null,
+            "hostLoadMs": null
+          },
+          "timestamps": {
+            "uiClickAt": 1793696858359,
+            "rpcSentAt": null,
+            "coreReceivedAt": null,
+            "selectedAt": 1793696858393,
+            "coreAcceptedAt": null,
+            "rpcReceivedAt": null,
+            "uiCurrentAt": 1793696858422,
+            "domCurrentAt": 1793696858426,
+            "recoveredSelectedAt": null,
+            "recoveredDOMCurrentAt": null,
+            "loadStartedAt": null,
+            "wpfLoadStartedAt": null,
+            "wpfStartedAt": null,
+            "coreStartedAt": 1793696859171,
+            "uiPlayingAt": 1793696859311,
+            "domPlayingAt": 1793696859312,
+            "endedAt": null
+          },
+          "errorCode": null
+        },
+        {
+          "scenario": "next-after-20s",
+          "status": "completed",
+          "traceId": null,
+          "playInstanceId": "27c42c0b-7ca6-4809-9fd5-1e0adcf22880",
+          "trackKey": "netease:acceptance-9",
+          "acceptedPlayInstanceId": null,
+          "firstSelectedPlayInstanceId": "27c42c0b-7ca6-4809-9fd5-1e0adcf22880",
+          "recoveredErrorCodes": [],
+          "historyForwardCorrect": null,
+          "resourceSources": [],
+          "preload": {
+            "standbyReady": null,
+            "usePreload": null,
+            "hostConfirmed": null,
+            "hostLoadMs": null
+          },
+          "timestamps": {
+            "uiClickAt": 1793696881526,
+            "rpcSentAt": null,
+            "coreReceivedAt": null,
+            "selectedAt": 1793696881560,
+            "coreAcceptedAt": null,
+            "rpcReceivedAt": null,
+            "uiCurrentAt": 1793696881595,
+            "domCurrentAt": 1793696881600,
+            "recoveredSelectedAt": null,
+            "recoveredDOMCurrentAt": null,
+            "loadStartedAt": null,
+            "wpfLoadStartedAt": null,
+            "wpfStartedAt": null,
+            "coreStartedAt": 1793696881958,
+            "uiPlayingAt": 1793696882112,
+            "domPlayingAt": 1793696882113,
+            "endedAt": null
+          },
+          "errorCode": null
+        },
+        {
+          "scenario": "rapid-next",
+          "status": "completed",
+          "traceId": null,
+          "playInstanceId": "e8e320db-0e74-4b01-a33b-2014d58c29db",
+          "trackKey": "netease:acceptance-2",
+          "acceptedPlayInstanceId": null,
+          "firstSelectedPlayInstanceId": "e8e320db-0e74-4b01-a33b-2014d58c29db",
+          "recoveredErrorCodes": [],
+          "historyForwardCorrect": null,
+          "resourceSources": [],
+          "preload": {
+            "standbyReady": null,
+            "usePreload": null,
+            "hostConfirmed": null,
+            "hostLoadMs": null
+          },
+          "timestamps": {
+            "uiClickAt": 1793696882142,
+            "rpcSentAt": null,
+            "coreReceivedAt": null,
+            "selectedAt": 1793696882176,
+            "coreAcceptedAt": null,
+            "rpcReceivedAt": null,
+            "uiCurrentAt": 1793696882210,
+            "domCurrentAt": 1793696882214,
+            "recoveredSelectedAt": null,
+            "recoveredDOMCurrentAt": null,
+            "loadStartedAt": null,
+            "wpfLoadStartedAt": null,
+            "wpfStartedAt": null,
+            "coreStartedAt": 1793696883064,
+            "uiPlayingAt": 1793696883238,
+            "domPlayingAt": 1793696883240,
+            "endedAt": null
+          },
+          "errorCode": null
+        },
+        {
+          "scenario": "history-forward",
+          "status": "completed",
+          "traceId": null,
+          "playInstanceId": "00cc2e7c-c0b8-4190-9012-1340ac6f903d",
+          "trackKey": "netease:acceptance-6",
+          "acceptedPlayInstanceId": null,
+          "firstSelectedPlayInstanceId": "00cc2e7c-c0b8-4190-9012-1340ac6f903d",
+          "recoveredErrorCodes": [],
+          "historyForwardCorrect": false,
+          "resourceSources": [],
+          "preload": {
+            "standbyReady": null,
+            "usePreload": null,
+            "hostConfirmed": null,
+            "hostLoadMs": null
+          },
+          "timestamps": {
+            "uiClickAt": 1793696884647,
+            "rpcSentAt": null,
+            "coreReceivedAt": null,
+            "selectedAt": 1793696884679,
+            "coreAcceptedAt": null,
+            "rpcReceivedAt": null,
+            "uiCurrentAt": 1793696884711,
+            "domCurrentAt": 1793696884715,
+            "recoveredSelectedAt": null,
+            "recoveredDOMCurrentAt": null,
+            "loadStartedAt": null,
+            "wpfLoadStartedAt": null,
+            "wpfStartedAt": null,
+            "coreStartedAt": 1793696885435,
+            "uiPlayingAt": 1793696885714,
+            "domPlayingAt": 1793696885716,
+            "endedAt": null
+          },
+          "errorCode": null
+        },
+        {
+          "scenario": "natural-end",
+          "status": "completed",
+          "traceId": null,
+          "playInstanceId": "c6295e0a-c7d7-482a-9b6f-d39dbb28d9f2",
+          "trackKey": "netease:acceptance-10",
+          "acceptedPlayInstanceId": null,
+          "firstSelectedPlayInstanceId": "c6295e0a-c7d7-482a-9b6f-d39dbb28d9f2",
+          "recoveredErrorCodes": [],
+          "historyForwardCorrect": null,
+          "resourceSources": [],
+          "preload": {
+            "standbyReady": null,
+            "usePreload": null,
+            "hostConfirmed": null,
+            "hostLoadMs": null
+          },
+          "timestamps": {
+            "uiClickAt": null,
+            "rpcSentAt": null,
+            "coreReceivedAt": null,
+            "selectedAt": 1793696915344,
+            "coreAcceptedAt": null,
+            "rpcReceivedAt": null,
+            "uiCurrentAt": 1793696916499,
+            "domCurrentAt": 1793696916502,
+            "recoveredSelectedAt": null,
+            "recoveredDOMCurrentAt": null,
+            "loadStartedAt": null,
+            "wpfLoadStartedAt": null,
+            "wpfStartedAt": null,
+            "coreStartedAt": 1793696915945,
+            "uiPlayingAt": 1793696916499,
+            "domPlayingAt": 1793696916502,
+            "endedAt": 1793696915349
+          },
+          "errorCode": null
+        }
+      ]
+    },
+    {
+      "runId": "after-native-dom",
+      "phase": "history-and-prefetch-repair",
+      "scope": "real-dsh-web-wpf-local-silent-media",
+      "sourceHashes": {
+        "src/core.mjs": "c8498aa69b3de8a00e06019b244a781ad36b5df62454fa5e1a6ddc17afdcaa49",
+        "src/core-host.mjs": "65c169dd1baaa661314575f2ac5458b7fd8156828b5d765cf568c250777b3f46",
+        "src/ui/dsh-client.js": "c1e41c04ba7a52e6c679d99c7f555e9761f0bc9add0d2421cd5c65c3a8521125",
+        "src/playback/service.mjs": "a33d6e2afb25d63c0baecdd5584435f8574aac5e715f9971dfbc2a454bce79a0",
+        "src/playback/host/wpf-media-host.ps1": "121fdb4ceae250eda423d6b87c19111d517669986a0836408541b7262270c0fb"
+      },
+      "runTime": {
+        "startedAt": "2026-11-03T09:09:25.288Z",
+        "finishedAt": "2026-11-03T09:11:13.751Z"
+      },
+      "codeVerified": {
+        "isolatedNewCore": true,
+        "sourceHashesUnchanged": true,
+        "installedFromSelectedRepo": true
+      },
+      "coreClosed": false,
+      "onboardingOverlay": true,
+      "scenarios": [
+        {
+          "scenario": "next-after-1s",
+          "status": "completed",
+          "traceId": "mw0gvhl8-zziyr1f7kgs-1",
+          "playInstanceId": "a44f04b4-d830-4edd-b4ce-72724362d1a1",
+          "trackKey": "netease:acceptance-4",
+          "acceptedPlayInstanceId": "a44f04b4-d830-4edd-b4ce-72724362d1a1",
+          "firstSelectedPlayInstanceId": "a44f04b4-d830-4edd-b4ce-72724362d1a1",
+          "recoveredErrorCodes": [],
+          "historyForwardCorrect": null,
+          "resourceSources": [
+            {
+              "source": "provider",
+              "at": 1793696993259
+            }
+          ],
+          "preload": {
+            "standbyReady": false,
+            "usePreload": false,
+            "hostConfirmed": false,
+            "hostLoadMs": 2020
+          },
+          "timestamps": {
+            "uiClickAt": 1793696993058,
+            "rpcSentAt": 1793696993059,
+            "coreReceivedAt": 1793696993064,
+            "selectedAt": 1793696993148,
+            "coreAcceptedAt": 1793696993258,
+            "rpcReceivedAt": 1793696993264,
+            "uiCurrentAt": 1793696993264,
+            "domCurrentAt": 1793696993272,
+            "recoveredSelectedAt": null,
+            "recoveredDOMCurrentAt": null,
+            "loadStartedAt": 1793696993259,
+            "wpfLoadStartedAt": 1793696993277,
+            "wpfStartedAt": 1793696995357,
+            "coreStartedAt": 1793696995372,
+            "uiPlayingAt": 1793696995807,
+            "domPlayingAt": 1793696995808,
+            "endedAt": null
+          },
+          "errorCode": null
+        },
+        {
+          "scenario": "next-after-4s",
+          "status": "completed",
+          "traceId": "mw0gvhl8-zziyr1f7kgs-2",
+          "playInstanceId": "173df187-abb5-474f-a84b-152b18a0427d",
+          "trackKey": "netease:acceptance-3",
+          "acceptedPlayInstanceId": "173df187-abb5-474f-a84b-152b18a0427d",
+          "firstSelectedPlayInstanceId": "173df187-abb5-474f-a84b-152b18a0427d",
+          "recoveredErrorCodes": [],
+          "historyForwardCorrect": null,
+          "resourceSources": [
+            {
+              "source": "cache",
+              "at": 1793697001634
+            }
+          ],
+          "preload": {
+            "standbyReady": true,
+            "usePreload": true,
+            "hostConfirmed": true,
+            "hostLoadMs": 4
+          },
+          "timestamps": {
+            "uiClickAt": 1793697001520,
+            "rpcSentAt": 1793697001520,
+            "coreReceivedAt": 1793697001524,
+            "selectedAt": 1793697001587,
+            "coreAcceptedAt": 1793697001633,
+            "rpcReceivedAt": 1793697001644,
+            "uiCurrentAt": 1793697001645,
+            "domCurrentAt": 1793697001651,
+            "recoveredSelectedAt": null,
+            "recoveredDOMCurrentAt": null,
+            "loadStartedAt": 1793697001634,
+            "wpfLoadStartedAt": 1793697001858,
+            "wpfStartedAt": 1793697002083,
+            "coreStartedAt": 1793697002092,
+            "uiPlayingAt": 1793697002404,
+            "domPlayingAt": 1793697002408,
+            "endedAt": null
+          },
+          "errorCode": null
+        },
+        {
+          "scenario": "next-after-10s",
+          "status": "completed",
+          "traceId": "mw0gvhl8-zziyr1f7kgs-3",
+          "playInstanceId": "32679bcc-f42b-4013-ba5c-4f997efeba88",
+          "trackKey": "netease:acceptance-7",
+          "acceptedPlayInstanceId": "32679bcc-f42b-4013-ba5c-4f997efeba88",
+          "firstSelectedPlayInstanceId": "32679bcc-f42b-4013-ba5c-4f997efeba88",
+          "recoveredErrorCodes": [],
+          "historyForwardCorrect": null,
+          "resourceSources": [
+            {
+              "source": "cache",
+              "at": 1793697014288
+            }
+          ],
+          "preload": {
+            "standbyReady": false,
+            "usePreload": false,
+            "hostConfirmed": false,
+            "hostLoadMs": 1076
+          },
+          "timestamps": {
+            "uiClickAt": 1793697014160,
+            "rpcSentAt": 1793697014160,
+            "coreReceivedAt": 1793697014174,
+            "selectedAt": 1793697014256,
+            "coreAcceptedAt": 1793697014287,
+            "rpcReceivedAt": 1793697014297,
+            "uiCurrentAt": 1793697014297,
+            "domCurrentAt": 1793697014302,
+            "recoveredSelectedAt": null,
+            "recoveredDOMCurrentAt": null,
+            "loadStartedAt": 1793697014288,
+            "wpfLoadStartedAt": 1793697014742,
+            "wpfStartedAt": 1793697016033,
+            "coreStartedAt": 1793697016044,
+            "uiPlayingAt": 1793697016151,
+            "domPlayingAt": 1793697016152,
+            "endedAt": null
+          },
+          "errorCode": null
+        },
+        {
+          "scenario": "next-after-20s",
+          "status": "completed",
+          "traceId": "mw0gvhl8-zziyr1f7kgs-4",
+          "playInstanceId": "a5e92546-1a2d-4cba-8482-2be085d76c56",
+          "trackKey": "netease:acceptance-9",
+          "acceptedPlayInstanceId": "a5e92546-1a2d-4cba-8482-2be085d76c56",
+          "firstSelectedPlayInstanceId": "a5e92546-1a2d-4cba-8482-2be085d76c56",
+          "recoveredErrorCodes": [],
+          "historyForwardCorrect": null,
+          "resourceSources": [
+            {
+              "source": "cache",
+              "at": 1793697037933
+            }
+          ],
+          "preload": {
+            "standbyReady": true,
+            "usePreload": true,
+            "hostConfirmed": true,
+            "hostLoadMs": 3
+          },
+          "timestamps": {
+            "uiClickAt": 1793697037863,
+            "rpcSentAt": 1793697037863,
+            "coreReceivedAt": 1793697037866,
+            "selectedAt": 1793697037909,
+            "coreAcceptedAt": 1793697037933,
+            "rpcReceivedAt": 1793697037949,
+            "uiCurrentAt": 1793697037949,
+            "domCurrentAt": 1793697037954,
+            "recoveredSelectedAt": null,
+            "recoveredDOMCurrentAt": null,
+            "loadStartedAt": 1793697037933,
+            "wpfLoadStartedAt": 1793697038152,
+            "wpfStartedAt": 1793697038371,
+            "coreStartedAt": 1793697038380,
+            "uiPlayingAt": 1793697038472,
+            "domPlayingAt": 1793697038473,
+            "endedAt": null
+          },
+          "errorCode": null
+        },
+        {
+          "scenario": "rapid-next",
+          "status": "completed",
+          "traceId": "mw0gvhl8-zziyr1f7kgs-5",
+          "playInstanceId": "b5b367c2-b6b0-4fdc-beb5-110a9d248e33",
+          "trackKey": "netease:acceptance-2",
+          "acceptedPlayInstanceId": "b5b367c2-b6b0-4fdc-beb5-110a9d248e33",
+          "firstSelectedPlayInstanceId": "b5b367c2-b6b0-4fdc-beb5-110a9d248e33",
+          "recoveredErrorCodes": [],
+          "historyForwardCorrect": null,
+          "resourceSources": [
+            {
+              "source": "provider",
+              "at": 1793697038592
+            }
+          ],
+          "preload": {
+            "standbyReady": false,
+            "usePreload": false,
+            "hostConfirmed": false,
+            "hostLoadMs": 425
+          },
+          "timestamps": {
+            "uiClickAt": 1793697038526,
+            "rpcSentAt": 1793697038527,
+            "coreReceivedAt": 1793697038532,
+            "selectedAt": 1793697038566,
+            "coreAcceptedAt": 1793697038592,
+            "rpcReceivedAt": 1793697038602,
+            "uiCurrentAt": 1793697038602,
+            "domCurrentAt": 1793697038606,
+            "recoveredSelectedAt": null,
+            "recoveredDOMCurrentAt": null,
+            "loadStartedAt": 1793697038592,
+            "wpfLoadStartedAt": 1793697038801,
+            "wpfStartedAt": 1793697039446,
+            "coreStartedAt": 1793697039453,
+            "uiPlayingAt": 1793697039805,
+            "domPlayingAt": 1793697039806,
+            "endedAt": null
+          },
+          "errorCode": null
+        },
+        {
+          "scenario": "history-forward",
+          "status": "completed",
+          "traceId": "mw0gvhl8-zziyr1f7kgs-7",
+          "playInstanceId": "a53c607e-2492-4b66-858a-6e8d4832f15c",
+          "trackKey": "netease:acceptance-2",
+          "acceptedPlayInstanceId": "a53c607e-2492-4b66-858a-6e8d4832f15c",
+          "firstSelectedPlayInstanceId": "a53c607e-2492-4b66-858a-6e8d4832f15c",
+          "recoveredErrorCodes": [],
+          "historyForwardCorrect": true,
+          "resourceSources": [
+            {
+              "source": "cache",
+              "at": 1793697041205
+            }
+          ],
+          "preload": {
+            "standbyReady": false,
+            "usePreload": false,
+            "hostConfirmed": false,
+            "hostLoadMs": 432
+          },
+          "timestamps": {
+            "uiClickAt": 1793697041139,
+            "rpcSentAt": 1793697041140,
+            "coreReceivedAt": 1793697041145,
+            "selectedAt": 1793697041183,
+            "coreAcceptedAt": 1793697041205,
+            "rpcReceivedAt": 1793697041212,
+            "uiCurrentAt": 1793697041212,
+            "domCurrentAt": 1793697041216,
+            "recoveredSelectedAt": null,
+            "recoveredDOMCurrentAt": null,
+            "loadStartedAt": 1793697041205,
+            "wpfLoadStartedAt": 1793697041421,
+            "wpfStartedAt": 1793697042067,
+            "coreStartedAt": 1793697042073,
+            "uiPlayingAt": 1793697042520,
+            "domPlayingAt": 1793697042522,
+            "endedAt": null
+          },
+          "errorCode": null
+        },
+        {
+          "scenario": "natural-end",
+          "status": "completed",
+          "traceId": null,
+          "playInstanceId": "4f900396-b32c-42c1-9084-191819171d96",
+          "trackKey": "netease:acceptance-6",
+          "acceptedPlayInstanceId": null,
+          "firstSelectedPlayInstanceId": "4f900396-b32c-42c1-9084-191819171d96",
+          "recoveredErrorCodes": [],
+          "historyForwardCorrect": null,
+          "resourceSources": [
+            {
+              "source": "cache",
+              "at": 1793697071918
+            }
+          ],
+          "preload": {
+            "standbyReady": false,
+            "usePreload": false,
+            "hostConfirmed": false,
+            "hostLoadMs": 194
+          },
+          "timestamps": {
+            "uiClickAt": null,
+            "rpcSentAt": null,
+            "coreReceivedAt": null,
+            "selectedAt": 1793697071911,
+            "coreAcceptedAt": null,
+            "rpcReceivedAt": null,
+            "uiCurrentAt": 1793697072288,
+            "domCurrentAt": 1793697072655,
+            "recoveredSelectedAt": null,
+            "recoveredDOMCurrentAt": null,
+            "loadStartedAt": 1793697071918,
+            "wpfLoadStartedAt": 1793697072245,
+            "wpfStartedAt": 1793697072497,
+            "coreStartedAt": 1793697072522,
+            "uiPlayingAt": 1793697072806,
+            "domPlayingAt": 1793697072809,
+            "endedAt": 1793697071916
+          },
+          "errorCode": null
+        }
+      ]
+    },
+    {
+      "runId": "baseline-real-dom",
+      "phase": "61fa5d4",
+      "scope": "real-dsh-web-wpf-netease-muted",
+      "sourceHashes": {
+        "src/core.mjs": "66c4ff36046fe9537102020ecb723320634f84fd3e84caf7c3890aced4b49ecd",
+        "src/core-host.mjs": "c0bb9d2bc6664f75da75a38f93495d091ea776f45eda73b2947396a40a5f33c4",
+        "src/ui/dsh-client.js": "62119a75d745f6c1afa3267fc9b47566baab932cdc6b7cc3a6a2868475d4e9ba",
+        "src/playback/service.mjs": "4a8f392e1bc39baf931ad56bc35301515da6f6d9ae7aadafbddc4e729df8a678",
+        "src/playback/host/wpf-media-host.ps1": "e8984ccffe7f7f0b0624747ceca9c13f6366a6c42f7207b1470aa87e67033bdc"
+      },
+      "runTime": {
+        "startedAt": "2026-11-03T09:09:33.466Z",
+        "finishedAt": "2026-11-03T09:11:31.832Z"
+      },
+      "codeVerified": null,
+      "coreClosed": false,
+      "onboardingOverlay": true,
+      "scenarios": [
+        {
+          "scenario": "next-after-1s",
+          "status": "completed",
+          "traceId": null,
+          "playInstanceId": "9fcb2e07-99dd-454a-8cae-cf7759530789",
+          "trackKey": "netease:511135182",
+          "acceptedPlayInstanceId": null,
+          "firstSelectedPlayInstanceId": "9fcb2e07-99dd-454a-8cae-cf7759530789",
+          "recoveredErrorCodes": [],
+          "historyForwardCorrect": null,
+          "resourceSources": [],
+          "preload": {
+            "standbyReady": null,
+            "usePreload": null,
+            "hostConfirmed": null,
+            "hostLoadMs": null
+          },
+          "timestamps": {
+            "uiClickAt": 1793697028044,
+            "rpcSentAt": null,
+            "coreReceivedAt": null,
+            "selectedAt": 1793697029110,
+            "coreAcceptedAt": null,
+            "rpcReceivedAt": null,
+            "uiCurrentAt": 1793697029743,
+            "domCurrentAt": 1793697029748,
+            "recoveredSelectedAt": null,
+            "recoveredDOMCurrentAt": null,
+            "loadStartedAt": null,
+            "wpfLoadStartedAt": null,
+            "wpfStartedAt": null,
+            "coreStartedAt": 1793697035922,
+            "uiPlayingAt": 1793697036353,
+            "domPlayingAt": 1793697036359,
+            "endedAt": null
+          },
+          "errorCode": null
+        },
+        {
+          "scenario": "next-after-4s",
+          "status": "failed",
+          "traceId": null,
+          "playInstanceId": "08fdf5e3-e979-4a30-967c-e7d7b8dd3b71",
+          "trackKey": "netease:1979948461",
+          "timestamps": {
+            "coreErrorAt": 1793697047813
+          },
+          "errorCode": "cancelled"
+        }
+      ]
+    },
+    {
+      "runId": "after-real-dom",
+      "phase": "history-and-prefetch-repair",
+      "scope": "real-dsh-web-wpf-netease-muted",
+      "sourceHashes": {
+        "src/core.mjs": "c8498aa69b3de8a00e06019b244a781ad36b5df62454fa5e1a6ddc17afdcaa49",
+        "src/core-host.mjs": "65c169dd1baaa661314575f2ac5458b7fd8156828b5d765cf568c250777b3f46",
+        "src/ui/dsh-client.js": "c1e41c04ba7a52e6c679d99c7f555e9761f0bc9add0d2421cd5c65c3a8521125",
+        "src/playback/service.mjs": "a33d6e2afb25d63c0baecdd5584435f8574aac5e715f9971dfbc2a454bce79a0",
+        "src/playback/host/wpf-media-host.ps1": "121fdb4ceae250eda423d6b87c19111d517669986a0836408541b7262270c0fb"
+      },
+      "runTime": {
+        "startedAt": "2026-11-03T09:07:29.259Z",
+        "finishedAt": "2026-11-03T09:09:50.640Z"
+      },
+      "codeVerified": {
+        "isolatedNewCore": true,
+        "sourceHashesUnchanged": true,
+        "installedFromSelectedRepo": true
+      },
+      "coreClosed": false,
+      "onboardingOverlay": true,
+      "scenarios": [
+        {
+          "scenario": "next-after-1s",
+          "status": "completed",
+          "traceId": "mw0gt2dw-7n0tp3qfj49-1",
+          "playInstanceId": "605f284f-8cff-44e9-bf58-0f7f04c4e332",
+          "trackKey": "netease:34380080",
+          "acceptedPlayInstanceId": "605f284f-8cff-44e9-bf58-0f7f04c4e332",
+          "firstSelectedPlayInstanceId": "605f284f-8cff-44e9-bf58-0f7f04c4e332",
+          "recoveredErrorCodes": [],
+          "historyForwardCorrect": null,
+          "resourceSources": [
+            {
+              "source": "provider",
+              "at": 1793696896577
+            },
+            {
+              "source": "provider",
+              "at": 1793696901356
+            }
+          ],
+          "preload": {
+            "standbyReady": false,
+            "usePreload": false,
+            "hostConfirmed": false,
+            "hostLoadMs": 3786
+          },
+          "timestamps": {
+            "uiClickAt": 1793696895066,
+            "rpcSentAt": 1793696895067,
+            "coreReceivedAt": 1793696895419,
+            "selectedAt": 1793696895967,
+            "coreAcceptedAt": 1793696896576,
+            "rpcReceivedAt": 1793696896593,
+            "uiCurrentAt": 1793696896593,
+            "domCurrentAt": 1793696896596,
+            "recoveredSelectedAt": null,
+            "recoveredDOMCurrentAt": null,
+            "loadStartedAt": 1793696902155,
+            "wpfLoadStartedAt": 1793696902364,
+            "wpfStartedAt": 1793696906366,
+            "coreStartedAt": 1793696906373,
+            "uiPlayingAt": 1793696906790,
+            "domPlayingAt": 1793696906793,
+            "endedAt": null
+          },
+          "errorCode": null
+        },
+        {
+          "scenario": "next-after-4s",
+          "status": "completed",
+          "traceId": "mw0gt2dw-7n0tp3qfj49-2",
+          "playInstanceId": "3abd6016-36a1-4922-8be6-8d6edd07be09",
+          "trackKey": "netease:3412701570",
+          "acceptedPlayInstanceId": "3abd6016-36a1-4922-8be6-8d6edd07be09",
+          "firstSelectedPlayInstanceId": "3abd6016-36a1-4922-8be6-8d6edd07be09",
+          "recoveredErrorCodes": [],
+          "historyForwardCorrect": null,
+          "resourceSources": [
+            {
+              "source": "inflight",
+              "at": 1793696915089
+            }
+          ],
+          "preload": {
+            "standbyReady": false,
+            "usePreload": false,
+            "hostConfirmed": false,
+            "hostLoadMs": 1240
+          },
+          "timestamps": {
+            "uiClickAt": 1793696914574,
+            "rpcSentAt": 1793696914574,
+            "coreReceivedAt": 1793696914575,
+            "selectedAt": 1793696914771,
+            "coreAcceptedAt": 1793696915089,
+            "rpcReceivedAt": 1793696915093,
+            "uiCurrentAt": 1793696915093,
+            "domCurrentAt": 1793696915097,
+            "recoveredSelectedAt": null,
+            "recoveredDOMCurrentAt": null,
+            "loadStartedAt": 1793696917348,
+            "wpfLoadStartedAt": 1793696917390,
+            "wpfStartedAt": 1793696919108,
+            "coreStartedAt": 1793696919205,
+            "uiPlayingAt": 1793696919607,
+            "domPlayingAt": 1793696919609,
+            "endedAt": null
+          },
+          "errorCode": null
+        },
+        {
+          "scenario": "next-after-10s",
+          "status": "completed",
+          "traceId": "mw0gt2dw-7n0tp3qfj49-3",
+          "playInstanceId": "612b5a09-f535-485b-838f-895d0047aa0f",
+          "trackKey": "netease:2648140359",
+          "acceptedPlayInstanceId": "612b5a09-f535-485b-838f-895d0047aa0f",
+          "firstSelectedPlayInstanceId": "612b5a09-f535-485b-838f-895d0047aa0f",
+          "recoveredErrorCodes": [],
+          "historyForwardCorrect": null,
+          "resourceSources": [
+            {
+              "source": "cache",
+              "at": 1793696935744
+            }
+          ],
+          "preload": {
+            "standbyReady": true,
+            "usePreload": true,
+            "hostConfirmed": true,
+            "hostLoadMs": 5
+          },
+          "timestamps": {
+            "uiClickAt": 1793696934819,
+            "rpcSentAt": 1793696934819,
+            "coreReceivedAt": 1793696935028,
+            "selectedAt": 1793696935389,
+            "coreAcceptedAt": 1793696935743,
+            "rpcReceivedAt": 1793696935749,
+            "uiCurrentAt": 1793696935749,
+            "domCurrentAt": 1793696935754,
+            "recoveredSelectedAt": null,
+            "recoveredDOMCurrentAt": null,
+            "loadStartedAt": 1793696935744,
+            "wpfLoadStartedAt": 1793696936264,
+            "wpfStartedAt": 1793696938044,
+            "coreStartedAt": 1793696938623,
+            "uiPlayingAt": 1793696938845,
+            "domPlayingAt": 1793696938847,
+            "endedAt": null
+          },
+          "errorCode": null
+        },
+        {
+          "scenario": "next-after-20s",
+          "status": "completed",
+          "traceId": "mw0gt2dw-7n0tp3qfj49-4",
+          "playInstanceId": "7fedc337-d20d-4fa4-991a-0d48e6b529ce",
+          "trackKey": "netease:29109020",
+          "acceptedPlayInstanceId": "7fedc337-d20d-4fa4-991a-0d48e6b529ce",
+          "firstSelectedPlayInstanceId": "7fedc337-d20d-4fa4-991a-0d48e6b529ce",
+          "recoveredErrorCodes": [],
+          "historyForwardCorrect": null,
+          "resourceSources": [
+            {
+              "source": "provider",
+              "at": 1793696964255
+            }
+          ],
+          "preload": {
+            "standbyReady": false,
+            "usePreload": false,
+            "hostConfirmed": false,
+            "hostLoadMs": 643
+          },
+          "timestamps": {
+            "uiClickAt": 1793696962161,
+            "rpcSentAt": 1793696962161,
+            "coreReceivedAt": 1793696962423,
+            "selectedAt": 1793696963789,
+            "coreAcceptedAt": 1793696964255,
+            "rpcReceivedAt": 1793696964261,
+            "uiCurrentAt": 1793696964261,
+            "domCurrentAt": 1793696964267,
+            "recoveredSelectedAt": null,
+            "recoveredDOMCurrentAt": null,
+            "loadStartedAt": 1793696967362,
+            "wpfLoadStartedAt": 1793696967579,
+            "wpfStartedAt": 1793696968452,
+            "coreStartedAt": 1793696968710,
+            "uiPlayingAt": 1793696969555,
+            "domPlayingAt": 1793696969557,
+            "endedAt": null
+          },
+          "errorCode": null
+        },
+        {
+          "scenario": "rapid-next",
+          "status": "completed",
+          "traceId": "mw0gt2dw-7n0tp3qfj49-5",
+          "playInstanceId": "d03f2d78-93c0-459c-8191-137ffbd6768b",
+          "trackKey": "netease:2730755527",
+          "acceptedPlayInstanceId": "d03f2d78-93c0-459c-8191-137ffbd6768b",
+          "firstSelectedPlayInstanceId": "d03f2d78-93c0-459c-8191-137ffbd6768b",
+          "recoveredErrorCodes": [],
+          "historyForwardCorrect": null,
+          "resourceSources": [
+            {
+              "source": "provider",
+              "at": 1793696971788
+            }
+          ],
+          "preload": {
+            "standbyReady": false,
+            "usePreload": false,
+            "hostConfirmed": false,
+            "hostLoadMs": 650
+          },
+          "timestamps": {
+            "uiClickAt": 1793696970155,
+            "rpcSentAt": 1793696970155,
+            "coreReceivedAt": 1793696970554,
+            "selectedAt": 1793696971474,
+            "coreAcceptedAt": 1793696971787,
+            "rpcReceivedAt": 1793696971792,
+            "uiCurrentAt": 1793696971792,
+            "domCurrentAt": 1793696971796,
+            "recoveredSelectedAt": null,
+            "recoveredDOMCurrentAt": null,
+            "loadStartedAt": 1793696973262,
+            "wpfLoadStartedAt": 1793696973344,
+            "wpfStartedAt": 1793696974174,
+            "coreStartedAt": 1793696974184,
+            "uiPlayingAt": 1793696974882,
+            "domPlayingAt": 1793696974884,
+            "endedAt": null
+          },
+          "errorCode": null
+        },
+        {
+          "scenario": "history-forward",
+          "status": "completed",
+          "traceId": "mw0gt2dw-7n0tp3qfj49-7",
+          "playInstanceId": "502e8344-f181-49b0-8602-96467ece8d09",
+          "trackKey": "netease:2730755527",
+          "acceptedPlayInstanceId": "502e8344-f181-49b0-8602-96467ece8d09",
+          "firstSelectedPlayInstanceId": "502e8344-f181-49b0-8602-96467ece8d09",
+          "recoveredErrorCodes": [],
+          "historyForwardCorrect": true,
+          "resourceSources": [
+            {
+              "source": "cache",
+              "at": 1793696980804
+            }
+          ],
+          "preload": {
+            "standbyReady": false,
+            "usePreload": false,
+            "hostConfirmed": false,
+            "hostLoadMs": 676
+          },
+          "timestamps": {
+            "uiClickAt": 1793696979919,
+            "rpcSentAt": 1793696979919,
+            "coreReceivedAt": 1793696980297,
+            "selectedAt": 1793696980429,
+            "coreAcceptedAt": 1793696980803,
+            "rpcReceivedAt": 1793696980812,
+            "uiCurrentAt": 1793696980812,
+            "domCurrentAt": 1793696980818,
+            "recoveredSelectedAt": null,
+            "recoveredDOMCurrentAt": null,
+            "loadStartedAt": 1793696980804,
+            "wpfLoadStartedAt": 1793696981013,
+            "wpfStartedAt": 1793696983182,
+            "coreStartedAt": 1793696984026,
+            "uiPlayingAt": 1793696985156,
+            "domPlayingAt": 1793696985164,
+            "endedAt": null
+          },
+          "errorCode": null
+        },
+        {
+          "scenario": "natural-end",
+          "status": "not_executed_remote_duration",
+          "traceId": null,
+          "playInstanceId": null,
+          "trackKey": null,
+          "acceptedPlayInstanceId": null,
+          "firstSelectedPlayInstanceId": null,
+          "recoveredErrorCodes": [],
+          "historyForwardCorrect": null,
+          "resourceSources": [],
+          "preload": {
+            "standbyReady": null,
+            "usePreload": null,
+            "hostConfirmed": null,
+            "hostLoadMs": null
+          },
+          "timestamps": {
+            "uiClickAt": null,
+            "rpcSentAt": null,
+            "coreReceivedAt": null,
+            "selectedAt": null,
+            "coreAcceptedAt": null,
+            "rpcReceivedAt": null,
+            "uiCurrentAt": null,
+            "domCurrentAt": null,
+            "recoveredSelectedAt": null,
+            "recoveredDOMCurrentAt": null,
+            "loadStartedAt": null,
+            "wpfLoadStartedAt": null,
+            "wpfStartedAt": null,
+            "coreStartedAt": null,
+            "uiPlayingAt": null,
+            "domPlayingAt": null,
+            "endedAt": null
+          },
+          "errorCode": null
+        }
+      ]
+    },
+    {
+      "runId": "baseline-real-natural",
+      "phase": "61fa5d4",
+      "scope": "real-dsh-web-wpf-netease-muted",
+      "sourceHashes": {
+        "src/core.mjs": "66c4ff36046fe9537102020ecb723320634f84fd3e84caf7c3890aced4b49ecd",
+        "src/core-host.mjs": "c0bb9d2bc6664f75da75a38f93495d091ea776f45eda73b2947396a40a5f33c4",
+        "src/ui/dsh-client.js": "62119a75d745f6c1afa3267fc9b47566baab932cdc6b7cc3a6a2868475d4e9ba",
+        "src/playback/service.mjs": "4a8f392e1bc39baf931ad56bc35301515da6f6d9ae7aadafbddc4e729df8a678",
+        "src/playback/host/wpf-media-host.ps1": "e8984ccffe7f7f0b0624747ceca9c13f6366a6c42f7207b1470aa87e67033bdc"
+      },
+      "runTime": {
+        "startedAt": "2026-11-03T09:12:33.257Z",
+        "finishedAt": "2026-11-03T09:18:09.618Z"
+      },
+      "codeVerified": {
+        "isolatedNewCore": true,
+        "sourceHashesUnchanged": true,
+        "installedFromSelectedRepo": true
+      },
+      "coreClosed": false,
+      "onboardingOverlay": true,
+      "scenarios": [
+        {
+          "scenario": "next-after-20s",
+          "status": "completed",
+          "traceId": null,
+          "playInstanceId": "3ec8839b-b8b6-44f7-8f11-36c615dc12b6",
+          "trackKey": "netease:541120922",
+          "acceptedPlayInstanceId": null,
+          "firstSelectedPlayInstanceId": "3ec8839b-b8b6-44f7-8f11-36c615dc12b6",
+          "recoveredErrorCodes": [],
+          "historyForwardCorrect": null,
+          "resourceSources": [],
+          "preload": {
+            "standbyReady": null,
+            "usePreload": null,
+            "hostConfirmed": null,
+            "hostLoadMs": null
+          },
+          "timestamps": {
+            "uiClickAt": 1793697213296,
+            "rpcSentAt": null,
+            "coreReceivedAt": null,
+            "selectedAt": 1793697214083,
+            "coreAcceptedAt": null,
+            "rpcReceivedAt": null,
+            "uiCurrentAt": 1793697214794,
+            "domCurrentAt": 1793697214802,
+            "recoveredSelectedAt": null,
+            "recoveredDOMCurrentAt": null,
+            "loadStartedAt": null,
+            "wpfLoadStartedAt": null,
+            "wpfStartedAt": null,
+            "coreStartedAt": 1793697217294,
+            "uiPlayingAt": 1793697217691,
+            "domPlayingAt": 1793697217693,
+            "endedAt": null
+          },
+          "errorCode": null
+        },
+        {
+          "scenario": "rapid-next",
+          "status": "completed",
+          "traceId": null,
+          "playInstanceId": "b87fa134-5a1a-48b8-8c50-71033256da87",
+          "trackKey": "netease:1864974747",
+          "acceptedPlayInstanceId": null,
+          "firstSelectedPlayInstanceId": "b87fa134-5a1a-48b8-8c50-71033256da87",
+          "recoveredErrorCodes": [],
+          "historyForwardCorrect": null,
+          "resourceSources": [],
+          "preload": {
+            "standbyReady": null,
+            "usePreload": null,
+            "hostConfirmed": null,
+            "hostLoadMs": null
+          },
+          "timestamps": {
+            "uiClickAt": 1793697218177,
+            "rpcSentAt": null,
+            "coreReceivedAt": null,
+            "selectedAt": 1793697218771,
+            "coreAcceptedAt": null,
+            "rpcReceivedAt": null,
+            "uiCurrentAt": 1793697219078,
+            "domCurrentAt": 1793697219081,
+            "recoveredSelectedAt": null,
+            "recoveredDOMCurrentAt": null,
+            "loadStartedAt": null,
+            "wpfLoadStartedAt": null,
+            "wpfStartedAt": null,
+            "coreStartedAt": 1793697225691,
+            "uiPlayingAt": 1793697225847,
+            "domPlayingAt": 1793697225848,
+            "endedAt": null
+          },
+          "errorCode": null
+        },
+        {
+          "scenario": "history-forward",
+          "status": "completed",
+          "traceId": null,
+          "playInstanceId": "be4fccf4-6da2-4df3-9cc9-23334b28acc5",
+          "trackKey": "netease:34380080",
+          "acceptedPlayInstanceId": null,
+          "firstSelectedPlayInstanceId": "be4fccf4-6da2-4df3-9cc9-23334b28acc5",
+          "recoveredErrorCodes": [],
+          "historyForwardCorrect": false,
+          "resourceSources": [],
+          "preload": {
+            "standbyReady": null,
+            "usePreload": null,
+            "hostConfirmed": null,
+            "hostLoadMs": null
+          },
+          "timestamps": {
+            "uiClickAt": 1793697230840,
+            "rpcSentAt": null,
+            "coreReceivedAt": null,
+            "selectedAt": 1793697231653,
+            "coreAcceptedAt": null,
+            "rpcReceivedAt": null,
+            "uiCurrentAt": 1793697232165,
+            "domCurrentAt": 1793697232171,
+            "recoveredSelectedAt": null,
+            "recoveredDOMCurrentAt": null,
+            "loadStartedAt": null,
+            "wpfLoadStartedAt": null,
+            "wpfStartedAt": null,
+            "coreStartedAt": 1793697237019,
+            "uiPlayingAt": 1793697237551,
+            "domPlayingAt": 1793697237553,
+            "endedAt": null
+          },
+          "errorCode": null
+        },
+        {
+          "scenario": "natural-end",
+          "status": "completed",
+          "traceId": null,
+          "playInstanceId": "ab8ebe1f-064a-4dd6-b7a5-76a69eff483f",
+          "trackKey": "netease:511135182",
+          "acceptedPlayInstanceId": null,
+          "firstSelectedPlayInstanceId": "ab8ebe1f-064a-4dd6-b7a5-76a69eff483f",
+          "recoveredErrorCodes": [],
+          "historyForwardCorrect": null,
+          "resourceSources": [],
+          "preload": {
+            "standbyReady": null,
+            "usePreload": null,
+            "hostConfirmed": null,
+            "hostLoadMs": null
+          },
+          "timestamps": {
+            "uiClickAt": null,
+            "rpcSentAt": null,
+            "coreReceivedAt": null,
+            "selectedAt": 1793697481038,
+            "coreAcceptedAt": null,
+            "rpcReceivedAt": null,
+            "uiCurrentAt": 1793697481723,
+            "domCurrentAt": 1793697481726,
+            "recoveredSelectedAt": null,
+            "recoveredDOMCurrentAt": null,
+            "loadStartedAt": null,
+            "wpfLoadStartedAt": null,
+            "wpfStartedAt": null,
+            "coreStartedAt": 1793697486663,
+            "uiPlayingAt": 1793697487814,
+            "domPlayingAt": 1793697487816,
+            "endedAt": 1793697481050
+          },
+          "errorCode": null
+        }
+      ]
+    },
+    {
+      "runId": "after-real-natural",
+      "phase": "dispatch-and-manual-prefetch-repair",
+      "scope": "real-dsh-web-wpf-netease-muted",
+      "sourceHashes": {
+        "src/core.mjs": "c8498aa69b3de8a00e06019b244a781ad36b5df62454fa5e1a6ddc17afdcaa49",
+        "src/core-host.mjs": "65c169dd1baaa661314575f2ac5458b7fd8156828b5d765cf568c250777b3f46",
+        "src/ui/dsh-client.js": "c1e41c04ba7a52e6c679d99c7f555e9761f0bc9add0d2421cd5c65c3a8521125",
+        "src/playback/service.mjs": "a33d6e2afb25d63c0baecdd5584435f8574aac5e715f9971dfbc2a454bce79a0",
+        "src/playback/host/wpf-media-host.ps1": "121fdb4ceae250eda423d6b87c19111d517669986a0836408541b7262270c0fb"
+      },
+      "runTime": {
+        "startedAt": "2026-11-03T09:10:49.880Z",
+        "finishedAt": "2026-11-03T09:12:16.009Z"
+      },
+      "codeVerified": null,
+      "coreClosed": false,
+      "onboardingOverlay": true,
+      "scenarios": [
+        {
+          "scenario": "bootstrap",
+          "status": "failed",
+          "traceId": null,
+          "playInstanceId": "b4712352-d4bf-4d15-99e0-fea918280ac8",
+          "trackKey": "netease:2143092413",
+          "timestamps": {
+            "coreErrorAt": 1793697111694
+          },
+          "errorCode": "media_open_timeout"
+        }
+      ]
+    },
+    {
+      "runId": "after-final",
+      "phase": "dispatch-and-manual-prefetch-repair",
+      "scope": "real-dsh-web-wpf-netease-muted",
+      "sourceHashes": {
+        "src/core.mjs": "0f1c6000291c878b90f748f0d6ef55311c1e13f7ff1cbb1f54484dbefc5b4dab",
+        "src/core-host.mjs": "243e3c75ce4c8f1be3d11219dcb0042080de36e1dc901f93929f69edc2580d97",
+        "src/ui/dsh-client.js": "c1e41c04ba7a52e6c679d99c7f555e9761f0bc9add0d2421cd5c65c3a8521125",
+        "src/playback/service.mjs": "a33d6e2afb25d63c0baecdd5584435f8574aac5e715f9971dfbc2a454bce79a0",
+        "src/playback/host/wpf-media-host.ps1": "121fdb4ceae250eda423d6b87c19111d517669986a0836408541b7262270c0fb"
+      },
+      "runTime": {
+        "startedAt": "2026-11-03T09:15:01.913Z",
+        "finishedAt": "2026-11-03T09:17:17.828Z"
+      },
+      "codeVerified": null,
+      "coreClosed": false,
+      "onboardingOverlay": true,
+      "scenarios": [
+        {
+          "scenario": "next-after-4s",
+          "status": "completed",
+          "traceId": "mw0h2spj-5ryixvq456-1",
+          "playInstanceId": "5891de2b-a028-4b44-ad7e-178208e0dfbc",
+          "trackKey": "netease:541120922",
+          "acceptedPlayInstanceId": "5891de2b-a028-4b44-ad7e-178208e0dfbc",
+          "firstSelectedPlayInstanceId": "5891de2b-a028-4b44-ad7e-178208e0dfbc",
+          "recoveredErrorCodes": [],
+          "historyForwardCorrect": null,
+          "resourceSources": [
+            {
+              "source": "inflight",
+              "at": 1793697353431
+            }
+          ],
+          "preload": {
+            "standbyReady": false,
+            "usePreload": false,
+            "hostConfirmed": false,
+            "hostLoadMs": 5353
+          },
+          "timestamps": {
+            "uiClickAt": 1793697352171,
+            "rpcSentAt": 1793697352172,
+            "coreReceivedAt": 1793697352799,
+            "selectedAt": 1793697353039,
+            "coreAcceptedAt": 1793697353430,
+            "rpcReceivedAt": 1793697353436,
+            "uiCurrentAt": 1793697353436,
+            "domCurrentAt": 1793697353442,
+            "recoveredSelectedAt": null,
+            "recoveredDOMCurrentAt": null,
+            "loadStartedAt": 1793697357330,
+            "wpfLoadStartedAt": 1793697357614,
+            "wpfStartedAt": 1793697363380,
+            "coreStartedAt": 1793697363776,
+            "uiPlayingAt": 1793697364600,
+            "domPlayingAt": 1793697364604,
+            "endedAt": null
+          },
+          "errorCode": null
+        },
+        {
+          "scenario": "next-after-20s",
+          "status": "failed",
+          "traceId": null,
+          "playInstanceId": "409b0cd6-4964-4667-a06e-d68192dab4e6",
+          "trackKey": "netease:1864974747",
+          "timestamps": {
+            "coreErrorAt": 1793697394784
+          },
+          "errorCode": "command_timeout"
+        }
+      ]
+    },
+    {
+      "runId": "final-verified",
+      "phase": "advisory-cancel-timeout-repair",
+      "scope": "real-dsh-web-wpf-netease-muted",
+      "sourceHashes": {
+        "src/core.mjs": "0f1c6000291c878b90f748f0d6ef55311c1e13f7ff1cbb1f54484dbefc5b4dab",
+        "src/core-host.mjs": "243e3c75ce4c8f1be3d11219dcb0042080de36e1dc901f93929f69edc2580d97",
+        "src/ui/dsh-client.js": "c1e41c04ba7a52e6c679d99c7f555e9761f0bc9add0d2421cd5c65c3a8521125",
+        "src/playback/service.mjs": "0bd6abf03fcad9cf1fd9bbc296e40ca37736005b2959114e61b23badf55b8fa7",
+        "src/playback/host/wpf-media-host.ps1": "121fdb4ceae250eda423d6b87c19111d517669986a0836408541b7262270c0fb"
+      },
+      "runTime": {
+        "startedAt": "2026-11-03T09:20:52.299Z",
+        "finishedAt": "2026-11-03T09:26:38.253Z"
+      },
+      "codeVerified": {
+        "isolatedNewCore": true,
+        "sourceHashesUnchanged": true,
+        "installedFromSelectedRepo": true
+      },
+      "coreClosed": false,
+      "onboardingOverlay": true,
+      "scenarios": [
+        {
+          "scenario": "next-after-20s",
+          "status": "completed",
+          "traceId": "mw0hae0o-jsmy9mpbzub-1",
+          "playInstanceId": "17f77372-77a4-4194-8f16-bd4a59cda6ac",
+          "trackKey": "netease:511135182",
+          "acceptedPlayInstanceId": "17f77372-77a4-4194-8f16-bd4a59cda6ac",
+          "firstSelectedPlayInstanceId": "17f77372-77a4-4194-8f16-bd4a59cda6ac",
+          "recoveredErrorCodes": [],
+          "historyForwardCorrect": null,
+          "resourceSources": [
+            {
+              "source": "cache",
+              "at": 1793697721631
+            }
+          ],
+          "preload": {
+            "standbyReady": true,
+            "usePreload": true,
+            "hostConfirmed": true,
+            "hostLoadMs": 2
+          },
+          "timestamps": {
+            "uiClickAt": 1793697720700,
+            "rpcSentAt": 1793697720700,
+            "coreReceivedAt": 1793697721004,
+            "selectedAt": 1793697721277,
+            "coreAcceptedAt": 1793697721630,
+            "rpcReceivedAt": 1793697721638,
+            "uiCurrentAt": 1793697721639,
+            "domCurrentAt": 1793697721645,
+            "recoveredSelectedAt": null,
+            "recoveredDOMCurrentAt": null,
+            "loadStartedAt": 1793697721631,
+            "wpfLoadStartedAt": 1793697722130,
+            "wpfStartedAt": 1793697723120,
+            "coreStartedAt": 1793697724397,
+            "uiPlayingAt": 1793697725013,
+            "domPlayingAt": 1793697725014,
+            "endedAt": null
+          },
+          "errorCode": null
+        },
+        {
+          "scenario": "rapid-next",
+          "status": "completed",
+          "traceId": "mw0hae0o-jsmy9mpbzub-2",
+          "playInstanceId": "9b9a7814-f6eb-4bfa-8a04-ebaca0ae8c37",
+          "trackKey": "netease:1979948461",
+          "acceptedPlayInstanceId": "9b9a7814-f6eb-4bfa-8a04-ebaca0ae8c37",
+          "firstSelectedPlayInstanceId": "9b9a7814-f6eb-4bfa-8a04-ebaca0ae8c37",
+          "recoveredErrorCodes": [],
+          "historyForwardCorrect": null,
+          "resourceSources": [
+            {
+              "source": "provider",
+              "at": 1793697726878
+            },
+            {
+              "source": "provider",
+              "at": 1793697731701
+            }
+          ],
+          "preload": {
+            "standbyReady": false,
+            "usePreload": false,
+            "hostConfirmed": false,
+            "hostLoadMs": 5562
+          },
+          "timestamps": {
+            "uiClickAt": 1793697725563,
+            "rpcSentAt": 1793697725563,
+            "coreReceivedAt": 1793697725993,
+            "selectedAt": 1793697726413,
+            "coreAcceptedAt": 1793697726878,
+            "rpcReceivedAt": 1793697726884,
+            "uiCurrentAt": 1793697726884,
+            "domCurrentAt": 1793697726890,
+            "recoveredSelectedAt": null,
+            "recoveredDOMCurrentAt": null,
+            "loadStartedAt": 1793697733980,
+            "wpfLoadStartedAt": 1793697734190,
+            "wpfStartedAt": 1793697740256,
+            "coreStartedAt": 1793697740366,
+            "uiPlayingAt": 1793697740929,
+            "domPlayingAt": 1793697740932,
+            "endedAt": null
+          },
+          "errorCode": null
+        },
+        {
+          "scenario": "history-forward",
+          "status": "completed",
+          "traceId": "mw0hae0o-jsmy9mpbzub-4",
+          "playInstanceId": "e8449e99-5dd5-46cb-b997-30052a40c6f3",
+          "trackKey": "netease:1979948461",
+          "acceptedPlayInstanceId": "e8449e99-5dd5-46cb-b997-30052a40c6f3",
+          "firstSelectedPlayInstanceId": "e8449e99-5dd5-46cb-b997-30052a40c6f3",
+          "recoveredErrorCodes": [],
+          "historyForwardCorrect": true,
+          "resourceSources": [
+            {
+              "source": "cache",
+              "at": 1793697750176
+            }
+          ],
+          "preload": {
+            "standbyReady": false,
+            "usePreload": false,
+            "hostConfirmed": false,
+            "hostLoadMs": 1079
+          },
+          "timestamps": {
+            "uiClickAt": 1793697749476,
+            "rpcSentAt": 1793697749476,
+            "coreReceivedAt": 1793697749783,
+            "selectedAt": 1793697749823,
+            "coreAcceptedAt": 1793697750175,
+            "rpcReceivedAt": 1793697750183,
+            "uiCurrentAt": 1793697750183,
+            "domCurrentAt": 1793697750188,
+            "recoveredSelectedAt": null,
+            "recoveredDOMCurrentAt": null,
+            "loadStartedAt": 1793697750177,
+            "wpfLoadStartedAt": 1793697753145,
+            "wpfStartedAt": 1793697755005,
+            "coreStartedAt": 1793697755521,
+            "uiPlayingAt": 1793697756128,
+            "domPlayingAt": 1793697756130,
+            "endedAt": null
+          },
+          "errorCode": null
+        },
+        {
+          "scenario": "natural-end",
+          "status": "completed-dom-native-start-unknown",
+          "traceId": null,
+          "playInstanceId": "e7626638-5581-4cd5-a980-841b9c1937d7",
+          "trackKey": "netease:541120922",
+          "acceptedPlayInstanceId": null,
+          "firstSelectedPlayInstanceId": "e7626638-5581-4cd5-a980-841b9c1937d7",
+          "recoveredErrorCodes": [],
+          "historyForwardCorrect": null,
+          "resourceSources": [
+            {
+              "source": "cache",
+              "at": 1793697995147
+            }
+          ],
+          "preload": {
+            "standbyReady": true,
+            "usePreload": true,
+            "hostConfirmed": true,
+            "hostLoadMs": 1
+          },
+          "timestamps": {
+            "uiClickAt": null,
+            "rpcSentAt": null,
+            "coreReceivedAt": null,
+            "selectedAt": 1793697995068,
+            "coreAcceptedAt": null,
+            "rpcReceivedAt": null,
+            "uiCurrentAt": 1793697996982,
+            "domCurrentAt": 1793697996984,
+            "recoveredSelectedAt": null,
+            "recoveredDOMCurrentAt": null,
+            "loadStartedAt": 1793697995147,
+            "wpfLoadStartedAt": 1793697995280,
+            "wpfStartedAt": null,
+            "coreStartedAt": null,
+            "uiPlayingAt": 1793697996982,
+            "domPlayingAt": 1793697996984,
+            "endedAt": 1793697995076
+          },
+          "errorCode": null
+        }
+      ]
+    },
+    {
+      "runId": "final-natural-host-v2",
+      "phase": "advisory-cancel-timeout-repair",
+      "scope": "real-dsh-web-wpf-netease-muted-near-end-resume",
+      "sourceHashes": {
+        "src/core.mjs": "0f1c6000291c878b90f748f0d6ef55311c1e13f7ff1cbb1f54484dbefc5b4dab",
+        "src/core-host.mjs": "243e3c75ce4c8f1be3d11219dcb0042080de36e1dc901f93929f69edc2580d97",
+        "src/ui/dsh-client.js": "c1e41c04ba7a52e6c679d99c7f555e9761f0bc9add0d2421cd5c65c3a8521125",
+        "src/playback/service.mjs": "0bd6abf03fcad9cf1fd9bbc296e40ca37736005b2959114e61b23badf55b8fa7",
+        "src/playback/host/wpf-media-host.ps1": "121fdb4ceae250eda423d6b87c19111d517669986a0836408541b7262270c0fb"
+      },
+      "runTime": {
+        "startedAt": "2026-11-03T09:31:22.940Z",
+        "finishedAt": "2026-11-03T09:32:20.581Z"
+      },
+      "codeVerified": {
+        "isolatedNewCore": true,
+        "sourceHashesUnchanged": true,
+        "installedFromSelectedRepo": true
+      },
+      "coreClosed": false,
+      "onboardingOverlay": true,
+      "scenarios": [
+        {
+          "scenario": "natural-near-end-resume",
+          "status": "completed",
+          "traceId": null,
+          "playInstanceId": "5f6ebb14-2c64-4a3f-88f5-e41e632394a0",
+          "trackKey": "netease:511135182",
+          "acceptedPlayInstanceId": null,
+          "firstSelectedPlayInstanceId": "5f6ebb14-2c64-4a3f-88f5-e41e632394a0",
+          "recoveredErrorCodes": [],
+          "historyForwardCorrect": null,
+          "resourceSources": [
+            {
+              "source": "cache",
+              "at": 1793698335455
+            }
+          ],
+          "preload": {
+            "standbyReady": true,
+            "usePreload": true,
+            "hostConfirmed": true,
+            "hostLoadMs": 2
+          },
+          "timestamps": {
+            "uiClickAt": null,
+            "rpcSentAt": null,
+            "coreReceivedAt": null,
+            "selectedAt": 1793698335349,
+            "coreAcceptedAt": null,
+            "rpcReceivedAt": null,
+            "uiCurrentAt": 1793698336631,
+            "domCurrentAt": 1793698336636,
+            "recoveredSelectedAt": null,
+            "recoveredDOMCurrentAt": null,
+            "loadStartedAt": 1793698335455,
+            "wpfLoadStartedAt": 1793698335549,
+            "wpfStartedAt": 1793698336249,
+            "coreStartedAt": 1793698337355,
+            "uiPlayingAt": 1793698338186,
+            "domPlayingAt": 1793698338188,
+            "endedAt": 1793698335360
+          },
+          "errorCode": null
+        }
+      ],
+      "seekVerification": {
+        "remainingMediaMs": 15000,
+        "corePositionMs": 228252,
+        "hostLoadedPositionMs": 228252
+      }
+    },
+    {
+      "runId": "final-matrix",
+      "phase": "advisory-cancel-timeout-repair",
+      "scope": "real-dsh-web-wpf-netease-muted",
+      "sourceHashes": {
+        "src/core.mjs": "0f1c6000291c878b90f748f0d6ef55311c1e13f7ff1cbb1f54484dbefc5b4dab",
+        "src/core-host.mjs": "243e3c75ce4c8f1be3d11219dcb0042080de36e1dc901f93929f69edc2580d97",
+        "src/ui/dsh-client.js": "c1e41c04ba7a52e6c679d99c7f555e9761f0bc9add0d2421cd5c65c3a8521125",
+        "src/playback/service.mjs": "0bd6abf03fcad9cf1fd9bbc296e40ca37736005b2959114e61b23badf55b8fa7",
+        "src/playback/host/wpf-media-host.ps1": "121fdb4ceae250eda423d6b87c19111d517669986a0836408541b7262270c0fb"
+      },
+      "runTime": {
+        "startedAt": "2026-11-03T09:32:46.808Z",
+        "finishedAt": "2026-11-03T09:35:24.175Z"
+      },
+      "codeVerified": {
+        "isolatedNewCore": true,
+        "sourceHashesUnchanged": true,
+        "installedFromSelectedRepo": true
+      },
+      "coreClosed": true,
+      "onboardingOverlay": true,
+      "scenarios": [
+        {
+          "scenario": "next-after-1s",
+          "status": "completed",
+          "traceId": "mw0hpflu-mc87xvziric-1",
+          "playInstanceId": "6ba06e85-eb79-4469-bb85-fddc2063a293",
+          "trackKey": "netease:511135182",
+          "acceptedPlayInstanceId": "6ba06e85-eb79-4469-bb85-fddc2063a293",
+          "firstSelectedPlayInstanceId": "6ba06e85-eb79-4469-bb85-fddc2063a293",
+          "recoveredErrorCodes": [],
+          "historyForwardCorrect": null,
+          "resourceSources": [
+            {
+              "source": "provider",
+              "at": 1793698405068
+            }
+          ],
+          "preload": {
+            "standbyReady": false,
+            "usePreload": false,
+            "hostConfirmed": false,
+            "hostLoadMs": 845
+          },
+          "timestamps": {
+            "uiClickAt": 1793698403764,
+            "rpcSentAt": 1793698403765,
+            "coreReceivedAt": 1793698404156,
+            "selectedAt": 1793698404503,
+            "coreAcceptedAt": 1793698405067,
+            "rpcReceivedAt": 1793698405077,
+            "uiCurrentAt": 1793698405077,
+            "domCurrentAt": 1793698405082,
+            "recoveredSelectedAt": null,
+            "recoveredDOMCurrentAt": null,
+            "loadStartedAt": 1793698408902,
+            "wpfLoadStartedAt": 1793698409034,
+            "wpfStartedAt": 1793698410177,
+            "coreStartedAt": 1793698410587,
+            "uiPlayingAt": 1793698411197,
+            "domPlayingAt": 1793698411198,
+            "endedAt": null
+          },
+          "errorCode": null
+        },
+        {
+          "scenario": "next-after-4s",
+          "status": "completed-after-recovery",
+          "traceId": "mw0hpflu-mc87xvziric-2",
+          "playInstanceId": "a94ea9c9-557a-4ea7-897d-fec7188bba0f",
+          "trackKey": "netease:541120922",
+          "acceptedPlayInstanceId": "12e6b916-7386-4a13-9984-c38a4476ecd6",
+          "firstSelectedPlayInstanceId": "12e6b916-7386-4a13-9984-c38a4476ecd6",
+          "recoveredErrorCodes": [
+            "media_open_timeout"
+          ],
+          "historyForwardCorrect": null,
+          "resourceSources": [
+            {
+              "source": "provider",
+              "at": 1793698436676
+            }
+          ],
+          "preload": {
+            "standbyReady": false,
+            "usePreload": false,
+            "hostConfirmed": false,
+            "hostLoadMs": 835
+          },
+          "timestamps": {
+            "uiClickAt": 1793698419367,
+            "rpcSentAt": 1793698419367,
+            "coreReceivedAt": 1793698419749,
+            "selectedAt": 1793698420041,
+            "coreAcceptedAt": 1793698420840,
+            "rpcReceivedAt": 1793698420853,
+            "uiCurrentAt": 1793698420853,
+            "domCurrentAt": 1793698420858,
+            "recoveredSelectedAt": 1793698436667,
+            "recoveredDOMCurrentAt": 1793698436882,
+            "loadStartedAt": 1793698438912,
+            "wpfLoadStartedAt": 1793698438994,
+            "wpfStartedAt": 1793698440315,
+            "coreStartedAt": 1793698440569,
+            "uiPlayingAt": 1793698440907,
+            "domPlayingAt": 1793698440909,
+            "endedAt": null
+          },
+          "errorCode": null
+        },
+        {
+          "scenario": "next-after-10s",
+          "status": "completed-after-recovery",
+          "traceId": "mw0hpflu-mc87xvziric-3",
+          "playInstanceId": "067dcd59-dcdf-46c5-ab72-335078216f9d",
+          "trackKey": "netease:504912812",
+          "acceptedPlayInstanceId": "612e1531-fc54-45f8-b536-378c81b2023f",
+          "firstSelectedPlayInstanceId": "612e1531-fc54-45f8-b536-378c81b2023f",
+          "recoveredErrorCodes": [
+            "media_open_timeout"
+          ],
+          "historyForwardCorrect": null,
+          "resourceSources": [
+            {
+              "source": "provider",
+              "at": 1793698472101
+            }
+          ],
+          "preload": {
+            "standbyReady": false,
+            "usePreload": false,
+            "hostConfirmed": false,
+            "hostLoadMs": 634
+          },
+          "timestamps": {
+            "uiClickAt": 1793698455271,
+            "rpcSentAt": 1793698455271,
+            "coreReceivedAt": 1793698455483,
+            "selectedAt": 1793698455722,
+            "coreAcceptedAt": 1793698456016,
+            "rpcReceivedAt": 1793698456022,
+            "uiCurrentAt": 1793698456022,
+            "domCurrentAt": 1793698456026,
+            "recoveredSelectedAt": 1793698472090,
+            "recoveredDOMCurrentAt": 1793698472628,
+            "loadStartedAt": 1793698475647,
+            "wpfLoadStartedAt": 1793698475820,
+            "wpfStartedAt": 1793698476610,
+            "coreStartedAt": 1793698476616,
+            "uiPlayingAt": 1793698477134,
+            "domPlayingAt": 1793698477136,
+            "endedAt": null
+          },
+          "errorCode": null
+        },
+        {
+          "scenario": "rapid-next",
+          "status": "failed",
+          "traceId": null,
+          "playInstanceId": "386cbaae-42e4-458c-ae92-072ae9961c33",
+          "trackKey": "netease:3389490889",
+          "timestamps": {
+            "coreErrorAt": 1793698494225
+          },
+          "errorCode": "media_open_timeout"
+        }
+      ]
+    },
+    {
+      "runId": "guard-next",
+      "phase": "revision-before-snapshot",
+      "scope": "real-dsh-web-wpf-netease-muted",
+      "sourceHashes": {
+        "src/core.mjs": "0f1c6000291c878b90f748f0d6ef55311c1e13f7ff1cbb1f54484dbefc5b4dab",
+        "src/core-host.mjs": "8031068eabec630d77a6744b81506175210328710ec43fd3223b4e47e116834d",
+        "src/ui/dsh-client.js": "c1e41c04ba7a52e6c679d99c7f555e9761f0bc9add0d2421cd5c65c3a8521125",
+        "src/playback/service.mjs": "0bd6abf03fcad9cf1fd9bbc296e40ca37736005b2959114e61b23badf55b8fa7",
+        "src/playback/transport.mjs": "d7e37a0e36c07bad5f121d57f1326e4f580b8771367be81c003960ca34f19a38",
+        "src/playback/host/wpf-media-host.ps1": "121fdb4ceae250eda423d6b87c19111d517669986a0836408541b7262270c0fb"
+      },
+      "runTime": {
+        "startedAt": "2026-11-03T09:38:09.247Z",
+        "finishedAt": "2026-11-03T09:39:17.229Z"
+      },
+      "codeVerified": {
+        "isolatedNewCore": true,
+        "sourceHashesUnchanged": true,
+        "installedFromSelectedRepo": true
+      },
+      "coreClosed": true,
+      "onboardingOverlay": true,
+      "scenarios": [
+        {
+          "scenario": "next-after-20s",
+          "status": "completed",
+          "traceId": "mw0hwhtd-3zcemwm2y4r-1",
+          "playInstanceId": "121f4ca6-2a23-45e8-9172-f4b3fa1033b0",
+          "trackKey": "netease:511135182",
+          "acceptedPlayInstanceId": "121f4ca6-2a23-45e8-9172-f4b3fa1033b0",
+          "firstSelectedPlayInstanceId": "121f4ca6-2a23-45e8-9172-f4b3fa1033b0",
+          "recoveredErrorCodes": [],
+          "historyForwardCorrect": null,
+          "resourceSources": [
+            {
+              "source": "cache",
+              "at": 1793698751321
+            }
+          ],
+          "preload": {
+            "standbyReady": true,
+            "usePreload": true,
+            "hostConfirmed": true,
+            "hostLoadMs": 2
+          },
+          "timestamps": {
+            "uiClickAt": 1793698750511,
+            "rpcSentAt": 1793698750512,
+            "coreReceivedAt": 1793698750649,
+            "selectedAt": 1793698750973,
+            "coreAcceptedAt": 1793698751320,
+            "rpcReceivedAt": 1793698751328,
+            "uiCurrentAt": 1793698751328,
+            "domCurrentAt": 1793698751334,
+            "recoveredSelectedAt": null,
+            "recoveredDOMCurrentAt": null,
+            "loadStartedAt": 1793698751321,
+            "wpfLoadStartedAt": 1793698751846,
+            "wpfStartedAt": 1793698753029,
+            "coreStartedAt": 1793698753818,
+            "uiPlayingAt": 1793698754847,
+            "domPlayingAt": 1793698754850,
+            "endedAt": null
+          },
+          "errorCode": null
+        },
+        {
+          "scenario": "natural-end",
+          "status": "not_executed_remote_duration",
+          "traceId": null,
+          "playInstanceId": null,
+          "trackKey": null,
+          "acceptedPlayInstanceId": null,
+          "firstSelectedPlayInstanceId": null,
+          "recoveredErrorCodes": [],
+          "historyForwardCorrect": null,
+          "resourceSources": [],
+          "preload": {
+            "standbyReady": null,
+            "usePreload": null,
+            "hostConfirmed": null,
+            "hostLoadMs": null
+          },
+          "timestamps": {
+            "uiClickAt": null,
+            "rpcSentAt": null,
+            "coreReceivedAt": null,
+            "selectedAt": null,
+            "coreAcceptedAt": null,
+            "rpcReceivedAt": null,
+            "uiCurrentAt": null,
+            "domCurrentAt": null,
+            "recoveredSelectedAt": null,
+            "recoveredDOMCurrentAt": null,
+            "loadStartedAt": null,
+            "wpfLoadStartedAt": null,
+            "wpfStartedAt": null,
+            "coreStartedAt": null,
+            "uiPlayingAt": null,
+            "domPlayingAt": null,
+            "endedAt": null
+          },
+          "errorCode": null
+        }
+      ]
+    },
+    {
+      "runId": "guard-natural",
+      "phase": "revision-before-snapshot",
+      "scope": "real-dsh-web-wpf-netease-muted-near-end-resume",
+      "sourceHashes": {
+        "src/core.mjs": "0f1c6000291c878b90f748f0d6ef55311c1e13f7ff1cbb1f54484dbefc5b4dab",
+        "src/core-host.mjs": "8031068eabec630d77a6744b81506175210328710ec43fd3223b4e47e116834d",
+        "src/ui/dsh-client.js": "c1e41c04ba7a52e6c679d99c7f555e9761f0bc9add0d2421cd5c65c3a8521125",
+        "src/playback/service.mjs": "0bd6abf03fcad9cf1fd9bbc296e40ca37736005b2959114e61b23badf55b8fa7",
+        "src/playback/transport.mjs": "d7e37a0e36c07bad5f121d57f1326e4f580b8771367be81c003960ca34f19a38",
+        "src/playback/host/wpf-media-host.ps1": "121fdb4ceae250eda423d6b87c19111d517669986a0836408541b7262270c0fb"
+      },
+      "runTime": {
+        "startedAt": "2026-11-03T09:39:38.939Z",
+        "finishedAt": "2026-11-03T09:40:36.404Z"
+      },
+      "codeVerified": {
+        "isolatedNewCore": true,
+        "sourceHashesUnchanged": true,
+        "installedFromSelectedRepo": true
+      },
+      "coreClosed": true,
+      "onboardingOverlay": true,
+      "scenarios": [
+        {
+          "scenario": "natural-near-end-resume",
+          "status": "completed",
+          "traceId": null,
+          "playInstanceId": "6dfa561a-8400-4699-ab98-9cb4fa379b8b",
+          "trackKey": "netease:511135182",
+          "acceptedPlayInstanceId": null,
+          "firstSelectedPlayInstanceId": "6dfa561a-8400-4699-ab98-9cb4fa379b8b",
+          "recoveredErrorCodes": [],
+          "historyForwardCorrect": null,
+          "resourceSources": [
+            {
+              "source": "cache",
+              "at": 1793698831459
+            }
+          ],
+          "preload": {
+            "standbyReady": true,
+            "usePreload": true,
+            "hostConfirmed": true,
+            "hostLoadMs": 1
+          },
+          "timestamps": {
+            "uiClickAt": null,
+            "rpcSentAt": null,
+            "coreReceivedAt": null,
+            "selectedAt": 1793698831311,
+            "coreAcceptedAt": null,
+            "rpcReceivedAt": null,
+            "uiCurrentAt": 1793698831748,
+            "domCurrentAt": 1793698831754,
+            "recoveredSelectedAt": null,
+            "recoveredDOMCurrentAt": null,
+            "loadStartedAt": 1793698831459,
+            "wpfLoadStartedAt": 1793698831577,
+            "wpfStartedAt": 1793698832333,
+            "coreStartedAt": 1793698833680,
+            "uiPlayingAt": 1793698834560,
+            "domPlayingAt": 1793698834562,
+            "endedAt": 1793698831328
+          },
+          "errorCode": null
+        }
+      ],
+      "seekVerification": {
+        "remainingMediaMs": 15000,
+        "corePositionMs": 228252,
+        "hostLoadedPositionMs": 228252
+      }
+    }
+  ]
+}
