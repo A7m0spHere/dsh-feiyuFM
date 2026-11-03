@@ -14,6 +14,7 @@
 | 文件位置、生成物与本机资料边界 | [REPOSITORY](REPOSITORY.md) |
 | 安装、更新、数据位置与排障 | [DELIVERY](DELIVERY.md) |
 | 技术实验的问题、证据格式和通过边界 | [PHASE_0](PHASE_0.md) |
+| 角色署名、平台内容边界、第三方代码与依赖许可 | [版权声明](../THIRD_PARTY_NOTICES.md) |
 
 ## 按需查证
 

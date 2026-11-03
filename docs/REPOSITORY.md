@@ -7,6 +7,7 @@
 | 位置 | 用途与维护方式 |
 |---|---|
 | [index.js](../index.js)、[cordis.patch.yml](../cordis.patch.yml)、[package.json](../package.json) | DSH 插件注册、bundle 配置和 npm 清单 |
+| [THIRD_PARTY_NOTICES.md](../THIRD_PARTY_NOTICES.md)、[LICENSE](../LICENSE) | 统一版权声明（含自动更新的依赖清单）与标准 MIT 原文；依赖各自原许可随原包保留 |
 | `src/core*.mjs`、`src/storage.mjs` | 播放控制、宿主协调与持久化；职责见架构 |
 | `src/providers/`、`src/discovery.mjs`、`src/persona*.mjs` | 平台导入/候选、缓存、模型筛选和预算；现行流程见 MVP/契约 |
 | `src/playback/`、`src/runtime/` | 独立音频服务与运行证据采集 |

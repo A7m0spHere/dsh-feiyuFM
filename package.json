@@ -3,7 +3,7 @@
   "version": "0.1.0-beta.3",
   "type": "module",
   "description": "肥鱼电台 FishFM：DSH 社区音乐插件，从参考歌曲出发，由网易云推荐、模型筛选，再自主听歌。",
-  "license": "MIT",
+  "license": "SEE LICENSE IN THIRD_PARTY_NOTICES.md",
   "os": [
     "darwin",
     "win32"
@@ -25,7 +25,6 @@
     "src/ui/assets/whale-pot-still.png",
     "src/ui/assets/dolls/*.png",
     "THIRD_PARTY_NOTICES.md",
-    "DEPENDENCY_LICENSES.md",
     "assets/readme/",
     "npm-shrinkwrap.json",
     "docs/DELIVERY.md",

@@ -1,6 +1,6 @@
 # 仓库首页素材
 
-- `hero.svg`：本项目绘制，1200 × 260；沿用播放器的冷灰 / 蓝色和耳机标记，缩短头图并放大名称。流程保留在 README 正文中；MIT。
+- `hero.svg`：本项目绘制，1200 × 260；沿用播放器的冷灰 / 蓝色和耳机标记，缩短头图并放大名称。流程保留在 README 正文中；许可统一见 [版权声明](../../THIRD_PARTY_NOTICES.md)。
 - `panel.png`、`panel-dark.png`：2026-11-02 从当前源码（`main`，提交 `90c0453`，`feat: 将电台设置迁入顶部标签页`）的隔离预览重新截取。预览命令为 `node scripts/ui-preview.mjs --react-root .tmp/react-root --port 4183`，浏览器为 Playwright Chromium（显式 `executable_path` 指向本机缓存）。900px 容器、默认“正在听”页暂停状态；900 × 963 PNG。取景含页头、四个顶部标签页、大肥鱼与当前歌曲、可选歌曲池和底部播放控制，不包含预览工具栏、预览侧栏或滚动条。
 - `panel-narrow.png`、`panel-narrow-dark.png`：同一源码和模拟状态的 360px 视口，完整“正在听”页（页头到播放控制）；360 × 1322 PNG。窄视口按响应式布局隐藏底部“声音开启”文字，只保留图标与 `aria-label`。
 

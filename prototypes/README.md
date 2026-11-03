@@ -14,7 +14,7 @@ npm run preview:ui -- --react-root "C:/path/to/existing/node_modules" --port 417
 
 ## 素材来源
 
-自有三张透明 PNG 由本项目此前使用 Codex ImageGen 生成。2026-10-07 整理时核对 SHA-256，原型副本与正式文件完全相同；删除原型副本，统一由生产资源路由读取 `src/ui/assets/`。
+三张透明状态 PNG 由本项目此前使用 Codex ImageGen 生成。2026-10-07 整理时核对 SHA-256，原型副本与正式文件完全相同；删除原型副本，统一由生产资源路由读取 `src/ui/assets/`。本节仅记录生成输出；角色来源、署名和使用条件统一见 [版权声明](../THIRD_PARTY_NOTICES.md)。
 
 | 唯一维护文件 | 原始生成输出 | 用途 |
 |---|---|---|

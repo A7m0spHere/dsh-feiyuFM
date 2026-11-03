@@ -99,12 +99,10 @@ beta.3 包含模型最终回答校验、可调输出额度、DPAPI／PowerShell 
 
 仓库 `main` 在 beta.3 之后包含陪伴界面、设置标签页、ASCII 频谱、最近 50 次硬性防重复、按池持续补歌、R3/R4 播放延迟优化与 UI 单入口清理，均未随 npm 包发布。最近一次全套离线回归与验证边界统一见 [开发状态](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/PROJECT_PLAN.md)。当前 Beta 不代表稳定 v0.1 验收完成。
 
-## 数据、开发与许可
+## 数据与开发
 
 曲库、偏好、反馈、收听历史和用量账本保存在本机，默认位于 `$DSH_HOME/fishfm/music.sqlite`。Windows 用 DPAPI、macOS 实验性适配用 Keychain 保存网易云会话；数据库只保存凭据引用。模型接收有界的音乐事实，不接收 Cookie 或凭据。字段与存储边界见 [架构](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/ARCHITECTURE.md) 和 [控制契约](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/CORE_CONTRACT.md)。
 
 [参与开发与源码安装](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/CONTRIBUTING.md) · [仓库结构](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/REPOSITORY.md) · [反馈问题](https://github.com/A7m0spHere/dsh-feiyuFM/issues)
 
-原创代码与文档采用 [MIT License](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/LICENSE)。依赖与素材遵循各自许可；用户提供的 GIF、衍生图与 Workshop doll PNG 不属于本项目 MIT 授权范围。来源和许可见 [第三方声明](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/THIRD_PARTY_NOTICES.md) 与 [依赖许可](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/DEPENDENCY_LICENSES.md)。
-
-感谢 DSH、网易云社区 API，以及提供界面和交互参考的 PHL、dsh-api-dashboard、DeepSeek Balance Whale Widget、Navidrome 和 Music Assistant。FishFM 是独立维护的社区项目。
+鲸鱼娘（大肥鱼）形象由 **@ZipZipPipe** 基于 **上善无形** 的原创角色进行二次设计。来源与完整版权说明见 [版权声明](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/THIRD_PARTY_NOTICES.md)。
