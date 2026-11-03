@@ -66,6 +66,8 @@ CoreHost 周期发布先检查 Core revision，未变化时不计算完整快照
 
 共享解析由独立 AbortController 所有，后台取消仅撤销自己的等待；切歌选中同一资源时先交给前台，过时目标才中止底层解析。单次前台等待 4 秒，后台/底层请求上限 15 秒；前台超时会退役并中止旧请求，100ms 后真正重新请求一次，迟到结果不写缓存。缓存/预加载失效或宿主失败均保留按需加载和既有有界恢复路径。默认预取仍在确认开始/直接恢复后延迟 3000ms，保留并发资源保护。计时只记录 traceId、版本、播放实例、阶段与命中事实，不传 URL 到 UI/证据文件，见 [第二轮修复](spikes/R3-playback-navigation-prefetch.md)。
 
+状态、发现、环境、选择与批准池投影使用批量查询（`unavailableKeys/environmentKeys/effectiveListenKeys/feedbackScores` 等），投影内容不变；逐曲 SQLite prepare 曾让一次快照占 100–360ms 并阻塞事件循环。媒体打开失败按 code 分类并在 `playback-error` 记录 `downloadProgress/bufferingProgress/openElapsedMs/expiresAt/resourceAgeMs`（不记录 URL）；`media_open_timeout` 的不可播退避为 1 分钟，`media_unavailable` 保持 30 分钟，`media_failed` 5 分钟。WPF `MediaOpened` 只在 `status='loading'` 时生效，超时后迟到的打开事件不能标记新状态。见 [R4](spikes/R4-playback-delivery-and-reliability.md)。
+
 UI 经宿主认证 `/api` 调用；完整白名单见 [dsh-settings.mjs](../src/ui/dsh-settings.mjs)，不能把全部 Core 命令自动暴露给浏览器。
 
 | RPC | 返回/用途 |
