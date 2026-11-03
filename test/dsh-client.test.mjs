@@ -76,6 +76,16 @@ const snapshot = (revision, humanPlayback = true) => ({ revision, settings: {
 const state = value => ({ ok: true, value: { snapshot: value, platforms: {} } });
 const tick = () => new Promise(resolve => setImmediate(resolve));
 
+test('the client manifest only loads the UI packages the single-entry panel uses', () => {
+  const manifest = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
+  assert.deepEqual(manifest.dsh.client.inject, [
+    '@deepseek-ai/dsh-client-connection',
+    '@deepseek-ai/dsh-client-ui-layout',
+    '@deepseek-ai/dsh-client-ui-sidebar',
+  ]);
+  assert.deepEqual(manifest.dsh.client.external, ['react']);
+});
+
 test('playback timings join accepted RPC and UI projections without leaking track data or misattributing natural playback', async () => {
   let revision = 1, instance = 'before', status = 'playing';
   const calls = [];
@@ -748,7 +758,10 @@ test('companion settings page retains drafts, shares models and keeps playback a
     assert.equal(all(settingsPage).find(n=>n.props['aria-label']==='导入来源').props.value,'playlist');
     assert.equal(all(settingsPage).find(n=>n.props['aria-label']==='输入歌单').props.value,'second');
     assert.equal(requested,undefined,'page changes and model selection do not request recommendations');
-    assert.equal(all(f.render({close(){}})).find(n=>n.props['aria-label']==='推荐模型').props.value,JSON.stringify(['p','b']),'native settings seat shares the model choice');
+    assert.equal(all(settingsPage).find(n=>n.props['aria-label']==='推荐模型').props.value,JSON.stringify(['p','b']),'the main settings tab retains the model choice');
+    const strayClose=all(f.render({close(){}}));
+    assert.ok(strayClose.some(n=>n.type==='nav'),'a stray close prop cannot switch the main panel into the removed settings seat');
+    assert.equal(strayClose.some(n=>n.children.includes('关闭设置')),false,'the legacy settings close action is gone');
     await all(settingsPage).find(n=>n.type==='button'&&n.children.includes('保存')).props.onClick();
     assert.equal(commands.at(-1).type,'setDiscoveryRate');assert.equal(commands.at(-1).value,.73);
     let dock=all(f.render()).find(n=>n.props['aria-label']==='播放控制');
@@ -775,13 +788,15 @@ test('a delayed platform reply cannot restore an older pool at an equal persona 
   }finally{f.dispose();}
 });
 
-test('client contributes native sidebar, main and settings seats; controls send Core commands', async () => {
+test('client contributes native sidebar and main seats; controls send Core commands', async () => {
   const calls = [];
   const f = fixture(async (channel, endpoint, payload) => { calls.push({ channel, endpoint, payload }); return state(snapshot(calls.length, endpoint !== 'fishfm/command')); });
   const off = f.controller.subscribe(() => {});
   try {
     await tick();
-    assert.deepEqual(f.registrations.map(r => r.options.name), ['main', 'sidebar.panellist', 'settings.section', 'shell.overlay', 'shell.overlay']);
+    assert.deepEqual(f.registrations.map(r => r.options.name), ['main', 'sidebar.panellist', 'shell.overlay', 'shell.overlay']);
+    assert.equal(f.registrations.some(r => r.options.name === 'settings.section'), false, 'the global settings seat is not registered');
+    assert.equal(f.registrations.find(r => r.options.name === 'main').options.key, 'fishfm');
     assert.deepEqual(f.registrations.filter(r => r.options.name === 'shell.overlay').map(r => r.options.id), ['fishfm.player', 'fishfm.spectrum']);
     const nodes = all(f.render());
     // The settings tab mounts on first visit; the dock stays available regardless.
@@ -794,10 +809,10 @@ test('client contributes native sidebar, main and settings seats; controls send 
     assert.equal(calls.at(-1).payload.type, 'setHumanPlayback');
     assert.equal(calls.at(-1).payload.value, false);
     assert.equal(all(f.render()).find(n => n.props['aria-label'] === '电脑输出声音').props['aria-checked'], false);
-    let closed = false;
-    const close = all(f.render({ close: () => { closed = true; } })).find(n => n.children.includes('关闭设置'));
-    close.props.onClick(); assert.equal(closed, true);
-    const input=all(f.render({close(){}})).find(n=>n.type==='details'&&n.props.className==='fm-input-library');
+    const strayClose = all(f.render({ close: () => { throw new Error('the removed settings seat must not be rendered'); } }));
+    assert.ok(strayClose.some(n => n.type === 'nav'), 'the main panel keeps its four-tab navigation');
+    assert.equal(strayClose.some(n => n.children.includes('关闭设置')), false, 'no legacy settings close action');
+    const input=all(f.render()).find(n=>n.type==='details'&&n.props.className==='fm-input-library');
     assert.ok(input,'settings retain the input library behind a disclosure');
     assert.notEqual(input.props.open,true,'input library starts collapsed');
     assert.equal(all(f.render()).find(n => n.children.includes('开始听歌')).props.disabled, true);

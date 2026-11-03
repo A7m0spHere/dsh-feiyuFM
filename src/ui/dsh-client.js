@@ -404,9 +404,6 @@ window.__ModuleLoader__.load({
       @keyframes fm-wave { from{transform:scaleY(.35)} to{transform:scaleY(1)} }
       @keyframes fm-settle { from{transform:scale(.985)} to{transform:scale(1)} }
       .fm-float[data-dragging=false] .fm-float-pill { animation:fm-settle var(--fm-base) var(--fm-ease); }
-      .fishfm[data-view=settings] .fm-grid { grid-template-columns:1fr; }
-      .fishfm[data-view=settings] .fm-management { grid-template-columns:1fr; }
-      .fishfm[data-view=settings] .fm-settings-content { grid-template-columns:1fr; }
       @container fishfm (max-width:640px) { .fm-settings-content{grid-template-columns:1fr;gap:16px} .fm-settings-shell>summary .fm-disclosure-meta{margin-left:auto;font-size:10px} }
       @container fishfm (max-width:460px) {
         .fm-top-actions{flex:1 1 100%;min-width:0;max-width:100%;flex-wrap:wrap}
@@ -504,11 +501,6 @@ window.__ModuleLoader__.load({
       .fm-settings-body .fm-controls-column>section+section { margin-top:22px; }
       .fm-settings-body .fm-label { font-size:13px; }
       .fishfm .fm-note,.fishfm .fm-platform-note { font-size:12px; }
-      .fishfm[data-view=settings] .fm-companion-hero { grid-template-columns:90px minmax(0,1fr); gap:18px; padding:14px 0; }
-      .fishfm[data-view=settings] .fm-companion-hero .fm-art { min-height:110px; }
-      .fishfm[data-view=settings] .fm-companion-hero .fm-art img { width:80px; height:100px; }
-      .fishfm[data-view=settings] .fm-companion-hero .fm-track { font-size:21px; }
-      .fishfm[data-view=settings] .fm-companion-hero .fm-reply { display:none; }
       @container fishfm (max-width:740px) {
         .fm-companion-hero{grid-template-columns:minmax(140px,.8fr) minmax(0,1fr);gap:24px;padding:12px 8px 24px}
         .fm-companion-hero .fm-art{min-height:220px}.fm-companion-hero .fm-art img{width:190px;height:215px}
@@ -1707,7 +1699,7 @@ window.__ModuleLoader__.load({
     }
 
     // src/ui/client/panel.mjs
-    function Panel({ controller, back, close }) {
+    function Panel({ controller, back }) {
       const state = React.useSyncExternalStore(controller.subscribe, controller.getSnapshot);
       const snapshot = state.snapshot;
       const settings = snapshot?.settings || {};
@@ -1850,7 +1842,7 @@ window.__ModuleLoader__.load({
                     onClick: () => controller.command('setDiscoveryRate', rate / 100) }, '保存'))))));
       const management = h('div', {className:'fm-management','aria-label':'曲库与界面设置'},
             h('section', null, h('h2', null, '输入与连接',h('small',null,'LIBRARY')),
-              h('details',{className:'fm-input-library'},h('summary',null,close?'输入音乐 · 查看和点播':`输入曲库 · ${state.library?.total??0} 首（展开查看）`),h(Library,{state,controller})),
+              h('details',{className:'fm-input-library'},h('summary',null,`输入曲库 · ${state.library?.total??0} 首（展开查看）`),h(Library,{state,controller})),
               h('details',{className:'fm-platform-details fm-input-library'},h('summary',null,'音乐平台',h('span',{className:'fm-disclosure-meta'},accountHint)),platformSection)),
             h(Persona,{key:'settings',state,controller,settingsOnly:true,selectedModel,onSelectModel:setSelectedModel}),
             h('section', null, h('h2', null, '界面选项', h('small', null, 'INTERFACE')), h('details', { className: 'fm-card fm-interface-details' }, h('summary',null,'界面与悬浮条'),
@@ -1928,15 +1920,15 @@ window.__ModuleLoader__.load({
               h('p', null, `来源：${({ llm_recommendation: '大肥鱼推荐歌单', netease_similar: '与你常听的歌相似', netease_daily: '网易云每日推荐', netease_personal_fm: '网易云私人 FM', platform_recommendation: '平台推荐' })[current.origin?.source] ?? (current.selectedBy === 'user' ? '你点播' : '常听歌曲')}`),
               current.selectedBy === 'agent' && snapshot?.lastSelection?.detail && h('p', null, `排序得分 ${snapshot.lastSelection.score?.toFixed(3)}；近期已播 ${snapshot.lastSelection.detail.repeatPlays ?? 0} 次。`),
               h('p', null, '喜欢 / 少推荐只影响本机推荐；逐曲说明由已记录的决策生成，不新增模型请求。')))));
-      return h('div', { className: 'fishfm', 'data-view': close ? 'settings' : 'main', 'data-motion': state.motion || 'full' },
+      return h('div', { className: 'fishfm', 'data-view': 'main', 'data-motion': state.motion || 'full' },
         h(DollLayer, { active: presentation.active && state.playbackEffects && state.features?.artwork?.gif, motion: state.motion, names: state.features?.artwork?.dolls }),
         h('div', { className: 'fm-wrap' },
           h('header', { className: 'fm-top' },
             h('div', { className: 'fm-heading' }, h('span', { className: 'fm-brand', 'aria-hidden': true }, h(Svg, { type: 'headphones' })),
               h('div', null, h('h1', null, '肥鱼电台', h('small', { className: 'fm-brand-latin' }, 'FeiyuFM')), h('p', { className: 'fm-subtitle' }, '你的音乐，大肥鱼的偏好。'))),
             h('div', { className: 'fm-top-actions' },
-              h('button', { type: 'button', className: 'fm-button', onClick: close || back }, close ? '关闭设置' : '返回对话'))),
-          !close && h('nav', { className: 'fm-page-nav', 'aria-label': '电台页面' },
+              h('button', { type: 'button', className: 'fm-button', onClick: back }, '返回对话'))),
+          h('nav', { className: 'fm-page-nav', 'aria-label': '电台页面' },
             ...[['listen', '正在听'], ['discover', '发现记录'], ['taste', '偏好与反馈'], ['settings', '电台设置']].map(([id, label]) => h('button', {
               type: 'button', key: id, 'aria-pressed': view === id, 'aria-controls': `${rateId}-${id}`, onClick: () => selectView(id),
             }, label))),
@@ -1947,13 +1939,11 @@ window.__ModuleLoader__.load({
           snapshot?.lastError && h('div', { className: 'fm-notice', role: 'status' }, playbackNotice(snapshot)),
           snapshot?.blockUntil > Date.now() && h('div', { className: 'fm-notice' }, '今天已停止自主听歌。到期后保持暂停，直到你主动恢复。',
             h('button', { className: 'fm-button', type: 'button', disabled: state.busy || !state.connected, onClick: () => controller.command('chooseSelf') }, '恢复自主听歌')),
-          close ? h(React.Fragment, null, hero, settingsBody, preferencesColumn)
-            : h(React.Fragment, null,
-              mountedViews.has('listen') && h('div', { className: 'fm-listen-page', id: `${rateId}-listen`, hidden: view !== 'listen' }, hero,
-                h(Persona, { key: 'pool', state, controller, selectedModel, onSelectModel: setSelectedModel })),
-              mountedViews.has('discover') && h('div', { className: 'fm-discover-page', id: `${rateId}-discover`, hidden: view !== 'discover' }, h(Discoveries, { state, expanded: true })),
-              mountedViews.has('taste') && h('div', { ref: feedbackRef, className: 'fm-taste-page', id: `${rateId}-taste`, hidden: view !== 'taste' }, preferencesColumn),
-              mountedViews.has('settings') && h('div', { className: 'fm-settings-page', id: `${rateId}-settings`, hidden: view !== 'settings' }, settingsBody)),
+          mountedViews.has('listen') && h('div', { className: 'fm-listen-page', id: `${rateId}-listen`, hidden: view !== 'listen' }, hero,
+            h(Persona, { key: 'pool', state, controller, selectedModel, onSelectModel: setSelectedModel })),
+          mountedViews.has('discover') && h('div', { className: 'fm-discover-page', id: `${rateId}-discover`, hidden: view !== 'discover' }, h(Discoveries, { state, expanded: true })),
+          mountedViews.has('taste') && h('div', { ref: feedbackRef, className: 'fm-taste-page', id: `${rateId}-taste`, hidden: view !== 'taste' }, preferencesColumn),
+          mountedViews.has('settings') && h('div', { className: 'fm-settings-page', id: `${rateId}-settings`, hidden: view !== 'settings' }, settingsBody),
           dock()));
     }
 
@@ -3146,7 +3136,7 @@ window.__ModuleLoader__.load({
       const inject = () => ({ controller, back: () => ctx.layout.selectPanel(null) });
       ctx.slots.inject('main', () => ctx.slots.register({ name: 'main', key: 'fishfm', inject }, Panel));
       ctx.slots.inject('sidebar.panellist', () => ctx.slots.register({ name: 'sidebar.panellist', id: 'fishfm', order: 25, label: () => '肥鱼电台' }, Icon));
-      ctx.slots.inject('settings.section', () => ctx.slots.register({ name: 'settings.section', id: 'fishfm', order: 65, label: () => '肥鱼电台', inject }, Panel));
+      // 全局设置不再挂载第二个完整控制台：主页四个标签页是唯一入口。
       ctx.slots.inject('shell.overlay', () => ctx.slots.register({ name: 'shell.overlay', id: 'fishfm.player', order: 30,
         inject: () => ({ controller, layout: ctx.layout }) }, FloatingPlayer));
       // 同一槽位的第二个条目：工作区背景层。DSH 没有会话背景插槽，条目挂在

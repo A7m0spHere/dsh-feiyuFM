@@ -2,6 +2,8 @@
 
 ## 未发布
 
+- UI：移除 DSH 全局设置中重复的「肥鱼电台」独立入口及其旧设置席位代码，只保留侧栏主面板入口；主页四个标签页（正在听／发现记录／偏好与反馈／电台设置）、播放控制台、悬浮播放器与背景频谱保留，悬浮播放器「打开肥鱼电台设置」仍打开主页。
+
 - 播放事件与切歌稳定性：把发现/环境/选择/批准池投影的逐曲 SQLite 查询改为批量集合，真实网易云预加载命中时手动 next 从约 4.3s 降到 0.68–0.77s，WPF started 到 Core 从 0.79–1.28s 降到 0.06s；新增事件循环/慢操作探针与媒体打开分类字段（downloadProgress、bufferingProgress、openElapsedMs、expiresAt、resourceAgeMs），媒体打开超时后的不可播退避从 5 分钟降为 1 分钟，迟到 MediaOpened 不能污染新状态；测量脚本补 GUI 顺序连点与 next→pause。边界见 [R4](docs/spikes/R4-playback-delivery-and-reliability.md)。
 
 - 播放控制第二轮：上一首后下一首先沿固定历史前进，到最新位置才推荐；点播重新锚定，导航保留暂停并跳过禁播/不可播。URL 缓存与共享解析命中后仍检查媒体预加载，直接恢复会重建下一首准备；后台取消不会误杀已交给前台的解析，超时重试真正重新请求。备用播放器按精确资源与宿主代次复用，WPF 取消预加载会终结原 IPC 请求，避免旧超时拖断前台。新增有界 UI/RPC/宿主阶段计时，默认预取延迟保持 3000ms；验证边界见 [R3](docs/spikes/R3-playback-navigation-prefetch.md)。

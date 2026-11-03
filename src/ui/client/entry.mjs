@@ -20,7 +20,7 @@ export function apply(ctx) {
   const inject = () => ({ controller, back: () => ctx.layout.selectPanel(null) });
   ctx.slots.inject('main', () => ctx.slots.register({ name: 'main', key: 'fishfm', inject }, Panel));
   ctx.slots.inject('sidebar.panellist', () => ctx.slots.register({ name: 'sidebar.panellist', id: 'fishfm', order: 25, label: () => '肥鱼电台' }, Icon));
-  ctx.slots.inject('settings.section', () => ctx.slots.register({ name: 'settings.section', id: 'fishfm', order: 65, label: () => '肥鱼电台', inject }, Panel));
+  // 全局设置不再挂载第二个完整控制台：主页四个标签页是唯一入口。
   ctx.slots.inject('shell.overlay', () => ctx.slots.register({ name: 'shell.overlay', id: 'fishfm.player', order: 30,
     inject: () => ({ controller, layout: ctx.layout }) }, FloatingPlayer));
   // 同一槽位的第二个条目：工作区背景层。DSH 没有会话背景插槽，条目挂在

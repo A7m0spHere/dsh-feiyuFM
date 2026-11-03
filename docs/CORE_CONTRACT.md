@@ -1,6 +1,6 @@
 # 内部控制契约
 
-更新：2026-11-02。本文只维护内部字段、命令与边界，DSH 外部接口经 Adapter 映射；职责见 [架构](ARCHITECTURE.md)，用户行为见 [MVP](MVP.md)，实现／部署／验收状态只看 [开发状态](PROJECT_PLAN.md)。历史理由查 [决策摘要](DECISIONS.md) 与 [实验记录](spikes/README.md)。
+更新：2026-11-03。本文只维护内部字段、命令与边界，DSH 外部接口经 Adapter 映射；职责见 [架构](ARCHITECTURE.md)，用户行为见 [MVP](MVP.md)，实现／部署／验收状态只看 [开发状态](PROJECT_PLAN.md)。历史理由查 [决策摘要](DECISIONS.md) 与 [实验记录](spikes/README.md)。
 
 ## 1. 曲目、账号与资源
 
@@ -129,7 +129,7 @@ Host 的 `feedback-list/feedback-clear` 越过慢平台队列；撤销只使投�
 
 U24 为 filtered 状态投影的 `playbackPool` 可选增加 `tracks`：最多 100 首，集合与 `available` 使用相同的近期／当前曲／权限／探索过滤；只含 `normalizeTrack` 的安全元数据和 `discovery:{source,llmReason}`（理由最多 420 字符），不包含媒体地址、凭据、内部 handle 或模型调用标识。旧 `recommendationPipeline.tracks` 仍表示最新批次。新客户端优先使用整个池的 `playbackPool.tracks`，空数组表示确实无可选曲，不回退旧批次；缺字段的旧宿主按“当前批次”明确展示。该列表不是固定播放顺序，不改变选曲或补池策略。
 
-同一客户端控制器保存尚待下次手动挑歌应用的模型选择，主面板的正在听／电台设置页与原生设置席位共用；选项变化本身不发模型请求，手动开始时仍由原 `persona-recommendations` 路径校验并保存路线。所有迟到状态入口同时保护 `recommendationPipeline`，不能以旧播放／曲库代次复活旧池。UI 行为与验证见 [U24](spikes/U24-companion-player.md)。
+同一客户端控制器保存尚待下次手动挑歌应用的模型选择，主面板的正在听／电台设置页共用；选项变化本身不发模型请求，手动开始时仍由原 `persona-recommendations` 路径校验并保存路线。所有迟到状态入口同时保护 `recommendationPipeline`，不能以旧播放／曲库代次复活旧池。UI 行为与验证见 [U24](spikes/U24-companion-player.md)。
 
 `fishfm/persona-recommendations` 现在先保存已配置模型路线、触发并等待平台推荐，再运行 `discovery-filter`；不调用直接生成歌名的用途。内部 `recommendation-route` 保存路线并进入 filtered 模式；启动/导入/候选变化/歌单低水位按需筛选，首次可沿用已配置模型，不要求先生成总结。推荐 DTO 使用 `persona.recommendationPipeline`（状态、歌曲、理由、剩余数量）与 `recommendationRoute`。见 [N22](spikes/N22-platform-first-recommendations.md)。
 

@@ -1,13 +1,13 @@
 # 技术架构
 
-更新：2026-11-02。本文维护进程、模块职责和数据流；字段、数值门控与恢复细节见 [控制契约](CORE_CONTRACT.md)，部署及验收状态只看 [开发状态](PROJECT_PLAN.md)。
+更新：2026-11-03。本文维护进程、模块职责和数据流；字段、数值门控与恢复细节见 [控制契约](CORE_CONTRACT.md)，部署及验收状态只看 [开发状态](PROJECT_PLAN.md)。
 
 ## 运行结构
 
 ```text
 DSH 插件宿主（index.js）
  ├─ Adapter / CoreBridge：事件、工具/命令、进程生命周期
- ├─ 认证 RPC：主面板、设置页与 shell.overlay
+ ├─ 认证 RPC：主面板与 shell.overlay
  ├─ PersonaModelService：复用 DSH 模型，执行低频调用
  └─ 独立 Node Core
      ├─ MusicCore：播放状态、队列、用户命令与决策版本
@@ -64,4 +64,4 @@ Windows 使用隐藏 STA PowerShell 中的 WPF `MediaPlayer`，优先 `pwsh`、�
 
 工作区背景由 `spectrum-backdrop` 挂到 `shell.overlay` 并测量真实会话留白；`spectrum-bars` 负责固定步长模拟与连续亮度场，`spectrum-whale` 只改写同一字符矩阵，`spectrum-canvas` 用上下亚字符位移将左锚水平条绘制到一个透明局部 Canvas。它只读安全播放投影，不承载音频或改变布局；未来频段输入的本地边界见契约，视觉取舍见 [U22](spikes/U22-ascii-spectrum-backdrop.md)。
 
-U24 主面板按陪伴视图组织，2026-11-02 修订将设置从右侧抽屉迁入第四个页面，与正在听、发现记录、偏好与反馈共用页面切换和底部播放控制；各页面保持挂载，通过 hidden 切换可见性，保留表单草稿和折叠状态。主面板、原生设置席位和悬浮条仍共享客户端控制器与同一 Core。可选歌曲从整个有效批准池投影安全元数据，不把 UI 列表当成固定播放队列；没有新增播放器宿主或模型调用路径。见 [U24](spikes/U24-companion-player.md)。
+U24 主面板按陪伴视图组织，2026-11-02 修订将设置从右侧抽屉迁入第四个页面，与正在听、发现记录、偏好与反馈共用页面切换和底部播放控制；各页面保持挂载，通过 hidden 切换可见性，保留表单草稿和折叠状态。主面板（含电台设置标签页）与悬浮条仍共享客户端控制器与同一 Core，DSH 全局设置不再有独立入口。可选歌曲从整个有效批准池投影安全元数据，不把 UI 列表当成固定播放队列；没有新增播放器宿主或模型调用路径。见 [U24](spikes/U24-companion-player.md)。
