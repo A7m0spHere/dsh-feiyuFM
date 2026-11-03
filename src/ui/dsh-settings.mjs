@@ -217,6 +217,8 @@ export function createSettingsHandler(bridge,summaryService={current:null}) {
           throw Object.assign(new Error('Unsupported settings command'), { code: 'invalid_command' });
         }
         command = { type: payload.type, value: payload.value, commandId: randomUUID() };
+        if (typeof payload.traceId === 'string' && /^[\w:.-]{1,100}$/.test(payload.traceId)
+          && ['pause','resume','next','previous','requestTrack','stopForToday'].includes(command.type)) command.traceId = payload.traceId;
         if (command.type === 'requestTrack') {
           try { const t=payload.track; command.track = normalizeTrack({provider:t?.provider,providerTrackId:t?.providerTrackId,
             title:t?.title,artist:t?.artist,durationMs:t?.durationMs}); }

@@ -260,7 +260,7 @@ export class CoreBridge {
     // if DSH cancels the caller so an accepted side effect is never reported as
     // an unknown outcome that could be retried.
     const answer = await this.request({ type: 'command', command }, { timeoutMs, signal });
-    return { snapshot: answer.snapshot, accepted: answer.accepted };
+    return { snapshot: answer.snapshot, accepted: answer.accepted, ...(answer.timing ? { timing: answer.timing } : {}) };
   }
 
   async sessionEvent(name, { sessionId = null } = {}) {

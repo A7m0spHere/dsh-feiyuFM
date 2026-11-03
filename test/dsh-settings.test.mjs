@@ -7,6 +7,19 @@ import { join, resolve } from 'node:path';
 import { CoreBridge } from '../src/dsh-adapter.mjs';
 import { createSettingsHandler, registerSettingsApi } from '../src/ui/dsh-settings.mjs';
 
+test('transport timing correlation preserves the server command id and rejects unsafe metadata', async () => {
+  const sent = [];
+  const api = createSettingsHandler({ async start() {}, async command(command) { sent.push(command); return { snapshot: {}, timing: { traceId: command.traceId } }; } });
+  const traced = await api('fishfm/command', { type: 'next', traceId: 'ui-safe.1' });
+  assert.equal(traced.value.timing.traceId, 'ui-safe.1');
+  assert.equal(sent[0].traceId, 'ui-safe.1');
+  assert.notEqual(sent[0].commandId, sent[0].traceId, 'diagnostics must not change command idempotency');
+  await api('fishfm/command', { type: 'next', traceId: 'https://example.invalid/private?token=secret' });
+  assert.equal(Object.hasOwn(sent[1], 'traceId'), false);
+  await api('fishfm/command', { type: 'setListening', value: false, traceId: 'ui-safe.2' });
+  assert.equal(Object.hasOwn(sent[2], 'traceId'), false);
+});
+
 test('playback-only state reads return an authoritative snapshot without querying library, persona or models', async () => {
   const calls = [];
   const api = createSettingsHandler({ async start() {}, async request(message) {

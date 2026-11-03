@@ -89,6 +89,9 @@ export class PipeTransport {
           else entry.resolve(message);
           continue;
         }
+        // Advisory requests can time out without closing the shared pipe. A
+        // later acknowledgement has no waiter and must not become a host event.
+        continue;
       }
       try {
         this.onMessage(message);
@@ -96,16 +99,22 @@ export class PipeTransport {
     }
   }
 
-  request(command, { timeoutMs = 5000 } = {}) {
+  request(command, { timeoutMs = 5000, invalidateOnTimeout = true } = {}) {
     if (!this.connected) {
       return Promise.reject(playbackError('pipe_closed', 'Audio host pipe is not connected', { retryable: true }));
     }
     const id = typeof command.id === 'string' && command.id ? command.id : randomUUID();
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
+        const error = playbackError('command_timeout', `Audio host did not answer ${String(command.type)} in time`, { retryable: true });
+        if (!invalidateOnTimeout) {
+          this.pending.delete(id);
+          reject(error);
+          return;
+        }
         // Keep this request until _closed() rejects every waiter, including the
         // one that timed out. Removing it here would leave its promise pending.
-        this.fail(playbackError('command_timeout', `Audio host did not answer ${String(command.type)} in time`, { retryable: true }));
+        this.fail(error);
       }, timeoutMs);
       this.pending.set(id, { resolve, reject, timer });
       try {

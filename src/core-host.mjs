@@ -441,7 +441,9 @@ export function createCoreHost({
   };
 
   const publishIfChanged = () => {
-    if (!core) return;
+    // Unchanged revisions cannot be published. Avoid projecting the entire
+    // platform/library state on every 400ms heartbeat just to discard it.
+    if (!core || core.state.revision === lastRevision) return;
     const snapshot = core.snapshot();
     if (snapshot.revision !== lastRevision) {
       lastRevision = snapshot.revision;
@@ -463,15 +465,30 @@ export function createCoreHost({
           send({ type: 'result', id, ok: true, snapshot: core.snapshot() });
           return;
         case 'command': {
+          const coreReceivedAt = Date.now();
+          const traceId = typeof message.command?.traceId === 'string' && /^[\w:.-]{1,100}$/.test(message.command.traceId)
+            ? message.command.traceId : null;
+          if (traceId) onLog({ type: 'playback-timing', phase: 'core-received', traceId, at: coreReceivedAt });
           onLog({ type: 'command', kind: message.command?.type });
-          const revision = core.snapshot().revision;
+          // A full snapshot projects platform discovery and can take hundreds
+          // of ms on a real library. Reading revision needs no projection.
+          const revision = core.state.revision;
           const snapshot = core.dispatch({ ...message.command, commandId: message.command?.commandId ?? randomUUID() });
           if (snapshot.revision !== revision && ['resetLibrary', 'resetTaste', 'undoTasteReset'].includes(message.command?.type)) ++inputEpoch;
           invalidateProfile();
           if(['resetLibrary','resetTaste','undoTasteReset','setRecommendationMode'].includes(message.command?.type))platformsFacade?.clearDiscovery();
           platformsFacade?.setDiscoveryEnabled(snapshot.settings.discovery && snapshot.settings.discoveryRate > 0);
           platformsFacade?.tickDiscovery();
-          send({ type: 'result', id, ok: true, snapshot: core.snapshot(), accepted: snapshot.revision });
+          // Transport commands do not change discovery settings. Dispatch has
+          // already produced the accepted snapshot; rebuilding it delayed the
+          // UI reply and the foreground load queued behind this handler.
+          const transport = ['pause', 'resume', 'next', 'previous', 'requestTrack', 'stopForToday'].includes(message.command?.type);
+          const acceptedSnapshot = transport ? snapshot : core.snapshot();
+          const coreAcceptedAt = Date.now();
+          if (traceId) onLog({ type: 'playback-timing', phase: 'core-accepted', traceId, at: coreAcceptedAt,
+            version: acceptedSnapshot.commandVersion, playInstanceId: acceptedSnapshot.current?.playInstanceId });
+          send({ type: 'result', id, ok: true, snapshot: acceptedSnapshot, accepted: snapshot.revision,
+            ...(traceId ? { timing: { traceId, coreReceivedAt, coreAcceptedAt } } : {}) });
           return;
         }
         case 'setQueue': {

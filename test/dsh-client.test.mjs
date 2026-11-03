@@ -76,6 +76,39 @@ const snapshot = (revision, humanPlayback = true) => ({ revision, settings: {
 const state = value => ({ ok: true, value: { snapshot: value, platforms: {} } });
 const tick = () => new Promise(resolve => setImmediate(resolve));
 
+test('playback timings join accepted RPC and UI projections without leaking track data or misattributing natural playback', async () => {
+  let revision = 1, instance = 'before', status = 'playing';
+  const calls = [];
+  const f = fixture(async (_channel, endpoint, payload) => {
+    calls.push({ endpoint, payload });
+    if (endpoint === 'fishfm/command') { revision++; instance = 'selected'; status = 'resolving'; }
+    return { ok: true, value: { snapshot: { ...snapshot(revision), commandVersion: revision, paused: false, status,
+      current: { playInstanceId: instance, track: { title: 'PRIVATE TITLE', handle: 'PRIVATE HANDLE' } } },
+      ...(endpoint === 'fishfm/command' ? { timing: { traceId: payload.traceId, coreReceivedAt: 100, coreAcceptedAt: 110 } } : {}) } };
+  });
+  try {
+    await f.controller.refresh();
+    await f.controller.command('next');
+    const sent = calls.find(c => c.endpoint === 'fishfm/command').payload;
+    assert.match(sent.traceId, /^[\w:.-]{1,100}$/);
+    const received = f.controller.getPlaybackTrace().find(e => e.phase === 'rpc-received');
+    assert.equal(received.traceId, sent.traceId);
+    assert.equal(received.coreReceivedAt, 100);
+    assert.equal(received.coreAcceptedAt, 110);
+    status = 'playing'; await f.controller.refresh();
+    const manual = f.controller.getPlaybackTrace().find(e => e.phase === 'ui-playing' && e.playInstanceId === 'selected');
+    assert.equal(manual.traceId, sent.traceId);
+    instance = 'natural'; revision++; await f.controller.refresh();
+    const natural = f.controller.getPlaybackTrace().find(e => e.phase === 'ui-playing' && e.playInstanceId === 'natural');
+    assert.equal(natural.traceId, null);
+    const rows = f.controller.getPlaybackTrace();
+    rows[0].phase = 'mutated';
+    assert.notEqual(f.controller.getPlaybackTrace()[0].phase, 'mutated');
+    assert.equal(JSON.stringify(rows).includes('PRIVATE'), false);
+    assert.equal(calls.length, 4, 'timing must not add RPCs');
+  } finally { f.dispose(); }
+});
+
 const managedFeedback=(revision,current=1,playInstanceId='feedback-song')=>({version:1,managementVersion:1,revision,current,playInstanceId,liked:current===1?1:0,reduced:current===-1?1:0});
 const feedbackItem={key:'netease:feedback',track:{provider:'netease',providerTrackId:'feedback',title:'反馈歌曲',artist:'艺人'},score:1,updatedAt:1000};
 const feedbackPage=(revision,options={})=>({version:1,revision,query:'',filter:'all',offset:0,limit:12,total:1,matched:1,counts:{liked:1,reduced:0},items:[feedbackItem],...options});
@@ -601,7 +634,9 @@ test('an imported library restored from Core enables first playback and point pl
     all(f.render()).find(n => n.type === 'nav').children.find(b => b.children.includes('电台设置')).props.onClick();
     await all(f.render()).find(n => n.props['aria-label'] === '播放 Saved song · Artist').props.onClick();
     await tick();
-    assert.deepEqual(JSON.parse(JSON.stringify(calls.at(-1).payload)), { type: 'requestTrack', track });
+    const { traceId, ...request } = JSON.parse(JSON.stringify(calls.at(-1).payload));
+    assert.match(traceId, /^[\w:.-]{1,100}$/);
+    assert.deepEqual(request, { type: 'requestTrack', track });
   } finally { off(); f.dispose(); }
 });
 

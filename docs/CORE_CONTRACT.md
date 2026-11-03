@@ -20,12 +20,12 @@ Provider 暴露账号和能力状态，`resolve(track, {signal, version})` 返�
 
 ## 2. 用户命令
 
-命令带非空 `commandId`，可带 `expectedRevision`。重复命令返回当前快照，旧 revision 返回 `stale_revision`；接受后递增 `decisionVersion`，影响播放时递增 `commandVersion` 并取消旧解析。
+命令带非空 `commandId`，可带 `expectedRevision`。重复命令返回当前快照，旧 revision 返回 `stale_revision`；接受后递增 `decisionVersion`，影响播放时递增 `commandVersion` 并取消旧解析。播放控制可附安全格式 `traceId`，只用于关联 UI/RPC 的计时，不替代 `commandId` 或改变幂等语义；带 traceId 的应答附 `timing={traceId,coreReceivedAt,coreAcceptedAt}`。客户端 `getPlaybackTrace()` 保留最多 200 条内存时间戳，按播放实例关联 UI 投影，自动续播不冒用上次点击的 traceId，不增加轮询或控制请求。
 
 | 命令 | 参数 | 约定 |
 |---|---|---|
-| `pause/resume` | 无 | 暂停优先；恢复保持自主/声音设置，重新解析并尝试恢复位置 |
-| `next` | 无 | 优先队列，否则用选择器；选择器排除当前并保留约束/不可播/冷却过滤，暂停期间换曲仍暂停 |
+| `pause/resume` | 无 | 暂停优先；恢复保持自主/声音设置，宿主仍持有暂停曲时直接恢复，否则重新解析并尝试恢复位置；确认恢复后重建后台预取 |
+| `next` | 无 | 历史回退后优先沿固定游标前进，回到最新位置后才走队列/推荐选择器；历史前进绕过自动防重复窗口，仍跳过禁播/不可播；后续历史全部被阻止时返回 `no_next_history` 且游标不动；暂停期间换曲仍暂停 |
 | `previous` | 无 | 返回实际播放历史中的上一首；用户显式操作可绕过最近 50 首自动防重复窗口，但仍跳过禁播/不可播；连续返回用固定历史游标，不因新播放记录来回跳；无更早可播返回 `no_previous`；暂停期间换曲仍暂停 |
 | `requestTrack` | `track` | 明确点播并解除暂停，不自动改声音或自主开关；禁播返回 `constraint_conflict` |
 | `setListening/setHumanPlayback/setDiscovery` | `value: boolean` | 独立开关；关闭自主会暂停当前 Agent 曲目 |
@@ -42,7 +42,7 @@ Provider 暴露账号和能力状态，`resolve(track, {signal, version})` 返�
 
 成功的 `resetLibrary/resetTaste/undoTasteReset` 使此前接收的在途及排队平台导入失效；提交前校验独立输入代次，过期导入返回 `cancelled`，不写曲库、来源或偏好。暂停、音量等播放控制不改变输入代次，且仍可越过慢平台队列。
 
-用户下一首记 `selectedBy='agent'、selectionTrigger='user-next'`，保留来源、评分和 decisionId；只有 `requestTrack` 记为 `selectedBy='user'`。选择不是有效收听，旧历史不倒改归属。
+推荐下一首记 `selectedBy='agent'、selectionTrigger='user-next'`，保留来源、评分和 decisionId；`requestTrack` 与显式历史前后导航记为 `selectedBy='user'`。历史快照在首次回退时固定，导航产生的新播放记录不改变快照或方向；新推荐、自然续播和指定歌曲重新锚定。尚未开始的当前选择只作为内存导航锚点，不据此新增实际开始记录。历史加载失败明确报错，保留该目标的游标位置，后续导航继续检查禁播/不可播；实际播放沿用原历史、有效进度和成长规则，不自动写喜欢反馈。选择不是有效收听，旧历史不倒改归属。
 
 今天限制到期不自动解除暂停。无当前曲目时，要求开始自主而失败应返回 `autonomy_blocked/no_candidates`，不得静默无操作。完整控制语义见 [MVP 第 3 节](MVP.md)。
 
@@ -55,6 +55,16 @@ Host 协议 v1 使用 JSON-lines：启动发 `ready`，请求返回带 `id` 的 
 `command` 应答代表接受后的快照，可能仍是 `resolving`；异步失败经后续状态呈现。控制/读取不被慢账号或导入排队，stdio 持续接收取消命令。调试用 `wait` 等媒体任务收尾，`setQueue/autonomous` 为固定候选及调试入口。
 
 播放链路（2026-11-03 优化）：切歌时先并行启动平台解析与（旧宿主上的）停止，解析结果命中资源缓存或后台预取时不再请求平台；宿主声明 `autoplay/reuseSwitch` 能力时，`load` 一次完成打开、静音与起播，且用 `Open()` 替换旧源而不先 `Stop()+Close()`，避免把网络流拆除耗时放进用户等待路径；旧宿主仍走 `stop→resolve→load→mute→play` 兼容路径。宿主声明 `preload` 能力时，下一首的媒体在后台用备用播放器打开（`preload`），切歌时暂停旧播放器并交换引用（`load{usePreload:true}`），用户等待从一次冷打开变成一次换源；备用流在暂停/选中其它曲目时取消。恢复（宿主丢失/媒体过期/卡顿）强制重新解析，不复用刚失败的 handle。预取/预加载只是建议：失败或选曲变化只意味着回退到按需解析。预热池默认关闭（`FISHFM_PLAYBACK_WARM_HOLDERS=0`），2026-11-03 实测其 holder open 会与真实 load 竞争（切歌 9–14s vs 5–6s）；需要时可用环境变量 1..8 重新启用。
+
+URL 解析与媒体预加载分为两个阶段：有效缓存或共享解析命中只省略平台请求，仍检查备用播放器；只复用同一 handle、同一宿主代次的 ready 状态。`PlaybackService.preload({resource,playInstanceId,version,signal?})` 复用相同资源的 pending/ready，`isPreloaded(resource)` 查询真实准备状态，`state().preloadStatus` 为 `idle/loading/ready`；`load()` 的 `preloaded` 返回宿主实际命中。旧任务的取消/迟到结果不能改写新备用资源，宿主必须为取消的 preload 返回一次 `cancelled`，不能遗留 IPC 请求直至超时断开管道。
+
+后台 `preloadCancel` 使用正常 `commandTimeoutMs`，其 advisory 超时只从 IPC pending 中移除并拒绝该请求，迟到应答忽略，不能关闭正在服务前台 load 的连接。其他播放命令沿用超时关闭整条连接的默认保护。该例外只针对后台取消，不把真实宿主无响应当作前台成功。
+
+预取先看历史前进或自动推荐；自动池无候选时，可按手动 next 的同一 `libraryFallback` 路径准备资源，但只允许手动 next 使用该回退曲，不能据此扩大自动续播范围。窥视保存并恢复 RNG，包含自动失败与曲库回退的同一选择顺序；真实选择继续由 Selector 执行。播放命令 RPC 复用 dispatch 已生成的快照，避免接受后重复计算平台发现投影；设置命令仍在更新 Provider 状态后返回新投影。
+
+CoreHost 周期发布先检查 Core revision，未变化时不计算完整快照；发现状态变化仍通过原回调递增 revision 后发布。不新增状态缓存或改变状态推送条件。
+
+共享解析由独立 AbortController 所有，后台取消仅撤销自己的等待；切歌选中同一资源时先交给前台，过时目标才中止底层解析。单次前台等待 4 秒，后台/底层请求上限 15 秒；前台超时会退役并中止旧请求，100ms 后真正重新请求一次，迟到结果不写缓存。缓存/预加载失效或宿主失败均保留按需加载和既有有界恢复路径。默认预取仍在确认开始/直接恢复后延迟 3000ms，保留并发资源保护。计时只记录 traceId、版本、播放实例、阶段与命中事实，不传 URL 到 UI/证据文件，见 [第二轮修复](spikes/R3-playback-navigation-prefetch.md)。
 
 UI 经宿主认证 `/api` 调用；完整白名单见 [dsh-settings.mjs](../src/ui/dsh-settings.mjs)，不能把全部 Core 命令自动暴露给浏览器。
 
@@ -103,9 +113,9 @@ Host 的 `feedback-list/feedback-clear` 越过慢平台队列；撤销只使投�
 
 `local-v7` 的真实评分保存在决策中，解释只读事实；旧 `local-v6` 的小池重播记录按当时规则读取，不覆盖当前硬窗口。filtered 模式只播放 LLM 入选曲，`llmRank/llmReason` 参与正常本地评分；未入选歌曲不进入默认自动池。N15 的“只加分、不排空”保留旧兼容模式。
 
-`recent_playback_v1` 为 `{version:1,entries:[{playInstanceId,trackKey,startedAt}]}`，按实际开始顺序从旧到新保留最近 50 个实例；旧库只由有进度历史及已开始当前实例回填。`started` 或首个有效进度确认开始，零有效增量的位置变化不算开始；同实例恢复不再次登记。此设置与历史一起保留，不因偏好重置／换批清空，不增加收听或成长。普通 next 的队列与曲库回退也不能绕过策略，只有明确 `requestTrack` 保留重播例外。
+`recent_playback_v1` 为 `{version:1,entries:[{playInstanceId,trackKey,startedAt}]}`，按实际开始顺序从旧到新保留最近 50 个实例；旧库只由有进度历史及已开始当前实例回填。`started` 或首个有效进度确认开始，零有效增量的位置变化不算开始；同实例恢复不再次登记。此设置与历史一起保留，不因偏好重置／换批清空，不增加收听或成长。推荐 next 的队列与曲库回退也不能绕过策略；明确 `requestTrack` 和沿固定游标的显式历史前后导航可重播，真正开始仍正常入窗。
 
-选择只使用：窗口外且满足 30 分钟冷却 → 窗口外但放宽时间冷却；不再允许窗口内最久未播回退。自动续播、推荐队列和普通 next 的曲库回退均适用，内部旧 `allowRepeatFallback` 参数也不能放宽。当前或刚播完同曲、禁播和不可播不放宽。成功选择的 `lastSelection.detail.repeat` 含 `window=50`、`relaxed`、`reason=null/cooldown-exhausted` 与 `distance=null`；只允许放宽时间冷却。窗口内歌曲导致无可选曲时返回 `track=null`、`reason=recent-window-exhausted`，`detail.algorithm=local-v7`、`detail.repeat={window:50,relaxed:false,reason:'recent-window-exhausted',distance:null}`。自动续播保持无 current 等待，普通 next 返回 `no_candidates` 并保留当前曲目／暂停状态；明确 `requestTrack` 保留重播例外。
+推荐选择只使用：窗口外且满足 30 分钟冷却 → 窗口外但放宽时间冷却；不再允许窗口内最久未播回退。自动续播、推荐队列和推荐 next 的曲库回退均适用，内部旧 `allowRepeatFallback` 参数也不能放宽。当前或刚播完同曲、禁播和不可播不放宽。成功选择的 `lastSelection.detail.repeat` 含 `window=50`、`relaxed`、`reason=null/cooldown-exhausted` 与 `distance=null`；只允许放宽时间冷却。窗口内歌曲导致无可选曲时返回 `track=null`、`reason=recent-window-exhausted`，`detail.algorithm=local-v7`、`detail.repeat={window:50,relaxed:false,reason:'recent-window-exhausted',distance:null}`。自动续播保持无 current 等待，推荐 next 返回 `no_candidates` 并保留当前曲目／暂停状态；明确 `requestTrack` 和固定游标的历史前后导航保留重播例外。
 
 窗口不足不增加逐曲模型请求，后台按 N27 的整个池水位与共享 token 预算补批。filtered 新批准批次完成后沿用 `persona-finish` 的自主续播入口，只在听歌开启、未暂停、未受停止约束且无 current 时开始窗口外歌曲；新批次不能撤销暂停。旧 `recent-exhausted` 表示历史小池重播，新的等待状态不复用该原因码。无需修改数据库 schema 或清理现有开始窗口。
 

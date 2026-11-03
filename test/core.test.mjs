@@ -405,7 +405,7 @@ test('previous keeps playback paused when the user was paused', async () => {
   } finally { await h.core.waitForIdle(); h.store.close(); }
 });
 
-test('next and explicit requests re-anchor previous on live history', async () => {
+test('next walks forward to the latest history before selecting D; point requests re-anchor', async () => {
   const h = harness();
   const d = { provider: 'qq', providerTrackId: '2', title: 'D', durationMs: 150000 };
   try {
@@ -416,17 +416,22 @@ test('next and explicit requests re-anchor previous on live history', async () =
     h.core.setQueue([d]);
     h.send('next');
     await h.core.waitForIdle();
+    assert.equal(trackId(h.core.snapshot().current.track), 'netease:2');
+    assert.equal(h.core.snapshot().current.selectedBy, 'user');
+    assert.equal(h.core.snapshot().navigation.previous, true);
+    h.send('next');
+    await h.core.waitForIdle();
     assert.equal(trackId(h.core.snapshot().current.track), 'qq:2');
-    // 下一首是外部切歌：游标作废，上一首从实时历史的 D 回到 B。
+    // 新推荐 D 才重新锚定：上一首回到刚才真正播放过的 C。
     h.send('previous');
     await h.core.waitForIdle();
-    assert.equal(trackId(h.core.snapshot().current.track), 'qq:1');
-    // 用户点播 A 同样换掉当前实例：上一首回到实时历史里 A 之前的 B。
+    assert.equal(trackId(h.core.snapshot().current.track), 'netease:2');
+    // 显式点播 A 重建锚点，不保留原快照里 C 之后的 D。
     h.send('requestTrack', { track: a });
     await h.core.waitForIdle();
     h.send('previous');
     await h.core.waitForIdle();
-    assert.equal(trackId(h.core.snapshot().current.track), 'qq:1');
+    assert.equal(trackId(h.core.snapshot().current.track), 'netease:2');
   } finally { await h.core.waitForIdle(); h.store.close(); }
 });
 

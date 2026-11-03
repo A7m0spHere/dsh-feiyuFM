@@ -15,7 +15,20 @@ const writePreference = (key, value) => {
   try { window.localStorage.setItem(key, JSON.stringify(value)); } catch { /* storage can be disabled */ }
 };
 
-export function createController(connection) {
+export function createController(connection, { onPlaybackTrace = null } = {}) {
+  // Bounded, in-memory timings contain identifiers only, never titles or media
+  // handles. A diagnostic reader can correlate RPC and host stages without
+  // adding a request to the user action or the ordinary poll.
+  const playbackTrace = [];
+  const traceSession = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+  let traceSerial = 0;
+  const traceInstances = new Map();
+  const trace = (phase, detail = {}) => {
+    const entry = { phase, at: Date.now(), monotonicMs: globalThis.performance?.now?.() ?? Date.now(), ...detail };
+    playbackTrace.push(entry);
+    if (playbackTrace.length > 200) playbackTrace.shift();
+    try { onPlaybackTrace?.({ ...entry }); } catch { /* Diagnostics cannot interrupt playback. */ }
+  };
   let state = {
     snapshot: null, platforms: {}, busy: false, transportPending: null, platformBusy: false, connected: false, error: '', notice: '', recommendationChoice: '',
     libraryBusy: false, libraryError: '', libraryQuery: '',
@@ -63,7 +76,16 @@ export function createController(connection) {
         &&(!state.expression||value.revision>=state.expression.revision))patch.expression=value;
     }
     if(patch.persona?.generatedAt<state.persona?.generatedAt){patch={...patch};delete patch.persona;}
-    if(patch.error==='')patch={...patch,errorCode:null};state = { ...state, ...patch }; listeners.forEach(fn => fn());
+    if(patch.error==='')patch={...patch,errorCode:null};
+    const previous = state.snapshot;
+    state = { ...state, ...patch }; listeners.forEach(fn => fn());
+    if (patch.snapshot?.current) {
+      const current = patch.snapshot.current;
+      const detail = { traceId: traceInstances.get(current.playInstanceId) ?? null, playInstanceId: current.playInstanceId, version: patch.snapshot.commandVersion };
+      if (current.playInstanceId !== previous?.current?.playInstanceId) trace('ui-current', detail);
+      if (patch.snapshot.status === 'playing' && (previous?.status !== 'playing'
+        || current.playInstanceId !== previous?.current?.playInstanceId)) trace('ui-playing', detail);
+    }
     if (feedbackOpen && state.insights?.feedback?.managementVersion === 1 && !state.feedbackListBusy
       && !state.feedbackClearBusy && feedbackRequestedRevision < feedbackRevision && !feedbackRefreshQueued) {
       feedbackRefreshQueued = true;
@@ -223,6 +245,7 @@ export function createController(connection) {
   }
   return {
     getSnapshot: () => state,
+    getPlaybackTrace: () => playbackTrace.map(entry => ({ ...entry })),
     setPlaybackEffects(value) {
       writePreference(PLAYBACK_EFFECTS_KEY, value === true);
       emit({ playbackEffects: value === true });
@@ -338,6 +361,8 @@ export function createController(connection) {
       // Other duplicate transport clicks are coalesced until acknowledged.
       if (transport && state.transportPending && (type !== 'pause' || state.transportPending === 'pause')) return;
       if (state.platformBusy && ['resetTaste', 'resetLibrary', 'undoTasteReset'].includes(type)) return;
+      const traceId = transport ? `${traceSession}-${++traceSerial}` : null;
+      if (transport) trace('ui-click', { traceId, kind: type });
       const playbackVersion = ++playbackEpoch;
       const libraryVersion = libraryEpoch;
       ++epoch; read?.abort(); read = null;
@@ -354,10 +379,18 @@ export function createController(connection) {
       const timeout = setTimeout(() => request.abort(), 25000);
       try {
         const payload = type === 'requestTrack' ? {type,track:value} : type === 'setTrackFeedback' ? {type,...value} : {type,value};
+        if (traceId) { payload.traceId = traceId; trace('rpc-sent', { traceId, kind: type }); }
         const result = await connection.rpc.call('/api', 'fishfm/command',
           ['setTrackFeedback','resetTaste','resetLibrary','undoTasteReset','setRecommendationMode'].includes(type) ? { ...payload, library: libraryOptions } : payload, request.signal);
+        if (traceId) trace('rpc-received', { traceId, kind: type,
+          ...(Number.isFinite(result.value?.timing?.coreReceivedAt) ? { coreReceivedAt: result.value.timing.coreReceivedAt } : {}),
+          ...(Number.isFinite(result.value?.timing?.coreAcceptedAt) ? { coreAcceptedAt: result.value.timing.coreAcceptedAt } : {}) });
         if (transport && transportWrite !== request) return;
         if (!result.ok) throw result.error;
+        if (traceId && result.value?.snapshot?.current?.playInstanceId) {
+          traceInstances.set(result.value.snapshot.current.playInstanceId, traceId);
+          if (traceInstances.size > 32) traceInstances.delete(traceInstances.keys().next().value);
+        }
         const feedbackNotice = type==='setTrackFeedback' ? value.value===1?'已喜欢，将提高这首歌的排序权重':value.value===-1?'已降低这首歌的排序权重':'已撤销这首歌的反馈'
           :type==='resetTaste'?'已重置成长偏好，输入曲库保留':type==='resetLibrary'?'已清空输入曲库并重建偏好，可撤销':type==='undoTasteReset'?'已恢复最近一次重置前的数据':type==='setRecommendationMode'?'推荐来源已更新':null;
         emit({ ...project(result.value, libraryVersion, playbackVersion),...(['resetTaste','resetLibrary','undoTasteReset','setRecommendationMode'].includes(type)?{summaryNotice:'',summaryError:''}:{}),...(type==='resetLibrary'?{imported:null,importAttempts:[]}:{}), notice: feedbackNotice || (transport ? '' : '已保存到本机') });

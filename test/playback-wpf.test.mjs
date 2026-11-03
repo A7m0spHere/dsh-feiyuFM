@@ -154,6 +154,43 @@ test('WPF accepts stop while a remote media open is stalled', { skip: process.pl
   }
 });
 
+for (const control of ['cancelPreload', 'pause']) {
+  test(`WPF ${control} acknowledges a stalled standby open without dropping the active pipe`,
+    { skip: process.platform !== 'win32' }, async () => {
+      let requested;
+      const received = new Promise(resolve => { requested = resolve; });
+      const server = createServer(() => requested()); // Hold the standby HTTP open.
+      await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+      const supervisor = new PlaybackSupervisor({ backend: wpfBackend({ warmHolders: 0 }) });
+      const service = new PlaybackService({ supervisor, openTimeoutMs: 8000, commandTimeoutMs: 1500 });
+      let opening, rejected, guard;
+      try {
+        await supervisor.ensureHost();
+        opening = service.preload({ resource: { handle: `http://127.0.0.1:${server.address().port}/standby.wav` }, version: 1 });
+        rejected = assert.rejects(opening, error => error.code === 'cancelled');
+        rejected.catch(() => {});
+        await Promise.race([received, new Promise((_, reject) => {
+          guard = setTimeout(() => reject(new Error('WPF did not request standby media')), 5000);
+        })]);
+        clearTimeout(guard);
+        await service[control]({ version: 2 });
+        await rejected;
+        assert.equal(supervisor.connected, true);
+        assert.equal(supervisor.transport.pending.size, 0, 'cancelled standby must also settle its original IPC request');
+        assert.equal(service.state().preloadStatus, 'idle');
+        assert.equal((await service.hostSnapshot()).status, 'idle');
+      } finally {
+        clearTimeout(guard);
+        const closed = new Promise(resolve => server.close(resolve));
+        server.closeAllConnections();
+        await service.close({ gracefulTimeoutMs: 1500 });
+        await opening?.catch(() => {});
+        await rejected?.catch(() => {});
+        await closed;
+      }
+    });
+}
+
 test('WPF re-opens the same source after a resume-style reload', { skip: process.platform !== 'win32' }, async () => {
   // The reuse-player path must not assume Open() on the same source fires
   // MediaOpened again: a resume/recovery reload has to tear the old media down.
@@ -165,7 +202,8 @@ test('WPF re-opens the same source after a resume-style reload', { skip: process
   await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
   const url = 'http://127.0.0.1:' + server.address().port + '/same.wav';
   const supervisor = new PlaybackSupervisor({ backend: wpfBackend({ warmHolders: 0 }) });
-  const service = new PlaybackService({ supervisor, openTimeoutMs: 8000, commandTimeoutMs: 3000 });
+  const logs = [];
+  const service = new PlaybackService({ supervisor, openTimeoutMs: 8000, commandTimeoutMs: 3000, onLog: entry => logs.push(entry) });
   const events = [];
   service.onEvent((event) => events.push(event));
   try {
@@ -174,6 +212,10 @@ test('WPF re-opens the same source after a resume-style reload', { skip: process
     await service.load({ resource: { handle: url }, playInstanceId: 'same-1', version: 2 });
     await service.play({ playInstanceId: 'same-1', version: 2 });
     await waitFor(() => events.some((event) => event.type === 'started' && event.playInstanceId === 'same-1'), 8000, 'first start');
+    const switched = logs.find(entry => entry.type === 'host-command' && entry.name === 'load');
+    const hostStarted = logs.find(entry => entry.type === 'host-event' && entry.event === 'started');
+    assert.ok(Number.isSafeInteger(switched.hostStartedAt));
+    assert.ok(hostStarted.hostEventAt >= switched.hostStartedAt, 'WPF supplies its actual switch and start timestamps');
 
     // A pause result must refresh the cached host state, or a resume can never
     // be recognised as directly resumable.

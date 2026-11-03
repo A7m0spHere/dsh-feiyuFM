@@ -109,6 +109,14 @@ function cancelLoad() {
   sendError(pending.id, 'cancelled', 'Media open was superseded by a playback control');
 }
 
+function cancelPreload() {
+  const pending = preloaded;
+  preloaded = null;
+  if (!pending) return;
+  clearTimeout(pending.timer);
+  if (!pending.ready) sendError(pending.id, 'cancelled', 'Media preload was superseded by a playback control');
+}
+
 function handle(command, id) {
   if (Number.isFinite(command.version)) {
     if (command.version < acceptedVersion) return void sendError(id, 'stale_version', 'Ignored an older playback command');
@@ -117,7 +125,7 @@ function handle(command, id) {
   }
   switch (command.type) {
     case 'load': {
-      if (command.usePreload === true && preloaded && preloaded.resource === command.resource) {
+      if (command.usePreload === true && preloaded?.ready && preloaded.resource === command.resource) {
         // Standby media is already open: answer without the open delay.
         const standby = preloaded;
         preloaded = null;
@@ -138,7 +146,7 @@ function handle(command, id) {
         sendResult(id, { positionMs: 0, seek: true, muted, playing: command.autoplay === true, preloaded: true });
         return;
       }
-      if (preloaded) { clearTimeout(preloaded.timer); preloaded = null; }
+      cancelPreload();
       cancelLoad();
       stopTimeline();
       status = 'loading';
@@ -195,19 +203,20 @@ function handle(command, id) {
       return;
     }
     case 'preload': {
-      if (preloaded) { clearTimeout(preloaded.timer); preloaded = null; }
-      const pending = { id, resource: command.resource ?? null, timer: null };
+      cancelPreload();
+      const pending = { id, resource: command.resource ?? null, timer: null, ready: false };
       preloaded = pending;
       pending.timer = setTimeout(() => {
         if (preloaded !== pending) return;
         if (openBehavior === 'fail') { preloaded = null; return void sendError(id, 'media_failed', 'Simulated preload failure'); }
         if (openBehavior === 'never') { preloaded = null; return void sendError(id, 'media_open_timeout', 'Preload did not open', true); }
+        pending.ready = true;
         sendResult(id, { positionMs: 0, preloaded: true });
       }, openDelayMs);
       return;
     }
     case 'preloadCancel': {
-      if (preloaded) { clearTimeout(preloaded.timer); preloaded = null; }
+      cancelPreload();
       return void sendResult(id, { preloaded: false });
     }
     case 'play': {
@@ -221,12 +230,14 @@ function handle(command, id) {
       return void sendResult(id, { positionMs: Math.round(currentPosition()) });
     }
     case 'pause': {
+      cancelPreload();
       if (pendingLoad) { cancelLoad(); status = 'paused'; }
       stopTimeline();
       if (status === 'playing' || status === 'ready') status = 'paused';
       return void sendResult(id, { positionMs: Math.round(positionMs) });
     }
     case 'stop': {
+      cancelPreload();
       cancelLoad();
       stopTimeline();
       status = 'idle';
@@ -247,7 +258,7 @@ function handle(command, id) {
     case 'ping':
       return void sendResult(id);
     case 'shutdown': {
-      if (preloaded) { clearTimeout(preloaded.timer); preloaded = null; }
+      cancelPreload();
       cancelLoad();
       stopTimeline();
       status = 'idle';

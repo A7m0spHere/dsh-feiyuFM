@@ -50,6 +50,8 @@ export class PlaybackService {
     this.recoveries = 0;
     this._recovery = null;
     this._recoveryContext = null;
+    this._preload = null;
+    this._preloadCancellation = null;
     this.capabilities = { seek: null, mute: null };
 
     supervisor.onMessage = (message) => this._onHostMessage(message);
@@ -70,6 +72,7 @@ export class PlaybackService {
       playInstanceId: this.active?.playInstanceId ?? null,
       positionMs: this.active?.positionMs ?? 0,
       capabilities: { ...this.capabilities },
+      preloadStatus: this._preload ? (this._preload.ready ? 'ready' : 'loading') : 'idle',
     };
   }
 
@@ -111,15 +114,78 @@ export class PlaybackService {
    * Opens the next track in the standby player. Advisory: a failure only means
    * the real load opens normally.
    */
-  async preload({ resource, playInstanceId, version, timeoutMs = this.openTimeoutMs + this.commandTimeoutMs }) {
+  async preload({ resource, playInstanceId, version, signal, timeoutMs = this.openTimeoutMs + this.commandTimeoutMs }) {
+    if (this.closing) throw playbackError('playback_closed', 'Playback service is closing');
     if (!resource || typeof resource.handle !== 'string' || !resource.handle) {
       throw playbackError('resource_missing', 'Preload needs a resolved resource handle');
     }
-    return this._send('preload', { resource: resource.handle, playInstanceId, version, openTimeoutMs: this.openTimeoutMs }, { timeoutMs });
+    if (signal?.aborted) throw new MusicError('cancelled', 'Preload was cancelled');
+    if (Number.isFinite(version) && version < this.acceptedVersion) {
+      throw playbackError('stale_version', 'Ignored a preload for an older command version');
+    }
+    const previous = this._preload;
+    if (previous?.handle === resource.handle && (!previous.ready || previous.generation === this.supervisor.generation)) {
+      return raceAbort(previous.promise, signal);
+    }
+    if (previous) void this.cancelPreload();
+    const entry = { handle: resource.handle, ready: false, controller: new AbortController(), generation: this.supervisor.generation };
+    this._preload = entry;
+    const onAbort = () => { if (this._preload === entry) void this.cancelPreload(); };
+    signal?.addEventListener('abort', onAbort, { once: true });
+    const cancellation = this._preloadCancellation;
+    entry.promise = (async () => {
+      try {
+        // A cancelled old open must be acknowledged before a new standby open
+        // is sent, otherwise its late cancellation could close the new resource.
+        if (cancellation) await cancellation;
+        if (this._preload !== entry || entry.controller.signal.aborted) {
+          throw new MusicError('cancelled', 'Preload was superseded');
+        }
+        const answer = await raceAbort(this._send('preload', {
+          resource: resource.handle, playInstanceId, version, openTimeoutMs: this.openTimeoutMs,
+        }, { timeoutMs }), entry.controller.signal);
+        if (this._preload !== entry || entry.controller.signal.aborted) {
+          throw new MusicError('cancelled', 'Preload was superseded');
+        }
+        entry.generation = this.supervisor.generation;
+        entry.ready = answer.preloaded === true;
+        if (!entry.ready) this._preload = null;
+        this.onLog({ type: 'preload-ready', at: Date.now(), playInstanceId, version, ready: entry.ready });
+        return answer;
+      } catch (error) {
+        if (this._preload === entry) this._preload = null;
+        throw error;
+      } finally {
+        signal?.removeEventListener('abort', onAbort);
+      }
+    })();
+    return entry.promise;
+  }
+
+  /** Exact resource identity matters: refreshed URLs cannot reuse stale media. */
+  isPreloaded(resource) {
+    const entry = this._preload;
+    return Boolean(entry?.ready && entry.handle === resource?.handle
+      && entry.generation === this.supervisor.generation && this.supervisor.connected !== false);
+  }
+
+  _forgetPreload() {
+    const entry = this._preload;
+    this._preload = null;
+    entry?.controller.abort();
   }
 
   async cancelPreload() {
-    try { await this._send('preloadCancel', {}, { timeoutMs: 2000 }); } catch { /* advisory */ }
+    this._forgetPreload();
+    if (this.closing) return;
+    // Standby teardown can outlast a normal control tick on a remote stream.
+    // Its advisory deadline must never disconnect an unrelated foreground load.
+    const cancellation = this._send('preloadCancel', {}, {
+      timeoutMs: this.commandTimeoutMs, invalidateOnTimeout: false,
+    }).catch(() => {});
+    this._preloadCancellation = cancellation;
+    await cancellation;
+    if (this._preloadCancellation === cancellation) this._preloadCancellation = null;
   }
 
   async load({ resource, playInstanceId, startPositionMs = 0, version, signal, muted = null, autoplay = false, usePreload = false }) {
@@ -131,6 +197,7 @@ export class PlaybackService {
       throw playbackError('resource_missing', 'Playback needs a resolved resource handle');
     }
     const startMs = Number.isFinite(startPositionMs) && startPositionMs > 0 ? Math.round(startPositionMs) : 0;
+    this._forgetPreload();
     this.active = null;
     this.lastForwardedMs = 0;
     const answer = await raceAbort(this._send('load', {
@@ -162,8 +229,9 @@ export class PlaybackService {
     if (typeof answer.muted === 'boolean') this.muted = answer.muted;
     else if (muted !== null) this.muted = Boolean(muted);
     const playing = answer.playing === true;
-    this.onLog({ type: 'loaded', playInstanceId, positionMs: this.active.positionMs, seek: answer.seek !== false, playing });
-    return { positionMs: this.active.positionMs, playing };
+    const preloaded = answer.preloaded === true;
+    this.onLog({ type: 'loaded', at: Date.now(), playInstanceId, version, positionMs: this.active.positionMs, seek: answer.seek !== false, playing, preloaded });
+    return { positionMs: this.active.positionMs, playing, preloaded };
   }
 
   async play({ playInstanceId, version } = {}) {
@@ -179,6 +247,7 @@ export class PlaybackService {
   async pause({ version } = {}) {
     if (this.closing) return;
     if (!this._acceptVersion(version)) return;
+    this._forgetPreload();
     await this._send('pause', { version: version ?? this.acceptedVersion });
   }
 
@@ -187,6 +256,7 @@ export class PlaybackService {
     this.lastForwardedMs = 0;
     if (this.closing) return;
     if (version !== undefined && !this._acceptVersion(version)) return;
+    this._forgetPreload();
     await this._send('stop', { version: version ?? this.acceptedVersion });
   }
 
@@ -210,15 +280,16 @@ export class PlaybackService {
 
   async close(options = {}) {
     this.closing = true;
+    this._forgetPreload();
     this.active = null;
     await this.supervisor.dispose(options);
   }
 
-  async _send(type, payload = {}, { timeoutMs = this.commandTimeoutMs } = {}) {
+  async _send(type, payload = {}, { timeoutMs = this.commandTimeoutMs, invalidateOnTimeout = true } = {}) {
     const started = performance.now();
     let answer;
     try {
-      answer = await this.supervisor.request({ type, ...payload }, { timeoutMs });
+      answer = await this.supervisor.request({ type, ...payload }, { timeoutMs, invalidateOnTimeout });
       // Every host result carries a fresh state snapshot. Keeping it here is
       // what lets a pause be recognised as directly resumable: the host only
       // pushes state on connect, so the greeting state would stay stale.
@@ -230,7 +301,10 @@ export class PlaybackService {
       // Host-internal time vs pipe/queue time is the difference between "the
       // audio host is slow" and "the command waited"; diagnostics only.
       try {
-        this.onLog({ type: 'host-command', name: type, durationMs: Math.round(performance.now() - started),
+        this.onLog({ type: 'host-command', name: type, at: Date.now(), version: payload.version, playInstanceId: payload.playInstanceId,
+          durationMs: Math.round(performance.now() - started),
+          ...(type === 'load' ? { preloaded: answer?.preloaded === true } : {}),
+          ...(Number.isFinite(answer?.hostStartedAt) ? { hostStartedAt: answer.hostStartedAt } : {}),
           ...(Number.isFinite(answer?.hostMs) ? { hostMs: Math.round(answer.hostMs) } : {}) });
       } catch { /* a logger fault is not a playback fault */ }
     }
@@ -278,6 +352,9 @@ export class PlaybackService {
     if (type === 'started') {
       if (active.started) return;
       active.started = true;
+      try { this.onLog({ type: 'host-event', event: 'started', playInstanceId: active.playInstanceId,
+        version: active.version, ...(Number.isFinite(message.hostEventAt) ? { hostEventAt: message.hostEventAt } : {}) }); }
+      catch { /* Diagnostics cannot interrupt playback. */ }
       this._emit({ type: 'started', playInstanceId: active.playInstanceId, version: active.version });
       return;
     }
@@ -375,6 +452,7 @@ export class PlaybackService {
   }
 
   _onHostClose(error) {
+    this._forgetPreload();
     if (this.closing) return;
     const active = this.active;
     // No active instance means there is nothing to recover — either the service

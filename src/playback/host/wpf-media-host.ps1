@@ -431,7 +431,7 @@ function Step-MediaOpen {
     } else {
       $script:status = 'ready'
     }
-    Send-Result $pending.id @{ positionMs = $position; seek = $seeked; muted = $script:muted; durationMs = $script:durationMs; playing = $playing }
+    Send-Result $pending.id @{ positionMs = $position; seek = $seeked; muted = $script:muted; durationMs = $script:durationMs; playing = $playing; preloaded = $pending.preloaded -eq $true; hostStartedAt = $pending.hostStartedAt }
   } catch {
     Stop-Playback
     $script:status = 'error'
@@ -493,8 +493,12 @@ Attach-PlayerEvents $script:player
 Attach-PlayerEvents $script:preloadPlayer
 
 function Stop-Preload {
+  $cancelled = $script:preload
   $script:preload = $null
   $script:preloadReady = $null
+  if ($null -ne $cancelled) {
+    Send-ResultError $cancelled.id 'cancelled' 'Media preload was superseded by a playback control'
+  }
   try { $script:preloadPlayer.Stop() } catch { }
   try { $script:preloadPlayer.Close() } catch { }
 }
@@ -507,6 +511,7 @@ function Step-Preload {
   if ($pending.failed -or (Get-Date) -ge $pending.deadline) {
     $code = if ($pending.failed) { 'media_failed' } else { 'media_open_timeout' }
     $message = if ($pending.failed) { $pending.failedMessage } else { "Preload did not open within $($pending.timeoutMs) ms" }
+    $script:preload = $null
     Stop-Preload
     $script:commandWatch = $pending.watch
     Send-ResultError $pending.id $code $message $true
@@ -534,6 +539,7 @@ function Invoke-Command($command) {
   }
   switch ($type) {
     'load' {
+      $hostStartedAt = [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()
       $resource = [string]$command.resource
       if ([string]::IsNullOrWhiteSpace($resource)) {
         Send-ResultError $id 'resource_missing' 'load needs a resource handle'
@@ -579,10 +585,10 @@ function Invoke-Command($command) {
           if ($natural.HasTimeSpan) { $script:durationMs = [int][Math]::Round($natural.TimeSpan.TotalMilliseconds) }
         } catch { $script:durationMs = $null }
         $script:opened = $true
-        $script:pendingOpen = @{ id = $id; startMs = $startMs; timeoutMs = $openTimeoutMs; deadline = (Get-Date).AddMilliseconds($openTimeoutMs); autoplay = $autoplay; watch = [System.Diagnostics.Stopwatch]::StartNew() }
+        $script:pendingOpen = @{ id = $id; startMs = $startMs; timeoutMs = $openTimeoutMs; deadline = (Get-Date).AddMilliseconds($openTimeoutMs); autoplay = $autoplay; preloaded = $true; hostStartedAt = $hostStartedAt; watch = [System.Diagnostics.Stopwatch]::StartNew() }
         return
       }
-      if ($usePreload) { Stop-Preload }
+      if ($null -ne $script:preload -or $null -ne $script:preloadReady) { Stop-Preload }
 
       # WPF does not fire MediaOpened when the same source is opened again on the
       # same player. A resume/recovery reload of the same handle must therefore
@@ -621,7 +627,7 @@ function Invoke-Command($command) {
         Send-ResultError $id 'media_failed' 'Open() rejected the resource'
         return
       }
-      $script:pendingOpen = @{ id = $id; startMs = $startMs; timeoutMs = $openTimeoutMs; deadline = (Get-Date).AddMilliseconds($openTimeoutMs); autoplay = $autoplay; watch = [System.Diagnostics.Stopwatch]::StartNew() }
+      $script:pendingOpen = @{ id = $id; startMs = $startMs; timeoutMs = $openTimeoutMs; deadline = (Get-Date).AddMilliseconds($openTimeoutMs); autoplay = $autoplay; hostStartedAt = $hostStartedAt; watch = [System.Diagnostics.Stopwatch]::StartNew() }
       # Warming starts only once a real load is in flight, so the first track of a
       # session is served exactly as before (cold) and the pool fills during the
       # playback that follows. Step-Warm never runs while an open is pending.
@@ -673,6 +679,7 @@ function Invoke-Command($command) {
       Send-Result $id @{ positionMs = (Get-Position) }
     }
     'stop' {
+      if ($null -ne $script:preload -or $null -ne $script:preloadReady) { Stop-Preload }
       Stop-Playback
       Send-Result $id @{ positionMs = 0 }
     }
@@ -684,6 +691,7 @@ function Invoke-Command($command) {
     'snapshot' { Send-Result $id $null }
     'ping' { Send-Result $id $null }
     'shutdown' {
+      if ($null -ne $script:preload -or $null -ne $script:preloadReady) { Stop-Preload }
       Stop-Playback
       Send-Result $id $null
       Send-Event 'exiting' @{}
@@ -728,7 +736,7 @@ function Step-Playback {
   if (-not $script:startedSent) {
     $script:startedSent = $true
     $script:lastProgress = $position
-    Send-Event 'started' @{ positionMs = $position; progressSource = 'audio' }
+    Send-Event 'started' @{ positionMs = $position; progressSource = 'audio'; hostEventAt = [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds() }
     return
   }
   if ($position -gt $script:lastProgress) {
