@@ -54,7 +54,7 @@ Host 协议 v1 使用 JSON-lines：启动发 `ready`，请求返回带 `id` 的 
 
 `command` 应答代表接受后的快照，可能仍是 `resolving`；异步失败经后续状态呈现。控制/读取不被慢账号或导入排队，stdio 持续接收取消命令。调试用 `wait` 等媒体任务收尾，`setQueue/autonomous` 为固定候选及调试入口。
 
-播放链路（2026-11-03 优化）：切歌时先并行启动平台解析与（旧宿主上的）停止，解析结果命中资源缓存或后台预取时不再请求平台；宿主声明 `autoplay/reuseSwitch` 能力时，`load` 一次完成打开、静音与起播，且用 `Open()` 替换旧源而不先 `Stop()+Close()`，避免把网络流拆除耗时放进用户等待路径；旧宿主仍走 `stop→resolve→load→mute→play` 兼容路径。恢复（宿主丢失/媒体过期/卡顿）强制重新解析，不复用刚失败的 handle。预取只是建议：失败或选曲变化只意味着回退到按需解析。预热池默认关闭（`FISHFM_PLAYBACK_WARM_HOLDERS=0`），2026-11-03 实测其 holder open 会与真实 load 竞争（切歌 9–14s vs 5–6s）；需要时可用环境变量 1..8 重新启用。
+播放链路（2026-11-03 优化）：切歌时先并行启动平台解析与（旧宿主上的）停止，解析结果命中资源缓存或后台预取时不再请求平台；宿主声明 `autoplay/reuseSwitch` 能力时，`load` 一次完成打开、静音与起播，且用 `Open()` 替换旧源而不先 `Stop()+Close()`，避免把网络流拆除耗时放进用户等待路径；旧宿主仍走 `stop→resolve→load→mute→play` 兼容路径。宿主声明 `preload` 能力时，下一首的媒体在后台用备用播放器打开（`preload`），切歌时暂停旧播放器并交换引用（`load{usePreload:true}`），用户等待从一次冷打开变成一次换源；备用流在暂停/选中其它曲目时取消。恢复（宿主丢失/媒体过期/卡顿）强制重新解析，不复用刚失败的 handle。预取/预加载只是建议：失败或选曲变化只意味着回退到按需解析。预热池默认关闭（`FISHFM_PLAYBACK_WARM_HOLDERS=0`），2026-11-03 实测其 holder open 会与真实 load 竞争（切歌 9–14s vs 5–6s）；需要时可用环境变量 1..8 重新启用。
 
 UI 经宿主认证 `/api` 调用；完整白名单见 [dsh-settings.mjs](../src/ui/dsh-settings.mjs)，不能把全部 Core 命令自动暴露给浏览器。
 

@@ -3,7 +3,7 @@ import { mkdirSync, writeFileSync, renameSync, readFileSync, rmSync } from 'node
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 const TEXT = new Set(['type', 'kind', 'role', 'event', 'phase', 'code', 'endReason', 'pool', 'provider', 'playInstanceId', 'decisionId', 'trackKey', 'selectedBy', 'progressSource', 'name', 'status', 'source']);
-const NUMBERS = new Set(['positionMs', 'effectiveMs', 'effectiveDeltaMs', 'agentEffectiveMs', 'audibleMs', 'count', 'delta', 'before', 'after', 'version', 'discoveryRate', 'familiar', 'discovery', 'offered', 'durationMs']);
+const NUMBERS = new Set(['positionMs', 'effectiveMs', 'effectiveDeltaMs', 'agentEffectiveMs', 'audibleMs', 'count', 'delta', 'before', 'after', 'version', 'discoveryRate', 'familiar', 'discovery', 'offered', 'durationMs', 'hostMs']);
 const FLAGS = new Set(['accepted', 'updated', 'fellBack', 'paused', 'audible', 'agentListening']);
 /** Same shape rule as text fields: a recorded error is a code, not a message. */
 const SAFE_CODE = /^[\w:.-]{1,100}$/;

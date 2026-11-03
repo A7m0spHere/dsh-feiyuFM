@@ -90,7 +90,27 @@ export class PlaybackService {
     return this.supervisor.hello?.capabilities?.reuseSwitch === true;
   }
 
-  async load({ resource, playInstanceId, startPositionMs = 0, version, signal, muted = null, autoplay = false }) {
+  /** True when the host can open the next track in a standby player. */
+  supportsPreload() {
+    return this.supervisor.hello?.capabilities?.preload === true;
+  }
+
+  /**
+   * Opens the next track in the standby player. Advisory: a failure only means
+   * the real load opens normally.
+   */
+  async preload({ resource, playInstanceId, version, timeoutMs = this.openTimeoutMs + this.commandTimeoutMs }) {
+    if (!resource || typeof resource.handle !== 'string' || !resource.handle) {
+      throw playbackError('resource_missing', 'Preload needs a resolved resource handle');
+    }
+    return this._send('preload', { resource: resource.handle, playInstanceId, version, openTimeoutMs: this.openTimeoutMs }, { timeoutMs });
+  }
+
+  async cancelPreload() {
+    try { await this._send('preloadCancel', {}, { timeoutMs: 2000 }); } catch { /* advisory */ }
+  }
+
+  async load({ resource, playInstanceId, startPositionMs = 0, version, signal, muted = null, autoplay = false, usePreload = false }) {
     if (this.closing) throw playbackError('playback_closed', 'Playback service is closing');
     if (!this._acceptVersion(version)) {
       throw playbackError('stale_version', 'Ignored a load for an older command version');
@@ -109,6 +129,7 @@ export class PlaybackService {
       openTimeoutMs: this.openTimeoutMs,
       ...(muted === null ? {} : { muted: Boolean(muted) }),
       ...(autoplay ? { autoplay: true } : {}),
+      ...(usePreload ? { usePreload: true } : {}),
     }, { timeoutMs: this.openTimeoutMs + this.commandTimeoutMs }), signal);
     if (signal?.aborted || version < this.acceptedVersion || this.closing) throw new MusicError('cancelled', 'Playback load was superseded');
     const positionMs = Number(answer.positionMs);
@@ -183,13 +204,16 @@ export class PlaybackService {
 
   async _send(type, payload = {}, { timeoutMs = this.commandTimeoutMs } = {}) {
     const started = performance.now();
+    let answer;
     try {
-      return await this.supervisor.request({ type, ...payload }, { timeoutMs });
+      answer = await this.supervisor.request({ type, ...payload }, { timeoutMs });
+      return answer;
     } finally {
       // Host-internal time vs pipe/queue time is the difference between "the
       // audio host is slow" and "the command waited"; diagnostics only.
       try {
-        this.onLog({ type: 'host-command', name: type, durationMs: Math.round(performance.now() - started) });
+        this.onLog({ type: 'host-command', name: type, durationMs: Math.round(performance.now() - started),
+          ...(Number.isFinite(answer?.hostMs) ? { hostMs: Math.round(answer.hostMs) } : {}) });
       } catch { /* a logger fault is not a playback fault */ }
     }
   }

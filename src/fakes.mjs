@@ -66,9 +66,18 @@ export class FakePlayback {
     // Opt-in: tests that exercise the one-command load+start path set this.
     this.autoplaySupported = false;
     this.reuseSwitchSupported = false;
+    this.preloadSupported = false;
+    this.preloaded = null;
   }
   supportsAutoplay() { return this.autoplaySupported === true; }
   supportsReuseSwitch() { return this.reuseSwitchSupported === true; }
+  supportsPreload() { return this.preloadSupported === true; }
+  async preload({ resource, playInstanceId, version }) {
+    this.calls.push({ type: 'preload', playInstanceId, version });
+    this.preloaded = { resource, playInstanceId, version };
+    return { preloaded: true };
+  }
+  async cancelPreload() { this.calls.push({ type: 'preloadCancel' }); this.preloaded = null; }
   onEvent(sink) { this.eventSink = sink; }
   emit(event, times = 1) {
     for (let index = 0; index < times; index += 1) this.eventSink?.({ version: this.version, ...event });
@@ -105,8 +114,8 @@ export class FakePlayback {
     this._fail('pause');
     if (this._accept(version)) this.playing = false;
   }
-  async load({ resource, playInstanceId, startPositionMs, version, muted = null, autoplay = false }) {
-    this.calls.push({ type: 'load', playInstanceId, version, muted, autoplay });
+  async load({ resource, playInstanceId, startPositionMs, version, muted = null, autoplay = false, usePreload = false }) {
+    this.calls.push({ type: 'load', playInstanceId, version, muted, autoplay, usePreload });
     if (this.loadFailure) { const error = this.loadFailure; this.loadFailure = null; throw error; }
     const positionMs = this.supportsSeek ? startPositionMs : 0;
     if (this._accept(version)) {

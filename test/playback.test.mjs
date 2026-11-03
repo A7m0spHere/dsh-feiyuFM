@@ -210,6 +210,45 @@ test('a host that advertises autoplay opens and starts in one load command', asy
   } finally { await shutdown(h.service); }
 });
 
+test('a preloaded track loads through the standby player', async () => {
+  const h = harness();
+  try {
+    const pre = await h.service.preload({ resource: { handle: 'fake:pre' }, playInstanceId: 'pre-1', version: 1 });
+    assert.equal(pre.preloaded, true);
+    assert.equal(h.service.supportsPreload(), true);
+    const started = performance.now();
+    const loaded = await h.service.load({
+      resource: { handle: 'fake:pre' }, playInstanceId: 'pre-2', version: 2, autoplay: true, usePreload: true,
+    });
+    const ms = performance.now() - started;
+    assert.equal(loaded.playing, true);
+    assert.ok(ms < 500, 'a preloaded load should answer immediately, took ' + ms.toFixed(0) + 'ms');
+  } finally { await shutdown(h.service); }
+});
+
+test('Core preloads the next track and switches through the standby player', async () => {
+  const store = new MusicStore();
+  const provider = new FakeProvider();
+  const playback = new FakePlayback();
+  playback.autoplaySupported = true;
+  playback.reuseSwitchSupported = true;
+  playback.preloadSupported = true;
+  const core = new MusicCore({ store, provider, playback, prefetchDelayMs: 0 });
+  playback.onEvent((event) => core.onPlaybackEvent(event));
+  const next = { ...track, providerTrackId: 'preload-next' };
+  try {
+    core.setQueue([next]);
+    core.dispatch({ type: 'requestTrack', track, commandId: 'preload-a' });
+    await core.waitForIdle();
+    await delay(80);
+    assert.ok(playback.calls.some((call) => call.type === 'preload'), 'the next track should be preloaded');
+    core.dispatch({ type: 'next', commandId: 'preload-b' });
+    await core.waitForIdle();
+    const loadCall = playback.calls.filter((call) => call.type === 'load').at(-1);
+    assert.equal(loadCall.usePreload, true, 'the switch should consume the standby player');
+  } finally { await core.waitForIdle(); store.close(); }
+});
+
 test('Core uses one load command when the host supports autoplay', async () => {
   const store = new MusicStore();
   const provider = new FakeProvider();

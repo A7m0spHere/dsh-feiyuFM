@@ -60,6 +60,16 @@ $script:volume = [Math]::Max(0.0, [Math]::Min(1.0, $Volume))
 $script:player = [System.Windows.Media.MediaPlayer]::new()
 $script:player.Volume = $script:volume
 $script:pendingOpen = $null
+# Preload: the next track's media is opened in a standby player while the
+# current one plays, so a switch becomes a player swap instead of a cold open
+# the user waits for. The standby is muted and never played until it is swapped.
+$script:preloadPlayer = [System.Windows.Media.MediaPlayer]::new()
+$script:preloadPlayer.Volume = 0
+try { $script:preloadPlayer.IsMuted = $true } catch { }
+$script:preload = $null
+# A completed standby open. Kept separately from the pending request so the
+# result can be answered while the media stays available for the next load.
+$script:preloadReady = $null
 
 # Warm-up state. WPF's media stack is only fast once enough resources are open
 # in the process: the first Open after idle costs several seconds. The current
@@ -389,6 +399,8 @@ function Step-MediaOpen {
     $message = "Media did not open within $($pending.timeoutMs) ms"
     if ($null -ne $script:failed) { $code = 'media_failed'; $message = $script:failedMessage }
     $script:pendingOpen = $null
+    # Report this command's own wait, not the most recent command's.
+    $script:commandWatch = $pending.watch
     Stop-Playback
     $script:status = 'error'
     Send-ResultError $pending.id $code $message $true
@@ -405,6 +417,7 @@ function Step-MediaOpen {
       $seeked = $position -gt 0
       $script:seekSupported = $seeked
     }
+    $script:commandWatch = $pending.watch
     $playing = $false
     if ($pending.autoplay) {
       # One round trip: open, unmute/mute as requested, and start audio.
@@ -426,31 +439,87 @@ function Step-MediaOpen {
   }
 }
 
-$script:player.add_MediaOpened({
-  $script:opened = $true
-  $script:failed = $null
-  try {
-    $natural = $script:player.NaturalDuration
-    if ($natural.HasTimeSpan) { $script:durationMs = [int][Math]::Round($natural.TimeSpan.TotalMilliseconds) }
-  } catch { $script:durationMs = $null }
-})
+# Both the active and the standby player share one handler set; the sender
+# decides which state the event belongs to, so a swap does not need re-wiring.
+function Attach-PlayerEvents($player) {
+  $player.add_MediaOpened({
+    param($sender, $eventArgs)
+    if ($sender -eq $script:player) {
+      $script:opened = $true
+      $script:failed = $null
+      try {
+        $natural = $script:player.NaturalDuration
+        if ($natural.HasTimeSpan) { $script:durationMs = [int][Math]::Round($natural.TimeSpan.TotalMilliseconds) }
+      } catch { $script:durationMs = $null }
+      return
+    }
+    if ($null -ne $script:preload -and $sender -eq $script:preloadPlayer) {
+      $script:preload.opened = $true
+      try {
+        $natural = $script:preloadPlayer.NaturalDuration
+        if ($natural.HasTimeSpan) { $script:preload.durationMs = [int][Math]::Round($natural.TimeSpan.TotalMilliseconds) }
+      } catch { }
+    }
+  })
+  $player.add_MediaFailed({
+    param($sender, $eventArgs)
+    if ($sender -eq $script:player) {
+      $script:failed = 'media_failed'
+      $script:failedMessage = 'Media playback failed'
+      try {
+        if ($null -ne $eventArgs.ErrorException) { $script:failedMessage = $eventArgs.ErrorException.Message }
+      } catch { }
+      return
+    }
+    if ($null -ne $script:preload -and $sender -eq $script:preloadPlayer) {
+      $script:preload.failed = $true
+      try {
+        if ($null -ne $eventArgs.ErrorException) { $script:preload.failedMessage = $eventArgs.ErrorException.Message }
+      } catch { }
+    }
+  })
+  $player.add_MediaEnded({
+    param($sender, $eventArgs)
+    if ($sender -ne $script:player) { return }
+    if ($script:status -ne 'playing' -or $null -ne $script:failed) { return }
+    $script:status = 'ended'
+    $script:lastProgress = Get-Position
+    Send-Event 'ended' @{ positionMs = $script:lastProgress }
+    Write-Marker 'MEDIA_ENDED'
+  })
+}
 
-$script:player.add_MediaFailed({
-  param($sender, $eventArgs)
-  $script:failed = 'media_failed'
-  $script:failedMessage = 'Media playback failed'
-  try {
-    if ($null -ne $eventArgs.ErrorException) { $script:failedMessage = $eventArgs.ErrorException.Message }
-  } catch { }
-})
+Attach-PlayerEvents $script:player
+Attach-PlayerEvents $script:preloadPlayer
 
-$script:player.add_MediaEnded({
-  if ($script:status -ne 'playing' -or $null -ne $script:failed) { return }
-  $script:status = 'ended'
-  $script:lastProgress = Get-Position
-  Send-Event 'ended' @{ positionMs = $script:lastProgress }
-  Write-Marker 'MEDIA_ENDED'
-})
+function Stop-Preload {
+  $script:preload = $null
+  $script:preloadReady = $null
+  try { $script:preloadPlayer.Stop() } catch { }
+  try { $script:preloadPlayer.Close() } catch { }
+}
+
+# The standby open is asynchronous like a real load: the loop keeps serving
+# commands while it completes.
+function Step-Preload {
+  $pending = $script:preload
+  if ($null -eq $pending) { return }
+  if ($pending.failed -or (Get-Date) -ge $pending.deadline) {
+    $code = if ($pending.failed) { 'media_failed' } else { 'media_open_timeout' }
+    $message = if ($pending.failed) { $pending.failedMessage } else { "Preload did not open within $($pending.timeoutMs) ms" }
+    Stop-Preload
+    $script:commandWatch = $pending.watch
+    Send-ResultError $pending.id $code $message $true
+    return
+  }
+  if (-not $pending.opened) { return }
+  $script:preload = $null
+  # Keep the opened standby media for the next load; only the request is done.
+  $script:preloadReady = @{ resource = $pending.resource; durationMs = $pending.durationMs }
+  Write-Marker 'PRELOAD_READY'
+  $script:commandWatch = $pending.watch
+  Send-Result $pending.id @{ positionMs = 0; preloaded = $true; durationMs = $pending.durationMs }
+}
 
 function Invoke-Command($command) {
   $id = [string]$command.id
@@ -479,6 +548,41 @@ function Invoke-Command($command) {
       if ($null -ne $command.muted) { $script:muted = [bool]$command.muted }
       $autoplay = $false
       if ($null -ne $command.autoplay) { $autoplay = [bool]$command.autoplay }
+
+      $usePreload = $command.usePreload -eq $true
+      if ($usePreload -and $null -ne $script:preloadReady -and $script:preloadReady.resource -eq $resource) {
+        # The standby player already holds this exact resource: pause the old
+        # track, swap players, and let Step-MediaOpen start the new one. The
+        # user waits for a swap, not for a cold network open.
+        if ($null -ne $script:pendingOpen) {
+          $cancelled = $script:pendingOpen
+          $script:pendingOpen = $null
+          Send-ResultError $cancelled.id 'cancelled' 'Media open was superseded by a new load'
+        }
+        $retired = $script:player
+        try { $retired.Pause() } catch { }
+        $script:player = $script:preloadPlayer
+        $script:preloadPlayer = $retired
+        $script:player.Volume = $script:volume
+        $script:preloadReady = $null
+        # The old player becomes the standby. It is paused (not closed): a
+        # Close() on a network stream can block the command loop for seconds,
+        # and the next preload replaces its source anyway.
+        Write-Marker 'PRELOAD_SWAP'
+        Reset-PlaybackState
+        $script:status = 'loading'
+        $script:instance = $instance
+        $script:version = $version
+        $script:resource = $resource
+        try {
+          $natural = $script:player.NaturalDuration
+          if ($natural.HasTimeSpan) { $script:durationMs = [int][Math]::Round($natural.TimeSpan.TotalMilliseconds) }
+        } catch { $script:durationMs = $null }
+        $script:opened = $true
+        $script:pendingOpen = @{ id = $id; startMs = $startMs; timeoutMs = $openTimeoutMs; deadline = (Get-Date).AddMilliseconds($openTimeoutMs); autoplay = $autoplay; watch = [System.Diagnostics.Stopwatch]::StartNew() }
+        return
+      }
+      if ($usePreload) { Stop-Preload }
 
       if ($script:reusePlayer) {
         if ($null -ne $script:pendingOpen) {
@@ -511,11 +615,33 @@ function Invoke-Command($command) {
         Send-ResultError $id 'media_failed' 'Open() rejected the resource'
         return
       }
-      $script:pendingOpen = @{ id = $id; startMs = $startMs; timeoutMs = $openTimeoutMs; deadline = (Get-Date).AddMilliseconds($openTimeoutMs); autoplay = $autoplay }
+      $script:pendingOpen = @{ id = $id; startMs = $startMs; timeoutMs = $openTimeoutMs; deadline = (Get-Date).AddMilliseconds($openTimeoutMs); autoplay = $autoplay; watch = [System.Diagnostics.Stopwatch]::StartNew() }
       # Warming starts only once a real load is in flight, so the first track of a
       # session is served exactly as before (cold) and the pool fills during the
       # playback that follows. Step-Warm never runs while an open is pending.
       $script:warmArmed = $true
+    }
+    'preload' {
+      if ($null -ne $script:pendingOpen) { Send-ResultError $id 'busy' 'A load is in flight'; return }
+      $resource = [string]$command.resource
+      if ([string]::IsNullOrWhiteSpace($resource)) { Send-ResultError $id 'resource_missing' 'preload needs a resource handle'; return }
+      $timeoutMs = 15000
+      if ($null -ne $command.openTimeoutMs) { $timeoutMs = [int]$command.openTimeoutMs }
+      if ($null -ne $script:preload -or $null -ne $script:preloadReady) { Stop-Preload }
+      # The standby may be a swapped-out player: keep it silent before opening.
+      $script:preloadPlayer.Volume = 0
+      try { $script:preloadPlayer.IsMuted = $true } catch { }
+      try { $uri = Resolve-Resource $resource } catch { Send-ResultError $id 'unsupported_resource' 'Resource is not a readable local file or URL'; return }
+      $script:preload = @{ id = $id; resource = $resource; opened = $false; failed = $false; failedMessage = 'Media preload failed'; durationMs = $null; timeoutMs = $timeoutMs; deadline = (Get-Date).AddMilliseconds($timeoutMs); watch = [System.Diagnostics.Stopwatch]::StartNew() }
+      try { $script:preloadPlayer.Open($uri) } catch {
+        $script:preload = $null
+        Send-ResultError $id 'media_failed' 'Open() rejected the preload resource'
+        return
+      }
+    }
+    'preloadCancel' {
+      Stop-Preload
+      Send-Result $id @{ preloaded = $false }
     }
     'play' {
       if ($null -eq $script:instance) {
@@ -663,7 +789,7 @@ try {
         pid = $PID
         backend = 'wpf-mediaplayer'
         ownerPid = $script:ownerPid
-        capabilities = @{ seek = $true; mute = $true; volume = $true; autoplay = $true; reuseSwitch = $true }
+        capabilities = @{ seek = $true; mute = $true; volume = $true; autoplay = $true; reuseSwitch = $true; preload = $true }
       }
       Send-Message (@{ type = 'state' } + (Get-State))
     }
@@ -692,6 +818,7 @@ try {
     }
     Pump
     Step-MediaOpen
+    Step-Preload
     Step-Warm
     Step-Playback
     Step-Watchdog
@@ -699,6 +826,7 @@ try {
   }
 } finally {
   Stop-WarmHolders
+  Stop-Preload
   try { $script:player.Stop() } catch { }
   try { $script:player.Close() } catch { }
   if ($null -ne $script:server) { $script:server.Dispose() }

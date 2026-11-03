@@ -130,6 +130,8 @@ export class MusicCore {
     this.prefetchTimer = null;
     this.prefetchAbort = null;
     this.prefetchDelayMs = prefetchDelayMs;
+    // Track whose media is already open in the host's standby player.
+    this.preloadedTrackKey = null;
     initializeRecentPlayback(store);
     this.store.setCoreState(this.state);
   }
@@ -258,7 +260,19 @@ export class MusicCore {
     const controller = new AbortController();
     this.prefetchAbort = controller;
     try {
-      await this._resolveResource(track, controller.signal, this.state.commandVersion);
+      const resource = await this._resolveResource(track, controller.signal, this.state.commandVersion);
+      // A host that can hold the next track in a standby player turns the
+      // switch into a player swap; the load that the user waits for is gone.
+      if (this.playback.supportsPreload?.() === true && this.preloadedTrackKey !== key && !controller.signal.aborted) {
+        await this.playback.preload({ resource, playInstanceId: 'preload:' + key, version: this.state.commandVersion });
+        if (controller.signal.aborted) {
+          // The user acted while the standby was opening: do not keep a stale
+          // stream around, and do not claim it for a track nobody selected.
+          await this.playback.cancelPreload?.();
+          return;
+        }
+        this.preloadedTrackKey = key;
+      }
     } catch { /* advisory only */ } finally {
       if (this.prefetchAbort === controller) this.prefetchAbort = null;
     }
@@ -395,6 +409,11 @@ export class MusicCore {
 
   _select(track, selectedBy, keepPaused) {
     this._cancelPrefetch();
+    // A preload only pays off for the track that is actually selected next.
+    if (this.preloadedTrackKey && this.preloadedTrackKey !== trackId(track)) {
+      this.preloadedTrackKey = null;
+      this.playback.cancelPreload?.().catch?.(() => {});
+    }
     const stored=this.store.getTrack(track);
     const enriched=stored ? this.store.getNormalizedTrack(track) : null;
     this._finishCurrent('skipped');
@@ -484,8 +503,10 @@ export class MusicCore {
     // by a pause between them.
     const autoplay = this.playback.supportsAutoplay?.() === true;
     const muted = !this.state.settings.humanPlayback;
+    const usePreload = this.preloadedTrackKey === trackId(current.track) && this.playback.supportsPreload?.() === true;
+    this.preloadedTrackKey = null;
     const loaded = await stage('load', () => this.playback.load({ resource, playInstanceId: current.playInstanceId,
-      startPositionMs: current.positionMs, version, signal: controller.signal, muted, autoplay }));
+      startPositionMs: current.positionMs, version, signal: controller.signal, muted, autoplay, usePreload }));
     if (!this._isCurrent(version, controller.signal)) return;
     // A platform handle is time limited. Remembering when it expires is what
     // lets the core recover instead of failing the track when it goes stale.
@@ -524,6 +545,9 @@ export class MusicCore {
     switch (command.type) {
       case 'pause':
         this._invalidate();
+        // Paused users may stay paused: do not keep a standby stream open.
+        this.preloadedTrackKey = null;
+        this.playback.cancelPreload?.().catch?.(() => {});
         this.state.paused = true;
         this.state.status = this.state.current ? 'paused' : 'idle';
         this._control('pause', { version: this.state.commandVersion }, true);
@@ -785,8 +809,14 @@ export class MusicCore {
       current.progressSource = event.progressSource === 'logical' ? 'logical' : 'audio';
       current.agentListening ||= current.selectedBy === 'agent' && this.state.settings.listening;
       current.audible ||= current.progressSource === 'audio' && this.state.settings.humanPlayback;
-      if(firstAdvance)this.store.transaction(()=>{recordPlaybackStart(this.store,current,current.startedAt);this._commit();});
-      else this._commit();
+      // Progress arrives every ~400 ms. Committing every sample bumped the
+      // revision (and rewrote the whole state) several times a second, which
+      // in turn pushed a full snapshot — including the up-to-100-track pool —
+      // down stdout each time. A 2 s cadence keeps the visible progress and the
+      // persisted position fresh without that write/publish storm.
+      const progressNow = this.clock.now();
+      if(firstAdvance){this.lastProgressCommitAt=progressNow;this.store.transaction(()=>{recordPlaybackStart(this.store,current,current.startedAt);this._commit();});}
+      else if(progressNow-(this.lastProgressCommitAt??0)>=2000){this.lastProgressCommitAt=progressNow;this._commit();}
       return true;
     }
     if ((event.type === 'ended' || event.type === 'error') && this.state.paused) return false;

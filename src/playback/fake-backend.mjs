@@ -57,6 +57,7 @@ let running = true;
 let lastWatchdog = Date.now();
 let transientZeroPending = false;
 let pendingLoad = null;
+let preloaded = null;
 
 const send = (value) => {
   if (!writer) return;
@@ -116,6 +117,28 @@ function handle(command, id) {
   }
   switch (command.type) {
     case 'load': {
+      if (command.usePreload === true && preloaded && preloaded.resource === command.resource) {
+        // Standby media is already open: answer without the open delay.
+        const standby = preloaded;
+        preloaded = null;
+        clearTimeout(standby.timer);
+        stopTimeline();
+        status = 'loading';
+        instance = command.playInstanceId ?? null;
+        version = command.version ?? null;
+        resource = command.resource ?? null;
+        positionMs = 0;
+        basePosition = 0;
+        startedSent = false;
+        endedSent = false;
+        transientZeroPending = false;
+        if (typeof command.muted === 'boolean') muted = command.muted;
+        status = command.autoplay === true ? 'playing' : 'ready';
+        if (command.autoplay === true) playingSince = Date.now();
+        sendResult(id, { positionMs: 0, seek: true, muted, playing: command.autoplay === true, preloaded: true });
+        return;
+      }
+      if (preloaded) { clearTimeout(preloaded.timer); preloaded = null; }
       cancelLoad();
       stopTimeline();
       status = 'loading';
@@ -171,6 +194,22 @@ function handle(command, id) {
       }, openDelayMs);
       return;
     }
+    case 'preload': {
+      if (preloaded) { clearTimeout(preloaded.timer); preloaded = null; }
+      const pending = { id, resource: command.resource ?? null, timer: null };
+      preloaded = pending;
+      pending.timer = setTimeout(() => {
+        if (preloaded !== pending) return;
+        if (openBehavior === 'fail') { preloaded = null; return void sendError(id, 'media_failed', 'Simulated preload failure'); }
+        if (openBehavior === 'never') { preloaded = null; return void sendError(id, 'media_open_timeout', 'Preload did not open', true); }
+        sendResult(id, { positionMs: 0, preloaded: true });
+      }, openDelayMs);
+      return;
+    }
+    case 'preloadCancel': {
+      if (preloaded) { clearTimeout(preloaded.timer); preloaded = null; }
+      return void sendResult(id, { preloaded: false });
+    }
     case 'play': {
       if (!instance) return void sendError(id, 'no_media', 'Nothing is loaded');
       status = 'playing';
@@ -208,6 +247,7 @@ function handle(command, id) {
     case 'ping':
       return void sendResult(id);
     case 'shutdown': {
+      if (preloaded) { clearTimeout(preloaded.timer); preloaded = null; }
       cancelLoad();
       stopTimeline();
       status = 'idle';
@@ -274,7 +314,7 @@ function accept() {
       pid: process.pid,
       backend: 'fake-backend',
       ownerPid: OWNER_PID,
-      capabilities: { seek: supportsSeek, mute: true, autoplay: true, reuseSwitch: true },
+      capabilities: { seek: supportsSeek, mute: true, autoplay: true, reuseSwitch: true, preload: true },
     });
     send({ type: 'state', ...state() });
     socket.on('data', (chunk) => {
