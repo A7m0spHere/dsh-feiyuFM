@@ -1,6 +1,6 @@
 # 交付与使用说明
 
-更新：2026-11-03，发行基线为 **0.1.0-beta.3** Windows／网易云测试版。本文按已发布 beta.3 说明安装与使用；仓库 `main` 已包含未发布的陪伴界面、设置标签页、ASCII 频谱与持续补歌规则，界面和规则差异见 [开发状态](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/PROJECT_PLAN.md)。macOS 适配随包提供，真机验收未完成，稳定 v0.1 也未完成验收。版本范围与摘要见 [beta.3 记录](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/releases/0.1.0-beta.3.md)。
+更新：2026-11-03，发行基线为 **0.1.0-beta.3** Windows／网易云测试版。本文按已发布 beta.3 说明安装与使用；仓库 `main` 已包含未发布的陪伴界面、设置标签页、ASCII 频谱、持续补歌规则、R3/R4 播放延迟优化与 UI 单入口清理，界面和规则差异见 [开发状态](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/PROJECT_PLAN.md)。macOS 适配随包提供，真机验收未完成，稳定 v0.1 也未完成验收。版本范围与摘要见 [beta.3 记录](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/releases/0.1.0-beta.3.md)。
 
 ## 支持范围
 

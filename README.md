@@ -35,7 +35,7 @@ dsh-feiyufm-core@0.1.0-beta.3
 
 跟随测试版可安装 `dsh-feiyufm-core@beta`。升级时在插件管理器卸载旧来源、添加新版，保留同一 profile 的音乐数据库；后端更新后完整退出 DSH（含托盘）再启动。同一 profile 只启用一份 FishFM。
 
-> 仓库 `main` 已包含尚未发布的陪伴界面、设置标签页、ASCII 频谱与持续补歌规则；已发布的 beta.3 仍是旧版界面与按批换歌。安装说明以 beta.3 为准，源码安装见 [贡献指南](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/CONTRIBUTING.md)。
+> 仓库 `main` 已包含尚未发布的陪伴界面、设置标签页、ASCII 频谱、持续补歌规则、R3/R4 播放延迟优化与 UI 单入口清理；已发布的 beta.3 仍是旧版界面与按批换歌。安装说明以 beta.3 为准，源码安装见 [贡献指南](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/CONTRIBUTING.md)。
 
 <details>
 <summary>通过 DSH CLI 安装</summary>
@@ -97,7 +97,7 @@ dsh plugin --profile web add dsh-feiyufm-core@0.1.0-beta.3 --registry https://re
 
 beta.3 包含模型最终回答校验、可调输出额度、DPAPI／PowerShell 5.1 修复、全库搜索与手动换批优化，并修复旧导入写回、退出清理误报和迟到快照覆盖问题。完整变更见 [发布记录](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/releases/0.1.0-beta.3.md)。
 
-仓库 `main` 在 beta.3 之后包含陪伴界面、设置标签页、ASCII 频谱、最近 50 次硬性防重复与按池持续补歌，均未随 npm 包发布。最近一次全套离线回归 **655 项、652 通过、0 失败、3 项真实媒体跳过**。当前 Beta 不代表稳定 v0.1 验收完成，源码、日常加载与待验边界统一见 [开发状态](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/PROJECT_PLAN.md)。
+仓库 `main` 在 beta.3 之后包含陪伴界面、设置标签页、ASCII 频谱、最近 50 次硬性防重复、按池持续补歌、R3/R4 播放延迟优化与 UI 单入口清理，均未随 npm 包发布。最近一次全套离线回归与验证边界统一见 [开发状态](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/PROJECT_PLAN.md)。当前 Beta 不代表稳定 v0.1 验收完成。
 
 ## 数据、开发与许可
 
