@@ -82,4 +82,3 @@ test('previous control is enabled only when Core reports earlier playable histor
   assert.equal(playbackControls({ ...base, snapshot: { ...base.snapshot, navigation: { previous: true } }, transportPending: 'next' }).message, '正在切换下一首…',
     '上一首与下一首共用同一套 pending 文案');
 });
-

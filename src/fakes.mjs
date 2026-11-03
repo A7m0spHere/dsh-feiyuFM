@@ -72,6 +72,10 @@ export class FakePlayback {
   supportsAutoplay() { return this.autoplaySupported === true; }
   supportsReuseSwitch() { return this.reuseSwitchSupported === true; }
   supportsPreload() { return this.preloadSupported === true; }
+  canResume({ playInstanceId } = {}) {
+    return this.playing === false && Boolean(this.loaded)
+      && (!playInstanceId || this.loaded.playInstanceId === playInstanceId);
+  }
   async preload({ resource, playInstanceId, version }) {
     this.calls.push({ type: 'preload', playInstanceId, version });
     this.preloaded = { resource, playInstanceId, version };

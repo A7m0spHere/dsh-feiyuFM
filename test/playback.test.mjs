@@ -226,6 +226,28 @@ test('a preloaded track loads through the standby player', async () => {
   } finally { await shutdown(h.service); }
 });
 
+test('resume after pause reuses the paused player instead of reloading', async () => {
+  const store = new MusicStore();
+  const provider = new FakeProvider();
+  const playback = new FakePlayback();
+  playback.autoplaySupported = true;
+  playback.reuseSwitchSupported = true;
+  const core = new MusicCore({ store, provider, playback });
+  playback.onEvent((event) => core.onPlaybackEvent(event));
+  try {
+    core.dispatch({ type: 'requestTrack', track, commandId: 'resume-a' });
+    await core.waitForIdle();
+    assert.equal(core.snapshot().status, 'playing');
+    const loadsBefore = playback.calls.filter((call) => call.type === 'load').length;
+    core.dispatch({ type: 'pause', commandId: 'resume-b' });
+    await core.waitForIdle();
+    core.dispatch({ type: 'resume', commandId: 'resume-c' });
+    await core.waitForIdle();
+    assert.equal(playback.calls.filter((call) => call.type === 'load').length, loadsBefore, 'a resume must not reload the media');
+    assert.equal(core.snapshot().status, 'playing');
+  } finally { await core.waitForIdle(); store.close(); }
+});
+
 test('Core preloads the next track and switches through the standby player', async () => {
   const store = new MusicStore();
   const provider = new FakeProvider();

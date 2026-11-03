@@ -1309,4 +1309,3 @@ test('console tabs mount on first visit and stay mounted while hidden', async ()
     assert.equal(mounted.find(node => node.props.className === 'fm-listen-page').props.hidden, false);
   } finally { off(); f.dispose(); }
 });
-

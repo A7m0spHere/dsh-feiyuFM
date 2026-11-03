@@ -584,7 +584,13 @@ function Invoke-Command($command) {
       }
       if ($usePreload) { Stop-Preload }
 
-      if ($script:reusePlayer) {
+      # WPF does not fire MediaOpened when the same source is opened again on the
+      # same player. A resume/recovery reload of the same handle must therefore
+      # really tear the old media down first, or the open waits out its timeout.
+      $sameSource = $script:reusePlayer -and $null -ne $script:instance -and $script:resource -eq $resource
+      if ($sameSource) {
+        Stop-Playback
+      } elseif ($script:reusePlayer) {
         if ($null -ne $script:pendingOpen) {
           $cancelled = $script:pendingOpen
           $script:pendingOpen = $null
@@ -657,6 +663,9 @@ function Invoke-Command($command) {
       Send-Result $id @{ positionMs = $script:positionAtPlay }
     }
     'pause' {
+      # A paused user should not keep a standby stream open, and cancelling it
+      # here (instead of a separate command) keeps the pause on one round trip.
+      if ($null -ne $script:preload -or $null -ne $script:preloadReady) { Stop-Preload }
       if ($null -ne $script:pendingOpen) { Stop-Playback }
       if ($null -ne $script:instance) { try { $script:player.Pause() } catch { } }
       if ($script:status -eq 'playing' -or $script:status -eq 'ready') { $script:status = 'paused' }

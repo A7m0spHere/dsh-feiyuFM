@@ -304,7 +304,7 @@ test('logical progress records agent activity without claiming audible playback'
   h.store.close();
 });
 
-test('resume resets position when playback cannot seek, and rejects old events', async () => {
+test('resume reuses the paused player, keeps its position, and rejects old events', async () => {
   const h = harness();
   h.send('requestTrack', { track: a });
   await h.core.waitForIdle();
@@ -315,7 +315,9 @@ test('resume resets position when playback cannot seek, and rejects old events',
   h.playback.supportsSeek = false;
   h.send('resume');
   await h.core.waitForIdle();
-  assert.equal(h.core.snapshot().current.positionMs, 0);
+  // The paused player still holds the media, so resuming is a plain play: no
+  // reload and no seek, hence the position is preserved even without seek.
+  assert.equal(h.core.snapshot().current.positionMs, 5000);
   assert.equal(h.core.snapshot().status, 'playing');
   assert.equal(h.core.onPlaybackEvent({ type: 'ended', playInstanceId, version: oldVersion }), false);
   assert.equal(h.core.snapshot().current.playInstanceId, playInstanceId);
@@ -456,4 +458,3 @@ test('previous from idle returns the last played song and records a navigation e
     assert.equal(store.getPreference('track', 'qq:1'), null, '返回上一首本身不制造成长');
   } finally { await core.waitForIdle(); store.close(); }
 });
-

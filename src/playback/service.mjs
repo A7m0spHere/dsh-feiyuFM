@@ -90,6 +90,18 @@ export class PlaybackService {
     return this.supervisor.hello?.capabilities?.reuseSwitch === true;
   }
 
+  /**
+   * True when the host still holds this paused instance, so a resume can be a
+   * plain play command instead of a full re-resolve + reload.
+   */
+  canResume({ playInstanceId } = {}) {
+    const host = this.supervisor.hostState;
+    if (!host || host.status !== 'paused') return false;
+    if (!this.active || this.active.finished) return false;
+    if (playInstanceId && host.playInstanceId !== playInstanceId) return false;
+    return true;
+  }
+
   /** True when the host can open the next track in a standby player. */
   supportsPreload() {
     return this.supervisor.hello?.capabilities?.preload === true;
@@ -207,6 +219,12 @@ export class PlaybackService {
     let answer;
     try {
       answer = await this.supervisor.request({ type, ...payload }, { timeoutMs });
+      // Every host result carries a fresh state snapshot. Keeping it here is
+      // what lets a pause be recognised as directly resumable: the host only
+      // pushes state on connect, so the greeting state would stay stale.
+      if (answer?.state && typeof answer.state === 'object') {
+        this.supervisor.hostState = { type: 'state', ...answer.state };
+      }
       return answer;
     } finally {
       // Host-internal time vs pipe/queue time is the difference between "the

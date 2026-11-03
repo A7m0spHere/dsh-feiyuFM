@@ -341,6 +341,28 @@ export class MusicCore {
     }, version);
   }
 
+  /** Resume a paused player directly when the host still holds the track. */
+  _resumeCurrent() {
+    this._invalidate();
+    const version = this.state.commandVersion;
+    const current = this.state.current;
+    this.state.status = 'resolving';
+    this._launch(async () => {
+      if (this.playback.canResume?.({ playInstanceId: current.playInstanceId })) {
+        await this.playback.play({ playInstanceId: current.playInstanceId, version });
+        // The service only reports 'started' once per instance, so a direct
+        // resume confirms playing from the accepted play command itself.
+        if (version === this.state.commandVersion && this.state.current === current) {
+          this.state.status = 'playing';
+          this.state.lastError = null;
+          this._commit();
+        }
+        return;
+      }
+      await this._resolveAndPlay(version);
+    }, version);
+  }
+
   _restartCurrent() {
     this._invalidate();
     const version = this.state.commandVersion;
@@ -545,9 +567,9 @@ export class MusicCore {
     switch (command.type) {
       case 'pause':
         this._invalidate();
-        // Paused users may stay paused: do not keep a standby stream open.
+        // The host cancels the standby stream inside the pause command itself;
+        // a separate cancel would queue in front of the pause and add ~300 ms.
         this.preloadedTrackKey = null;
-        this.playback.cancelPreload?.().catch?.(() => {});
         this.state.paused = true;
         this.state.status = this.state.current ? 'paused' : 'idle';
         this._control('pause', { version: this.state.commandVersion }, true);
@@ -555,7 +577,7 @@ export class MusicCore {
       case 'resume':
         if (this.state.paused || this.state.status !== 'playing') {
           this.state.paused = false;
-          if (this.state.current) this._restartCurrent();
+          if (this.state.current) this._resumeCurrent();
         }
         break;
       case 'next': {
