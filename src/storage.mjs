@@ -394,6 +394,27 @@ export class MusicStore {
       AND h.effective_ms >= MIN(30000, COALESCE(t.duration_ms / 2.0, 30000)) LIMIT 1`).get(trackId(track)));
   }
 
+  // Batched forms of the per-track checks above. Projections such as the
+  // discovery status ask about every cached candidate; preparing one query per
+  // track made a single snapshot cost 100-300 ms on a real library.
+  unavailableKeys(now) {
+    return new Set(this.db.prepare('SELECT track_key FROM track_availability WHERE expires_at>?').all(now).map(row => row.track_key));
+  }
+
+  environmentKeys() {
+    return new Set(this.db.prepare('SELECT track_key FROM user_environment').all().map(row => row.track_key));
+  }
+
+  effectiveListenKeys() {
+    return new Set(this.db.prepare(`SELECT DISTINCT h.track_key FROM listen_history h LEFT JOIN tracks t USING(track_key)
+      WHERE h.end_reason IN ('ended','skipped')
+      AND h.effective_ms >= MIN(30000, COALESCE(t.duration_ms / 2.0, 30000))`).all().map(row => row.track_key));
+  }
+
+  feedbackScores() {
+    return new Map(this.db.prepare('SELECT track_key, score FROM user_track_feedback').all().map(row => [row.track_key, row.score]));
+  }
+
   listAgentKnownTracks() {
     return this.db.prepare(`SELECT DISTINCT t.* FROM tracks t JOIN listen_history h USING(track_key)
       WHERE h.selected_by='agent' AND h.agent_listening=1 AND h.end_reason IN ('ended','skipped')
@@ -490,6 +511,31 @@ export class MusicStore {
 
   getEnvironmentEntry(track) {
     return this.db.prepare('SELECT * FROM user_environment WHERE track_key = ?').get(trackId(track)) ?? null;
+  }
+
+  // Batched environment projection: the selector describes the whole environment
+  // on every decision, and one prepared statement per row cost ~140 ms.
+  normalizedTracksForEnvironment() {
+    const rows = this.db.prepare('SELECT e.track_key AS environment_key, t.* FROM user_environment e LEFT JOIN tracks t USING(track_key)').all();
+    const map = new Map();
+    for (const row of rows) {
+      if (!row.provider) continue;
+      let artists = [];
+      try { artists = JSON.parse(row.artists_json); } catch { /* unknown metadata */ }
+      map.set(row.environment_key, normalizeTrack({ provider: row.provider, providerTrackId: row.provider_track_id,
+        title: row.title, artist: row.artist, durationMs: row.duration_ms, artists, metadataSource: row.metadata_source }));
+    }
+    return map;
+  }
+
+  environmentSourcesByTrack() {
+    const map = new Map();
+    for (const row of this.db.prepare('SELECT * FROM environment_sources').all()) {
+      const list = map.get(row.track_key) ?? [];
+      list.push(row);
+      map.set(row.track_key, list);
+    }
+    return map;
   }
 
   countEnvironment(provider = null) {

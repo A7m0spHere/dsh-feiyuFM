@@ -12,10 +12,10 @@
 //     term;
 //   - with no candidates, select nothing and wait; a caller must not spin.
 import { trackId } from './contracts.mjs';
-import { createRng, getArtistAffinity } from './taste.mjs';
+import { createRng } from './taste.mjs';
 import {describeEnvironmentProfile} from './environment.mjs';
 import {artistKeys} from './recommendation.mjs';
-import {feedbackScore,trackFeedback} from './feedback.mjs';
+import {FEEDBACK_WEIGHT,trackFeedback} from './feedback.mjs';
 import {repeatContext,repeatTier,RECENT_PLAYBACK_LIMIT} from './recent-playback.mjs';
 
 /**
@@ -85,9 +85,21 @@ export function scoreCandidate({
   track, store, now, plays, randomValue, parameters = SELECTION_PARAMETERS,context=null,
 }) {
   const key = trackId(track);
-  const preference = store.getPreference('track', key);
+  // A decision scores every candidate; per-candidate prepared statements made a
+  // real-library next() cost hundreds of milliseconds. The caller may pass
+  // batched maps; without them the original per-row reads are unchanged.
+  const pref = (targetType, targetKey) => context?.preferences
+    ? (context.preferences.get(`${targetType}:${targetKey}`) ?? null)
+    : store.getPreference(targetType, targetKey);
+  const preference = pref('track', key);
   const affinity = preference ? preference.affinity : parameters.neutralAffinity;
-  const artistAffinity = getArtistAffinity(store,track);
+  const artistAffinity = (() => {
+    if (track.artists?.length) {
+      const values = track.artists.map(a => pref('artist_id', `${track.provider}:${a.id}`)?.affinity);
+      return values.some(v => v !== undefined) ? values.reduce((sum, v) => sum + (v ?? 0.5), 0) / values.length : null;
+    }
+    return track.artist ? pref('artist', track.artist.trim())?.affinity ?? null : null;
+  })();
 
   const play = plays.get(key);
   const repeatPenalty = play ? Math.pow(parameters.repeatPenalty, play.plays) : 1;
@@ -96,12 +108,13 @@ export function scoreCandidate({
   // The agent's own taste leads; the artist preference only nudges it.
   const taste = artistAffinity === null ? affinity : affinity * 0.75 + artistAffinity * 0.25;
   const links=track.discovery?.seedTrackKeys?.length?track.discovery.seedTrackKeys:track.discovery?.seedTrackKey?[track.discovery.seedTrackKey]:[];
-  const seedAffinity=links.length?links.reduce((sum,k)=>sum+(store.getPreference('track',k)?.affinity??0.5),0)/links.length:0;
+  const seedAffinity=links.length?links.reduce((sum,k)=>sum+(pref('track',k)?.affinity??0.5),0)/links.length:0;
   const relationship=links.length?seedAffinity*0.08:0;
   const environment=artistKeys(track).reduce((sum,k)=>sum+(context?.environment.get(k)??0),0)*0.04;
   const concentration=Math.max(0,...artistKeys(track).map(k=>context?.recentArtists.get(k)??0));
   const diversityPenalty=Math.min(0.12,concentration*0.03);
-  const userFeedback = trackFeedback(store, track), feedback = feedbackScore(store, track);
+  const userFeedback = context?.feedback ? (context.feedback.get(key) ?? 0) : trackFeedback(store, track);
+  const feedback = userFeedback === 1 ? FEEDBACK_WEIGHT.liked : userFeedback === -1 ? FEEDBACK_WEIGHT.reduced : 0;
   // 与最近自然听完歌曲的相似图关联：同歌单/同艺人/相邻播放的弱牵引，
   // 与多样性惩罚（防同艺人连续）方向互补；权重有界，缺图时为 0。
   const graph=context?.graph??null,recentPositive=context?.recentPositive??[];
@@ -158,8 +171,12 @@ export function createSelector({
     const plays = recentPlays(store, { now: at, windowMs: parameters.repeatWindowMs, limit: parameters.historyWindow });
     // 最近自然听完的歌驱动相似图关联项；与 plays（含跳过）不同源。
     const recentPositive=store.db.prepare("SELECT track_key FROM listen_history WHERE end_reason='ended' ORDER BY ended_at DESC LIMIT 5").all().map(r=>r.track_key);
+    // Batched reads: one pass each instead of a prepared statement per candidate.
+    const unavailable=store.unavailableKeys?.(at)??null;
+    const preferences=store.listPreferences?new Map(store.listPreferences({limit:100000}).map(row=>[`${row.target_type}:${row.target_key}`,row])):null;
+    const feedback=store.feedbackScores?.()??null;
     const context={environment:new Map(describeEnvironmentProfile(store,at).artists.map(a=>[a.key,a.share])),recentArtists:new Map(),
-      graph:graphCache?.get?.()??null,recentPositive};
+      graph:graphCache?.get?.()??null,recentPositive,preferences,feedback};
     for(const key of plays.keys()){
       const split=key.indexOf(':');const played=store.getNormalizedTrack({provider:key.slice(0,split),providerTrackId:key.slice(split+1)});
       for(const artist of artistKeys(played))context.recentArtists.set(artist,(context.recentArtists.get(artist)??0)+(plays.get(key)?.plays??0));
@@ -167,7 +184,7 @@ export function createSelector({
 
     const prepare = (tracks) => {
       const all = [...new Map(tracks.map(track=>[trackId(track),{track,key:trackId(track)}])).values()];
-      const eligible = all.filter(({track,key})=>!banned.has(key)&&store.isTrackAvailable(track,at)&&isPlayable(track));
+      const eligible = all.filter(({track,key})=>!banned.has(key)&&(unavailable?!unavailable.has(key):store.isTrackAvailable(track,at))&&isPlayable(track));
       const usable = eligible.filter(({key})=>!excluded.has(key));
       return { all, usable, recentBlocked:eligible.some(({key})=>recent.keys.has(key)) };
     };

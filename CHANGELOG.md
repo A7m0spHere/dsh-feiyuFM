@@ -2,6 +2,8 @@
 
 ## 未发布
 
+- 播放事件与切歌稳定性：把发现/环境/选择/批准池投影的逐曲 SQLite 查询改为批量集合，真实网易云预加载命中时手动 next 从约 4.3s 降到 0.68–0.77s，WPF started 到 Core 从 0.79–1.28s 降到 0.06s；新增事件循环/慢操作探针与媒体打开分类字段（downloadProgress、bufferingProgress、openElapsedMs、expiresAt、resourceAgeMs），媒体打开超时后的不可播退避从 5 分钟降为 1 分钟，迟到 MediaOpened 不能污染新状态；测量脚本补 GUI 顺序连点与 next→pause。边界见 [R4](docs/spikes/R4-playback-delivery-and-reliability.md)。
+
 - 播放控制第二轮：上一首后下一首先沿固定历史前进，到最新位置才推荐；点播重新锚定，导航保留暂停并跳过禁播/不可播。URL 缓存与共享解析命中后仍检查媒体预加载，直接恢复会重建下一首准备；后台取消不会误杀已交给前台的解析，超时重试真正重新请求。备用播放器按精确资源与宿主代次复用，WPF 取消预加载会终结原 IPC 请求，避免旧超时拖断前台。新增有界 UI/RPC/宿主阶段计时，默认预取延迟保持 3000ms；验证边界见 [R3](docs/spikes/R3-playback-navigation-prefetch.md)。
 
 - 播放延迟专项：切歌链路改为平台解析与停止并行、后台预取下一首播放地址并复用未过期 handle、宿主支持时用一条 load 完成打开/静音/起播并以 Open 替换旧源；宿主支持时下一首媒体在后台用备用播放器预打开，切歌变成换源（隔离实测换源 load 224ms vs 冷打开 431ms，慢机上差距更大）；恢复路径强制重新解析。宿主主循环一次处理多条已缓冲命令，暂停不再排在整轮之后。预热池默认关闭（2026-11-03 实测其 holder open 与真实 load 竞争，切歌 9–14s vs 5–6s），可用 FISHFM_PLAYBACK_WARM_HOLDERS=1..8 重新启用；新增 FISHFM_PLAYBACK_VOLUME 供隔离验收静音。

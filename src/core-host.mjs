@@ -136,7 +136,7 @@ export function buildSelector({ store, now = () => Date.now(), rng = null, listD
     // A stored seed keeps selection reproducible across restarts; without one
     // the session still works, it just is not reproducible.
     rng: rng ?? createRng(store.getCoreState()?.selectionRngState ?? (Number.isSafeInteger(seed) ? seed : 1)),
-    isPlayable: track => store.isTrackAvailable(track, now()),
+    // Availability is filtered by the selector itself; see core.mjs.
     // LLM 模式的默认池只来自模型歌单。options.libraryFallback 是用户主动
     // 下一首的回退通道：歌单没有可播曲目时改用输入曲库，自主续播不用它。
     listFamiliar: (options = {}) => recommendationMode(store)==='filtered'&&!options.libraryFallback
@@ -241,9 +241,13 @@ export function createProviderFacade({ registry, store = null, now = () => Date.
   let replenishing=true;
   const playbackSupply=(includeTracks=false)=>{
     const approved=discovery.playbackRecommendations(),recent=repeatContext(store),settings=store.getCoreState()?.settings;
-    const liked=new Set(settings&&(settings.discovery===false||settings.discoveryRate===0)?store.listLikedTracks().map(r=>r.track_key):[]);
-    const permitted=settings&&(settings.discovery===false||settings.discoveryRate===0)
-      ?approved.filter(t=>store.getEnvironmentEntry(t)||store.hasEffectiveListen(t)||liked.has(`${t.provider}:${t.providerTrackId}`)):approved;
+    const discoveryOff=Boolean(settings&&(settings.discovery===false||settings.discoveryRate===0));
+    const liked=new Set(discoveryOff?store.listLikedTracks().map(r=>r.track_key):[]);
+    // Batched sets instead of two prepared statements per approved track.
+    const environment=discoveryOff?(store.environmentKeys?.()??new Set()):null;
+    const effective=discoveryOff?(store.effectiveListenKeys?.()??new Set()):null;
+    const permitted=discoveryOff
+      ?approved.filter(t=>environment.has(`${t.provider}:${t.providerTrackId}`)||effective.has(`${t.provider}:${t.providerTrackId}`)||liked.has(`${t.provider}:${t.providerTrackId}`)):approved;
     const availableTracks=freshTracks(permitted),available=availableTracks.length;
     if(available<=SUPPLY_POLICY.lowWater)replenishing=true;
     if(available>=SUPPLY_POLICY.target)replenishing=false;
@@ -444,7 +448,10 @@ export function createCoreHost({
     // Unchanged revisions cannot be published. Avoid projecting the entire
     // platform/library state on every 400ms heartbeat just to discard it.
     if (!core || core.state.revision === lastRevision) return;
+    const started = performance.now();
     const snapshot = core.snapshot();
+    const durationMs = performance.now() - started;
+    if (durationMs >= 50) onLog({ type: 'slow-op', op: 'snapshot', durationMs: Math.round(durationMs) });
     if (snapshot.revision !== lastRevision) {
       lastRevision = snapshot.revision;
       send({ type: 'state', reason: 'changed', snapshot });
@@ -461,9 +468,14 @@ export function createCoreHost({
     const id = message.id ?? null;
     try {
       switch (message.type) {
-        case 'snapshot':
-          send({ type: 'result', id, ok: true, snapshot: core.snapshot() });
+        case 'snapshot': {
+          const snapshotStarted = performance.now();
+          const snapshot = core.snapshot();
+          const snapshotMs = performance.now() - snapshotStarted;
+          if (snapshotMs >= 50) onLog({ type: 'slow-op', op: 'snapshot-request', durationMs: Math.round(snapshotMs) });
+          send({ type: 'result', id, ok: true, snapshot });
           return;
+        }
         case 'command': {
           const coreReceivedAt = Date.now();
           const traceId = typeof message.command?.traceId === 'string' && /^[\w:.-]{1,100}$/.test(message.command.traceId)
@@ -473,7 +485,10 @@ export function createCoreHost({
           // A full snapshot projects platform discovery and can take hundreds
           // of ms on a real library. Reading revision needs no projection.
           const revision = core.state.revision;
+          const dispatchStarted = performance.now();
           const snapshot = core.dispatch({ ...message.command, commandId: message.command?.commandId ?? randomUUID() });
+          const dispatchMs = performance.now() - dispatchStarted;
+          if (dispatchMs >= 50) onLog({ type: 'slow-op', op: 'dispatch', durationMs: Math.round(dispatchMs), kind: message.command?.type });
           if (snapshot.revision !== revision && ['resetLibrary', 'resetTaste', 'undoTasteReset'].includes(message.command?.type)) ++inputEpoch;
           invalidateProfile();
           if(['resetLibrary','resetTaste','undoTasteReset','setRecommendationMode'].includes(message.command?.type))platformsFacade?.clearDiscovery();
@@ -823,6 +838,7 @@ export function createCoreHost({
     if (closed) return;
     closed = true;
     clearInterval(timer);
+    clearInterval(loopTimer);
     if (maintenance) clearInterval(maintenance);
     platformsFacade?.closeDiscovery();
     core?._invalidate();
@@ -832,6 +848,16 @@ export function createCoreHost({
   }
 
   let timer = null;
+  // Event-loop lag: synchronous projections and SQLite writes block the pipe
+  // reader, so a host event can sit unread for a second. Log only real stalls.
+  let loopExpected = Date.now() + 100;
+  const loopTimer = setInterval(() => {
+    const nowMs = Date.now();
+    const delayMs = nowMs - loopExpected;
+    loopExpected = nowMs + 100;
+    if (delayMs >= 50) onLog({ type: 'loop-delay', delayMs });
+  }, 100);
+  loopTimer.unref?.();
 
   return {
     async start() {
@@ -918,7 +944,15 @@ export function createCoreHost({
       send({ type: 'ready', protocol: CORE_HOST_PROTOCOL, snapshot: core.snapshot() });
       platformsFacade?.onDiscoveryChange(() => { invalidateProfile(); core._commit(); publishIfChanged(); });
       platformsFacade?.tickDiscovery();
-      timer = setInterval(() => { platformsFacade?.tickDiscovery(); publishIfChanged(); }, stateIntervalMs);
+      timer = setInterval(() => {
+        const tickStarted = performance.now();
+        platformsFacade?.tickDiscovery();
+        const afterTick = performance.now();
+        publishIfChanged();
+        const afterPublish = performance.now();
+        if (afterPublish - tickStarted >= 50) onLog({ type: 'slow-op', op: 'tick', durationMs: Math.round(afterPublish - tickStarted),
+          tickMs: Math.round(afterTick - tickStarted), publishMs: Math.round(afterPublish - afterTick) });
+      }, stateIntervalMs);
       timer.unref?.();
       return core;
     },

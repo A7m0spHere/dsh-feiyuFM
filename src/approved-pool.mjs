@@ -28,8 +28,10 @@ function records(store,owner,now){
 }
 export function approvedPlaybackTracks(store,owner,now){
  const banned=new Set(store?.activeConstraints(now).filter(r=>r.kind==='ban_track').map(r=>r.track_key)??[]);
+ // Batched availability: the pool is read on every snapshot projection.
+ const unavailable=store?.unavailableKeys?.(now)??new Set();
  return records(store,owner,now).slice(-APPROVED_POOL_LIMIT).map(r=>r.track)
-  .filter(track=>!banned.has(trackId(track))&&store.isTrackAvailable(track,now));
+  .filter(track=>!banned.has(trackId(track))&&!unavailable.has(trackId(track)));
 }
 /** Called only inside the successful, current-owner filter completion transaction. */
 export function mergeApprovedFilter(store,filter,now){

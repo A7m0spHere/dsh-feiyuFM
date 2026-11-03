@@ -178,12 +178,14 @@ function Send-Result([string]$id, $extra) {
   Send-Message $payload
 }
 
-function Send-ResultError([string]$id, [string]$code, [string]$message, [bool]$retryable = $false) {
+function Send-ResultError([string]$id, [string]$code, [string]$message, [bool]$retryable = $false, $extra = $null) {
+  $error = @{ code = $code; message = $message; retryable = $retryable }
+  if ($null -ne $extra) { foreach ($key in $extra.Keys) { $error[$key] = $extra[$key] } }
   Send-Message @{
     type = 'result'
     id = $id
     ok = $false
-    error = @{ code = $code; message = $message; retryable = $retryable }
+    error = $error
     state = (Get-State)
     hostMs = (Get-CommandElapsedMs)
   }
@@ -401,9 +403,15 @@ function Step-MediaOpen {
     $script:pendingOpen = $null
     # Report this command's own wait, not the most recent command's.
     $script:commandWatch = $pending.watch
+    $openElapsedMs = [int][Math]::Round($pending.watch.Elapsed.TotalMilliseconds)
+    $progress = @{ openElapsedMs = $openElapsedMs }
+    # Numeric only: a stall with no download progress is a different failure
+    # from a slow-but-progressing stream. Never include the media URL.
+    try { $progress['downloadProgress'] = [Math]::Round([double]$script:player.DownloadProgress, 3) } catch { }
+    try { $progress['bufferingProgress'] = [Math]::Round([double]$script:player.BufferingProgress, 3) } catch { }
     Stop-Playback
     $script:status = 'error'
-    Send-ResultError $pending.id $code $message $true
+    Send-ResultError $pending.id $code $message $true $progress
     return
   }
   if (-not $script:opened) { return }
@@ -445,6 +453,8 @@ function Attach-PlayerEvents($player) {
   $player.add_MediaOpened({
     param($sender, $eventArgs)
     if ($sender -eq $script:player) {
+      # A late open from a superseded load must not mark the new state opened.
+      if ($script:status -ne 'loading') { return }
       $script:opened = $true
       $script:failed = $null
       try {

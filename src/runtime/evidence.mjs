@@ -2,8 +2,8 @@
 import { mkdirSync, writeFileSync, renameSync, readFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
-const TEXT = new Set(['type', 'kind', 'role', 'event', 'phase', 'code', 'endReason', 'pool', 'provider', 'playInstanceId', 'decisionId', 'trackKey', 'selectedBy', 'progressSource', 'name', 'status', 'source', 'traceId']);
-const NUMBERS = new Set(['positionMs', 'effectiveMs', 'effectiveDeltaMs', 'agentEffectiveMs', 'audibleMs', 'count', 'delta', 'before', 'after', 'version', 'discoveryRate', 'familiar', 'discovery', 'offered', 'durationMs', 'hostMs', 'hostStartedAt', 'hostEventAt']);
+const TEXT = new Set(['type', 'kind', 'role', 'event', 'phase', 'code', 'endReason', 'pool', 'provider', 'playInstanceId', 'decisionId', 'trackKey', 'selectedBy', 'progressSource', 'name', 'status', 'source', 'traceId', 'op']);
+const NUMBERS = new Set(['positionMs', 'effectiveMs', 'effectiveDeltaMs', 'agentEffectiveMs', 'audibleMs', 'count', 'delta', 'before', 'after', 'version', 'discoveryRate', 'familiar', 'discovery', 'offered', 'durationMs', 'hostMs', 'hostStartedAt', 'hostEventAt', 'delayMs', 'tickMs', 'publishMs', 'discoveryMs', 'cloneMs', 'flushMs', 'stderrMs', 'downloadProgress', 'bufferingProgress', 'openElapsedMs', 'expiresAt', 'resourceAgeMs']);
 const FLAGS = new Set(['accepted', 'updated', 'fellBack', 'paused', 'audible', 'agentListening', 'background', 'standbyReady', 'usePreload', 'preloaded', 'ready']);
 /** Same shape rule as text fields: a recorded error is a code, not a message. */
 const SAFE_CODE = /^[\w:.-]{1,100}$/;
@@ -53,6 +53,7 @@ export function createRuntimeEvidence({ directory = null, component = 'core', mo
     a09: { holds: null, statement: 'A09 requires request/context comparison and source attribution; runtime samples alone are insufficient' } });
   const flush = () => {
     if (!directory) return;
+    const flushStarted = performance.now();
     writeHealth.attempts++;
     try {
       mkdirSync(directory, { recursive: true });
@@ -86,6 +87,8 @@ export function createRuntimeEvidence({ directory = null, component = 'core', mo
       catch { /* the whole directory may be unwritable; the callback still fires */ }
       noteFailure();
     }
+    const flushMs = performance.now() - flushStarted;
+    if (flushMs >= 40) event({ type: 'slow-op', op: 'flush', durationMs: Math.round(flushMs) });
   };
   const event = (raw) => {
     const entry = safeEvidenceEvent(raw);

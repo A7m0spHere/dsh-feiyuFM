@@ -178,6 +178,39 @@ try {
   const rapidAfter = await waitPlaying(beforeRapid); await waitUIPlaying(rapidAfter.current.playInstanceId);
   report.scenarios.push({ name: 'rapid-next', before: beforeRapid, after: rapidAfter.current.playInstanceId,
     ...await evaluate(`({observed:window.__fishfmTimings.splice(0),controller:window.__fishfmTimingController.getPlaybackTrace?.()??null})`) }); save();
+  // GUI sequential clicks: the controller-call burst above can be merged by the
+  // UI's own dedupe, so real button presses are measured separately.
+  report.stage='rapid-gui-next';save();
+  const beforeGuiRapid = (await state()).snapshot.current.playInstanceId;
+  const clickNext = () => evaluate(`(()=>{const b=[...document.querySelectorAll('.fishfm .fm-transport')].find(e=>e.textContent.trim()==='下一首');if(!b||b.disabled)return false;b.click();return true})()`);
+  let acceptedClicks = 0;
+  // A burst while the first switch is pending: the UI disables the button, so
+  // only clicks the user could actually make are counted.
+  for (let i = 0; i < 4; i += 1) { if (await clickNext()) acceptedClicks += 1; await pause(60); }
+  // Sequential accepted switches: wait until the button is enabled again.
+  for (let i = 0; i < 2; i += 1) {
+    await until(() => evaluate(`(()=>{const b=[...document.querySelectorAll('.fishfm .fm-transport')].find(e=>e.textContent.trim()==='下一首');return !!b&&!b.disabled})()`), 20000);
+    if (await clickNext()) acceptedClicks += 1;
+    await pause(250);
+  }
+  const guiRapidAfter = await waitPlaying(beforeGuiRapid); await waitUIPlaying(guiRapidAfter.current.playInstanceId);
+  report.scenarios.push({ name: 'rapid-gui-next', before: beforeGuiRapid, after: guiRapidAfter.current.playInstanceId, acceptedClicks,
+    ...await evaluate(`({observed:window.__fishfmTimings.splice(0),controller:window.__fishfmTimingController.getPlaybackTrace?.()??null})`) }); save();
+  // next followed immediately by pause: the accepted switch must not revive playback.
+  report.stage='next-then-pause';save();
+  const beforeNextPause = (await state()).snapshot.current.playInstanceId;
+  await evaluate(`(()=>{const b=[...document.querySelectorAll('.fishfm .fm-transport')].find(e=>e.textContent.trim()==='下一首');if(!b||b.disabled)throw new Error('Transport button unavailable');b.click();return true})()`);
+  await pause(120);
+  await evaluate(`(()=>{const b=document.querySelector('.fishfm .fm-primary.fm-transport');if(!b||b.disabled)throw new Error('Pause button unavailable');b.click();return true})()`);
+  const pausedAfterNext = await until(async () => { const s = (await state()).snapshot; return s.paused && s.status !== 'playing' ? s : null; }, 15000);
+  await pause(600);
+  const stillPaused = (await state()).snapshot;
+  report.scenarios.push({ name: 'next-then-pause', before: beforeNextPause, after: pausedAfterNext.current?.playInstanceId ?? null,
+    paused: stillPaused.paused === true && stillPaused.status !== 'playing',
+    ...await evaluate(`({observed:window.__fishfmTimings.splice(0),controller:window.__fishfmTimingController.getPlaybackTrace?.()??null})`) }); save();
+  await control('resume');
+  const resumedAfterPause = await waitPlaying();
+  await waitUIPlaying(resumedAfterPause.current.playInstanceId);
   const historyBefore = (await state()).snapshot.current.track.providerTrackId;
   report.stage='history-back';save();
   const backInstance = (await state()).snapshot.current.playInstanceId;

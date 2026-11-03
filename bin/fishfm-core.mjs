@@ -47,7 +47,11 @@ const onLog = (entry) => {
   // would block the whole Core once its buffer fills; skipping progress keeps
   // the diagnostic stream small without losing the evidence.
   if (entry.event === 'progress') return;
+  const started = performance.now();
   process.stderr.write(`fishfm-core: ${JSON.stringify(entry)}\n`);
+  const stderrMs = performance.now() - started;
+  // A Windows pipe write is synchronous; a slow reader blocks the whole Core.
+  if (stderrMs >= 20) evidence.event({ type: 'slow-op', op: 'stderr-write', durationMs: Math.round(stderrMs) });
 };
 
 let store = null;

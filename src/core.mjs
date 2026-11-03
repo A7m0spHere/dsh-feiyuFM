@@ -97,7 +97,9 @@ export class MusicCore {
     this.onListened = onListened;
     this.onLog = onLog;
     this.clock = clock;
-    this.queueSelector=createSelector({store,isPlayable:track=>store.isTrackAvailable(track,clock.now()),now:()=>clock.now()});
+    // The selector already filters unavailable tracks with the same clock; a
+    // second per-track check here doubled the queries for every candidate.
+    this.queueSelector=createSelector({store,now:()=>clock.now()});
     const saved = store.getCoreState();
     this.state = saved ? {
       ...saved,
@@ -134,7 +136,17 @@ export class MusicCore {
     this.store.setCoreState(this.state);
   }
 
-  snapshot() { return structuredClone({ ...this.state, ...(this.provider.discoveryStatus ? { discovery: this.provider.discoveryStatus() } : {}), navigation: this._navigationView() }); }
+  snapshot() {
+    const started = performance.now();
+    const discovery = this.provider.discoveryStatus ? this.provider.discoveryStatus() : null;
+    const afterDiscovery = performance.now();
+    const value = structuredClone({ ...this.state, ...(discovery ? { discovery } : {}), navigation: this._navigationView() });
+    const afterClone = performance.now();
+    const durationMs = afterClone - started;
+    if (durationMs >= 40) this.onLog({ type: 'slow-op', op: 'snapshot-parts', durationMs: Math.round(durationMs),
+      discoveryMs: Math.round(afterDiscovery - started), cloneMs: Math.round(afterClone - afterDiscovery) });
+    return value;
+  }
 
   setQueue(tracks) {
     this.state.queue = tracks.map(normalizeTrack);
@@ -143,8 +155,11 @@ export class MusicCore {
   }
 
   _commit() {
+    const started = performance.now();
     this.state.revision += 1;
     this.store.setCoreState(this.state);
+    const durationMs = performance.now() - started;
+    if (durationMs >= 40) this.onLog({ type: 'slow-op', op: 'commit', durationMs: Math.round(durationMs) });
   }
 
   _invalidate({ keepResourceKey = null } = {}) {
@@ -315,10 +330,20 @@ export class MusicCore {
       // music for good. Nothing is recorded: a track that never played is not a
       // listen, and history must not invent one (A10).
       const failed = this.state.current;
-      this.onLog({ type: 'playback-error', code: error.code ?? 'internal', playInstanceId: failed?.playInstanceId });
+      // Classify the failure without leaking the media URL: host open progress
+      // and the resource age separate a stalled CDN from an expired handle.
+      const expiry = this.resourceExpiries.get(failed?.playInstanceId);
+      this.onLog({ type: 'playback-error', code: error.code ?? 'internal', playInstanceId: failed?.playInstanceId,
+        ...(Number.isFinite(error.downloadProgress) ? { downloadProgress: error.downloadProgress } : {}),
+        ...(Number.isFinite(error.bufferingProgress) ? { bufferingProgress: error.bufferingProgress } : {}),
+        ...(Number.isFinite(error.openElapsedMs) ? { openElapsedMs: error.openElapsedMs } : {}),
+        ...(Number.isFinite(expiry?.expiresAt) ? { expiresAt: expiry.expiresAt } : {}),
+        ...(Number.isFinite(expiry?.resolvedAt) ? { resourceAgeMs: this.clock.now() - expiry.resolvedAt } : {}) });
       const candidateFailure = ['media_unavailable', 'resource_unavailable', 'media_open_timeout', 'media_failed'].includes(error.code);
+      // One network stall must not mark a track unplayable for long: a timeout
+      // backs off for a minute while a platform-declared unavailable keeps 30.
       if (failed && candidateFailure) this.store.markUnavailable(failed.track, error.code, this.clock.now()
-        + (['media_open_timeout','media_failed'].includes(error.code) ? 5 : 30) * 60_000);
+        + (error.code === 'media_open_timeout' ? 1 : ['media_failed'].includes(error.code) ? 5 : 30) * 60_000);
       if (this.state.current) {
         // A failed recovery still belongs to the listen that already happened.
         // Only a never-started load is discarded without a history row.
@@ -918,7 +943,7 @@ export class MusicCore {
       this._commit();
       if (event.type === 'ended') this.selectAutonomously();
       else if (current.selectedBy === 'agent' && ['media_unavailable','media_failed','media_open_timeout','media_stalled'].includes(event.code)) {
-        this.store.markUnavailable(current.track, event.code, this.clock.now() + (event.code === 'media_unavailable' ? 30 : 5) * 60_000);
+        this.store.markUnavailable(current.track, event.code, this.clock.now() + (event.code === 'media_unavailable' ? 30 : event.code === 'media_stalled' ? 1 : 5) * 60_000);
         if (this.autoFailures < 2) { this.autoFailures++; this.selectAutonomously(); }
       }
       return true;
