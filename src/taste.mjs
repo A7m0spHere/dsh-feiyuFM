@@ -45,6 +45,9 @@ export function createRng(seed) {
     return ((value ^ (value >>> 14)) >>> 0) / 4294967296;
   };
   next.getState = () => state >>> 0;
+  // Peeking at the next decision must not advance the stream: the real command
+  // has to reproduce the same pick.
+  next.setState = (value) => { state = value >>> 0; };
   return next;
 }
 

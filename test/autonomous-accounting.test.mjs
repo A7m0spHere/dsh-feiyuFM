@@ -101,7 +101,9 @@ test('an autonomous media-open timeout temporarily defers that candidate and tri
     assert.equal(core.snapshot().paused,false);
     const deferred=store.db.prepare('SELECT * FROM track_availability').get();
     assert.equal(deferred.code,'media_open_timeout');
-    assert.equal(deferred.expires_at,clock.now()+5*60_000);
+    // A single network stall defers the candidate for one minute, not five:
+    // one timeout must not look like a long-term unplayable track.
+    assert.equal(deferred.expires_at,clock.now()+60_000);
     assert.equal(store.db.prepare('SELECT COUNT(*) AS n FROM listen_history').get().n,0);
   } finally {store.close();}
 });

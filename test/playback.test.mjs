@@ -13,8 +13,9 @@ import { PlaybackService } from '../src/playback/service.mjs';
 import { fakeBackend, wpfBackend, powerShellCandidates } from '../src/playback/backends.mjs';
 import { PROTOCOL_VERSION } from '../src/playback/protocol.mjs';
 import { MusicCore } from '../src/core.mjs';
-import { FakeClock, FakeProvider } from '../src/fakes.mjs';
+import { FakeClock, FakePlayback, FakeProvider } from '../src/fakes.mjs';
 import { MusicStore } from '../src/storage.mjs';
+import { trackId } from '../src/contracts.mjs';
 
 const track = { provider: 'netease', providerTrackId: 'p1', title: 'P1', durationMs: 1200 };
 
@@ -184,6 +185,7 @@ test('Core restores the same listen after a real playback child exits', async ()
       && core.snapshot().current?.recoveryAttempts === 1, { what: 'same track after host exit' });
     assert.equal(core.snapshot().current.playInstanceId, before.playInstanceId);
     assert.ok(core.snapshot().current.positionMs >= before.positionMs);
+    // Recovery re-resolves on purpose: the handle that just failed is not trusted.
     assert.equal(provider.calls.length, 2);
     assert.equal(store.getHistory(before.playInstanceId), null);
     assert.equal(core.snapshot().lastError, null);
@@ -191,6 +193,145 @@ test('Core restores the same listen after a real playback child exits', async ()
     await core.waitForIdle();
     assert.equal((await h.service.hostSnapshot()).status, 'paused');
   } finally { await shutdown(h.service); await core.waitForIdle(); store.close(); }
+});
+
+test('a host that advertises autoplay opens and starts in one load command', async () => {
+  const h = harness();
+  try {
+    const loaded = await h.service.load({
+      resource: { handle: 'fake:auto' }, playInstanceId: 'auto-1', version: 1, muted: true, autoplay: true,
+    });
+    assert.equal(loaded.playing, true);
+    assert.equal(h.service.supportsAutoplay(), true);
+    await waitFor(() => h.events.some((e) => e.type === 'started'), { what: 'started from autoplay' });
+    const snapshot = await h.service.hostSnapshot();
+    assert.equal(snapshot.status, 'playing');
+    assert.equal(snapshot.muted, true);
+  } finally { await shutdown(h.service); }
+});
+
+test('a preloaded track loads through the standby player', async () => {
+  const h = harness();
+  try {
+    const pre = await h.service.preload({ resource: { handle: 'fake:pre' }, playInstanceId: 'pre-1', version: 1 });
+    assert.equal(pre.preloaded, true);
+    assert.equal(h.service.supportsPreload(), true);
+    const started = performance.now();
+    const loaded = await h.service.load({
+      resource: { handle: 'fake:pre' }, playInstanceId: 'pre-2', version: 2, autoplay: true, usePreload: true,
+    });
+    const ms = performance.now() - started;
+    assert.equal(loaded.playing, true);
+    assert.ok(ms < 500, 'a preloaded load should answer immediately, took ' + ms.toFixed(0) + 'ms');
+  } finally { await shutdown(h.service); }
+});
+
+test('resume after pause reuses the paused player instead of reloading', async () => {
+  const store = new MusicStore();
+  const provider = new FakeProvider();
+  const playback = new FakePlayback();
+  playback.autoplaySupported = true;
+  playback.reuseSwitchSupported = true;
+  const core = new MusicCore({ store, provider, playback });
+  playback.onEvent((event) => core.onPlaybackEvent(event));
+  try {
+    core.dispatch({ type: 'requestTrack', track, commandId: 'resume-a' });
+    await core.waitForIdle();
+    assert.equal(core.snapshot().status, 'playing');
+    const loadsBefore = playback.calls.filter((call) => call.type === 'load').length;
+    core.dispatch({ type: 'pause', commandId: 'resume-b' });
+    await core.waitForIdle();
+    core.dispatch({ type: 'resume', commandId: 'resume-c' });
+    await core.waitForIdle();
+    assert.equal(playback.calls.filter((call) => call.type === 'load').length, loadsBefore, 'a resume must not reload the media');
+    assert.equal(core.snapshot().status, 'playing');
+  } finally { await core.waitForIdle(); store.close(); }
+});
+
+test('Core preloads the next track and switches through the standby player', async () => {
+  const store = new MusicStore();
+  const provider = new FakeProvider();
+  const playback = new FakePlayback();
+  playback.autoplaySupported = true;
+  playback.reuseSwitchSupported = true;
+  playback.preloadSupported = true;
+  const core = new MusicCore({ store, provider, playback, prefetchDelayMs: 0 });
+  playback.onEvent((event) => core.onPlaybackEvent(event));
+  const next = { ...track, providerTrackId: 'preload-next' };
+  try {
+    core.setQueue([next]);
+    core.dispatch({ type: 'requestTrack', track, commandId: 'preload-a' });
+    await core.waitForIdle();
+    await delay(80);
+    assert.ok(playback.calls.some((call) => call.type === 'preload'), 'the next track should be preloaded');
+    core.dispatch({ type: 'next', commandId: 'preload-b' });
+    await core.waitForIdle();
+    const loadCall = playback.calls.filter((call) => call.type === 'load').at(-1);
+    assert.equal(loadCall.usePreload, true, 'the switch should consume the standby player');
+  } finally { await core.waitForIdle(); store.close(); }
+});
+
+test('Core uses one load command when the host supports autoplay', async () => {
+  const store = new MusicStore();
+  const provider = new FakeProvider();
+  const playback = new FakePlayback();
+  playback.autoplaySupported = true;
+  playback.reuseSwitchSupported = true;
+  const core = new MusicCore({ store, provider, playback });
+  playback.onEvent((event) => core.onPlaybackEvent(event));
+  try {
+    core.dispatch({ type: 'requestTrack', track, commandId: 'auto-core' });
+    await core.waitForIdle();
+    // Source replacement: no explicit stop before the new load.
+    assert.deepEqual(playback.calls.map((call) => call.type), ['load']);
+    assert.equal(playback.calls[0].autoplay, true);
+    assert.equal(core.snapshot().status, 'playing');
+  } finally { await core.waitForIdle(); store.close(); }
+});
+
+test('Core prefetches the next queued track and reuses the handle', async () => {
+  const store = new MusicStore();
+  const provider = new FakeProvider();
+  const playback = new FakePlayback();
+  const core = new MusicCore({ store, provider, playback, prefetchDelayMs: 0 });
+  playback.onEvent((event) => core.onPlaybackEvent(event));
+  const next = { ...track, providerTrackId: 'prefetch-next' };
+  try {
+    core.setQueue([next]);
+    core.dispatch({ type: 'requestTrack', track, commandId: 'prefetch-a' });
+    await core.waitForIdle();
+    await delay(80);
+    assert.equal(provider.calls.length, 2, 'current track plus the prefetched next one');
+    const before = provider.calls.length;
+    core.dispatch({ type: 'next', commandId: 'prefetch-b' });
+    await core.waitForIdle();
+    assert.equal(provider.calls.length, before, 'a prefetched handle must not be resolved again');
+    assert.equal(core.snapshot().current.track.providerTrackId, 'prefetch-next');
+  } finally { await core.waitForIdle(); store.close(); }
+});
+
+test('pause during a slow resolve stops audio from ever starting', async () => {
+  const store = new MusicStore();
+  const provider = new FakeProvider();
+  const playback = new FakePlayback();
+  const core = new MusicCore({ store, provider, playback });
+  playback.onEvent((event) => core.onPlaybackEvent(event));
+  const slow = { ...track, providerTrackId: 'pause-slow-b' };
+  try {
+    core.dispatch({ type: 'requestTrack', track, commandId: 'pause-slow-a' });
+    await core.waitForIdle();
+    core.setQueue([slow]);
+    provider.defer(slow);
+    core.dispatch({ type: 'next', commandId: 'pause-slow-next' });
+    await delay(30);
+    core.dispatch({ type: 'pause', commandId: 'pause-slow-pause' });
+    await core.waitForIdle();
+    provider.release(slow);
+    await delay(80);
+    assert.equal(core.snapshot().paused, true);
+    assert.notEqual(core.snapshot().status, 'playing');
+    assert.equal(playback.playing, false);
+  } finally { await core.waitForIdle(); store.close(); }
 });
 
 test('a superseded slow load is acknowledged and cannot overwrite the newer loaded track', async () => {

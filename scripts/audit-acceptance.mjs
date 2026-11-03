@@ -96,11 +96,11 @@ const EVIDENCE = [
     unverified: 'N1 与 N24 已验成长来源/重启和真实短会话减权；平台组合及长期差异未验',
   },
   {
-    id: 'A07', claim: 'DSH 内嵌音乐设置与 shell.overlay 悬浮条共用 Core；显示状态同步，隐藏/页面切换不停止播放',
+    id: 'A07', claim: 'DSH 主面板（含电台设置标签页）与 shell.overlay 悬浮条共用 Core；显示状态同步，隐藏/页面切换不停止播放',
     status: 'partial',
     files: ['test/ui-bridge.test.mjs', 'test/ui-ipc.test.mjs', 'test/ui-panel.test.mjs', 'test/dsh-client.test.mjs', 'test/dsh-settings.test.mjs', 'test/client-assets.test.mjs', 'docs/spikes/U3-dsh-settings.md', 'docs/spikes/U4-quick-login.md', 'docs/spikes/U5-official-desktop.md', 'docs/spikes/U7-phl-ui-motion.md', 'test/ui-presentation.test.mjs'],
     tests: [
-      { file: 'test/dsh-client.test.mjs', name: 'client contributes native sidebar, main and settings seats; controls send Core commands' },
+      { file: 'test/dsh-client.test.mjs', name: 'client contributes native sidebar and main seats; controls send Core commands' },
       { file: 'test/dsh-client.test.mjs', name: 'floating music control shares Core actions and its menu opens the full settings panel' },
       { file: 'test/dsh-client.test.mjs', name: 'an expired import refreshes the account card and exposes the re-login state' },
       { file: 'test/dsh-client.test.mjs', name: 'floating visibility and the docked edge survive a renderer remount' },

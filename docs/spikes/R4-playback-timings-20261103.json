@@ -1,0 +1,471 @@
+{
+  "schema": 1,
+  "measuredOn": "2026-11-03",
+  "timezone": "Asia/Shanghai",
+  "timestampUnit": "Unix epoch milliseconds",
+  "unknown": null,
+  "interaction": "programmatic DOM button.click in the installed DSH Web client; rapid-gui-next presses the real next button four times 60 ms apart, then twice more after the button re-enables; next-then-pause presses next and then the primary transport button 120 ms later",
+  "boundaries": {
+    "nativeDesktop": "not_executed",
+    "physicalPointer": "not_executed",
+    "remoteAudio": "real NetEase resources and real WPF with output volume zero",
+    "localAudio": "not used in these runs",
+    "uiProjection": "controller subscriber",
+    "domDisplay": "MutationObserver and requestAnimationFrame matching actual title and playback-status DOM",
+    "systemLoad": "r4-final and r4-final2 ran without the test suite or another measurement run",
+    "probes": "loop-delay/slow-op/snapshot-parts log only above thresholds; they are diagnostics, not part of the measured interval",
+    "mediaOpenTimeout": "one timeout observed in r4-final2 next-then-pause recovery; the stalled-open classification fields were added after that run and remain unknown"
+  },
+  "runs": [
+    {
+      "runId": "r4-final",
+      "scope": "real-dsh-web-wpf-netease-muted",
+      "loadedCode": {
+        "isolatedNewCore": true,
+        "sourceHashesUnchanged": true,
+        "installedFromSelectedRepo": true
+      },
+      "coreClosed": true,
+      "sourceHashes": {
+        "src/core.mjs": "aae00c09e43dfd87c55943c4d10a520652622c82cbe5ba688947e58c86afc36e",
+        "src/core-host.mjs": "c6c373862552af6c831a536f6d1c606037e69079e9752f9dd0d981e7e4f8998c",
+        "src/ui/dsh-client.js": "c1e41c04ba7a52e6c679d99c7f555e9761f0bc9add0d2421cd5c65c3a8521125",
+        "src/playback/service.mjs": "0bd6abf03fcad9cf1fd9bbc296e40ca37736005b2959114e61b23badf55b8fa7",
+        "src/playback/transport.mjs": "d7e37a0e36c07bad5f121d57f1326e4f580b8771367be81c003960ca34f19a38",
+        "src/playback/host/wpf-media-host.ps1": "f31de0d1996e73cb449a86d877b1d4573f1398e5cef818bc1758bc3ec59fe4f9"
+      },
+      "scenarios": [
+        {
+          "name": "next-after-1s",
+          "status": "completed",
+          "before": "440ec1bc-d24c-4ff8-9d4a-4f4c19fe4fe7",
+          "after": "763344d8-d4bc-4c63-9414-cf725d80be69",
+          "acceptedClicks": null,
+          "paused": null,
+          "historyCorrect": null,
+          "timestamps": {
+            "uiClickAt": 1793705975314,
+            "domCurrentAt": 1793705975724,
+            "domPlayingAt": 1793705984002,
+            "wpfStartedAt": 1793705983618,
+            "coreStartedAt": 1793705983619,
+            "loadStartedAt": 1793705977405,
+            "loadReturnedAt": 1793705983407
+          },
+          "elapsedMs": {
+            "clickToTitle": 410,
+            "clickToPlaying": 8688,
+            "wpfToCore": 1,
+            "coreToUi": 383
+          },
+          "preload": {
+            "preloaded": false,
+            "hostMs": 5942
+          },
+          "error": null
+        },
+        {
+          "name": "next-after-4s",
+          "status": "completed",
+          "before": "7fea3467-169c-4717-8822-31331f6c69e0",
+          "after": "d16d7df8-f919-4f84-8cb2-c858d7b2f001",
+          "acceptedClicks": null,
+          "paused": null,
+          "historyCorrect": null,
+          "timestamps": {
+            "uiClickAt": 1793705989759,
+            "domCurrentAt": 1793705989936,
+            "domPlayingAt": 1793705992265,
+            "wpfStartedAt": 1793705991905,
+            "coreStartedAt": 1793705991926,
+            "loadStartedAt": 1793705989923,
+            "loadReturnedAt": 1793705991694
+          },
+          "elapsedMs": {
+            "clickToTitle": 177,
+            "clickToPlaying": 2506,
+            "wpfToCore": 21,
+            "coreToUi": 339
+          },
+          "preload": {
+            "preloaded": false,
+            "hostMs": 1059
+          },
+          "error": null
+        },
+        {
+          "name": "next-after-10s",
+          "status": "completed",
+          "before": "dd33fb30-a6a3-489a-b46e-bdcaf68a5b50",
+          "after": "2d4a8677-b6fd-4bcd-8b67-26bd781d6941",
+          "acceptedClicks": null,
+          "paused": null,
+          "historyCorrect": null,
+          "timestamps": {
+            "uiClickAt": 1793706003955,
+            "domCurrentAt": 1793706004058,
+            "domPlayingAt": 1793706004962,
+            "wpfStartedAt": 1793706004478,
+            "coreStartedAt": 1793706004479,
+            "loadStartedAt": 1793706004049,
+            "loadReturnedAt": 1793706004264
+          },
+          "elapsedMs": {
+            "clickToTitle": 103,
+            "clickToPlaying": 1007,
+            "wpfToCore": 1,
+            "coreToUi": 483
+          },
+          "preload": {
+            "preloaded": true,
+            "hostMs": 3
+          },
+          "error": null
+        },
+        {
+          "name": "next-after-20s",
+          "status": "completed",
+          "before": "860ef87a-ad36-4507-b3d6-1657634e69d2",
+          "after": "cc092be7-1f8c-4483-8540-d00ad83d1b74",
+          "acceptedClicks": null,
+          "paused": null,
+          "historyCorrect": null,
+          "timestamps": {
+            "uiClickAt": 1793706026639,
+            "domCurrentAt": 1793706026839,
+            "domPlayingAt": 1793706027366,
+            "wpfStartedAt": 1793706027077,
+            "coreStartedAt": 1793706027153,
+            "loadStartedAt": 1793706026830,
+            "loadReturnedAt": 1793706027076
+          },
+          "elapsedMs": {
+            "clickToTitle": 200,
+            "clickToPlaying": 727,
+            "wpfToCore": 76,
+            "coreToUi": 213
+          },
+          "preload": {
+            "preloaded": true,
+            "hostMs": 3
+          },
+          "error": null
+        },
+        {
+          "name": "rapid-next",
+          "status": "completed",
+          "before": "cc092be7-1f8c-4483-8540-d00ad83d1b74",
+          "after": "4f498bfe-b43c-4196-9055-b751f7d5994a",
+          "acceptedClicks": null,
+          "paused": null,
+          "historyCorrect": null,
+          "timestamps": {
+            "uiClickAt": 1793706027438,
+            "domCurrentAt": 1793706027600,
+            "domPlayingAt": 1793706030202,
+            "wpfStartedAt": 1793706030066,
+            "coreStartedAt": 1793706030087,
+            "loadStartedAt": 1793706028733,
+            "loadReturnedAt": 1793706029853
+          },
+          "elapsedMs": {
+            "clickToTitle": 162,
+            "clickToPlaying": 2764,
+            "wpfToCore": 21,
+            "coreToUi": 115
+          },
+          "preload": {
+            "preloaded": false,
+            "hostMs": 1076
+          },
+          "error": null
+        }
+      ]
+    },
+    {
+      "runId": "r4-final2",
+      "scope": "real-dsh-web-wpf-netease-muted",
+      "loadedCode": {
+        "isolatedNewCore": true,
+        "sourceHashesUnchanged": true,
+        "installedFromSelectedRepo": true
+      },
+      "coreClosed": true,
+      "sourceHashes": {
+        "src/core.mjs": "aae00c09e43dfd87c55943c4d10a520652622c82cbe5ba688947e58c86afc36e",
+        "src/core-host.mjs": "c6c373862552af6c831a536f6d1c606037e69079e9752f9dd0d981e7e4f8998c",
+        "src/ui/dsh-client.js": "c1e41c04ba7a52e6c679d99c7f555e9761f0bc9add0d2421cd5c65c3a8521125",
+        "src/playback/service.mjs": "0bd6abf03fcad9cf1fd9bbc296e40ca37736005b2959114e61b23badf55b8fa7",
+        "src/playback/transport.mjs": "d7e37a0e36c07bad5f121d57f1326e4f580b8771367be81c003960ca34f19a38",
+        "src/playback/host/wpf-media-host.ps1": "f31de0d1996e73cb449a86d877b1d4573f1398e5cef818bc1758bc3ec59fe4f9"
+      },
+      "scenarios": [
+        {
+          "name": "next-after-1s",
+          "status": "completed",
+          "before": "4ce243b2-f906-4e82-9c0d-b9f7ebf851c1",
+          "after": "2c715f85-f8c6-49d0-b214-95c279404703",
+          "acceptedClicks": null,
+          "paused": null,
+          "historyCorrect": null,
+          "timestamps": {
+            "uiClickAt": 1793706114402,
+            "domCurrentAt": 1793706114739,
+            "domPlayingAt": 1793706120928,
+            "wpfStartedAt": 1793706120477,
+            "coreStartedAt": 1793706120477,
+            "loadStartedAt": 1793706115646,
+            "loadReturnedAt": 1793706120270
+          },
+          "elapsedMs": {
+            "clickToTitle": 337,
+            "clickToPlaying": 6526,
+            "wpfToCore": 0,
+            "coreToUi": 451
+          },
+          "preload": {
+            "preloaded": false,
+            "hostMs": 4484
+          },
+          "error": null
+        },
+        {
+          "name": "next-after-4s",
+          "status": "completed",
+          "before": "bc5508d3-d700-4a66-967a-e0d78a69b26e",
+          "after": "c28f094c-f6e0-44a7-b641-e38e65da2aa8",
+          "acceptedClicks": null,
+          "paused": null,
+          "historyCorrect": null,
+          "timestamps": {
+            "uiClickAt": 1793706126786,
+            "domCurrentAt": 1793706126922,
+            "domPlayingAt": 1793706128687,
+            "wpfStartedAt": 1793706128546,
+            "coreStartedAt": 1793706128557,
+            "loadStartedAt": 1793706126911,
+            "loadReturnedAt": 1793706128335
+          },
+          "elapsedMs": {
+            "clickToTitle": 136,
+            "clickToPlaying": 1901,
+            "wpfToCore": 11,
+            "coreToUi": 130
+          },
+          "preload": {
+            "preloaded": false,
+            "hostMs": 847
+          },
+          "error": null
+        },
+        {
+          "name": "next-after-10s",
+          "status": "completed",
+          "before": "e8deba93-29e5-483e-bad0-818a5d59d109",
+          "after": "00e0d0a4-dd2c-4c35-ac41-7f14b76027f6",
+          "acceptedClicks": null,
+          "paused": null,
+          "historyCorrect": null,
+          "timestamps": {
+            "uiClickAt": 1793706141467,
+            "domCurrentAt": 1793706141619,
+            "domPlayingAt": 1793706142143,
+            "wpfStartedAt": 1793706141960,
+            "coreStartedAt": 1793706142026,
+            "loadStartedAt": 1793706141607,
+            "loadReturnedAt": 1793706141959
+          },
+          "elapsedMs": {
+            "clickToTitle": 152,
+            "clickToPlaying": 676,
+            "wpfToCore": 66,
+            "coreToUi": 117
+          },
+          "preload": {
+            "preloaded": true,
+            "hostMs": 4
+          },
+          "error": null
+        },
+        {
+          "name": "next-after-20s",
+          "status": "completed",
+          "before": "f9ee3e6b-3372-425f-9014-7b2dcb47deb9",
+          "after": "eff5ae47-3bed-46bc-be10-9897963040d3",
+          "acceptedClicks": null,
+          "paused": null,
+          "historyCorrect": null,
+          "timestamps": {
+            "uiClickAt": 1793706163619,
+            "domCurrentAt": 1793706163870,
+            "domPlayingAt": 1793706164386,
+            "wpfStartedAt": 1793706164164,
+            "coreStartedAt": 1793706164224,
+            "loadStartedAt": 1793706163856,
+            "loadReturnedAt": 1793706164163
+          },
+          "elapsedMs": {
+            "clickToTitle": 251,
+            "clickToPlaying": 767,
+            "wpfToCore": 60,
+            "coreToUi": 162
+          },
+          "preload": {
+            "preloaded": true,
+            "hostMs": 3
+          },
+          "error": null
+        },
+        {
+          "name": "rapid-next",
+          "status": "completed",
+          "before": "eff5ae47-3bed-46bc-be10-9897963040d3",
+          "after": "823eb3a1-6a8f-4b3d-a20f-a5f77b53cd7f",
+          "acceptedClicks": null,
+          "paused": null,
+          "historyCorrect": null,
+          "timestamps": {
+            "uiClickAt": 1793706164470,
+            "domCurrentAt": 1793706164711,
+            "domPlayingAt": 1793706166692,
+            "wpfStartedAt": 1793706166476,
+            "coreStartedAt": 1793706166476,
+            "loadStartedAt": 1793706165798,
+            "loadReturnedAt": 1793706166475
+          },
+          "elapsedMs": {
+            "clickToTitle": 241,
+            "clickToPlaying": 2222,
+            "wpfToCore": 0,
+            "coreToUi": 216
+          },
+          "preload": {
+            "preloaded": false,
+            "hostMs": 631
+          },
+          "error": null
+        },
+        {
+          "name": "rapid-gui-next",
+          "status": "completed",
+          "before": "823eb3a1-6a8f-4b3d-a20f-a5f77b53cd7f",
+          "after": "57011e3c-6914-4f26-a7f1-766c1dd9728a",
+          "acceptedClicks": 4,
+          "paused": null,
+          "historyCorrect": null,
+          "timestamps": {
+            "uiClickAt": 1793706166793,
+            "domCurrentAt": 1793706168140,
+            "domPlayingAt": 1793706170487,
+            "wpfStartedAt": 1793706170092,
+            "coreStartedAt": 1793706170093,
+            "loadStartedAt": 1793706169104,
+            "loadReturnedAt": 1793706169878
+          },
+          "elapsedMs": {
+            "clickToTitle": 1347,
+            "clickToPlaying": 3694,
+            "wpfToCore": 1,
+            "coreToUi": 394
+          },
+          "preload": {
+            "preloaded": false,
+            "hostMs": 636
+          },
+          "error": null
+        },
+        {
+          "name": "next-then-pause",
+          "status": "completed",
+          "before": "57011e3c-6914-4f26-a7f1-766c1dd9728a",
+          "after": "dea85f5d-40a3-475c-9eed-528bfd960ec0",
+          "acceptedClicks": null,
+          "paused": true,
+          "historyCorrect": null,
+          "timestamps": {
+            "uiClickAt": 1793706170571,
+            "domCurrentAt": 1793706170833,
+            "domPlayingAt": null,
+            "wpfStartedAt": null,
+            "coreStartedAt": null,
+            "loadStartedAt": 1793706172565,
+            "loadReturnedAt": 1793706184865
+          },
+          "elapsedMs": {
+            "clickToTitle": 262,
+            "clickToPlaying": null,
+            "wpfToCore": null,
+            "coreToUi": null
+          },
+          "preload": {
+            "preloaded": false,
+            "hostMs": null
+          },
+          "error": {
+            "code": "media_open_timeout",
+            "downloadProgress": null,
+            "bufferingProgress": null,
+            "openElapsedMs": null,
+            "expiresAt": null,
+            "resourceAgeMs": null
+          }
+        },
+        {
+          "name": "history-forward",
+          "status": "completed",
+          "before": null,
+          "after": "92a2efe4-c4c0-4be5-ab3a-8164654ae81c",
+          "acceptedClicks": null,
+          "paused": null,
+          "historyCorrect": true,
+          "timestamps": {
+            "uiClickAt": 1793706187054,
+            "domCurrentAt": 1793706188865,
+            "domPlayingAt": 1793706190270,
+            "wpfStartedAt": 1793706190190,
+            "coreStartedAt": 1793706190190,
+            "loadStartedAt": 1793706188856,
+            "loadReturnedAt": 1793706189973
+          },
+          "elapsedMs": {
+            "clickToTitle": 1811,
+            "clickToPlaying": 3216,
+            "wpfToCore": 0,
+            "coreToUi": 80
+          },
+          "preload": {
+            "preloaded": false,
+            "hostMs": 1063
+          },
+          "error": null
+        },
+        {
+          "name": "natural-end",
+          "status": "not_executed_remote_duration",
+          "before": null,
+          "after": null,
+          "acceptedClicks": null,
+          "paused": null,
+          "historyCorrect": null,
+          "timestamps": {
+            "uiClickAt": null,
+            "domCurrentAt": null,
+            "domPlayingAt": null,
+            "wpfStartedAt": null,
+            "coreStartedAt": null,
+            "loadStartedAt": null,
+            "loadReturnedAt": null
+          },
+          "elapsedMs": {
+            "clickToTitle": null,
+            "clickToPlaying": null,
+            "wpfToCore": null,
+            "coreToUi": null
+          },
+          "preload": null,
+          "error": null
+        }
+      ]
+    }
+  ]
+}

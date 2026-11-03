@@ -11,6 +11,39 @@ import { PlaybackSupervisor } from '../src/playback/supervisor.mjs';
 import { PlaybackService } from '../src/playback/service.mjs';
 import { wpfBackend, powerShellCandidates, WPF_HOST_SCRIPT } from '../src/playback/backends.mjs';
 
+// Real WPF media decoding needs a usable Windows audio environment. Hosted CI
+// runs the pipe/fake-backend checks; real media regressions remain enabled locally.
+const skipRealAudio = process.platform !== 'win32' || process.env.FISHFM_TEST_REAL_AUDIO === '0';
+
+function silentWav(seconds = 2, sampleRate = 8000) {
+  const frames = Math.max(1, Math.round(seconds * sampleRate));
+  const dataBytes = frames * 2;
+  const buffer = Buffer.alloc(44 + dataBytes);
+  buffer.write('RIFF', 0, 'ascii');
+  buffer.writeUInt32LE(36 + dataBytes, 4);
+  buffer.write('WAVE', 8, 'ascii');
+  buffer.write('fmt ', 12, 'ascii');
+  buffer.writeUInt32LE(16, 16);
+  buffer.writeUInt16LE(1, 20);
+  buffer.writeUInt16LE(1, 22);
+  buffer.writeUInt32LE(sampleRate, 24);
+  buffer.writeUInt32LE(sampleRate * 2, 28);
+  buffer.writeUInt16LE(2, 32);
+  buffer.writeUInt16LE(16, 34);
+  buffer.write('data', 36, 'ascii');
+  buffer.writeUInt32LE(dataBytes, 40);
+  return buffer;
+}
+
+async function waitFor(predicate, timeoutMs, what) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (predicate()) return true;
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+  throw new Error('timed out waiting for ' + what);
+}
+
 test('WPF playback pump reports runtime failures and sustained stalls once, preserving pause and real progress',
   { skip: process.platform !== 'win32' }, async () => {
     const directory = mkdtempSync(join(tmpdir(), 'fishfm-pump-'));
@@ -121,6 +154,89 @@ test('WPF accepts stop while a remote media open is stalled', { skip: process.pl
     const closed = new Promise(resolve => server.close(resolve));
     server.closeAllConnections();
     await service.close({ gracefulTimeoutMs: 1500 });
+    await closed;
+  }
+});
+
+for (const control of ['cancelPreload', 'pause']) {
+  test(`WPF ${control} acknowledges a stalled standby open without dropping the active pipe`,
+    { skip: process.platform !== 'win32' }, async () => {
+      let requested;
+      const received = new Promise(resolve => { requested = resolve; });
+      const server = createServer(() => requested()); // Hold the standby HTTP open.
+      await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+      const supervisor = new PlaybackSupervisor({ backend: wpfBackend({ warmHolders: 0 }) });
+      const service = new PlaybackService({ supervisor, openTimeoutMs: 8000, commandTimeoutMs: 1500 });
+      let opening, rejected, guard;
+      try {
+        await supervisor.ensureHost();
+        opening = service.preload({ resource: { handle: `http://127.0.0.1:${server.address().port}/standby.wav` }, version: 1 });
+        rejected = assert.rejects(opening, error => error.code === 'cancelled');
+        rejected.catch(() => {});
+        await Promise.race([received, new Promise((_, reject) => {
+          guard = setTimeout(() => reject(new Error('WPF did not request standby media')), 5000);
+        })]);
+        clearTimeout(guard);
+        await service[control]({ version: 2 });
+        await rejected;
+        assert.equal(supervisor.connected, true);
+        assert.equal(supervisor.transport.pending.size, 0, 'cancelled standby must also settle its original IPC request');
+        assert.equal(service.state().preloadStatus, 'idle');
+        assert.equal((await service.hostSnapshot()).status, 'idle');
+      } finally {
+        clearTimeout(guard);
+        const closed = new Promise(resolve => server.close(resolve));
+        server.closeAllConnections();
+        await service.close({ gracefulTimeoutMs: 1500 });
+        await opening?.catch(() => {});
+        await rejected?.catch(() => {});
+        await closed;
+      }
+    });
+}
+
+test('WPF re-opens the same source after a resume-style reload', { skip: skipRealAudio }, async () => {
+  // The reuse-player path must not assume Open() on the same source fires
+  // MediaOpened again: a resume/recovery reload has to tear the old media down.
+  // Opening a valid WAV needs a real audio device; hosted CI skips this test.
+  const wav = silentWav(2);
+  const server = createServer((request, response) => {
+    response.writeHead(200, { 'content-type': 'audio/wav', 'content-length': wav.length });
+    response.end(wav);
+  });
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const url = 'http://127.0.0.1:' + server.address().port + '/same.wav';
+  const supervisor = new PlaybackSupervisor({ backend: wpfBackend({ warmHolders: 0 }) });
+  const logs = [];
+  const service = new PlaybackService({ supervisor, openTimeoutMs: 8000, commandTimeoutMs: 3000, onLog: entry => logs.push(entry) });
+  const events = [];
+  service.onEvent((event) => events.push(event));
+  try {
+    await supervisor.ensureHost();
+    await service.setMuted({ muted: true, version: 1 });
+    await service.load({ resource: { handle: url }, playInstanceId: 'same-1', version: 2 });
+    await service.play({ playInstanceId: 'same-1', version: 2 });
+    await waitFor(() => events.some((event) => event.type === 'started' && event.playInstanceId === 'same-1'), 8000, 'first start');
+    const switched = logs.find(entry => entry.type === 'host-command' && entry.name === 'load');
+    const hostStarted = logs.find(entry => entry.type === 'host-event' && entry.event === 'started');
+    assert.ok(Number.isSafeInteger(switched.hostStartedAt));
+    assert.ok(hostStarted.hostEventAt >= switched.hostStartedAt, 'WPF supplies its actual switch and start timestamps');
+
+    // A pause result must refresh the cached host state, or a resume can never
+    // be recognised as directly resumable.
+    await service.pause({ version: 2 });
+    assert.equal(service.canResume({ playInstanceId: 'same-1' }), true, 'a paused host must be directly resumable');
+    await service.play({ playInstanceId: 'same-1', version: 2 });
+
+    const started = performance.now();
+    await service.load({ resource: { handle: url }, playInstanceId: 'same-2', version: 3 });
+    await service.play({ playInstanceId: 'same-2', version: 3 });
+    await waitFor(() => events.some((event) => event.type === 'started' && event.playInstanceId === 'same-2'), 8000, 'second start');
+    assert.ok(performance.now() - started < 6000, 're-opening the same handle must not wait out the open timeout');
+  } finally {
+    const closed = new Promise((resolve) => server.close(resolve));
+    server.closeAllConnections();
+    await service.close({ gracefulTimeoutMs: 3000 });
     await closed;
   }
 });

@@ -7,6 +7,14 @@ export const PROTOCOL_VERSION = 1;
 
 export const HOST_COMMANDS = Object.freeze(['load', 'play', 'pause', 'stop', 'setMuted', 'snapshot', 'ping', 'shutdown']);
 
+/**
+ * Optional load fields. A host that advertises `capabilities.autoplay` applies
+ * them inside the same command, so a track switch is one round trip instead of
+ * three (load + setMuted + play). Older hosts ignore the fields; the service
+ * only sends them when the greeting advertised support.
+ */
+export const LOAD_OPTIONS = Object.freeze(['muted', 'autoplay']);
+
 export const HOST_EVENTS = Object.freeze(['started', 'progress', 'ended', 'error', 'exiting']);
 
 export const HOST_STATUSES = Object.freeze(['idle', 'loading', 'ready', 'playing', 'paused', 'ended', 'error']);
@@ -68,5 +76,10 @@ export function resultError(message) {
   const error = message?.error ?? {};
   const code = typeof error.code === 'string' && error.code ? error.code : 'playback_error';
   const text = typeof error.message === 'string' && error.message ? error.message : 'Audio host rejected the command';
-  return playbackError(code, text, { retryable: error.retryable === true });
+  const value = playbackError(code, text, { retryable: error.retryable === true });
+  // Numeric open diagnostics only; arbitrary host fields are never copied.
+  for (const key of ['downloadProgress', 'bufferingProgress', 'openElapsedMs']) {
+    if (Number.isFinite(error[key])) value[key] = error[key];
+  }
+  return value;
 }

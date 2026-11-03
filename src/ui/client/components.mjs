@@ -8,6 +8,7 @@ export function Svg({ type }) {
   if (type === 'play') return h('svg', common, h('path', { d: 'm8 5 11 7-11 7V5Z', fill: 'currentColor', stroke: 'none' }));
   if (type === 'pause') return h('svg', common, h('path', { d: 'M8 5v14M16 5v14', strokeWidth: 2.7 }));
   if (type === 'next') return h('svg', common, h('path', { d: 'M6 5v14l10-7L6 5Z', fill: 'currentColor', stroke: 'none' }), h('path', { d: 'M19 5v14' }));
+  if (type === 'prev') return h('svg', common, h('path', { d: 'M18 5v14L8 12l10-7Z', fill: 'currentColor', stroke: 'none' }), h('path', { d: 'M5 5v14' }));
   if (type === 'close') return h('svg', common, h('path', { d: 'm6 6 12 12M18 6 6 18' }));
   if (type === 'settings') return h('svg', common, h('path', { d: 'M4 6h6m4 0h6M4 12h2m4 0h10M4 18h10m4 0h2' }),
     h('circle', { cx: 12, cy: 6, r: 2 }), h('circle', { cx: 8, cy: 12, r: 2 }), h('circle', { cx: 16, cy: 18, r: 2 }));

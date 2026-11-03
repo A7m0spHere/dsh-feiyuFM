@@ -2,7 +2,6 @@
 import { trackId, normalizeTrack } from './contracts.mjs';
 import { collectDiscovery } from './providers/coordinator.mjs';
 import {selectRecommendationSeeds} from './recommendation.mjs';
-import {trackFeedback} from './feedback.mjs';
 import { randomUUID, createHash } from 'node:crypto';
 import {APPROVED_POOL_KEY,approvedPlaybackTracks} from './approved-pool.mjs';
 import {SUPPLY_POLICY,REVIEW_KEY} from './recommendation-supply.mjs';
@@ -51,13 +50,27 @@ export function createDiscoveryCache({ registry, store = null, now = () => Date.
     seedOffset=Number.isSafeInteger(saved.seedOffset)&&saved.seedOffset>=0?saved.seedOffset:0;
     failureUntil=Number.isFinite(saved.failureUntil)?saved.failureUntil:0;
   }
-  const candidates = () => entries.filter(track => {
-    const expiry = track.discovery?.expiresAt;
-    return Number.isFinite(expiry) && expiry > now()
-      && (!store || store.isTrackAvailable(track, now()));
-  });
-  const usable = () => candidates().filter(track => !store?.getEnvironmentEntry(track)
-    && !store?.hasEffectiveListen(track) && (!store || trackFeedback(store,track)!==1));
+  // One batched lookup per projection instead of one prepared statement per
+  // cached candidate: a real library made every snapshot cost 100-300 ms.
+  const candidates = () => {
+    const unavailable = store?.unavailableKeys?.(now()) ?? new Set();
+    return entries.filter(track => {
+      const expiry = track.discovery?.expiresAt;
+      return Number.isFinite(expiry) && expiry > now() && !unavailable.has(trackId(track));
+    });
+  };
+  const usable = () => {
+    const unavailable = store?.unavailableKeys?.(now()) ?? new Set();
+    const environment = store?.environmentKeys?.() ?? new Set();
+    const effective = store?.effectiveListenKeys?.() ?? new Set();
+    const feedback = store?.feedbackScores?.() ?? new Map();
+    return entries.filter(track => {
+      const expiry = track.discovery?.expiresAt;
+      if (!(Number.isFinite(expiry) && expiry > now())) return false;
+      const key = trackId(track);
+      return !unavailable.has(key) && !environment.has(key) && !effective.has(key) && feedback.get(key) !== 1;
+    });
+  };
   /** LLM 筛选结果按 trackKey 戳到候选上；结果随缓存清理一并失效。 */
   const stamped = (tracks) => {
     if (!store) return tracks;
@@ -88,7 +101,7 @@ export function createDiscoveryCache({ registry, store = null, now = () => Date.
     const filter = store?.getSetting('discovery_filter_v1', null);
     if (filter?.source !== 'llm-discovery-filter') return [];
     const sameOwner=filter.candidateOwner===createHash('sha256').update(owner??'').digest('hex');
-    const retained=sameOwner&&Array.isArray(filter.tracks)?filter.tracks.filter(track=>track.discovery?.expiresAt>now()&&(!store||store.isTrackAvailable(track,now()))):[];
+    const retained=sameOwner&&Array.isArray(filter.tracks)?(()=>{const unavailable=store?.unavailableKeys?.(now())??new Set();return filter.tracks.filter(track=>track.discovery?.expiresAt>now()&&!unavailable.has(trackId(track)));})():[];
     const source=filter.candidateRevision===candidateRevision?candidates():retained;
     return stamped(source).filter(track => Number.isSafeInteger(track.discovery?.llmRank)&&track.discovery.llmRank>0)
       .sort((a,b) => a.discovery.llmRank - b.discovery.llmRank);

@@ -57,6 +57,7 @@ let running = true;
 let lastWatchdog = Date.now();
 let transientZeroPending = false;
 let pendingLoad = null;
+let preloaded = null;
 
 const send = (value) => {
   if (!writer) return;
@@ -108,6 +109,14 @@ function cancelLoad() {
   sendError(pending.id, 'cancelled', 'Media open was superseded by a playback control');
 }
 
+function cancelPreload() {
+  const pending = preloaded;
+  preloaded = null;
+  if (!pending) return;
+  clearTimeout(pending.timer);
+  if (!pending.ready) sendError(pending.id, 'cancelled', 'Media preload was superseded by a playback control');
+}
+
 function handle(command, id) {
   if (Number.isFinite(command.version)) {
     if (command.version < acceptedVersion) return void sendError(id, 'stale_version', 'Ignored an older playback command');
@@ -116,6 +125,28 @@ function handle(command, id) {
   }
   switch (command.type) {
     case 'load': {
+      if (command.usePreload === true && preloaded?.ready && preloaded.resource === command.resource) {
+        // Standby media is already open: answer without the open delay.
+        const standby = preloaded;
+        preloaded = null;
+        clearTimeout(standby.timer);
+        stopTimeline();
+        status = 'loading';
+        instance = command.playInstanceId ?? null;
+        version = command.version ?? null;
+        resource = command.resource ?? null;
+        positionMs = 0;
+        basePosition = 0;
+        startedSent = false;
+        endedSent = false;
+        transientZeroPending = false;
+        if (typeof command.muted === 'boolean') muted = command.muted;
+        status = command.autoplay === true ? 'playing' : 'ready';
+        if (command.autoplay === true) playingSince = Date.now();
+        sendResult(id, { positionMs: 0, seek: true, muted, playing: command.autoplay === true, preloaded: true });
+        return;
+      }
+      cancelPreload();
       cancelLoad();
       stopTimeline();
       status = 'loading';
@@ -127,6 +158,8 @@ function handle(command, id) {
       startedSent = false;
       endedSent = false;
       transientZeroPending = false;
+      if (typeof command.muted === 'boolean') muted = command.muted;
+      const autoplay = command.autoplay === true;
       if (crashOn === 'load') return void setTimeout(crash, crashDelayMs);
       const pending = { id, timer: null };
       pendingLoad = pending;
@@ -156,9 +189,35 @@ function handle(command, id) {
         basePosition = seeked ? startMs : 0;
         positionMs = basePosition;
         status = 'ready';
+        if (autoplay) {
+          // Same contract as the real host: one load command can start audio.
+          status = 'playing';
+          playingSince = Date.now();
+          startedSent = false;
+          transientZeroPending = false;
+          sendResult(id, { positionMs: basePosition, seek: seeked, muted, playing: true });
+          return;
+        }
         sendResult(id, { positionMs: basePosition, seek: seeked, muted });
       }, openDelayMs);
       return;
+    }
+    case 'preload': {
+      cancelPreload();
+      const pending = { id, resource: command.resource ?? null, timer: null, ready: false };
+      preloaded = pending;
+      pending.timer = setTimeout(() => {
+        if (preloaded !== pending) return;
+        if (openBehavior === 'fail') { preloaded = null; return void sendError(id, 'media_failed', 'Simulated preload failure'); }
+        if (openBehavior === 'never') { preloaded = null; return void sendError(id, 'media_open_timeout', 'Preload did not open', true); }
+        pending.ready = true;
+        sendResult(id, { positionMs: 0, preloaded: true });
+      }, openDelayMs);
+      return;
+    }
+    case 'preloadCancel': {
+      cancelPreload();
+      return void sendResult(id, { preloaded: false });
     }
     case 'play': {
       if (!instance) return void sendError(id, 'no_media', 'Nothing is loaded');
@@ -171,12 +230,14 @@ function handle(command, id) {
       return void sendResult(id, { positionMs: Math.round(currentPosition()) });
     }
     case 'pause': {
+      cancelPreload();
       if (pendingLoad) { cancelLoad(); status = 'paused'; }
       stopTimeline();
       if (status === 'playing' || status === 'ready') status = 'paused';
       return void sendResult(id, { positionMs: Math.round(positionMs) });
     }
     case 'stop': {
+      cancelPreload();
       cancelLoad();
       stopTimeline();
       status = 'idle';
@@ -197,6 +258,7 @@ function handle(command, id) {
     case 'ping':
       return void sendResult(id);
     case 'shutdown': {
+      cancelPreload();
       cancelLoad();
       stopTimeline();
       status = 'idle';
@@ -263,7 +325,7 @@ function accept() {
       pid: process.pid,
       backend: 'fake-backend',
       ownerPid: OWNER_PID,
-      capabilities: { seek: supportsSeek, mute: true },
+      capabilities: { seek: supportsSeek, mute: true, autoplay: true, reuseSwitch: true, preload: true },
     });
     send({ type: 'state', ...state() });
     socket.on('data', (chunk) => {

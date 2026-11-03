@@ -4,6 +4,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { MusicCore } from '../src/core.mjs';
+import { trackId } from '../src/contracts.mjs';
 import { FakeClock, FakePlayback, FakeProvider } from '../src/fakes.mjs';
 import { MusicStore } from '../src/storage.mjs';
 import { createSelector } from '../src/selection.mjs';
@@ -11,6 +12,7 @@ import {applyListenGrowth} from '../src/growth.mjs';
 
 const a = { provider: 'netease', providerTrackId: '1', title: 'A', durationMs: 180000 };
 const b = { provider: 'qq', providerTrackId: '1', title: 'B', durationMs: 170000 };
+const c = { provider: 'netease', providerTrackId: '2', title: 'C', durationMs: 160000 };
 
 function harness(store = new MusicStore()) {
   const provider = new FakeProvider();
@@ -200,7 +202,7 @@ test('nonretryable provider failure is bounded and does not count as listening',
   h.store.close();
 });
 
-test('retryable resolution stops after three attempts', async () => {
+test('retryable resolution stops after two attempts', async () => {
   const store = new MusicStore();
   const provider = new FakeProvider();
   const playback = new FakePlayback();
@@ -209,7 +211,8 @@ test('retryable resolution stops after three attempts', async () => {
   provider.failNext(a, 5, true);
   core.dispatch({ commandId: 'retry', type: 'requestTrack', track: a });
   await core.waitForIdle();
-  assert.equal(provider.calls.length, 3);
+  // Two attempts: a third 4 s wait only delays the error the user sees.
+  assert.equal(provider.calls.length, 2);
   assert.equal(core.snapshot().lastError.code, 'provider_failure');
   assert.equal(playback.playing, false);
   store.close();
@@ -301,7 +304,7 @@ test('logical progress records agent activity without claiming audible playback'
   h.store.close();
 });
 
-test('resume resets position when playback cannot seek, and rejects old events', async () => {
+test('resume reuses the paused player, keeps its position, and rejects old events', async () => {
   const h = harness();
   h.send('requestTrack', { track: a });
   await h.core.waitForIdle();
@@ -312,9 +315,151 @@ test('resume resets position when playback cannot seek, and rejects old events',
   h.playback.supportsSeek = false;
   h.send('resume');
   await h.core.waitForIdle();
-  assert.equal(h.core.snapshot().current.positionMs, 0);
+  // The paused player still holds the media, so resuming is a plain play: no
+  // reload and no seek, hence the position is preserved even without seek.
+  assert.equal(h.core.snapshot().current.positionMs, 5000);
   assert.equal(h.core.snapshot().status, 'playing');
   assert.equal(h.core.onPlaybackEvent({ type: 'ended', playInstanceId, version: oldVersion }), false);
   assert.equal(h.core.snapshot().current.playInstanceId, playInstanceId);
   h.store.close();
+});
+
+test('previous without any playback history reports no_previous instead of an internal error', () => {
+  const h = harness();
+  try {
+    assert.equal(h.core.snapshot().navigation.previous, false);
+    assert.throws(() => h.send('previous'), { code: 'no_previous' });
+    assert.equal(h.core.snapshot().current, null);
+  } finally { h.store.close(); }
+});
+
+test('previous walks the real playback history backwards and stops at the oldest', async () => {
+  const h = harness();
+  try {
+    for (const track of [a, b, c]) { h.send('requestTrack', { track }); await h.core.waitForIdle(); }
+    assert.equal(h.core.snapshot().navigation.previous, true);
+    h.send('previous');
+    await h.core.waitForIdle();
+    assert.equal(trackId(h.core.snapshot().current.track), 'qq:1');
+    assert.equal(h.core.snapshot().current.selectedBy, 'user');
+    // 第二首 B 的播放记录已经追加，但游标固定在原快照上：再按上一首回到 A，
+    // 不会因为新记录把 B 又算成「更早」而回到 C。
+    h.send('previous');
+    await h.core.waitForIdle();
+    assert.equal(trackId(h.core.snapshot().current.track), 'netease:1');
+    assert.equal(h.core.snapshot().navigation.previous, false);
+    assert.throws(() => h.send('previous'), { code: 'no_previous' });
+    assert.equal(trackId(h.core.snapshot().current.track), 'netease:1');
+  } finally { await h.core.waitForIdle(); h.store.close(); }
+});
+
+test('previous bypasses the automatic repeat window but still honors bans and availability', async () => {
+  const h = harness();
+  h.core.selector = createSelector({ store: h.store, listFamiliar: () => [a, b, c], now: () => h.clock.now() });
+  try {
+    for (const track of [a, b, c]) { h.send('requestTrack', { track }); await h.core.waitForIdle(); }
+    h.send('previous');
+    await h.core.waitForIdle();
+    assert.equal(trackId(h.core.snapshot().current.track), 'qq:1', '最近播放过的 B 仍可被用户显式返回');
+    h.send('banTrack', { track: a });
+    // 游标固定在原快照上：B 之前只有 A，A 被禁播后没有更早的可播歌曲。
+    assert.throws(() => h.send('previous'), { code: 'no_previous' });
+    assert.equal(trackId(h.core.snapshot().current.track), 'qq:1');
+  } finally { await h.core.waitForIdle(); h.store.close(); }
+});
+
+test('previous skips a banned or unavailable track and reports no_previous when every earlier song is blocked', async () => {
+  const h = harness();
+  try {
+    for (const track of [a, b, c]) { h.send('requestTrack', { track }); await h.core.waitForIdle(); }
+    h.store.markUnavailable(b, 'media_failed', h.clock.now() + 60_000);
+    h.send('previous');
+    await h.core.waitForIdle();
+    assert.equal(trackId(h.core.snapshot().current.track), 'netease:1');
+  } finally { await h.core.waitForIdle(); h.store.close(); }
+  const blocked = harness();
+  try {
+    for (const track of [a, b, c]) { blocked.send('requestTrack', { track }); await blocked.core.waitForIdle(); }
+    blocked.send('banTrack', { track: a });
+    blocked.send('banTrack', { track: b });
+    assert.throws(() => blocked.send('previous'), { code: 'no_previous' });
+    assert.equal(trackId(blocked.core.snapshot().current.track), 'netease:2');
+  } finally { await blocked.core.waitForIdle(); blocked.store.close(); }
+});
+
+test('previous keeps playback paused when the user was paused', async () => {
+  const h = harness();
+  try {
+    h.send('requestTrack', { track: a });
+    await h.core.waitForIdle();
+    h.send('requestTrack', { track: b });
+    await h.core.waitForIdle();
+    h.send('pause');
+    await h.core.waitForIdle();
+    h.send('previous');
+    await h.core.waitForIdle();
+    assert.equal(trackId(h.core.snapshot().current.track), 'netease:1');
+    assert.equal(h.core.snapshot().paused, true);
+    assert.equal(h.core.snapshot().status, 'paused');
+    assert.equal(h.playback.playing, false);
+  } finally { await h.core.waitForIdle(); h.store.close(); }
+});
+
+test('next walks forward to the latest history before selecting D; point requests re-anchor', async () => {
+  const h = harness();
+  const d = { provider: 'qq', providerTrackId: '2', title: 'D', durationMs: 150000 };
+  try {
+    for (const track of [a, b, c]) { h.send('requestTrack', { track }); await h.core.waitForIdle(); }
+    h.send('previous');
+    await h.core.waitForIdle();
+    assert.equal(trackId(h.core.snapshot().current.track), 'qq:1');
+    h.core.setQueue([d]);
+    h.send('next');
+    await h.core.waitForIdle();
+    assert.equal(trackId(h.core.snapshot().current.track), 'netease:2');
+    assert.equal(h.core.snapshot().current.selectedBy, 'user');
+    assert.equal(h.core.snapshot().navigation.previous, true);
+    h.send('next');
+    await h.core.waitForIdle();
+    assert.equal(trackId(h.core.snapshot().current.track), 'qq:2');
+    // 新推荐 D 才重新锚定：上一首回到刚才真正播放过的 C。
+    h.send('previous');
+    await h.core.waitForIdle();
+    assert.equal(trackId(h.core.snapshot().current.track), 'netease:2');
+    // 显式点播 A 重建锚点，不保留原快照里 C 之后的 D。
+    h.send('requestTrack', { track: a });
+    await h.core.waitForIdle();
+    h.send('previous');
+    await h.core.waitForIdle();
+    assert.equal(trackId(h.core.snapshot().current.track), 'netease:2');
+  } finally { await h.core.waitForIdle(); h.store.close(); }
+});
+
+test('previous from idle returns the last played song and records a navigation evidence event', async () => {
+  const store = new MusicStore();
+  const provider = new FakeProvider();
+  const playback = new FakePlayback();
+  const clock = new FakeClock(new Date('2026-09-27T12:00:00+08:00').getTime());
+  const logs = [];
+  const core = new MusicCore({ store, provider, playback, clock, onLog: (entry) => logs.push(entry) });
+  playback.onEvent((event) => core.onPlaybackEvent(event));
+  let id = 0;
+  const send = (type, extra = {}) => core.dispatch({ commandId: `prev-${++id}`, type, ...extra });
+  try {
+    send('requestTrack', { track: a });
+    await core.waitForIdle();
+    send('requestTrack', { track: b });
+    await core.waitForIdle();
+    const ended = core.snapshot().current.playInstanceId;
+    playback.emit({ type: 'ended', playInstanceId: ended });
+    assert.equal(core.snapshot().current, null);
+    send('previous');
+    await core.waitForIdle();
+    assert.equal(trackId(core.snapshot().current.track), 'qq:1');
+    const navigation = logs.find((entry) => entry.type === 'navigation');
+    assert.equal(navigation.event, 'previous');
+    assert.equal(navigation.direction, 'previous');
+    assert.equal(navigation.trackKey, 'qq:1');
+    assert.equal(store.getPreference('track', 'qq:1'), null, '返回上一首本身不制造成长');
+  } finally { await core.waitForIdle(); store.close(); }
 });

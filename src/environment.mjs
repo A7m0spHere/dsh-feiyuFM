@@ -131,10 +131,13 @@ export function environmentWeight(facts, now = Date.now()) {
 
 export function describeEnvironmentProfile(store, now=Date.now()) {
   const entries=store.listEnvironment({limit:100000}), artists=new Map(), sources={};
+  // Batched joins: one statement per table instead of two per environment row.
+  const trackMap=store.normalizedTracksForEnvironment?.()??null;
+  const sourceMap=store.environmentSourcesByTrack?.()??null;
   let withIds=0, knownCounts=0, knownDates=0, totalWeight=0;
   for (const row of entries) {
     const key={provider:row.provider,providerTrackId:row.track_key.split(':').slice(1).join(':')};
-    const track=store.getNormalizedTrack(key), facts=store.listEnvironmentSources(key);
+    const track=trackMap?.get(row.track_key)??store.getNormalizedTrack(key), facts=sourceMap?.get(row.track_key)??store.listEnvironmentSources(key);
     const weight=environmentWeight(facts,now); totalWeight+=weight;
     knownCounts+=Number(facts.some(f=>f.play_count!==null)); knownDates+=Number(facts.some(f=>f.last_played_at!==null));
     for(const source of new Set(facts.map(f=>f.source))) sources[source]=(sources[source]??0)+1;

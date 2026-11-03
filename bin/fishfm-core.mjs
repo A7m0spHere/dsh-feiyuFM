@@ -42,7 +42,16 @@ const evidence = createRuntimeEvidence({
 const onLog = (entry) => {
   evidence.event(entry);
   // Diagnostics only; never log credentials or resolved media URLs.
+  // Progress is the highest-volume event by far and the evidence file already
+  // keeps it. On Windows a pipe write is synchronous, so an unread stderr pipe
+  // would block the whole Core once its buffer fills; skipping progress keeps
+  // the diagnostic stream small without losing the evidence.
+  if (entry.event === 'progress') return;
+  const started = performance.now();
   process.stderr.write(`fishfm-core: ${JSON.stringify(entry)}\n`);
+  const stderrMs = performance.now() - started;
+  // A Windows pipe write is synchronous; a slow reader blocks the whole Core.
+  if (stderrMs >= 20) evidence.event({ type: 'slow-op', op: 'stderr-write', durationMs: Math.round(stderrMs) });
 };
 
 let store = null;

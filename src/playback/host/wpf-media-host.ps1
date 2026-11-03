@@ -23,17 +23,21 @@ param(
   [int]$ProtocolVersion = 1,
   [double]$Volume = 0.35,
   # How many silent resources to hold open, so the audio engine stays warm.
-  # 0 disables warming. The 2026-10-06 recheck needed five holders to keep
-  # subsequent loads under 1 s; four no longer reached the fast path on this
-  # machine. See docs/spikes/N20-review-fixes.md. The threshold can vary.
-  [int]$WarmHolders = 5,
+  # Default 0: the 2026-11-03 real-host measurements showed holder opens
+  # competing with the media open the user is waiting for (9-14 s versus 5-6 s
+  # per switch), so warming is opt-in via -WarmHolders 1..8. See
+  # docs/spikes/N20-review-fixes.md for the original 2026-10-06 evidence.
+  [int]$WarmHolders = 0,
   # Default pools may grow to eight until an actual holder opens quickly.
   # Explicit Node/backend pool sizes disable this unless requested otherwise.
   [int]$AdaptiveWarm = 1,
   # Overrides the silent resource the warm holders keep open. Left empty, the host
   # writes its own into the temp directory: audio must never be committed to this
   # repository (AGENTS.md), so the resource is generated rather than shipped.
-  [string]$WarmResource = ''
+  [string]$WarmResource = '',
+  # 1 = replace the source with Open() on a switch (no Stop+Close first).
+  # 0 = legacy teardown. Kept as a parameter so the two can be measured.
+  [int]$ReusePlayer = 1
 )
 
 $ErrorActionPreference = 'Stop'
@@ -43,6 +47,12 @@ Add-Type -AssemblyName System.Windows.Forms
 
 $script:protocol = 1
 $script:tickMs = 200
+# A track switch used to call Stop() + Close() before Open(). On a network
+# stream that teardown can take seconds and it blocks the single command loop,
+# so a pause arriving during a switch waited behind it. WPF replaces the source
+# on Open(), so the teardown is skipped unless an experiment proves it is needed.
+$script:reusePlayer = $ReusePlayer -ne 0
+$script:commandWatch = $null
 $script:ownerPid = $OwnerPid
 $script:running = $true
 $script:volume = [Math]::Max(0.0, [Math]::Min(1.0, $Volume))
@@ -50,6 +60,16 @@ $script:volume = [Math]::Max(0.0, [Math]::Min(1.0, $Volume))
 $script:player = [System.Windows.Media.MediaPlayer]::new()
 $script:player.Volume = $script:volume
 $script:pendingOpen = $null
+# Preload: the next track's media is opened in a standby player while the
+# current one plays, so a switch becomes a player swap instead of a cold open
+# the user waits for. The standby is muted and never played until it is swapped.
+$script:preloadPlayer = [System.Windows.Media.MediaPlayer]::new()
+$script:preloadPlayer.Volume = 0
+try { $script:preloadPlayer.IsMuted = $true } catch { }
+$script:preload = $null
+# A completed standby open. Kept separately from the pending request so the
+# result can be answered while the media stays available for the next load.
+$script:preloadReady = $null
 
 # Warm-up state. WPF's media stack is only fast once enough resources are open
 # in the process: the first Open after idle costs several seconds. The current
@@ -145,21 +165,29 @@ function Send-Event([string]$eventName, [hashtable]$extra) {
   Send-Message $payload
 }
 
+function Get-CommandElapsedMs {
+  if ($null -eq $script:commandWatch) { return 0 }
+  return [int][Math]::Round($script:commandWatch.Elapsed.TotalMilliseconds)
+}
+
 function Send-Result([string]$id, $extra) {
-  $payload = @{ type = 'result'; id = $id; ok = $true; state = (Get-State) }
+  $payload = @{ type = 'result'; id = $id; ok = $true; state = (Get-State); hostMs = (Get-CommandElapsedMs) }
   if ($null -ne $extra) {
     foreach ($key in $extra.Keys) { $payload[$key] = $extra[$key] }
   }
   Send-Message $payload
 }
 
-function Send-ResultError([string]$id, [string]$code, [string]$message, [bool]$retryable = $false) {
+function Send-ResultError([string]$id, [string]$code, [string]$message, [bool]$retryable = $false, $extra = $null) {
+  $error = @{ code = $code; message = $message; retryable = $retryable }
+  if ($null -ne $extra) { foreach ($key in $extra.Keys) { $error[$key] = $extra[$key] } }
   Send-Message @{
     type = 'result'
     id = $id
     ok = $false
-    error = @{ code = $code; message = $message; retryable = $retryable }
+    error = $error
     state = (Get-State)
+    hostMs = (Get-CommandElapsedMs)
   }
 }
 
@@ -336,14 +364,9 @@ function Step-Warm {
   Start-WarmHolder
 }
 
-function Stop-Playback {
-  if ($null -ne $script:pendingOpen) {
-    $cancelled = $script:pendingOpen
-    $script:pendingOpen = $null
-    Send-ResultError $cancelled.id 'cancelled' 'Media open was superseded by a playback control'
-  }
-  try { $script:player.Stop() } catch { }
-  try { $script:player.Close() } catch { }
+# State-only reset. Kept separate from Stop-Playback so a switch can reset the
+# bookkeeping without paying the network teardown: Open() replaces the source.
+function Reset-PlaybackState {
   $script:status = 'idle'
   $script:instance = $null
   $script:version = $null
@@ -357,6 +380,17 @@ function Stop-Playback {
   $script:progressWatch.Reset()
 }
 
+function Stop-Playback {
+  if ($null -ne $script:pendingOpen) {
+    $cancelled = $script:pendingOpen
+    $script:pendingOpen = $null
+    Send-ResultError $cancelled.id 'cancelled' 'Media open was superseded by a playback control'
+  }
+  try { $script:player.Stop() } catch { }
+  try { $script:player.Close() } catch { }
+  Reset-PlaybackState
+}
+
 # Media opening stays in the main event pump. Reading the pipe must continue so
 # pause/stop/next can cancel an old load instead of waiting up to 12 seconds.
 function Step-MediaOpen {
@@ -367,9 +401,17 @@ function Step-MediaOpen {
     $message = "Media did not open within $($pending.timeoutMs) ms"
     if ($null -ne $script:failed) { $code = 'media_failed'; $message = $script:failedMessage }
     $script:pendingOpen = $null
+    # Report this command's own wait, not the most recent command's.
+    $script:commandWatch = $pending.watch
+    $openElapsedMs = [int][Math]::Round($pending.watch.Elapsed.TotalMilliseconds)
+    $progress = @{ openElapsedMs = $openElapsedMs }
+    # Numeric only: a stall with no download progress is a different failure
+    # from a slow-but-progressing stream. Never include the media URL.
+    try { $progress['downloadProgress'] = [Math]::Round([double]$script:player.DownloadProgress, 3) } catch { }
+    try { $progress['bufferingProgress'] = [Math]::Round([double]$script:player.BufferingProgress, 3) } catch { }
     Stop-Playback
     $script:status = 'error'
-    Send-ResultError $pending.id $code $message $true
+    Send-ResultError $pending.id $code $message $true $progress
     return
   }
   if (-not $script:opened) { return }
@@ -383,8 +425,21 @@ function Step-MediaOpen {
       $seeked = $position -gt 0
       $script:seekSupported = $seeked
     }
-    $script:status = 'ready'
-    Send-Result $pending.id @{ positionMs = $position; seek = $seeked; muted = $script:muted; durationMs = $script:durationMs }
+    $script:commandWatch = $pending.watch
+    $playing = $false
+    if ($pending.autoplay) {
+      # One round trip: open, unmute/mute as requested, and start audio.
+      $script:player.Play()
+      $script:status = 'playing'
+      $script:positionAtPlay = Get-Position
+      $script:startedSent = $false
+      $script:lastProgress = -1
+      $script:progressWatch.Restart()
+      $playing = $true
+    } else {
+      $script:status = 'ready'
+    }
+    Send-Result $pending.id @{ positionMs = $position; seek = $seeked; muted = $script:muted; durationMs = $script:durationMs; playing = $playing; preloaded = $pending.preloaded -eq $true; hostStartedAt = $pending.hostStartedAt }
   } catch {
     Stop-Playback
     $script:status = 'error'
@@ -392,31 +447,94 @@ function Step-MediaOpen {
   }
 }
 
-$script:player.add_MediaOpened({
-  $script:opened = $true
-  $script:failed = $null
-  try {
-    $natural = $script:player.NaturalDuration
-    if ($natural.HasTimeSpan) { $script:durationMs = [int][Math]::Round($natural.TimeSpan.TotalMilliseconds) }
-  } catch { $script:durationMs = $null }
-})
+# Both the active and the standby player share one handler set; the sender
+# decides which state the event belongs to, so a swap does not need re-wiring.
+function Attach-PlayerEvents($player) {
+  $player.add_MediaOpened({
+    param($sender, $eventArgs)
+    if ($sender -eq $script:player) {
+      # A late open from a superseded load must not mark the new state opened.
+      if ($script:status -ne 'loading') { return }
+      $script:opened = $true
+      $script:failed = $null
+      try {
+        $natural = $script:player.NaturalDuration
+        if ($natural.HasTimeSpan) { $script:durationMs = [int][Math]::Round($natural.TimeSpan.TotalMilliseconds) }
+      } catch { $script:durationMs = $null }
+      return
+    }
+    if ($null -ne $script:preload -and $sender -eq $script:preloadPlayer) {
+      $script:preload.opened = $true
+      try {
+        $natural = $script:preloadPlayer.NaturalDuration
+        if ($natural.HasTimeSpan) { $script:preload.durationMs = [int][Math]::Round($natural.TimeSpan.TotalMilliseconds) }
+      } catch { }
+    }
+  })
+  $player.add_MediaFailed({
+    param($sender, $eventArgs)
+    if ($sender -eq $script:player) {
+      $script:failed = 'media_failed'
+      $script:failedMessage = 'Media playback failed'
+      try {
+        if ($null -ne $eventArgs.ErrorException) { $script:failedMessage = $eventArgs.ErrorException.Message }
+      } catch { }
+      return
+    }
+    if ($null -ne $script:preload -and $sender -eq $script:preloadPlayer) {
+      $script:preload.failed = $true
+      try {
+        if ($null -ne $eventArgs.ErrorException) { $script:preload.failedMessage = $eventArgs.ErrorException.Message }
+      } catch { }
+    }
+  })
+  $player.add_MediaEnded({
+    param($sender, $eventArgs)
+    if ($sender -ne $script:player) { return }
+    if ($script:status -ne 'playing' -or $null -ne $script:failed) { return }
+    $script:status = 'ended'
+    $script:lastProgress = Get-Position
+    Send-Event 'ended' @{ positionMs = $script:lastProgress }
+    Write-Marker 'MEDIA_ENDED'
+  })
+}
 
-$script:player.add_MediaFailed({
-  param($sender, $eventArgs)
-  $script:failed = 'media_failed'
-  $script:failedMessage = 'Media playback failed'
-  try {
-    if ($null -ne $eventArgs.ErrorException) { $script:failedMessage = $eventArgs.ErrorException.Message }
-  } catch { }
-})
+Attach-PlayerEvents $script:player
+Attach-PlayerEvents $script:preloadPlayer
 
-$script:player.add_MediaEnded({
-  if ($script:status -ne 'playing' -or $null -ne $script:failed) { return }
-  $script:status = 'ended'
-  $script:lastProgress = Get-Position
-  Send-Event 'ended' @{ positionMs = $script:lastProgress }
-  Write-Marker 'MEDIA_ENDED'
-})
+function Stop-Preload {
+  $cancelled = $script:preload
+  $script:preload = $null
+  $script:preloadReady = $null
+  if ($null -ne $cancelled) {
+    Send-ResultError $cancelled.id 'cancelled' 'Media preload was superseded by a playback control'
+  }
+  try { $script:preloadPlayer.Stop() } catch { }
+  try { $script:preloadPlayer.Close() } catch { }
+}
+
+# The standby open is asynchronous like a real load: the loop keeps serving
+# commands while it completes.
+function Step-Preload {
+  $pending = $script:preload
+  if ($null -eq $pending) { return }
+  if ($pending.failed -or (Get-Date) -ge $pending.deadline) {
+    $code = if ($pending.failed) { 'media_failed' } else { 'media_open_timeout' }
+    $message = if ($pending.failed) { $pending.failedMessage } else { "Preload did not open within $($pending.timeoutMs) ms" }
+    $script:preload = $null
+    Stop-Preload
+    $script:commandWatch = $pending.watch
+    Send-ResultError $pending.id $code $message $true
+    return
+  }
+  if (-not $pending.opened) { return }
+  $script:preload = $null
+  # Keep the opened standby media for the next load; only the request is done.
+  $script:preloadReady = @{ resource = $pending.resource; durationMs = $pending.durationMs }
+  Write-Marker 'PRELOAD_READY'
+  $script:commandWatch = $pending.watch
+  Send-Result $pending.id @{ positionMs = 0; preloaded = $true; durationMs = $pending.durationMs }
+}
 
 function Invoke-Command($command) {
   $id = [string]$command.id
@@ -431,6 +549,7 @@ function Invoke-Command($command) {
   }
   switch ($type) {
     'load' {
+      $hostStartedAt = [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()
       $resource = [string]$command.resource
       if ([string]::IsNullOrWhiteSpace($resource)) {
         Send-ResultError $id 'resource_missing' 'load needs a resource handle'
@@ -442,8 +561,61 @@ function Invoke-Command($command) {
       if ($null -ne $command.startPositionMs) { $startMs = [int]$command.startPositionMs }
       $openTimeoutMs = 12000
       if ($null -ne $command.openTimeoutMs) { $openTimeoutMs = [int]$command.openTimeoutMs }
+      if ($null -ne $command.muted) { $script:muted = [bool]$command.muted }
+      $autoplay = $false
+      if ($null -ne $command.autoplay) { $autoplay = [bool]$command.autoplay }
 
-      Stop-Playback
+      $usePreload = $command.usePreload -eq $true
+      if ($usePreload -and $null -ne $script:preloadReady -and $script:preloadReady.resource -eq $resource) {
+        # The standby player already holds this exact resource: pause the old
+        # track, swap players, and let Step-MediaOpen start the new one. The
+        # user waits for a swap, not for a cold network open.
+        if ($null -ne $script:pendingOpen) {
+          $cancelled = $script:pendingOpen
+          $script:pendingOpen = $null
+          Send-ResultError $cancelled.id 'cancelled' 'Media open was superseded by a new load'
+        }
+        $retired = $script:player
+        try { $retired.Pause() } catch { }
+        $script:player = $script:preloadPlayer
+        $script:preloadPlayer = $retired
+        $script:player.Volume = $script:volume
+        $script:preloadReady = $null
+        # The old player becomes the standby. It is paused (not closed): a
+        # Close() on a network stream can block the command loop for seconds,
+        # and the next preload replaces its source anyway.
+        Write-Marker 'PRELOAD_SWAP'
+        Reset-PlaybackState
+        $script:status = 'loading'
+        $script:instance = $instance
+        $script:version = $version
+        $script:resource = $resource
+        try {
+          $natural = $script:player.NaturalDuration
+          if ($natural.HasTimeSpan) { $script:durationMs = [int][Math]::Round($natural.TimeSpan.TotalMilliseconds) }
+        } catch { $script:durationMs = $null }
+        $script:opened = $true
+        $script:pendingOpen = @{ id = $id; startMs = $startMs; timeoutMs = $openTimeoutMs; deadline = (Get-Date).AddMilliseconds($openTimeoutMs); autoplay = $autoplay; preloaded = $true; hostStartedAt = $hostStartedAt; watch = [System.Diagnostics.Stopwatch]::StartNew() }
+        return
+      }
+      if ($null -ne $script:preload -or $null -ne $script:preloadReady) { Stop-Preload }
+
+      # WPF does not fire MediaOpened when the same source is opened again on the
+      # same player. A resume/recovery reload of the same handle must therefore
+      # really tear the old media down first, or the open waits out its timeout.
+      $sameSource = $script:reusePlayer -and $null -ne $script:instance -and $script:resource -eq $resource
+      if ($sameSource) {
+        Stop-Playback
+      } elseif ($script:reusePlayer) {
+        if ($null -ne $script:pendingOpen) {
+          $cancelled = $script:pendingOpen
+          $script:pendingOpen = $null
+          Send-ResultError $cancelled.id 'cancelled' 'Media open was superseded by a new load'
+        }
+        Reset-PlaybackState
+      } else {
+        Stop-Playback
+      }
       $script:status = 'loading'
       $script:instance = $instance
       $script:version = $version
@@ -458,15 +630,40 @@ function Invoke-Command($command) {
       try {
         $script:player.Open($uri)
       } catch {
+        # A rejected open must not leave the previous source playing under an
+        # "error" status: with the reuse-player path nothing else stopped it.
+        Stop-Playback
         $script:status = 'error'
         Send-ResultError $id 'media_failed' 'Open() rejected the resource'
         return
       }
-      $script:pendingOpen = @{ id = $id; startMs = $startMs; timeoutMs = $openTimeoutMs; deadline = (Get-Date).AddMilliseconds($openTimeoutMs) }
+      $script:pendingOpen = @{ id = $id; startMs = $startMs; timeoutMs = $openTimeoutMs; deadline = (Get-Date).AddMilliseconds($openTimeoutMs); autoplay = $autoplay; hostStartedAt = $hostStartedAt; watch = [System.Diagnostics.Stopwatch]::StartNew() }
       # Warming starts only once a real load is in flight, so the first track of a
       # session is served exactly as before (cold) and the pool fills during the
       # playback that follows. Step-Warm never runs while an open is pending.
       $script:warmArmed = $true
+    }
+    'preload' {
+      if ($null -ne $script:pendingOpen) { Send-ResultError $id 'busy' 'A load is in flight'; return }
+      $resource = [string]$command.resource
+      if ([string]::IsNullOrWhiteSpace($resource)) { Send-ResultError $id 'resource_missing' 'preload needs a resource handle'; return }
+      $timeoutMs = 15000
+      if ($null -ne $command.openTimeoutMs) { $timeoutMs = [int]$command.openTimeoutMs }
+      if ($null -ne $script:preload -or $null -ne $script:preloadReady) { Stop-Preload }
+      # The standby may be a swapped-out player: keep it silent before opening.
+      $script:preloadPlayer.Volume = 0
+      try { $script:preloadPlayer.IsMuted = $true } catch { }
+      try { $uri = Resolve-Resource $resource } catch { Send-ResultError $id 'unsupported_resource' 'Resource is not a readable local file or URL'; return }
+      $script:preload = @{ id = $id; resource = $resource; opened = $false; failed = $false; failedMessage = 'Media preload failed'; durationMs = $null; timeoutMs = $timeoutMs; deadline = (Get-Date).AddMilliseconds($timeoutMs); watch = [System.Diagnostics.Stopwatch]::StartNew() }
+      try { $script:preloadPlayer.Open($uri) } catch {
+        $script:preload = $null
+        Send-ResultError $id 'media_failed' 'Open() rejected the preload resource'
+        return
+      }
+    }
+    'preloadCancel' {
+      Stop-Preload
+      Send-Result $id @{ preloaded = $false }
     }
     'play' {
       if ($null -eq $script:instance) {
@@ -482,6 +679,9 @@ function Invoke-Command($command) {
       Send-Result $id @{ positionMs = $script:positionAtPlay }
     }
     'pause' {
+      # A paused user should not keep a standby stream open, and cancelling it
+      # here (instead of a separate command) keeps the pause on one round trip.
+      if ($null -ne $script:preload -or $null -ne $script:preloadReady) { Stop-Preload }
       if ($null -ne $script:pendingOpen) { Stop-Playback }
       if ($null -ne $script:instance) { try { $script:player.Pause() } catch { } }
       if ($script:status -eq 'playing' -or $script:status -eq 'ready') { $script:status = 'paused' }
@@ -489,6 +689,7 @@ function Invoke-Command($command) {
       Send-Result $id @{ positionMs = (Get-Position) }
     }
     'stop' {
+      if ($null -ne $script:preload -or $null -ne $script:preloadReady) { Stop-Preload }
       Stop-Playback
       Send-Result $id @{ positionMs = 0 }
     }
@@ -500,6 +701,7 @@ function Invoke-Command($command) {
     'snapshot' { Send-Result $id $null }
     'ping' { Send-Result $id $null }
     'shutdown' {
+      if ($null -ne $script:preload -or $null -ne $script:preloadReady) { Stop-Preload }
       Stop-Playback
       Send-Result $id $null
       Send-Event 'exiting' @{}
@@ -510,6 +712,7 @@ function Invoke-Command($command) {
 }
 
 function Handle-Line([string]$line) {
+  $script:commandWatch = [System.Diagnostics.Stopwatch]::StartNew()
   $command = $null
   try {
     $command = $line | ConvertFrom-Json
@@ -543,7 +746,7 @@ function Step-Playback {
   if (-not $script:startedSent) {
     $script:startedSent = $true
     $script:lastProgress = $position
-    Send-Event 'started' @{ positionMs = $position; progressSource = 'audio' }
+    Send-Event 'started' @{ positionMs = $position; progressSource = 'audio'; hostEventAt = [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds() }
     return
   }
   if ($position -gt $script:lastProgress) {
@@ -613,27 +816,36 @@ try {
         pid = $PID
         backend = 'wpf-mediaplayer'
         ownerPid = $script:ownerPid
-        capabilities = @{ seek = $true; mute = $true; volume = $true }
+        capabilities = @{ seek = $true; mute = $true; volume = $true; autoplay = $true; reuseSwitch = $true; preload = $true }
       }
       Send-Message (@{ type = 'state' } + (Get-State))
     }
-    if ($null -ne $script:reader -and $script:readTask.IsCompleted) {
-      $line = $null
-      try { $line = $script:readTask.GetAwaiter().GetResult() } catch { $line = $null }
-      if ($null -eq $line) {
-        # Client went away: keep playing and wait for the next one.
-        $script:writer = $null
-        $script:reader = $null
-        $script:server.Dispose()
-        $script:server = $null
-        Write-Marker 'CLIENT_DISCONNECTED'
-      } else {
+    if ($null -ne $script:reader) {
+      # Drain every line that is already buffered before sleeping. One command
+      # per 200 ms tick made a switch (stop+load+mute+play) pay a tick per step
+      # and let a pause wait a whole tick behind a finished command.
+      $handled = 0
+      while ($null -ne $script:reader -and $script:readTask.IsCompleted -and $handled -lt 8) {
+        $line = $null
+        try { $line = $script:readTask.GetAwaiter().GetResult() } catch { $line = $null }
+        if ($null -eq $line) {
+          # Client went away: keep playing and wait for the next one.
+          $script:writer = $null
+          $script:reader = $null
+          $script:server.Dispose()
+          $script:server = $null
+          Write-Marker 'CLIENT_DISCONNECTED'
+          break
+        }
         Handle-Line $line
-        if ($script:running) { $script:readTask = $script:reader.ReadLineAsync() }
+        $handled += 1
+        if (-not $script:running) { break }
+        $script:readTask = $script:reader.ReadLineAsync()
       }
     }
     Pump
     Step-MediaOpen
+    Step-Preload
     Step-Warm
     Step-Playback
     Step-Watchdog
@@ -641,6 +853,7 @@ try {
   }
 } finally {
   Stop-WarmHolders
+  Stop-Preload
   try { $script:player.Stop() } catch { }
   try { $script:player.Close() } catch { }
   if ($null -ne $script:server) { $script:server.Dispose() }

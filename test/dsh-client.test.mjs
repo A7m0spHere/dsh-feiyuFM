@@ -76,6 +76,49 @@ const snapshot = (revision, humanPlayback = true) => ({ revision, settings: {
 const state = value => ({ ok: true, value: { snapshot: value, platforms: {} } });
 const tick = () => new Promise(resolve => setImmediate(resolve));
 
+test('the client manifest only loads the UI packages the single-entry panel uses', () => {
+  const manifest = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
+  assert.deepEqual(manifest.dsh.client.inject, [
+    '@deepseek-ai/dsh-client-connection',
+    '@deepseek-ai/dsh-client-ui-layout',
+    '@deepseek-ai/dsh-client-ui-sidebar',
+  ]);
+  assert.deepEqual(manifest.dsh.client.external, ['react']);
+});
+
+test('playback timings join accepted RPC and UI projections without leaking track data or misattributing natural playback', async () => {
+  let revision = 1, instance = 'before', status = 'playing';
+  const calls = [];
+  const f = fixture(async (_channel, endpoint, payload) => {
+    calls.push({ endpoint, payload });
+    if (endpoint === 'fishfm/command') { revision++; instance = 'selected'; status = 'resolving'; }
+    return { ok: true, value: { snapshot: { ...snapshot(revision), commandVersion: revision, paused: false, status,
+      current: { playInstanceId: instance, track: { title: 'PRIVATE TITLE', handle: 'PRIVATE HANDLE' } } },
+      ...(endpoint === 'fishfm/command' ? { timing: { traceId: payload.traceId, coreReceivedAt: 100, coreAcceptedAt: 110 } } : {}) } };
+  });
+  try {
+    await f.controller.refresh();
+    await f.controller.command('next');
+    const sent = calls.find(c => c.endpoint === 'fishfm/command').payload;
+    assert.match(sent.traceId, /^[\w:.-]{1,100}$/);
+    const received = f.controller.getPlaybackTrace().find(e => e.phase === 'rpc-received');
+    assert.equal(received.traceId, sent.traceId);
+    assert.equal(received.coreReceivedAt, 100);
+    assert.equal(received.coreAcceptedAt, 110);
+    status = 'playing'; await f.controller.refresh();
+    const manual = f.controller.getPlaybackTrace().find(e => e.phase === 'ui-playing' && e.playInstanceId === 'selected');
+    assert.equal(manual.traceId, sent.traceId);
+    instance = 'natural'; revision++; await f.controller.refresh();
+    const natural = f.controller.getPlaybackTrace().find(e => e.phase === 'ui-playing' && e.playInstanceId === 'natural');
+    assert.equal(natural.traceId, null);
+    const rows = f.controller.getPlaybackTrace();
+    rows[0].phase = 'mutated';
+    assert.notEqual(f.controller.getPlaybackTrace()[0].phase, 'mutated');
+    assert.equal(JSON.stringify(rows).includes('PRIVATE'), false);
+    assert.equal(calls.length, 4, 'timing must not add RPCs');
+  } finally { f.dispose(); }
+});
+
 const managedFeedback=(revision,current=1,playInstanceId='feedback-song')=>({version:1,managementVersion:1,revision,current,playInstanceId,liked:current===1?1:0,reduced:current===-1?1:0});
 const feedbackItem={key:'netease:feedback',track:{provider:'netease',providerTrackId:'feedback',title:'反馈歌曲',artist:'艺人'},score:1,updatedAt:1000};
 const feedbackPage=(revision,options={})=>({version:1,revision,query:'',filter:'all',offset:0,limit:12,total:1,matched:1,counts:{liked:1,reduced:0},items:[feedbackItem],...options});
@@ -89,6 +132,8 @@ test('feedback management is capability-gated and collapsed; opening queries thr
   try{
     await f.controller.refresh();assert.equal(all(f.render()).some(n=>n.children.includes('管理反馈')),false);
     capable=true;await f.controller.refresh();
+    // Tabs mount on first visit: open the taste tab before looking for its manager.
+    all(f.render()).find(n=>n.type==='nav').children.find(b=>b.children.includes('偏好与反馈')).props.onClick();
     const details=all(f.render()).find(n=>n.type==='details'&&n.props.className?.includes('fm-feedback-manager'));
     assert.ok(details);assert.equal(details.props.open,undefined);assert.equal(calls.includes('fishfm/feedback-list'),false);
     details.props.onToggle({currentTarget:{open:true}});await tick();
@@ -262,6 +307,7 @@ test('failed credential cleanup shows a logged-out account and an actionable ret
   try {
     await f.controller.refresh();
     await f.controller.platformAction('logout', 'netease');
+    all(f.render()).find(node => node.type === 'nav').children.find(button => button.children.includes('电台设置')).props.onClick();
     assert.equal(f.controller.getSnapshot().connected, true);
     assert.equal(f.controller.getSnapshot().login, null);
     assert.match(f.controller.getSnapshot().notice, /清理失败/);
@@ -313,7 +359,9 @@ test('expression drafts survive polling and conflicts until the user adopts save
   const select=()=>all(f.render()).find(n=>n.props['aria-label']==='表达风格');
   const button=label=>all(f.render()).find(n=>n.type==='button'&&n.children.includes(label));
   try{
-    await f.controller.refresh();select().props.onChange({target:{value:'concise'}});
+    await f.controller.refresh();
+    all(f.render()).find(n=>n.type==='nav').children.find(b=>b.children.includes('电台设置')).props.onClick();
+    select().props.onChange({target:{value:'concise'}});
     await f.controller.refresh();assert.equal(select().props.value,'concise');
     await button('保存表达方式').props.onClick();
     assert.equal(select().props.value,'concise');assert.equal(button('保存表达方式').props.disabled,true);
@@ -325,6 +373,7 @@ test('expression drafts survive polling and conflicts until the user adopts save
 
 test('discovery page is expanded and read-only, separates listening states and hides stale data when disconnected', async () => {
   let available = true, calls = 0;
+  const endpoints = [];
   const journal = {status: 'ready', items: [
     {key: 'netease:1', title: 'Only recommended', artist: 'A', evidence: [{kind: 'platform-source', value: 'netease_similar'}]},
     {key: 'netease:2', title: 'Silent experience', artist: 'B', agentExperienced: true, silentExperienced: true, audibleHeard: false, evidence: []},
@@ -332,15 +381,18 @@ test('discovery page is expanded and read-only, separates listening states and h
   ]};
   const persona = {generatedAt: 1, discoveryJournal: journal, policy: {dailyTokens: 4000, maxOutputTokens: 256},
     ledger: {today: {knownTokens: 0}, total: {knownTokens: 0}, remainingTokens: 4000, recent: []}};
-  const f = fixture(async () => { calls++; return available ? {ok: true, value: {snapshot: snapshot(1), persona}} : {ok: false, error: {code: 'core_unavailable'}}; });
+  const f = fixture(async (_channel, endpoint) => { calls++; endpoints.push(endpoint); return available ? {ok: true, value: {snapshot: snapshot(1), persona}} : {ok: false, error: {code: 'core_unavailable'}}; });
   try {
     await f.controller.refresh();
+    all(f.render()).find(n => n.type === 'nav').children.find(b => b.children.includes('发现记录')).props.onClick();
     const card = all(f.render()).find(n => n.type === 'details' && n.props.className?.includes('fm-discoveries-card'));
     assert.ok(card); assert.equal(card.props.open, true);
     const words = all(card).flatMap(n => n.children.filter(c => typeof c === 'string')).join(' ');
     assert.match(words, /已推荐/); assert.match(words, /静音有效经历/); assert.match(words, /有效听过/); assert.match(words, /本机点播/);
     assert.equal(all(card).some(n => n.type === 'button'), false);
-    assert.equal(calls, 1, 'rendering the journal cannot issue commands or model requests');
+    assert.equal(endpoints.filter(name => name === 'fishfm/command' || name.startsWith('fishfm/persona-')).length, 0,
+      'rendering the journal cannot issue commands or model requests');
+    assert.equal(calls, 2, 'one light state read plus one on-demand profile read');
     available = false; await f.controller.refresh();
     const disconnected = all(f.render()).find(n => n.props.className?.includes('fm-discoveries-card'));
     const text = all(disconnected).flatMap(n => n.children.filter(c => typeof c === 'string')).join(' ');
@@ -499,6 +551,7 @@ test('song feedback follows the captured playback instance and reset requires an
   assert.equal(calls[0].type,'setTrackFeedback');assert.equal(calls[0].playInstanceId,'client-play');assert.equal(calls[0].track.providerTrackId,'1');
   nodes=all(f.render());assert.equal(nodes.find(n=>n.children.includes('喜欢')).props['aria-pressed'],true);
   await nodes.find(n=>n.children.includes('喜欢')).props.onClick();assert.equal(calls.at(-1).value,0);
+  nodes=all(f.render());nodes.find(n=>n.type==='nav').children.find(b=>b.children.includes('偏好与反馈')).props.onClick();
   nodes=all(f.render());nodes.find(n=>n.children.includes('仅重置成长偏好')).props.onClick();
   assert.equal(calls.some(c=>c.type==='resetTaste'),false,'opening confirmation never changes preferences');
   nodes=all(f.render());await nodes.find(n=>n.children.includes('确认重置')).props.onClick();
@@ -516,7 +569,8 @@ test('a saved low output cap can be raised again within the allowed range',async
   if(endpoint==='fishfm/persona-output'){sent.push(payload);cap=payload.value;}
   return{ok:true,value:{snapshot:snapshot(1),persona:view(),platforms:{}}};
  });const off=f.controller.subscribe(()=>{});
- try{await tick();let nodes=all(f.render());const input=nodes.find(n=>n.props['aria-label']==='单次输出 token 上限');
+ try{await tick();let nodes=all(f.render());nodes.find(n=>n.type==='nav').children.find(b=>b.children.includes('电台设置')).props.onClick();
+  nodes=all(f.render());const input=nodes.find(n=>n.props['aria-label']==='单次输出 token 上限');
   assert.equal(input.props.max,4096);input.props.onChange({target:{value:'2048'}});
   nodes=all(f.render());const save=nodes.find(n=>n.children.includes('保存上限'));assert.equal(save.props.disabled,false);
   await save.props.onClick();assert.equal(sent[0].value,2048);assert.equal(f.controller.getSnapshot().persona.policy.maxOutputTokens,2048);
@@ -529,9 +583,13 @@ test('clearing imported songs requires its own confirmation and updates the inpu
   if(endpoint==='fishfm/command'){calls.push(payload);if(payload.type==='resetLibrary')total=0;}
   return{ok:true,value:{snapshot:snapshot(1),library:{total,tracks:[]},insights:{libraryResetSupported:true,feedback:{version:1,current:0,liked:0,reduced:0,canUndoReset:total===0}},platforms:{}}};
  });const off=f.controller.subscribe(()=>{});try{
-  await tick();let nodes=all(f.render());nodes.find(n=>n.children.includes('清空输入曲库并重建偏好')).props.onClick();
+  await tick();let nodes=all(f.render());
+  // Tabs mount on first visit: open the taste tab for the reset controls.
+  nodes.find(n=>n.type==='nav').children.find(b=>b.children.includes('偏好与反馈')).props.onClick();
+  nodes=all(f.render());nodes.find(n=>n.children.includes('清空输入曲库并重建偏好')).props.onClick();
   assert.equal(calls.length,0);nodes=all(f.render());assert.ok(nodes.some(n=>n.children.includes('清空 472 首输入歌曲并重建偏好？')));
   await nodes.find(n=>n.children.includes('确认清空输入曲库')).props.onClick();assert.equal(calls.at(-1).type,'resetLibrary');assert.equal(f.controller.getSnapshot().library.total,0);
+  nodes=all(f.render());nodes.find(n=>n.type==='nav').children.find(b=>b.children.includes('电台设置')).props.onClick();
   assert.ok(all(f.render()).some(n=>n.children.includes('输入曲库 · 0 首（展开查看）')));
  }finally{off();f.dispose();}
 });
@@ -541,6 +599,7 @@ test('motion preferences survive remount and never send Core commands', async ()
   const f = fixture(async (_channel, endpoint) => { calls.push(endpoint); return state(snapshot(1)); }, storage);
   const off = f.controller.subscribe(() => {});
   await tick();
+  all(f.render()).find(n => n.type === 'nav').children.find(b => b.children.includes('电台设置')).props.onClick();
   all(f.render()).find(n => n.props['aria-label'] === '动态效果').props.onChange({ target: { value: 'off' } });
   assert.equal(f.render().props['data-motion'], 'off');
   assert.equal(calls.includes('fishfm/command'), false);
@@ -582,9 +641,12 @@ test('an imported library restored from Core enables first playback and point pl
     assert.equal(start.props.disabled, false);
     await start.props.onClick();
     assert.equal(calls.at(-1).payload.type, 'resume');
+    all(f.render()).find(n => n.type === 'nav').children.find(b => b.children.includes('电台设置')).props.onClick();
     await all(f.render()).find(n => n.props['aria-label'] === '播放 Saved song · Artist').props.onClick();
     await tick();
-    assert.deepEqual(JSON.parse(JSON.stringify(calls.at(-1).payload)), { type: 'requestTrack', track });
+    const { traceId, ...request } = JSON.parse(JSON.stringify(calls.at(-1).payload));
+    assert.match(traceId, /^[\w:.-]{1,100}$/);
+    assert.deepEqual(request, { type: 'requestTrack', track });
   } finally { off(); f.dispose(); }
 });
 
@@ -633,6 +695,7 @@ test('the panel exposes a spectrum switch that flips the stored preference', asy
   const f = fixture(async () => state(snapshot(1)));
   const off = f.controller.subscribe(() => {});
   try {
+    all(f.render()).find(n => n.type === 'nav').children.find(b => b.children.includes('电台设置')).props.onClick();
     const toggle = all(f.render()).find(n => n.props['aria-label'] === '背景频谱');
     assert.ok(toggle, 'the interface settings list the spectrum background');
     assert.equal(toggle.props['aria-checked'], true);
@@ -695,7 +758,10 @@ test('companion settings page retains drafts, shares models and keeps playback a
     assert.equal(all(settingsPage).find(n=>n.props['aria-label']==='导入来源').props.value,'playlist');
     assert.equal(all(settingsPage).find(n=>n.props['aria-label']==='输入歌单').props.value,'second');
     assert.equal(requested,undefined,'page changes and model selection do not request recommendations');
-    assert.equal(all(f.render({close(){}})).find(n=>n.props['aria-label']==='推荐模型').props.value,JSON.stringify(['p','b']),'native settings seat shares the model choice');
+    assert.equal(all(settingsPage).find(n=>n.props['aria-label']==='推荐模型').props.value,JSON.stringify(['p','b']),'the main settings tab retains the model choice');
+    const strayClose=all(f.render({close(){}}));
+    assert.ok(strayClose.some(n=>n.type==='nav'),'a stray close prop cannot switch the main panel into the removed settings seat');
+    assert.equal(strayClose.some(n=>n.children.includes('关闭设置')),false,'the legacy settings close action is gone');
     await all(settingsPage).find(n=>n.type==='button'&&n.children.includes('保存')).props.onClick();
     assert.equal(commands.at(-1).type,'setDiscoveryRate');assert.equal(commands.at(-1).value,.73);
     let dock=all(f.render()).find(n=>n.props['aria-label']==='播放控制');
@@ -722,16 +788,20 @@ test('a delayed platform reply cannot restore an older pool at an equal persona 
   }finally{f.dispose();}
 });
 
-test('client contributes native sidebar, main and settings seats; controls send Core commands', async () => {
+test('client contributes native sidebar and main seats; controls send Core commands', async () => {
   const calls = [];
   const f = fixture(async (channel, endpoint, payload) => { calls.push({ channel, endpoint, payload }); return state(snapshot(calls.length, endpoint !== 'fishfm/command')); });
   const off = f.controller.subscribe(() => {});
   try {
     await tick();
-    assert.deepEqual(f.registrations.map(r => r.options.name), ['main', 'sidebar.panellist', 'settings.section', 'shell.overlay', 'shell.overlay']);
+    assert.deepEqual(f.registrations.map(r => r.options.name), ['main', 'sidebar.panellist', 'shell.overlay', 'shell.overlay']);
+    assert.equal(f.registrations.some(r => r.options.name === 'settings.section'), false, 'the global settings seat is not registered');
+    assert.equal(f.registrations.find(r => r.options.name === 'main').options.key, 'fishfm');
     assert.deepEqual(f.registrations.filter(r => r.options.name === 'shell.overlay').map(r => r.options.id), ['fishfm.player', 'fishfm.spectrum']);
     const nodes = all(f.render());
-    const toggle = nodes.find(n => n.props['aria-label'] === '电脑输出声音');
+    // The settings tab mounts on first visit; the dock stays available regardless.
+    nodes.find(n => n.type === 'nav').children.find(b => b.children.includes('电台设置')).props.onClick();
+    const toggle = all(f.render()).find(n => n.props['aria-label'] === '电脑输出声音');
     assert.equal(toggle.props['aria-checked'], true);
     assert.equal(toggle.props.disabled, false);
     await toggle.props.onClick();
@@ -739,10 +809,10 @@ test('client contributes native sidebar, main and settings seats; controls send 
     assert.equal(calls.at(-1).payload.type, 'setHumanPlayback');
     assert.equal(calls.at(-1).payload.value, false);
     assert.equal(all(f.render()).find(n => n.props['aria-label'] === '电脑输出声音').props['aria-checked'], false);
-    let closed = false;
-    const close = all(f.render({ close: () => { closed = true; } })).find(n => n.children.includes('关闭设置'));
-    close.props.onClick(); assert.equal(closed, true);
-    const input=all(f.render({close(){}})).find(n=>n.type==='details'&&n.props.className==='fm-input-library');
+    const strayClose = all(f.render({ close: () => { throw new Error('the removed settings seat must not be rendered'); } }));
+    assert.ok(strayClose.some(n => n.type === 'nav'), 'the main panel keeps its four-tab navigation');
+    assert.equal(strayClose.some(n => n.children.includes('关闭设置')), false, 'no legacy settings close action');
+    const input=all(f.render()).find(n=>n.type==='details'&&n.props.className==='fm-input-library');
     assert.ok(input,'settings retain the input library behind a disclosure');
     assert.notEqual(input.props.open,true,'input library starts collapsed');
     assert.equal(all(f.render()).find(n => n.children.includes('开始听歌')).props.disabled, true);
@@ -852,6 +922,7 @@ test('failed writes are visible and block further changes until a successful ref
     await tick(); await f.controller.command('pause');
     assert.equal(f.controller.getSnapshot().connected, false);
     assert.match(f.controller.getSnapshot().error, /core_unavailable/);
+    all(f.render()).find(n => n.type === 'nav').children.find(b => b.children.includes('电台设置')).props.onClick();
     assert.equal(all(f.render()).find(n => n.props['aria-label'] === '电脑输出声音').props.disabled, true);
     await f.controller.refresh(); assert.equal(f.controller.getSnapshot().connected, true);
   } finally { off(); f.dispose(); }
@@ -903,6 +974,7 @@ test('an expired import refreshes the account card and exposes the re-login stat
     const current = f.controller.getSnapshot();
     assert.equal(current.platforms.netease.account.status, 'expired');
     assert.equal(current.login.status, 'expired');
+    all(f.render()).find(node => node.type === 'nav').children.find(button => button.children.includes('电台设置')).props.onClick();
     const nodes = all(f.render());
     assert.ok(nodes.some(node => node.children.includes('登录已失效')));
     assert.equal(nodes.some(node => node.children.includes('二维码已过期')), false);
@@ -925,6 +997,7 @@ test('a failed login validation is retryable in the panel and is not labelled QR
   const off = f.controller.subscribe(() => {});
   try {
     await tick(); await f.controller.platformAction('begin', 'netease'); await f.controller.platformAction('poll', 'netease');
+    all(f.render()).find(node => node.type === 'nav').children.find(button => button.children.includes('电台设置')).props.onClick();
     let nodes = all(f.render());
     assert.ok(nodes.some(node => node.children.includes('登录校验未通过')));
     assert.equal(nodes.some(node => node.children.includes('二维码已过期')), false);
@@ -947,6 +1020,7 @@ test('a QR detection failure retries the existing attempt without starting anoth
   const off = f.controller.subscribe(() => {});
   try {
     await tick(); await f.controller.platformAction('begin', 'netease'); await f.controller.platformAction('poll', 'netease');
+    all(f.render()).find(node => node.type === 'nav').children.find(button => button.children.includes('电台设置')).props.onClick();
     const nodes = all(f.render());
     assert.equal(nodes.some(node => node.children.includes('二维码已过期')), false);
     await nodes.find(node => node.children.includes('重试扫码检测')).props.onClick();
@@ -1176,6 +1250,7 @@ test('library RPC ignores old searches and old polls and keeps the selected page
     await f.controller.queryLibrary('', 312); await f.controller.refresh();
     assert.equal(calls.at(-1).payload.library.offset, 312);
     assert.equal(f.controller.getSnapshot().library.offset, 312);
+    all(f.render()).find(node => node.type === 'nav').children.find(button => button.children.includes('电台设置')).props.onClick();
     const nodes = all(f.render());
     assert.ok(nodes.some(n => n.children.includes('27 / 34')));
     await nodes.find(n => n.props['aria-label'] === '下一页曲目').props.onClick();
@@ -1193,4 +1268,94 @@ test('manual playback can start from the library while the current search is emp
   });
   try { await f.controller.refresh(); await f.controller.playOrPause(); assert.equal(sent.track.providerTrackId, 'first'); }
   finally { f.dispose(); }
+});
+
+test('the console first frame polls playback only and loads the profile when a profile tab is visible', async () => {
+  const calls = [];
+  let profileReads = 0;
+  const playing = { ...snapshot(1), paused: false, status: 'playing',
+    current: { playInstanceId: 'inst-1', track: { provider: 'netease', providerTrackId: '1', title: 'Song', artist: 'Artist', durationMs: 180000 } } };
+  const f = fixture(async (_channel, endpoint, payload) => {
+    calls.push({ endpoint, payload });
+    if (endpoint === 'fishfm/profile') {
+      profileReads++;
+      return { ok: true, value: {
+        insights: { feedback: { version: 1, managementVersion: 1, revision: 1, current: 0, liked: 0, reduced: 0 } },
+        persona: { generatedAt: 1, policy: { dailyTokens: 1000, maxOutputTokens: 256 },
+          ledger: { today: { knownTokens: 0 }, total: { knownTokens: 0, attempts: 0 }, remainingTokens: 1000 } },
+        summaryModels: [{ provider: 'p', model: 'm', label: 'M' }],
+        features: { personaSummary: true },
+      } };
+    }
+    return { ok: true, value: { snapshot: playing, platforms: {}, library: { total: 1, tracks: [] },
+      features: { artwork: { gif: false, dolls: [] } } } };
+  });
+  const off = f.controller.subscribe(() => {});
+  try {
+    await tick();
+    const stateCalls = calls.filter(call => call.endpoint === 'fishfm/state');
+    assert.ok(stateCalls.length >= 1);
+    assert.equal(stateCalls[0].payload.minimal, true, 'the first console poll is the light projection');
+    assert.equal(profileReads, 0, 'subscribing alone must not build the profile');
+    const nodes = all(f.render());
+    assert.ok(nodes.some(node => node.props['aria-label'] === '播放控制'), 'playback controls render before the profile');
+    assert.equal(profileReads, 0, 'the fake renderer does not run effects; the panel effect is the production trigger');
+    f.controller.ensureProfile();
+    await tick();
+    assert.equal(profileReads, 1, 'a visible profile tab loads the profile once');
+    assert.equal(f.controller.getSnapshot().profileState, 'ready');
+    assert.equal(f.controller.getSnapshot().persona.policy.dailyTokens, 1000);
+    await f.controller.refresh();
+    assert.equal(profileReads, 1, 'the 2.2s light poll never re-reads the profile');
+    f.controller.ensureProfile();
+    await tick();
+    assert.equal(profileReads, 1, 'an already loaded profile is not requested again');
+  } finally { off(); f.dispose(); }
+});
+
+test('a new playback instance refreshes the loaded profile once while the light poll stays profile-free', async () => {
+  let current = 'inst-1', profileReads = 0;
+  const f = fixture(async (_channel, endpoint) => {
+    if (endpoint === 'fishfm/profile') {
+      profileReads++;
+      return { ok: true, value: { insights: { feedback: { version: 1, current: 0 } },
+        persona: { generatedAt: 1, policy: {}, ledger: { today: { knownTokens: 0 }, total: { knownTokens: 0, attempts: 0 }, remainingTokens: 0 } },
+        summaryModels: [], features: {} } };
+    }
+    return { ok: true, value: { snapshot: { ...snapshot(1), paused: false, status: 'playing',
+      current: { playInstanceId: current, track: { title: 'Song' } } }, platforms: {}, library: { total: 1, tracks: [] } } };
+  });
+  const off = f.controller.subscribe(() => {});
+  try {
+    await tick();
+    f.controller.ensureProfile();
+    await tick();
+    assert.equal(profileReads, 1);
+    await f.controller.refresh();
+    await new Promise(resolve => setTimeout(resolve, 0));
+    assert.equal(profileReads, 1, 'polling the same track keeps the profile');
+    current = 'inst-2';
+    await f.controller.refresh();
+    await new Promise(resolve => setTimeout(resolve, 0));
+    assert.equal(profileReads, 2, 'a new playback instance refreshes the per-track reply/feedback once');
+  } finally { off(); f.dispose(); }
+});
+
+test('console tabs mount on first visit and stay mounted while hidden', async () => {
+  const f = fixture(async () => state(snapshot(1)));
+  const off = f.controller.subscribe(() => {});
+  try {
+    await tick();
+    const pages = () => all(f.render()).filter(node => /-(listen|discover|taste|settings)$/.test(String(node.props.id ?? '')) && node.props.className);
+    assert.deepEqual(pages().map(node => node.props.className), ['fm-listen-page'], 'only the visible tab renders on the first frame');
+    const nav = () => all(f.render()).find(node => node.type === 'nav');
+    nav().children.find(button => button.children.includes('发现记录')).props.onClick();
+    assert.deepEqual(pages().map(node => node.props.className), ['fm-listen-page', 'fm-discover-page']);
+    assert.equal(pages().find(node => node.props.className === 'fm-discover-page').props.hidden, false);
+    nav().children.find(button => button.children.includes('正在听')).props.onClick();
+    const mounted = pages();
+    assert.equal(mounted.length, 2, 'a visited tab stays mounted after switching away');
+    assert.equal(mounted.find(node => node.props.className === 'fm-discover-page').props.hidden, true);
+    assert.equal(mounted.find(node => node.props.className === 'fm-listen-page').props.hidden, false);
+  } finally { off(); f.dispose(); }
 });

@@ -48,33 +48,51 @@ export function powerShellCandidates({ env = process.env, exists = existsSync } 
 }
 
 /**
- * How many warm holders to use, unless a caller says otherwise. An explicit
- * argument wins; `FISHFM_PLAYBACK_WARM_HOLDERS=0` is the escape hatch for turning
- * warming off on a machine where the pool is not worth its startup cost.
+ * Output volume for the real host. Diagnostics and isolated end-to-end tests need
+ * a silent host without editing production defaults: 0 is a valid value and must
+ * not be mistaken for "unset".
+ */
+export function playbackVolumeFromEnv(env = process.env) {
+  const raw = env.FISHFM_PLAYBACK_VOLUME;
+  if (raw === undefined || raw === '') return 0.35;
+  const value = Number(raw);
+  return Number.isFinite(value) && value >= 0 && value <= 1 ? value : 0.35;
+}
+
+/**
+ * How many warm holders to use, unless a caller says otherwise.
+ *
+ * Default is 0 (off). The 2026-11-03 real-host measurements on this machine
+ * showed the pool contending with real loads: with five holders a switch took
+ * 9-14 s versus 5-6 s with none, because every holder open competes with the
+ * media open that the user is waiting for. The pool's original 4.6 s -> 0.45 s
+ * premise no longer holds here. `FISHFM_PLAYBACK_WARM_HOLDERS=1..8` re-enables
+ * it for machines where it still pays off; an explicit argument always wins.
  */
 export function warmHoldersFromEnv(env = process.env) {
   const raw = env.FISHFM_PLAYBACK_WARM_HOLDERS;
-  if (raw === undefined || raw === '') return 5;
+  if (raw === undefined || raw === '') return 0;
   const value = Number(raw);
-  if (!Number.isInteger(value) || value < 0 || value > 8) return 5;
+  if (!Number.isInteger(value) || value < 0 || value > 8) return 0;
   return value;
 }
 
 /**
  * Real audio backend: a hidden STA PowerShell process driving WPF MediaPlayer.
  *
- * `warmHolders` is how many silent resources the host keeps open so WPF's media
- * stack stays fast. The 2026-10-06 recheck needed five holders: four stayed
- * around 5 s, while five brought subsequent opens below 1 s. The threshold is
- * machine dependent; see docs/spikes/N20-review-fixes.md for current evidence.
- * 0 disables it, which is slower but never broken. `warmResource` overrides the
+ * `warmHolders` is how many silent resources the host keeps open. It defaults to
+ * 0: the 2026-11-03 measurements showed the pool competing with real loads on
+ * this machine (9-14 s versus 5-6 s per switch), so it is opt-in now. The
+ * original 2026-10-06 evidence needed five holders; see
+ * docs/spikes/N20-review-fixes.md for that history. `warmResource` overrides the
  * silent resource; by default the host writes its own, because audio must never be
  * committed to this repository (AGENTS.md).
  */
 export function wpfBackend({
-  env = process.env, exists = existsSync, volume = 0.35, warmHolders = null,
+  env = process.env, exists = existsSync, volume = null, warmHolders = null,
   warmResource = '', candidates, adaptiveWarm = null,
 } = {}) {
+  const effectiveVolume = volume ?? playbackVolumeFromEnv(env);
   const holders = warmHolders ?? warmHoldersFromEnv(env);
   const configured = Number(env.FISHFM_PLAYBACK_WARM_HOLDERS);
   const explicitPool = warmHolders !== null || (env.FISHFM_PLAYBACK_WARM_HOLDERS !== undefined
@@ -88,7 +106,7 @@ export function wpfBackend({
       '-PipeName', context.pipeName,
       '-OwnerPid', String(context.ownerPid ?? 0),
       '-ProtocolVersion', String(context.protocol),
-      '-Volume', String(volume),
+      '-Volume', String(effectiveVolume),
       '-WarmHolders', String(holders),
       '-AdaptiveWarm', adaptive ? '1' : '0',
       ...(warmResource ? ['-WarmResource', warmResource] : []),

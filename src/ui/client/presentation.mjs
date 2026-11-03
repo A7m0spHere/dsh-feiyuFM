@@ -55,9 +55,12 @@ export function playbackControls(state) {
     icon: canPause ? 'pause' : 'play',
     playDisabled: !state.connected || pending === 'pause' || pending === 'stopForToday'
       || (!canPause && (state.busy || !hasMusic)),
+    // 没有更早的可播记录时由 Core 的 navigation.previous 明确告知，按钮据此禁用。
+    previousDisabled: !state.connected || state.busy || Boolean(pending) || !snapshot?.navigation?.previous,
+    previousLabel: pending === 'previous' ? '返回中…' : '上一首',
     nextDisabled: !state.connected || state.busy || Boolean(pending) || !hasMusic,
     nextLabel: pending === 'next' ? '切换中…' : '下一首',
-    message: ({ pause: '正在暂停…', resume: '正在继续播放…', next: '正在切换下一首…',
+    message: ({ pause: '正在暂停…', resume: '正在继续播放…', next: '正在切换下一首…', previous: '正在返回上一首…',
       requestTrack: '正在准备歌曲…', stopForToday: '正在停止…' })[pending] ?? '',
   };
 }

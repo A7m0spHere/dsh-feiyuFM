@@ -282,5 +282,6 @@ export function updateBubble({ previous = null, snapshot = null, now = Date.now(
   return { bubble: { trackKey, shownAt: now, playInstanceId: snapshot.current.playInstanceId ?? null }, changed: true };
 }
 
-/** The controls a panel must not offer, kept explicit so nothing sneaks in. */
-export const NOT_DELIVERED = Object.freeze(['previous-track']);
+/** Legacy pure-logic layer: the delivered client (src/ui/client/) owns the
+ * transport controls now, including 上一首, so nothing is withheld here. */
+export const NOT_DELIVERED = Object.freeze([]);

@@ -44,7 +44,7 @@ export function assertCommand(command) {
   if (!command || typeof command !== 'object' || typeof command.commandId !== 'string' || !command.commandId.trim()) {
     throw new MusicError('invalid_command', 'commandId is required');
   }
-  const types = ['pause', 'resume', 'next', 'requestTrack', 'setListening', 'setHumanPlayback',
+  const types = ['pause', 'resume', 'next', 'previous', 'requestTrack', 'setListening', 'setHumanPlayback',
     'setDiscovery', 'setDiscoveryRate', 'setMode', 'stopForToday', 'chooseSelf', 'banTrack', 'unbanTrack', 'setTrackFeedback', 'resetTaste', 'resetLibrary', 'undoTasteReset','setRecommendationMode'];
   if (!types.includes(command.type)) throw new MusicError('invalid_command', `Unknown command: ${command.type}`);
   if (['setListening', 'setHumanPlayback', 'setDiscovery'].includes(command.type) && typeof command.value !== 'boolean') {
