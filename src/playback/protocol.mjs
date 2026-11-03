@@ -7,6 +7,14 @@ export const PROTOCOL_VERSION = 1;
 
 export const HOST_COMMANDS = Object.freeze(['load', 'play', 'pause', 'stop', 'setMuted', 'snapshot', 'ping', 'shutdown']);
 
+/**
+ * Optional load fields. A host that advertises `capabilities.autoplay` applies
+ * them inside the same command, so a track switch is one round trip instead of
+ * three (load + setMuted + play). Older hosts ignore the fields; the service
+ * only sends them when the greeting advertised support.
+ */
+export const LOAD_OPTIONS = Object.freeze(['muted', 'autoplay']);
+
 export const HOST_EVENTS = Object.freeze(['started', 'progress', 'ended', 'error', 'exiting']);
 
 export const HOST_STATUSES = Object.freeze(['idle', 'loading', 'ready', 'playing', 'paused', 'ended', 'error']);

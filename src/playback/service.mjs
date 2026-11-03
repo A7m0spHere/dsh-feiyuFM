@@ -73,7 +73,24 @@ export class PlaybackService {
     };
   }
 
-  async load({ resource, playInstanceId, startPositionMs = 0, version, signal }) {
+  /**
+   * True when the connected host can apply mute + autoplay inside `load`.
+   * A switch then costs one round trip instead of three; older hosts keep the
+   * explicit setMuted/play path.
+   */
+  supportsAutoplay() {
+    return this.supervisor.hello?.capabilities?.autoplay === true;
+  }
+
+  /**
+   * True when the host can replace the source with Open() instead of paying
+   * Stop()+Close() first. A switch then does not need an explicit stop.
+   */
+  supportsReuseSwitch() {
+    return this.supervisor.hello?.capabilities?.reuseSwitch === true;
+  }
+
+  async load({ resource, playInstanceId, startPositionMs = 0, version, signal, muted = null, autoplay = false }) {
     if (this.closing) throw playbackError('playback_closed', 'Playback service is closing');
     if (!this._acceptVersion(version)) {
       throw playbackError('stale_version', 'Ignored a load for an older command version');
@@ -90,6 +107,8 @@ export class PlaybackService {
       startPositionMs: startMs,
       version,
       openTimeoutMs: this.openTimeoutMs,
+      ...(muted === null ? {} : { muted: Boolean(muted) }),
+      ...(autoplay ? { autoplay: true } : {}),
     }, { timeoutMs: this.openTimeoutMs + this.commandTimeoutMs }), signal);
     if (signal?.aborted || version < this.acceptedVersion || this.closing) throw new MusicError('cancelled', 'Playback load was superseded');
     const positionMs = Number(answer.positionMs);
@@ -108,8 +127,10 @@ export class PlaybackService {
     if (answer.seek === false) this.capabilities.seek = false;
     else if (startMs > 0) this.capabilities.seek = true;
     if (typeof answer.muted === 'boolean') this.muted = answer.muted;
-    this.onLog({ type: 'loaded', playInstanceId, positionMs: this.active.positionMs, seek: answer.seek !== false });
-    return { positionMs: this.active.positionMs };
+    else if (muted !== null) this.muted = Boolean(muted);
+    const playing = answer.playing === true;
+    this.onLog({ type: 'loaded', playInstanceId, positionMs: this.active.positionMs, seek: answer.seek !== false, playing });
+    return { positionMs: this.active.positionMs, playing };
   }
 
   async play({ playInstanceId, version } = {}) {
@@ -160,8 +181,17 @@ export class PlaybackService {
     await this.supervisor.dispose(options);
   }
 
-  _send(type, payload = {}, { timeoutMs = this.commandTimeoutMs } = {}) {
-    return this.supervisor.request({ type, ...payload }, { timeoutMs });
+  async _send(type, payload = {}, { timeoutMs = this.commandTimeoutMs } = {}) {
+    const started = performance.now();
+    try {
+      return await this.supervisor.request({ type, ...payload }, { timeoutMs });
+    } finally {
+      // Host-internal time vs pipe/queue time is the difference between "the
+      // audio host is slow" and "the command waited"; diagnostics only.
+      try {
+        this.onLog({ type: 'host-command', name: type, durationMs: Math.round(performance.now() - started) });
+      } catch { /* a logger fault is not a playback fault */ }
+    }
   }
 
   _acceptVersion(version) {

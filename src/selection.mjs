@@ -237,6 +237,7 @@ export function createSelector({
   return {
     parameters,
     randomState: () => rng.getState?.(),
+    restoreRandomState: (state) => { rng.setState?.(state); },
     decide,
     next(options = {}) {
       const decision = decide(options);

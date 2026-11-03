@@ -23,17 +23,21 @@ param(
   [int]$ProtocolVersion = 1,
   [double]$Volume = 0.35,
   # How many silent resources to hold open, so the audio engine stays warm.
-  # 0 disables warming. The 2026-10-06 recheck needed five holders to keep
-  # subsequent loads under 1 s; four no longer reached the fast path on this
-  # machine. See docs/spikes/N20-review-fixes.md. The threshold can vary.
-  [int]$WarmHolders = 5,
+  # Default 0: the 2026-11-03 real-host measurements showed holder opens
+  # competing with the media open the user is waiting for (9-14 s versus 5-6 s
+  # per switch), so warming is opt-in via -WarmHolders 1..8. See
+  # docs/spikes/N20-review-fixes.md for the original 2026-10-06 evidence.
+  [int]$WarmHolders = 0,
   # Default pools may grow to eight until an actual holder opens quickly.
   # Explicit Node/backend pool sizes disable this unless requested otherwise.
   [int]$AdaptiveWarm = 1,
   # Overrides the silent resource the warm holders keep open. Left empty, the host
   # writes its own into the temp directory: audio must never be committed to this
   # repository (AGENTS.md), so the resource is generated rather than shipped.
-  [string]$WarmResource = ''
+  [string]$WarmResource = '',
+  # 1 = replace the source with Open() on a switch (no Stop+Close first).
+  # 0 = legacy teardown. Kept as a parameter so the two can be measured.
+  [int]$ReusePlayer = 1
 )
 
 $ErrorActionPreference = 'Stop'
@@ -43,6 +47,12 @@ Add-Type -AssemblyName System.Windows.Forms
 
 $script:protocol = 1
 $script:tickMs = 200
+# A track switch used to call Stop() + Close() before Open(). On a network
+# stream that teardown can take seconds and it blocks the single command loop,
+# so a pause arriving during a switch waited behind it. WPF replaces the source
+# on Open(), so the teardown is skipped unless an experiment proves it is needed.
+$script:reusePlayer = $ReusePlayer -ne 0
+$script:commandWatch = $null
 $script:ownerPid = $OwnerPid
 $script:running = $true
 $script:volume = [Math]::Max(0.0, [Math]::Min(1.0, $Volume))
@@ -145,8 +155,13 @@ function Send-Event([string]$eventName, [hashtable]$extra) {
   Send-Message $payload
 }
 
+function Get-CommandElapsedMs {
+  if ($null -eq $script:commandWatch) { return 0 }
+  return [int][Math]::Round($script:commandWatch.Elapsed.TotalMilliseconds)
+}
+
 function Send-Result([string]$id, $extra) {
-  $payload = @{ type = 'result'; id = $id; ok = $true; state = (Get-State) }
+  $payload = @{ type = 'result'; id = $id; ok = $true; state = (Get-State); hostMs = (Get-CommandElapsedMs) }
   if ($null -ne $extra) {
     foreach ($key in $extra.Keys) { $payload[$key] = $extra[$key] }
   }
@@ -160,6 +175,7 @@ function Send-ResultError([string]$id, [string]$code, [string]$message, [bool]$r
     ok = $false
     error = @{ code = $code; message = $message; retryable = $retryable }
     state = (Get-State)
+    hostMs = (Get-CommandElapsedMs)
   }
 }
 
@@ -336,14 +352,9 @@ function Step-Warm {
   Start-WarmHolder
 }
 
-function Stop-Playback {
-  if ($null -ne $script:pendingOpen) {
-    $cancelled = $script:pendingOpen
-    $script:pendingOpen = $null
-    Send-ResultError $cancelled.id 'cancelled' 'Media open was superseded by a playback control'
-  }
-  try { $script:player.Stop() } catch { }
-  try { $script:player.Close() } catch { }
+# State-only reset. Kept separate from Stop-Playback so a switch can reset the
+# bookkeeping without paying the network teardown: Open() replaces the source.
+function Reset-PlaybackState {
   $script:status = 'idle'
   $script:instance = $null
   $script:version = $null
@@ -355,6 +366,17 @@ function Stop-Playback {
   $script:positionAtPlay = 0
   $script:lastProgress = -1
   $script:progressWatch.Reset()
+}
+
+function Stop-Playback {
+  if ($null -ne $script:pendingOpen) {
+    $cancelled = $script:pendingOpen
+    $script:pendingOpen = $null
+    Send-ResultError $cancelled.id 'cancelled' 'Media open was superseded by a playback control'
+  }
+  try { $script:player.Stop() } catch { }
+  try { $script:player.Close() } catch { }
+  Reset-PlaybackState
 }
 
 # Media opening stays in the main event pump. Reading the pipe must continue so
@@ -383,8 +405,20 @@ function Step-MediaOpen {
       $seeked = $position -gt 0
       $script:seekSupported = $seeked
     }
-    $script:status = 'ready'
-    Send-Result $pending.id @{ positionMs = $position; seek = $seeked; muted = $script:muted; durationMs = $script:durationMs }
+    $playing = $false
+    if ($pending.autoplay) {
+      # One round trip: open, unmute/mute as requested, and start audio.
+      $script:player.Play()
+      $script:status = 'playing'
+      $script:positionAtPlay = Get-Position
+      $script:startedSent = $false
+      $script:lastProgress = -1
+      $script:progressWatch.Restart()
+      $playing = $true
+    } else {
+      $script:status = 'ready'
+    }
+    Send-Result $pending.id @{ positionMs = $position; seek = $seeked; muted = $script:muted; durationMs = $script:durationMs; playing = $playing }
   } catch {
     Stop-Playback
     $script:status = 'error'
@@ -442,8 +476,20 @@ function Invoke-Command($command) {
       if ($null -ne $command.startPositionMs) { $startMs = [int]$command.startPositionMs }
       $openTimeoutMs = 12000
       if ($null -ne $command.openTimeoutMs) { $openTimeoutMs = [int]$command.openTimeoutMs }
+      if ($null -ne $command.muted) { $script:muted = [bool]$command.muted }
+      $autoplay = $false
+      if ($null -ne $command.autoplay) { $autoplay = [bool]$command.autoplay }
 
-      Stop-Playback
+      if ($script:reusePlayer) {
+        if ($null -ne $script:pendingOpen) {
+          $cancelled = $script:pendingOpen
+          $script:pendingOpen = $null
+          Send-ResultError $cancelled.id 'cancelled' 'Media open was superseded by a new load'
+        }
+        Reset-PlaybackState
+      } else {
+        Stop-Playback
+      }
       $script:status = 'loading'
       $script:instance = $instance
       $script:version = $version
@@ -458,11 +504,14 @@ function Invoke-Command($command) {
       try {
         $script:player.Open($uri)
       } catch {
+        # A rejected open must not leave the previous source playing under an
+        # "error" status: with the reuse-player path nothing else stopped it.
+        Stop-Playback
         $script:status = 'error'
         Send-ResultError $id 'media_failed' 'Open() rejected the resource'
         return
       }
-      $script:pendingOpen = @{ id = $id; startMs = $startMs; timeoutMs = $openTimeoutMs; deadline = (Get-Date).AddMilliseconds($openTimeoutMs) }
+      $script:pendingOpen = @{ id = $id; startMs = $startMs; timeoutMs = $openTimeoutMs; deadline = (Get-Date).AddMilliseconds($openTimeoutMs); autoplay = $autoplay }
       # Warming starts only once a real load is in flight, so the first track of a
       # session is served exactly as before (cold) and the pool fills during the
       # playback that follows. Step-Warm never runs while an open is pending.
@@ -510,6 +559,7 @@ function Invoke-Command($command) {
 }
 
 function Handle-Line([string]$line) {
+  $script:commandWatch = [System.Diagnostics.Stopwatch]::StartNew()
   $command = $null
   try {
     $command = $line | ConvertFrom-Json
@@ -613,23 +663,31 @@ try {
         pid = $PID
         backend = 'wpf-mediaplayer'
         ownerPid = $script:ownerPid
-        capabilities = @{ seek = $true; mute = $true; volume = $true }
+        capabilities = @{ seek = $true; mute = $true; volume = $true; autoplay = $true; reuseSwitch = $true }
       }
       Send-Message (@{ type = 'state' } + (Get-State))
     }
-    if ($null -ne $script:reader -and $script:readTask.IsCompleted) {
-      $line = $null
-      try { $line = $script:readTask.GetAwaiter().GetResult() } catch { $line = $null }
-      if ($null -eq $line) {
-        # Client went away: keep playing and wait for the next one.
-        $script:writer = $null
-        $script:reader = $null
-        $script:server.Dispose()
-        $script:server = $null
-        Write-Marker 'CLIENT_DISCONNECTED'
-      } else {
+    if ($null -ne $script:reader) {
+      # Drain every line that is already buffered before sleeping. One command
+      # per 200 ms tick made a switch (stop+load+mute+play) pay a tick per step
+      # and let a pause wait a whole tick behind a finished command.
+      $handled = 0
+      while ($null -ne $script:reader -and $script:readTask.IsCompleted -and $handled -lt 8) {
+        $line = $null
+        try { $line = $script:readTask.GetAwaiter().GetResult() } catch { $line = $null }
+        if ($null -eq $line) {
+          # Client went away: keep playing and wait for the next one.
+          $script:writer = $null
+          $script:reader = $null
+          $script:server.Dispose()
+          $script:server = $null
+          Write-Marker 'CLIENT_DISCONNECTED'
+          break
+        }
         Handle-Line $line
-        if ($script:running) { $script:readTask = $script:reader.ReadLineAsync() }
+        $handled += 1
+        if (-not $script:running) { break }
+        $script:readTask = $script:reader.ReadLineAsync()
       }
     }
     Pump

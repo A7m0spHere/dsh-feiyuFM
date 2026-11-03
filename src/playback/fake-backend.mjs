@@ -127,6 +127,8 @@ function handle(command, id) {
       startedSent = false;
       endedSent = false;
       transientZeroPending = false;
+      if (typeof command.muted === 'boolean') muted = command.muted;
+      const autoplay = command.autoplay === true;
       if (crashOn === 'load') return void setTimeout(crash, crashDelayMs);
       const pending = { id, timer: null };
       pendingLoad = pending;
@@ -156,6 +158,15 @@ function handle(command, id) {
         basePosition = seeked ? startMs : 0;
         positionMs = basePosition;
         status = 'ready';
+        if (autoplay) {
+          // Same contract as the real host: one load command can start audio.
+          status = 'playing';
+          playingSince = Date.now();
+          startedSent = false;
+          transientZeroPending = false;
+          sendResult(id, { positionMs: basePosition, seek: seeked, muted, playing: true });
+          return;
+        }
         sendResult(id, { positionMs: basePosition, seek: seeked, muted });
       }, openDelayMs);
       return;
@@ -263,7 +274,7 @@ function accept() {
       pid: process.pid,
       backend: 'fake-backend',
       ownerPid: OWNER_PID,
-      capabilities: { seek: supportsSeek, mute: true },
+      capabilities: { seek: supportsSeek, mute: true, autoplay: true, reuseSwitch: true },
     });
     send({ type: 'state', ...state() });
     socket.on('data', (chunk) => {

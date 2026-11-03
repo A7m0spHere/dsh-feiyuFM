@@ -63,7 +63,12 @@ export class FakePlayback {
     this.version = -1; this.calls = []; this.loaded = null; this.muted = false;
     this.playing = false; this.eventSink = null; this.loadFailure = null; this.supportsSeek = true;
     this.controlFailures = new Map(); this.stopGate = null;
+    // Opt-in: tests that exercise the one-command load+start path set this.
+    this.autoplaySupported = false;
+    this.reuseSwitchSupported = false;
   }
+  supportsAutoplay() { return this.autoplaySupported === true; }
+  supportsReuseSwitch() { return this.reuseSwitchSupported === true; }
   onEvent(sink) { this.eventSink = sink; }
   emit(event, times = 1) {
     for (let index = 0; index < times; index += 1) this.eventSink?.({ version: this.version, ...event });
@@ -100,12 +105,19 @@ export class FakePlayback {
     this._fail('pause');
     if (this._accept(version)) this.playing = false;
   }
-  async load({ resource, playInstanceId, startPositionMs, version }) {
-    this.calls.push({ type: 'load', playInstanceId, version });
+  async load({ resource, playInstanceId, startPositionMs, version, muted = null, autoplay = false }) {
+    this.calls.push({ type: 'load', playInstanceId, version, muted, autoplay });
     if (this.loadFailure) { const error = this.loadFailure; this.loadFailure = null; throw error; }
     const positionMs = this.supportsSeek ? startPositionMs : 0;
-    if (this._accept(version)) this.loaded = { resource, playInstanceId, positionMs };
-    return { positionMs };
+    if (this._accept(version)) {
+      this.loaded = { resource, playInstanceId, positionMs };
+      if (muted !== null) this.muted = Boolean(muted);
+      if (autoplay) {
+        this.playing = true;
+        this.emit({ type: 'started', playInstanceId, version });
+      }
+    }
+    return { positionMs, playing: autoplay === true };
   }
   async setMuted({ muted, version }) {
     this.calls.push({ type: 'setMuted', muted, version });
