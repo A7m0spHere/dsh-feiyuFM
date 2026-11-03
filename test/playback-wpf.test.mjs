@@ -11,6 +11,10 @@ import { PlaybackSupervisor } from '../src/playback/supervisor.mjs';
 import { PlaybackService } from '../src/playback/service.mjs';
 import { wpfBackend, powerShellCandidates, WPF_HOST_SCRIPT } from '../src/playback/backends.mjs';
 
+// Real WPF media decoding needs a usable Windows audio environment. Hosted CI
+// runs the pipe/fake-backend checks; real media regressions remain enabled locally.
+const skipRealAudio = process.platform !== 'win32' || process.env.FISHFM_TEST_REAL_AUDIO === '0';
+
 function silentWav(seconds = 2, sampleRate = 8000) {
   const frames = Math.max(1, Math.round(seconds * sampleRate));
   const dataBytes = frames * 2;
@@ -191,9 +195,10 @@ for (const control of ['cancelPreload', 'pause']) {
     });
 }
 
-test('WPF re-opens the same source after a resume-style reload', { skip: process.platform !== 'win32' }, async () => {
+test('WPF re-opens the same source after a resume-style reload', { skip: skipRealAudio }, async () => {
   // The reuse-player path must not assume Open() on the same source fires
   // MediaOpened again: a resume/recovery reload has to tear the old media down.
+  // Opening a valid WAV needs a real audio device; hosted CI skips this test.
   const wav = silentWav(2);
   const server = createServer((request, response) => {
     response.writeHead(200, { 'content-type': 'audio/wav', 'content-length': wav.length });

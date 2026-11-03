@@ -8,7 +8,7 @@ import {FeedbackSettings} from './feedback.mjs';
 import {Discoveries} from './discoveries.mjs';
 import {ExpressionSettings} from './expression.mjs';
 import { DollLayer } from './dolls.mjs';
-export function Panel({ controller, back, close }) {
+export function Panel({ controller, back }) {
   const state = React.useSyncExternalStore(controller.subscribe, controller.getSnapshot);
   const snapshot = state.snapshot;
   const settings = snapshot?.settings || {};
@@ -151,7 +151,7 @@ export function Panel({ controller, back, close }) {
                 onClick: () => controller.command('setDiscoveryRate', rate / 100) }, '保存'))))));
   const management = h('div', {className:'fm-management','aria-label':'曲库与界面设置'},
         h('section', null, h('h2', null, '输入与连接',h('small',null,'LIBRARY')),
-          h('details',{className:'fm-input-library'},h('summary',null,close?'输入音乐 · 查看和点播':`输入曲库 · ${state.library?.total??0} 首（展开查看）`),h(Library,{state,controller})),
+          h('details',{className:'fm-input-library'},h('summary',null,`输入曲库 · ${state.library?.total??0} 首（展开查看）`),h(Library,{state,controller})),
           h('details',{className:'fm-platform-details fm-input-library'},h('summary',null,'音乐平台',h('span',{className:'fm-disclosure-meta'},accountHint)),platformSection)),
         h(Persona,{key:'settings',state,controller,settingsOnly:true,selectedModel,onSelectModel:setSelectedModel}),
         h('section', null, h('h2', null, '界面选项', h('small', null, 'INTERFACE')), h('details', { className: 'fm-card fm-interface-details' }, h('summary',null,'界面与悬浮条'),
@@ -229,15 +229,15 @@ export function Panel({ controller, back, close }) {
           h('p', null, `来源：${({ llm_recommendation: '大肥鱼推荐歌单', netease_similar: '与你常听的歌相似', netease_daily: '网易云每日推荐', netease_personal_fm: '网易云私人 FM', platform_recommendation: '平台推荐' })[current.origin?.source] ?? (current.selectedBy === 'user' ? '你点播' : '常听歌曲')}`),
           current.selectedBy === 'agent' && snapshot?.lastSelection?.detail && h('p', null, `排序得分 ${snapshot.lastSelection.score?.toFixed(3)}；近期已播 ${snapshot.lastSelection.detail.repeatPlays ?? 0} 次。`),
           h('p', null, '喜欢 / 少推荐只影响本机推荐；逐曲说明由已记录的决策生成，不新增模型请求。')))));
-  return h('div', { className: 'fishfm', 'data-view': close ? 'settings' : 'main', 'data-motion': state.motion || 'full' },
+  return h('div', { className: 'fishfm', 'data-view': 'main', 'data-motion': state.motion || 'full' },
     h(DollLayer, { active: presentation.active && state.playbackEffects && state.features?.artwork?.gif, motion: state.motion, names: state.features?.artwork?.dolls }),
     h('div', { className: 'fm-wrap' },
       h('header', { className: 'fm-top' },
         h('div', { className: 'fm-heading' }, h('span', { className: 'fm-brand', 'aria-hidden': true }, h(Svg, { type: 'headphones' })),
           h('div', null, h('h1', null, '肥鱼电台', h('small', { className: 'fm-brand-latin' }, 'FeiyuFM')), h('p', { className: 'fm-subtitle' }, '你的音乐，大肥鱼的偏好。'))),
         h('div', { className: 'fm-top-actions' },
-          h('button', { type: 'button', className: 'fm-button', onClick: close || back }, close ? '关闭设置' : '返回对话'))),
-      !close && h('nav', { className: 'fm-page-nav', 'aria-label': '电台页面' },
+          h('button', { type: 'button', className: 'fm-button', onClick: back }, '返回对话'))),
+      h('nav', { className: 'fm-page-nav', 'aria-label': '电台页面' },
         ...[['listen', '正在听'], ['discover', '发现记录'], ['taste', '偏好与反馈'], ['settings', '电台设置']].map(([id, label]) => h('button', {
           type: 'button', key: id, 'aria-pressed': view === id, 'aria-controls': `${rateId}-${id}`, onClick: () => selectView(id),
         }, label))),
@@ -248,12 +248,10 @@ export function Panel({ controller, back, close }) {
       snapshot?.lastError && h('div', { className: 'fm-notice', role: 'status' }, playbackNotice(snapshot)),
       snapshot?.blockUntil > Date.now() && h('div', { className: 'fm-notice' }, '今天已停止自主听歌。到期后保持暂停，直到你主动恢复。',
         h('button', { className: 'fm-button', type: 'button', disabled: state.busy || !state.connected, onClick: () => controller.command('chooseSelf') }, '恢复自主听歌')),
-      close ? h(React.Fragment, null, hero, settingsBody, preferencesColumn)
-        : h(React.Fragment, null,
-          mountedViews.has('listen') && h('div', { className: 'fm-listen-page', id: `${rateId}-listen`, hidden: view !== 'listen' }, hero,
-            h(Persona, { key: 'pool', state, controller, selectedModel, onSelectModel: setSelectedModel })),
-          mountedViews.has('discover') && h('div', { className: 'fm-discover-page', id: `${rateId}-discover`, hidden: view !== 'discover' }, h(Discoveries, { state, expanded: true })),
-          mountedViews.has('taste') && h('div', { ref: feedbackRef, className: 'fm-taste-page', id: `${rateId}-taste`, hidden: view !== 'taste' }, preferencesColumn),
-          mountedViews.has('settings') && h('div', { className: 'fm-settings-page', id: `${rateId}-settings`, hidden: view !== 'settings' }, settingsBody)),
+      mountedViews.has('listen') && h('div', { className: 'fm-listen-page', id: `${rateId}-listen`, hidden: view !== 'listen' }, hero,
+        h(Persona, { key: 'pool', state, controller, selectedModel, onSelectModel: setSelectedModel })),
+      mountedViews.has('discover') && h('div', { className: 'fm-discover-page', id: `${rateId}-discover`, hidden: view !== 'discover' }, h(Discoveries, { state, expanded: true })),
+      mountedViews.has('taste') && h('div', { ref: feedbackRef, className: 'fm-taste-page', id: `${rateId}-taste`, hidden: view !== 'taste' }, preferencesColumn),
+      mountedViews.has('settings') && h('div', { className: 'fm-settings-page', id: `${rateId}-settings`, hidden: view !== 'settings' }, settingsBody),
       dock()));
 }

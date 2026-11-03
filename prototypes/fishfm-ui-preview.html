@@ -9,11 +9,11 @@
 .preview-toolbar button{font:inherit;padding:5px 9px;border:1px solid #dfe3e9;border-radius:6px;background:transparent;color:inherit;cursor:pointer}
 .preview-note{margin-right:auto;color:#566171}.preview-shell{padding-top:65px;height:100vh;min-height:0;display:flex}.preview-sidebar{width:280px;flex:none;background:#fff;border-right:1px solid #dfe3e9}.preview-center{flex:1;min-width:0;min-height:0;position:relative;display:flex;flex-direction:column}.preview-main{width:100%;max-width:1050px;margin:auto;height:100%;min-height:0}
 [data-shell-overlay]{position:fixed;inset:65px 0 0;pointer-events:none}.preview-conversation{flex:1;display:flex;align-items:center;justify-content:center;padding:60px 24px;text-align:center;color:#566171}
-.preview-settings{width:min(440px,100%);margin:24px auto;border:1px solid #dfe3e9;border-radius:10px;overflow:hidden;height:calc(100vh - 113px)}
+.preview-narrow{width:min(440px,100%);margin:24px auto;border:1px solid #dfe3e9;border-radius:10px;overflow:hidden;height:calc(100vh - 113px)}
 [data-ds-dark-theme] body{background:#11151d;color:#e4e9f2}[data-ds-dark-theme] .preview-toolbar{background:#1b202a;border-color:#303644}[data-ds-dark-theme] .preview-sidebar{background:#171b23;border-color:#303644}
 [data-ds-dark-theme] .preview-toolbar button{border-color:#303644}[data-ds-dark-theme] .preview-note{color:#a5adba}
 @media(max-width:600px){.preview-toolbar{gap:4px;padding:8px}.preview-note{width:100%;font-size:10px}.preview-shell{padding-top:88px}.preview-main{height:calc(100vh - 88px)}[data-shell-overlay]{top:88px}}
-.preview-shell{padding-top:var(--preview-top,65px)}.preview-main{height:100%}[data-shell-overlay]{top:var(--preview-top,65px)}.preview-settings{height:calc(100vh - var(--preview-top,65px) - 48px)}
+.preview-shell{padding-top:var(--preview-top,65px)}.preview-main{height:100%}[data-shell-overlay]{top:var(--preview-top,65px)}.preview-narrow{height:calc(100vh - var(--preview-top,65px) - 48px)}
 </style>
 <div id="root"></div>
 <script src="/react.js"></script><script src="/react-dom.js"></script>
@@ -184,13 +184,13 @@ window.__fishfmPreview={controller,connection};
 const previewStyle=document.querySelector('style[data-plugin="fishfm"]'),normalCss=previewStyle.textContent;
 function Harness(){
  React.useEffect(()=>{const toolbar=document.querySelector('.preview-toolbar');if(!toolbar)return undefined;const observer=new ResizeObserver(()=>document.documentElement.style.setProperty('--preview-top',toolbar.getBoundingClientRect().height+'px'));observer.observe(toolbar);return()=>observer.disconnect();},[]);
- const [page,setPage]=React.useState(active),[dark,setDark]=React.useState(false),[settings,setSettings]=React.useState(false),[demo,setDemo]=React.useState(false),[whaleEager,setWhaleEager]=React.useState(false);changeActive=setPage;
+ const [page,setPage]=React.useState(active),[dark,setDark]=React.useState(false),[narrow,setNarrow]=React.useState(false),[demo,setDemo]=React.useState(false),[whaleEager,setWhaleEager]=React.useState(false);changeActive=setPage;
  const show=id=>{active=id;setPage(id)};
  return React.createElement(React.Fragment,null,
   React.createElement('header',{className:'preview-toolbar'},React.createElement('span',{className:'preview-note'},'界面预览 · 模拟数据 · 不播放声音'),
    React.createElement('button',{onClick:()=>{document.documentElement.toggleAttribute('data-ds-dark-theme',!dark);setDark(!dark)}},dark?'浅色':'深色'),
    React.createElement('button',{onClick:()=>show(page==='fishfm'?null:'fishfm')},page==='fishfm'?'对话':'电台'),
-   React.createElement('button',{onClick:()=>setSettings(!settings)},settings?'主面板':'设置宽度'),
+   React.createElement('button',{onClick:()=>setNarrow(!narrow)},narrow?'主面板':'窄宽度'),
    React.createElement('button',{onClick:()=>{demoMotion=!demo;previewStyle.textContent=demoMotion?normalCss.replace('@media(prefers-reduced-motion:reduce)','@media(preview-motion:none)'):normalCss;controller.setMotion('full');setDemo(!demo)}},demo?'系统动效':'动效演示'),
    React.createElement('button',{onClick:()=>{empty=!empty;controller.refresh()}},'切换空库'),
    React.createElement('button',{onClick:()=>{snapshot.paused=!snapshot.paused;snapshot.status=snapshot.paused?'paused':'playing';controller.refresh()}},'播放/暂停演示'),
@@ -202,7 +202,7 @@ function Harness(){
   React.createElement('div',{className:'preview-shell'},
    React.createElement('div',{className:'preview-sidebar','aria-hidden':true}),
    React.createElement('div',{className:'preview-center','data-conversation-content':'','data-conversation-region':'chat'},
-    page==='fishfm'?React.createElement('main',{className:settings?'preview-settings':'preview-main'},React.createElement(panel.component,{...panel.options.inject(),...(settings?{close:()=>setSettings(false)}:{})})):React.createElement('div',{className:'preview-conversation'},'对话面板 · 音乐服务独立于可见页面')),
+    page==='fishfm'?React.createElement('main',{className:narrow?'preview-narrow':'preview-main'},React.createElement(panel.component,{...panel.options.inject()})):React.createElement('div',{className:'preview-conversation'},'对话面板 · 音乐服务独立于可见页面')),
    React.createElement('div',{'data-shell-overlay':''},overlays.map((overlay,index)=>React.createElement(overlay.component,{key:overlay.options.id??index,...overlay.options.inject(),
      // 预览专用：把鲸鱼彩蛋调成"立刻出现"，免去等待 95 秒冷却才能截图。
      ...(overlay.options.id==='fishfm.spectrum'?{whaleEager}:{}),

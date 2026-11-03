@@ -398,9 +398,6 @@ export const css = `
   @keyframes fm-wave { from{transform:scaleY(.35)} to{transform:scaleY(1)} }
   @keyframes fm-settle { from{transform:scale(.985)} to{transform:scale(1)} }
   .fm-float[data-dragging=false] .fm-float-pill { animation:fm-settle var(--fm-base) var(--fm-ease); }
-  .fishfm[data-view=settings] .fm-grid { grid-template-columns:1fr; }
-  .fishfm[data-view=settings] .fm-management { grid-template-columns:1fr; }
-  .fishfm[data-view=settings] .fm-settings-content { grid-template-columns:1fr; }
   @container fishfm (max-width:640px) { .fm-settings-content{grid-template-columns:1fr;gap:16px} .fm-settings-shell>summary .fm-disclosure-meta{margin-left:auto;font-size:10px} }
   @container fishfm (max-width:460px) {
     .fm-top-actions{flex:1 1 100%;min-width:0;max-width:100%;flex-wrap:wrap}
@@ -498,11 +495,6 @@ export const css = `
   .fm-settings-body .fm-controls-column>section+section { margin-top:22px; }
   .fm-settings-body .fm-label { font-size:13px; }
   .fishfm .fm-note,.fishfm .fm-platform-note { font-size:12px; }
-  .fishfm[data-view=settings] .fm-companion-hero { grid-template-columns:90px minmax(0,1fr); gap:18px; padding:14px 0; }
-  .fishfm[data-view=settings] .fm-companion-hero .fm-art { min-height:110px; }
-  .fishfm[data-view=settings] .fm-companion-hero .fm-art img { width:80px; height:100px; }
-  .fishfm[data-view=settings] .fm-companion-hero .fm-track { font-size:21px; }
-  .fishfm[data-view=settings] .fm-companion-hero .fm-reply { display:none; }
   @container fishfm (max-width:740px) {
     .fm-companion-hero{grid-template-columns:minmax(140px,.8fr) minmax(0,1fr);gap:24px;padding:12px 8px 24px}
     .fm-companion-hero .fm-art{min-height:220px}.fm-companion-hero .fm-art img{width:190px;height:215px}

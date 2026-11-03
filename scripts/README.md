@@ -20,7 +20,7 @@
 | `npm run research -- signals --out <新目录>` | #9 用固定合成候选检查反馈、成长、重置与切号语义；[语义表与边界](../docs/research/PREFERENCE_SIGNALS.md)，不访问生产数据库或真实模型 |
 | `npm run research -- exploration --input <快照> --out <新目录>` | #10 复用 #7 指标比较探索边界与排名假设；[操作和限制](../docs/research/EXPLORATION.md)，没有新模型请求或生产策略切换 |
 
-托管 CI 通过 `FISHFM_TEST_REAL_AUDIO=0` 跳过三项真实媒体回归，协议和控制测试仍运行。不要把跳过、引用审计或构建当作生产通过。
+托管 CI 通过 `FISHFM_TEST_REAL_AUDIO=0` 跳过四项真实媒体回归，协议和控制测试仍运行。不要把跳过、引用审计或构建当作生产通过。
 
 ## 预览、包与素材维护
 
