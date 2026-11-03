@@ -1,26 +1,37 @@
 {
+  "name": "dsh-feiyufm",
   "version": "0.1.0",
   "date": "2026-11-04",
-  "status": "prepared_pending_package_name_confirmation",
+  "status": "published_and_verified",
+  "sourceCommit": "5d97f0277020591acf5cdd4fcf617d562d227e2a",
   "scope": [
     "Windows",
     "NetEase"
   ],
   "macOS": "experimental_not_accepted",
   "qq": "deferred",
+  "preparedPackage": {
+    "filename": "dsh-feiyufm-0.1.0.tgz",
+    "size": 35083458,
+    "files": 4872,
+    "sha1": "ff426bf86d33721989f92b4544f38a1aeb6c10ab",
+    "integrity": "sha512-HAg6jEqgSt2+skhS8Cq0vfekPjP7RPpLT8WdVnVqXf6U8eTdl7uvkuJ+/jdVMALGAS+SiyXavsHDxRe/6wPNBw==",
+    "sha256": "9c0e4f2bd8d95ee5956e001a13ac1259052e3186286c7c019cf029f32fc92e4c"
+  },
   "validation": {
-    "localAutoDiscovery": {
-      "passed": 1367,
+    "localSuite": {
+      "directory": "test/",
+      "passed": 712,
       "failed": 0,
       "skipped": 0,
-      "elapsedMs": 270294.1854,
-      "scope": "current test directory plus existing ignored work/baseline tests; clean CI count recorded separately"
+      "elapsedMs": 104204.2185
     },
     "cleanNpmConsumer": {
+      "name": "dsh-feiyufm",
       "version": "0.1.0",
       "offline": true,
       "emptyCache": true,
-      "entryAssetsCoreAndWpf": "passed"
+      "projectFilesMatched": 106
     },
     "windowsCredentials": {
       "scenarios": [
@@ -42,7 +53,7 @@
           "status": "passed"
         },
         {
-          "name": "authenticated FishFM RPC and Core ready",
+          "name": "authenticated FeiyuFM RPC and Core ready",
           "status": "passed"
         },
         {
@@ -137,18 +148,80 @@
       "dailyDesktop": "not_operated",
       "error": null
     },
-    "earlierAttempt": {
-      "passed": 15,
-      "totalExpected": 23,
-      "error": "fetch failed",
-      "scope": "acceptance driver HTTP connection interrupted at disable; repeated with a fresh profile and no idle socket reuse"
+    "ci": {
+      "status": "success",
+      "runId": 41675245073,
+      "url": "https://github.com/A7m0spHere/dsh-feiyuFM/actions/runs/41675245073",
+      "sourceCommit": "5d97f0277020591acf5cdd4fcf617d562d227e2a",
+      "total": 712,
+      "passed": 708,
+      "failed": 0,
+      "skipped": 4,
+      "node": "24.22.2",
+      "buildAndDebugSmoke": "passed"
+    },
+    "packageWhitelist": "passed"
+  },
+  "registry": {
+    "name": "dsh-feiyufm",
+    "version": "0.1.0",
+    "tags": {
+      "latest": "0.1.0"
+    },
+    "publishedAt": "2026-11-03T16:50:41.490Z",
+    "tarball": "https://registry.npmjs.org/dsh-feiyufm/-/dsh-feiyufm-0.1.0.tgz",
+    "cacheVerification": "SHA-1 query parameter used to avoid a cached pre-publication 404 (max-age=300)",
+    "sha1": "ff426bf86d33721989f92b4544f38a1aeb6c10ab",
+    "integrity": "sha512-HAg6jEqgSt2+skhS8Cq0vfekPjP7RPpLT8WdVnVqXf6U8eTdl7uvkuJ+/jdVMALGAS+SiyXavsHDxRe/6wPNBw==",
+    "bytes": 35083458,
+    "byteIdentical": true,
+    "sha256": "9c0e4f2bd8d95ee5956e001a13ac1259052e3186286c7c019cf029f32fc92e4c",
+    "plainTarballHttpStatus": 200
+  },
+  "github": {
+    "assets": [
+      {
+        "digest": "sha256:9c0e4f2bd8d95ee5956e001a13ac1259052e3186286c7c019cf029f32fc92e4c",
+        "name": "dsh-feiyufm-0.1.0.tgz",
+        "size": 35083458,
+        "state": "uploaded",
+        "url": "https://github.com/A7m0spHere/dsh-feiyuFM/releases/download/v0.1.0/dsh-feiyufm-0.1.0.tgz"
+      },
+      {
+        "digest": "sha256:da5d3ff76686906a2931c4cf69ab224515b51c243cd7a756e79954119686ea7b",
+        "name": "SHA256SUMS.txt",
+        "size": 88,
+        "state": "uploaded",
+        "url": "https://github.com/A7m0spHere/dsh-feiyuFM/releases/download/v0.1.0/SHA256SUMS.txt"
+      }
+    ],
+    "draft": false,
+    "prerelease": false,
+    "publishedAt": "2026-11-03T16:58:17Z",
+    "tag": "v0.1.0",
+    "url": "https://github.com/A7m0spHere/dsh-feiyuFM/releases/tag/v0.1.0"
+  },
+  "registryInstallations": {
+    "npmConsumer": {
+      "version": "0.1.0",
+      "emptyCache": true,
+      "projectFilesMatched": 106,
+      "entryAssetsCoreWpf": "passed"
+    },
+    "officialDshRegistry": {
+      "version": "0.1.0",
+      "profileIsolated": true,
+      "projectFilesMatched": 106,
+      "entryAssetsCoreWpf": "passed"
     }
   },
-  "preparedPackage": {
-    "filename": "dsh-feiyufm-core-0.1.0.tgz",
-    "size": 35082906,
-    "files": 4872,
-    "sha1": "6a99606872c54350d9371087a7ca8ff06bdbb10c",
-    "integrity": "sha512-10oopJAy3RS8is2JccVOy7ynfd261hJeKsJ1raMXBEQTsgofLotCHYr2K/tzge2yOvRfNN2slUDoUZ8w3jF/lQ=="
-  }
+  "tag": {
+    "name": "v0.1.0",
+    "annotated": true,
+    "object": "51a68c61af065ec55161b106641e86a44f284505",
+    "commit": "5d97f0277020591acf5cdd4fcf617d562d227e2a",
+    "remoteConfirmed": true
+  },
+  "authentication": "npm browser login and publish-time 2FA completed by the user; no credentials stored in repository",
+  "confirmedAt": "2026-11-03T17:00:11.464Z"
 }
