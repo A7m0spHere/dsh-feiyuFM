@@ -26,6 +26,7 @@ Provider 暴露账号和能力状态，`resolve(track, {signal, version})` 返�
 |---|---|---|
 | `pause/resume` | 无 | 暂停优先；恢复保持自主/声音设置，重新解析并尝试恢复位置 |
 | `next` | 无 | 优先队列，否则用选择器；选择器排除当前并保留约束/不可播/冷却过滤，暂停期间换曲仍暂停 |
+| `previous` | 无 | 返回实际播放历史中的上一首；用户显式操作可绕过最近 50 首自动防重复窗口，但仍跳过禁播/不可播；连续返回用固定历史游标，不因新播放记录来回跳；无更早可播返回 `no_previous`；暂停期间换曲仍暂停 |
 | `requestTrack` | `track` | 明确点播并解除暂停，不自动改声音或自主开关；禁播返回 `constraint_conflict` |
 | `setListening/setHumanPlayback/setDiscovery` | `value: boolean` | 独立开关；关闭自主会暂停当前 Agent 曲目 |
 | `setDiscoveryRate` | `value: 0..1` | filtered 模式作筛选偏好，0 不自动播陌生曲；旧兼容模式仍作池选择概率 |
@@ -53,11 +54,14 @@ Host 协议 v1 使用 JSON-lines：启动发 `ready`，请求返回带 `id` 的 
 
 `command` 应答代表接受后的快照，可能仍是 `resolving`；异步失败经后续状态呈现。控制/读取不被慢账号或导入排队，stdio 持续接收取消命令。调试用 `wait` 等媒体任务收尾，`setQueue/autonomous` 为固定候选及调试入口。
 
+播放链路（2026-11-03 优化）：切歌时先并行启动平台解析与（旧宿主上的）停止，解析结果命中资源缓存或后台预取时不再请求平台；宿主声明 `autoplay/reuseSwitch` 能力时，`load` 一次完成打开、静音与起播，且用 `Open()` 替换旧源而不先 `Stop()+Close()`，避免把网络流拆除耗时放进用户等待路径；旧宿主仍走 `stop→resolve→load→mute→play` 兼容路径。恢复（宿主丢失/媒体过期/卡顿）强制重新解析，不复用刚失败的 handle。预取只是建议：失败或选曲变化只意味着回退到按需解析。预热池默认关闭（`FISHFM_PLAYBACK_WARM_HOLDERS=0`），2026-11-03 实测其 holder open 会与真实 load 竞争（切歌 9–14s vs 5–6s）；需要时可用环境变量 1..8 重新启用。
+
 UI 经宿主认证 `/api` 调用；完整白名单见 [dsh-settings.mjs](../src/ui/dsh-settings.mjs)，不能把全部 Core 命令自动暴露给浏览器。
 
 | RPC | 返回/用途 |
 |---|---|
-| `fishfm/state` | 默认返回 `snapshot/platforms/library/insights/persona/features`，可携带 `library:{query,offset,limit}` 保留查询页；`playbackOnly:true` 仅返回权威 `snapshot`，不读曲库／画像／模型清单 |
+| `fishfm/state` | 默认返回 `snapshot/platforms/library/insights/persona/features`，可携带 `library:{query,offset,limit}` 保留查询页；`playbackOnly:true` 仅返回权威 `snapshot`，不读曲库／画像／模型清单；`minimal:true` 只返回 `snapshot/platforms/library/features`，不读画像、不 warm 模型，供首屏轮询使用 |
+| `fishfm/profile` | 按需返回 `insights/persona/summaryModels/features`；面板切到画像相关标签页时请求一次，播放实例变化或断线重连后刷新一次，不进入 2.2s 轮询 |
 | `fishfm/library` | 全库搜索与分页，只返回 `library`，不覆盖播放状态 |
 | `fishfm/command` | 白名单用户命令与更新状态 |
 | `fishfm/login-start/login-poll/logout` | 网易云扫码、账号确认、退出 |

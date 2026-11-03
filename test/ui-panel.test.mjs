@@ -7,6 +7,7 @@
 // absence is asserted rather than assumed.
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { MusicStore } from '../src/storage.mjs';
 import { importSeedTracks } from '../src/environment.mjs';
 import { MusicCore } from '../src/core.mjs';
@@ -109,14 +110,15 @@ test('the track bubble appears on a change and fades on its own schedule', () =>
   assert.equal(other.bubble.shownAt, 2500);
 });
 
-test('the panel offers the controls that are delivered, and not the one that is not', () => {
+test('the legacy panel offers the controls that are delivered', () => {
   const actions = availableActions({ snapshot: snapshotWith() });
   const ids = actions.map((action) => action.id);
   for (const required of ['pause', 'next', 'toggle-listening', 'toggle-human-playback', 'toggle-discovery', 'mode-normal', 'mode-focus', 'mode-silent', 'mode-off', 'stop-for-today', 'import']) {
     assert.ok(ids.includes(required), `${required} should be offered`);
   }
-  assert.equal(ids.includes('previous-track'), false, '"上一首" is not a deliverable');
-  assert.deepEqual([...NOT_DELIVERED], ['previous-track']);
+  // 上一首 is delivered by the client layer (src/ui/client/), not this legacy
+  // action list; nothing is withheld here any more.
+  assert.deepEqual([...NOT_DELIVERED], []);
 
   // Every action that changes something carries the exact core command.
   for (const action of actions.filter((row) => row.command)) {
@@ -259,4 +261,14 @@ test('the panel never invents an error out of a healthy snapshot', () => {
     // Only a real error or a platform problem produces a notice.
     assert.equal(panel.notice, null, `${status} is not a problem`);
   }
+});
+
+test('the DSH console mounts each tab on first visit instead of rendering all four up front', () => {
+  // The client panel needs the DSH React runtime, so this guards the shipped
+  // source contract that keeps the first console frame to one page.
+  const source = readFileSync(new URL('../src/ui/client/panel.mjs', import.meta.url), 'utf8');
+  for (const id of ['listen', 'discover', 'taste', 'settings']) {
+    assert.match(source, new RegExp(`mountedViews\\.has\\('${id}'\\)`), `${id} must mount on first visit`);
+  }
+  assert.match(source, /controller\.ensureProfile\(\)/, 'the panel asks for the profile only when visible');
 });

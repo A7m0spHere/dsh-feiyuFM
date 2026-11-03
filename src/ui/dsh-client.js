@@ -615,9 +615,12 @@ window.__ModuleLoader__.load({
         icon: canPause ? 'pause' : 'play',
         playDisabled: !state.connected || pending === 'pause' || pending === 'stopForToday'
           || (!canPause && (state.busy || !hasMusic)),
+        // 没有更早的可播记录时由 Core 的 navigation.previous 明确告知，按钮据此禁用。
+        previousDisabled: !state.connected || state.busy || Boolean(pending) || !snapshot?.navigation?.previous,
+        previousLabel: pending === 'previous' ? '返回中…' : '上一首',
         nextDisabled: !state.connected || state.busy || Boolean(pending) || !hasMusic,
         nextLabel: pending === 'next' ? '切换中…' : '下一首',
-        message: ({ pause: '正在暂停…', resume: '正在继续播放…', next: '正在切换下一首…',
+        message: ({ pause: '正在暂停…', resume: '正在继续播放…', next: '正在切换下一首…', previous: '正在返回上一首…',
           requestTrack: '正在准备歌曲…', stopForToday: '正在停止…' })[pending] ?? '',
       };
     }
@@ -681,6 +684,7 @@ window.__ModuleLoader__.load({
         expression: null, expressionBusy: false, expressionError: '', expressionNotice: '',
         feedbackPage: null, feedbackListBusy: false, feedbackClearBusy: false, feedbackError: '', feedbackNotice: '',
         login: null, imported: null, importAttempts: [], library: { total: 0, tracks: [] },
+        profileState: 'idle', profileError: '',
         widgetVisible: readPreference(WIDGET_VISIBLE_KEY, true) !== false,
         widgetPosition: readPreference(WIDGET_POSITION_KEY, null),
         playbackEffects: readPreference(PLAYBACK_EFFECTS_KEY, false) === true,
@@ -689,11 +693,15 @@ window.__ModuleLoader__.load({
       };
       let epoch = 0, playbackEpoch = 0, libraryEpoch = 0, timer, playbackTimer, read, transportWrite, settingsWrite, platformWrite, libraryRead,summaryWrite,expressionWrite, disposed = false;
       const writes = new Set();
-      const transportCommands = new Set(['pause', 'resume', 'next', 'requestTrack', 'stopForToday']);
+      const transportCommands = new Set(['pause', 'resume', 'next', 'previous', 'requestTrack', 'stopForToday']);
       let libraryOptions = { query: '', offset: 0, limit: 12 };
       let feedbackOptions = { query: '', filter: 'all', offset: 0, limit: 12 };
       let feedbackOpen = false, feedbackEpoch = 0, feedbackRead, feedbackWrite, feedbackRetry;
       let feedbackRevision = -1, feedbackRequestedRevision = -1, feedbackRefreshQueued = false;
+      // The profile (insights/persona) is not part of the first console frame. It is
+      // requested once a profile-bearing tab is visible and refreshed only when
+      // playback or taste invalidates it, never on the 2.2s light poll.
+      let profileWanted = false, profileRead = null, profileEpoch = 0, profileRefreshQueued = false, profileDirty = false, profileTimer;
       const listeners = new Set();
       const emit = (patch) => { if (!disposed) {
         if (patch.insights?.feedback) {
@@ -753,6 +761,11 @@ window.__ModuleLoader__.load({
           patch.persona = {...patch.persona, recommendationPipeline: state.persona?.recommendationPipeline};
         }
         if (older || (playbackVersion !== null && playbackVersion !== playbackEpoch)) delete patch.snapshot;
+        // A new playback instance changes the per-track reply and feedback state, so
+        // the already-loaded profile is refreshed once; the light poll never does.
+        if (patch.snapshot && (patch.snapshot.current?.playInstanceId ?? null) !== (state.snapshot?.current?.playInstanceId ?? null)) {
+          scheduleProfileRefresh();
+        }
         return patch;
       };
       function applyFeedbackPage(page, version) {
@@ -792,6 +805,48 @@ window.__ModuleLoader__.load({
           playbackTimer = setTimeout(() => { void refresh(); }, 500);
         }
       }
+      async function loadProfile() {
+        if (disposed || !profileWanted || profileRead || !state.connected) return;
+        const version = ++profileEpoch;
+        const request = new AbortController();
+        profileRead = request;
+        const timeout = setTimeout(() => request.abort(), 18000);
+        emit({ profileState: 'loading', profileError: '' });
+        try {
+          const result = await connection.rpc.call('/api', 'fishfm/profile', {}, request.signal);
+          if (version !== profileEpoch || disposed) return;
+          if (!result.ok) throw result.error;
+          const value = result.value ?? {};
+          emit({ profileState: 'ready', profileError: '',
+            insights: value.insights ?? state.insights,
+            persona: value.persona ?? state.persona,
+            summaryModels: value.summaryModels ?? state.summaryModels,
+            features: { ...state.features, ...(value.features ?? {}) } });
+        } catch (error) {
+          if (version === profileEpoch) emit({ profileState: 'error', profileError: failure(error) });
+        } finally {
+          clearTimeout(timeout);
+          if (profileRead === request) profileRead = null;
+          if (profileDirty && !disposed) { profileDirty = false; scheduleProfileRefresh(); }
+        }
+      }
+      function ensureProfile() {
+        profileWanted = true;
+        if (!disposed && state.connected && state.profileState !== 'ready' && !profileRead) void loadProfile();
+      }
+      function scheduleProfileRefresh() {
+        if (!profileWanted) return;
+        // A track that changes while the profile is loading makes that reply stale:
+        // remember one more read instead of dropping the invalidation.
+        if (profileRead) { profileDirty = true; return; }
+        if (state.profileState !== 'ready') return;
+        if (profileRefreshQueued) return;
+        profileRefreshQueued = true;
+        profileTimer = setTimeout(() => {
+          profileRefreshQueued = false; profileTimer = null;
+          if (!disposed) void loadProfile();
+        }, 0);
+      }
       async function refresh() {
         if (disposed || read) return;
         const version = ++epoch;
@@ -802,16 +857,24 @@ window.__ModuleLoader__.load({
         const timeout = setTimeout(() => controller.abort(), 18000);
         try {
           const playbackOnly = Boolean(state.transportPending || ['resolving', 'selecting'].includes(state.snapshot?.status));
-          const result = await connection.rpc.call('/api', 'fishfm/state', playbackOnly ? { playbackOnly: true } : { library: libraryOptions }, controller.signal);
+          // Every poll stays light: snapshot/platforms/library only. Profile data is
+          // loaded on demand by ensureProfile and refreshed by invalidation events.
+          const result = await connection.rpc.call('/api', 'fishfm/state',
+            playbackOnly ? { playbackOnly: true } : { minimal: true, library: libraryOptions }, controller.signal);
           if (version !== epoch) return;
           if (!result.ok) throw result.error;
           const projected = project(result.value, libraryVersion, playbackVersion);
           const discovery = projected.snapshot?.discovery;
           const finishedDiscovery = state.notice === '正在找新歌…' && discovery && !discovery.refreshing;
+          const wasConnected = state.connected;
           emit({ ...projected, ...(libraryVersion === libraryEpoch ? { libraryError: '' } : {}), connected: true, error: '', ...(finishedDiscovery ? {
             notice: discovery.state === 'disabled' ? '探索已关闭。' : discovery.reason && discovery.reason !== 'no-unfamiliar-candidates'
               ? '新歌没找成功，请查看状态。' : '新歌列表已更新。',
           } : {}) });
+          if (profileWanted && state.profileState === 'idle' && !profileRead) void loadProfile();
+          // A reconnect can leave the cached profile stale; refresh it once.
+          else if (profileWanted && !wasConnected && state.profileState === 'ready') scheduleProfileRefresh();
+          else if (profileWanted && !wasConnected && state.profileState === 'error') ensureProfile();
         } catch (error) {
           if (version === epoch) emit({ connected: false, error: failure(error) });
         } finally {
@@ -846,6 +909,9 @@ window.__ModuleLoader__.load({
           return () => { listeners.delete(fn); if (!listeners.size) { clearInterval(timer); clearTimeout(playbackTimer); ++epoch; read?.abort(); read = null; } };
         },
         refresh,
+        // Called by the panel when a tab that shows insights/persona becomes visible.
+        // Idempotent: the profile is fetched once, then refreshed by invalidation.
+        ensureProfile,
         chooseRecommendationModel(value) {
           if (typeof value !== 'string' || (value && !state.summaryModels?.some(route => JSON.stringify([route.provider, route.model]) === value))) return false;
           emit({ recommendationChoice: value }); return true;
@@ -1080,7 +1146,7 @@ window.__ModuleLoader__.load({
           }
           finally{clearTimeout(timeout);summaryWrite=null;emit({summaryBusy:false});}
         },
-        dispose() { disposed = true; ++epoch; ++libraryEpoch; ++feedbackEpoch; feedbackRead?.abort(); feedbackWrite?.abort(); clearInterval(timer); clearTimeout(playbackTimer); read?.abort(); writes.forEach(request => request.abort()); platformWrite?.abort(); libraryRead?.abort();summaryWrite?.abort();expressionWrite?.abort(); listeners.clear();
+        dispose() { disposed = true; ++epoch; ++libraryEpoch; ++feedbackEpoch; ++profileEpoch; profileRead?.abort(); profileRead = null; clearTimeout(profileTimer); profileTimer = null; profileRefreshQueued = false; profileDirty = false; feedbackRead?.abort(); feedbackWrite?.abort(); clearInterval(timer); clearTimeout(playbackTimer); read?.abort(); writes.forEach(request => request.abort()); platformWrite?.abort(); libraryRead?.abort();summaryWrite?.abort();expressionWrite?.abort(); listeners.clear();
           window.removeEventListener?.('storage', syncPlaybackEffects);
           document.removeEventListener?.('visibilitychange', syncVisibility); },
       };
@@ -1094,6 +1160,7 @@ window.__ModuleLoader__.load({
       if (type === 'play') return h('svg', common, h('path', { d: 'm8 5 11 7-11 7V5Z', fill: 'currentColor', stroke: 'none' }));
       if (type === 'pause') return h('svg', common, h('path', { d: 'M8 5v14M16 5v14', strokeWidth: 2.7 }));
       if (type === 'next') return h('svg', common, h('path', { d: 'M6 5v14l10-7L6 5Z', fill: 'currentColor', stroke: 'none' }), h('path', { d: 'M19 5v14' }));
+      if (type === 'prev') return h('svg', common, h('path', { d: 'M18 5v14L8 12l10-7Z', fill: 'currentColor', stroke: 'none' }), h('path', { d: 'M5 5v14' }));
       if (type === 'close') return h('svg', common, h('path', { d: 'm6 6 12 12M18 6 6 18' }));
       if (type === 'settings') return h('svg', common, h('path', { d: 'M4 6h6m4 0h6M4 12h2m4 0h10M4 18h10m4 0h2' }),
         h('circle', { cx: 12, cy: 6, r: 2 }), h('circle', { cx: 8, cy: 12, r: 2 }), h('circle', { cx: 16, cy: 18, r: 2 }));
@@ -1617,6 +1684,9 @@ window.__ModuleLoader__.load({
       const rateId = React.useId();
       const feedbackRef = React.useRef(null);
       const [view, setView] = React.useState('listen');
+      // Pages mount on first visit and stay mounted (hidden) afterwards, so the
+      // first frame only renders the visible tab instead of all four.
+      const [mountedViews, setMountedViews] = React.useState(() => new Set([view]));
       const selectedModel = state.recommendationChoice || '';
       const setSelectedModel = value => controller.chooseRecommendationModel(value);
       React.useEffect(() => { if (snapshot) setRate(Math.round(settings.discoveryRate * 100)); }, [settings.discoveryRate]);
@@ -1625,6 +1695,9 @@ window.__ModuleLoader__.load({
         const poll = setInterval(() => controller.platformAction('poll', state.login.provider), 2500);
         return () => clearInterval(poll);
       }, [state.login?.status, state.login?.provider, controller]);
+      // Insights/persona are not part of the first frame; load them once this panel
+      // is actually visible, then let invalidation events refresh them.
+      React.useEffect(() => { controller.ensureProfile(); }, [controller]);
       const disabled = state.busy || !state.connected || !snapshot;
       const mode = !settings.listening ? (!settings.humanPlayback ? 'off' : 'manual') : !settings.humanPlayback ? 'silent' : settings.strategy === 'focus' ? 'focus' : 'normal';
       const current = snapshot?.current;
@@ -1767,10 +1840,15 @@ window.__ModuleLoader__.load({
       const selectView = value => {
         controller.setFeedbackOpen(value === 'taste' && feedbackRef.current?.querySelector('.fm-feedback-manager')?.open === true);
         setView(value);
+        setMountedViews(current => current.has(value) ? current : new Set(current).add(value));
+        controller.ensureProfile();
       };
       const dock = () => h('div', { className: 'fm-player-dock', 'aria-label': '播放控制' },
         h('div', { className: 'fm-dock-track' }, h('strong', null, current?.track?.title || '肥鱼电台'), h('span', null, current?.track?.artist || '等待音乐')),
         h('div', { className: 'fm-dock-center' }, h('div', { className: 'fm-controls' },
+          h('button', { type: 'button', className: 'fm-button fm-transport', disabled: transport.previousDisabled,
+            'aria-busy': state.transportPending === 'previous', onClick: () => controller.command('previous') },
+            h(Svg, { type: 'prev' }), transport.previousLabel),
           h('button', { type: 'button', className: 'fm-button fm-primary fm-transport', disabled: transport.playDisabled,
             'aria-busy': state.transportPending === 'pause', onClick: () => transport.action === 'pause' ? controller.command('pause') : controller.playOrPause() },
             h(Svg, { type: transport.icon }), transport.label),
@@ -1807,7 +1885,8 @@ window.__ModuleLoader__.load({
               onClick: () => controller.command('setTrackFeedback', { track: current.track, playInstanceId: current.playInstanceId, value: insights.feedback.current === score ? 0 : score }),
             }, h('span', { 'aria-hidden': true }, mark), label))),
           current && (insights?.feedback?.version !== 1 || insights.feedback.current === 1 || insights.feedback.current === -1) &&
-            h('p', { className: 'fm-feedback-note', role: 'status', 'data-current-feedback': insights?.feedback?.version === 1 }, insights?.feedback?.version !== 1 ? '反馈功能需重新加载新版 Core。'
+            h('p', { className: 'fm-feedback-note', role: 'status', 'data-current-feedback': insights?.feedback?.version === 1 }, insights?.feedback?.version !== 1 ? (insights ? '反馈功能需重新加载新版 Core。'
+              : state.profileState === 'error' ? '偏好数据暂时不可用，播放不受影响。' : '正在读取偏好…')
               : insights.feedback.current === 1 ? '已喜欢，再次点击可撤销。' : '已少推荐，再次点击可撤销。'),
           current && replyCurrent && insights?.explanation && h('div', { className: 'fm-reply', key: `reply:${insights.reply?.decisionId || current.playInstanceId}` },
             h('p', { className: 'fm-label' }, '大肥鱼说'),
@@ -1837,11 +1916,11 @@ window.__ModuleLoader__.load({
             h('button', { className: 'fm-button', type: 'button', disabled: state.busy || !state.connected, onClick: () => controller.command('chooseSelf') }, '恢复自主听歌')),
           close ? h(React.Fragment, null, hero, settingsBody, preferencesColumn)
             : h(React.Fragment, null,
-              h('div', { className: 'fm-listen-page', id: `${rateId}-listen`, hidden: view !== 'listen' }, hero,
+              mountedViews.has('listen') && h('div', { className: 'fm-listen-page', id: `${rateId}-listen`, hidden: view !== 'listen' }, hero,
                 h(Persona, { key: 'pool', state, controller, selectedModel, onSelectModel: setSelectedModel })),
-              h('div', { className: 'fm-discover-page', id: `${rateId}-discover`, hidden: view !== 'discover' }, h(Discoveries, { state, expanded: true })),
-              h('div', { ref: feedbackRef, className: 'fm-taste-page', id: `${rateId}-taste`, hidden: view !== 'taste' }, preferencesColumn),
-              h('div', { className: 'fm-settings-page', id: `${rateId}-settings`, hidden: view !== 'settings' }, settingsBody)),
+              mountedViews.has('discover') && h('div', { className: 'fm-discover-page', id: `${rateId}-discover`, hidden: view !== 'discover' }, h(Discoveries, { state, expanded: true })),
+              mountedViews.has('taste') && h('div', { ref: feedbackRef, className: 'fm-taste-page', id: `${rateId}-taste`, hidden: view !== 'taste' }, preferencesColumn),
+              mountedViews.has('settings') && h('div', { className: 'fm-settings-page', id: `${rateId}-settings`, hidden: view !== 'settings' }, settingsBody)),
           dock()));
     }
 
@@ -1999,6 +2078,9 @@ window.__ModuleLoader__.load({
                 state.errorCode === 'no_candidates' && state.insights?.recommendationMode === 'filtered' ? '重新找歌' : state.errorCode === 'no_candidates' && state.insights?.recommendationMode === 'llm' ? '重新核对歌单' : state.connected ? '刷新状态' : '重新连接')),
             snapshot?.lastError && h('div', { className: 'fm-notice', role: 'status' }, playbackNotice(snapshot)),
             h('div', { className: 'fm-float-controls' },
+              h('button', { type: 'button', className: 'fm-button', disabled: transport.previousDisabled,
+                'aria-label': '播放上一首', 'aria-busy': state.transportPending === 'previous',
+                onClick: () => controller.command('previous') }, h(Svg, { type: 'prev' }), transport.previousLabel),
               h('button', { type: 'button', className: 'fm-button fm-primary', disabled: transport.playDisabled,
                 'aria-label': transport.label, 'aria-busy': state.transportPending === 'pause',
                 onClick: () => transport.action === 'pause' ? controller.command('pause') : controller.playOrPause() }, h(Svg, { type: transport.icon }), transport.label),
@@ -2032,6 +2114,9 @@ window.__ModuleLoader__.load({
               h('span', { className: 'fm-float-artist' }, current?.track?.artist || (state.connected ? '点击展开快捷控制' : '连接本地音乐服务中')),
               h('span', { className: 'fm-float-status', role: 'status' }, h(StatusMark, { active: presentation.active }), transport.message || presentation.label))),
           h('div', { className: 'fm-float-actions' },
+            h('button', { type: 'button', className: 'fm-float-icon', 'aria-label': '播放上一首', title: transport.previousLabel,
+              'aria-busy': state.transportPending === 'previous', disabled: transport.previousDisabled,
+              onClick: () => controller.command('previous') }, h(Svg, { type: 'prev' })),
             h('button', { type: 'button', className: 'fm-float-icon', 'aria-label': transport.label, title: transport.label,
               'aria-busy': state.transportPending === 'pause', disabled: transport.playDisabled,
               onClick: () => transport.action === 'pause' ? controller.command('pause') : controller.playOrPause() }, h(Svg, { type: transport.icon })),

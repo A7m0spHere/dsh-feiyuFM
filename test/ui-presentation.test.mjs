@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { filterLibrary, playbackPresentation, popupPlacement, discoveryPresentation } from '../src/ui/client/presentation.mjs';
+import { filterLibrary, playbackPresentation, playbackControls, popupPlacement, discoveryPresentation } from '../src/ui/client/presentation.mjs';
 import {interpolatedPosition,recommendationActionState,recommendationFeedback} from '../src/ui/client/presentation.mjs';
 
 test('a model gate expires at the server deadline while constraints remain separate from actual failures',()=>{
@@ -61,3 +61,25 @@ test('progress interpolates from the last server anchor while playing and never 
   assert.equal(interpolatedPosition({ ...base, anchor: null }), 40_000, '没有锚点时返回服务端原值');
   assert.equal(interpolatedPosition({ ...base, durationMs: null, now: 1_005_000 }), 45_000, '时长未知时按本地时钟推进且不设上限');
 });
+
+test('previous control is enabled only when Core reports earlier playable history', () => {
+  const base = {
+    connected: true, busy: false, transportPending: null,
+    snapshot: { paused: false, status: 'playing', current: { playInstanceId: 'i2', track: { title: 'B' } }, navigation: { previous: true } },
+  };
+  assert.equal(playbackControls(base).previousDisabled, false);
+  assert.equal(playbackControls({ ...base, snapshot: { ...base.snapshot, navigation: { previous: false } } }).previousDisabled, true,
+    '没有更早的可播歌曲时禁用，而不是让用户点了才报错');
+  assert.equal(playbackControls({ ...base, snapshot: { ...base.snapshot, navigation: undefined } }).previousDisabled, true,
+    '旧版 Core 没有导航信息时保守禁用');
+  assert.equal(playbackControls({ ...base, connected: false }).previousDisabled, true);
+  assert.equal(playbackControls({ ...base, busy: true }).previousDisabled, true);
+  const pending = playbackControls({ ...base, transportPending: 'previous' });
+  assert.equal(pending.previousDisabled, true);
+  assert.equal(pending.previousLabel, '返回中…');
+  assert.equal(pending.message, '正在返回上一首…');
+  assert.equal(playbackControls(base).previousLabel, '上一首');
+  assert.equal(playbackControls({ ...base, snapshot: { ...base.snapshot, navigation: { previous: true } }, transportPending: 'next' }).message, '正在切换下一首…',
+    '上一首与下一首共用同一套 pending 文案');
+});
+

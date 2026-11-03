@@ -1,9 +1,9 @@
 import { randomUUID } from 'node:crypto';
-import { assertCommand, MusicError, normalizeTrack, trackId } from './contracts.mjs';
+import { assertCommand, MusicError, normalizeTrack, PROVIDERS, trackId } from './contracts.mjs';
 import {setTrackFeedback,resetRecommendationTaste,undoRecommendationReset} from './feedback.mjs';
 import {modelRecommendations} from './model-recommendations.mjs';
 import {createSelector} from './selection.mjs';
-import {initializeRecentPlayback,recordPlaybackStart} from './recent-playback.mjs';
+import {initializeRecentPlayback,recentPlayback,recordPlaybackStart} from './recent-playback.mjs';
 
 async function resolveWithTimeout(provider, track, signal, version, timeoutMs) {
   const attempt = new AbortController();
@@ -31,6 +31,24 @@ async function resolveWithTimeout(provider, track, signal, version, timeoutMs) {
   }
 }
 
+/** Bounds a shared resolve without cancelling the underlying request. */
+function withTimeout(promise, timeoutMs, signal) {
+  let timer;
+  const timeout = new Promise((_, reject) => {
+    timer = setTimeout(() => reject(new MusicError('provider_timeout', 'Provider resolve timed out', { retryable: true })), timeoutMs);
+  });
+  return new Promise((resolve, reject) => {
+    const onAbort = () => { cleanup(); reject(new MusicError('cancelled', 'Resolve was cancelled')); };
+    const cleanup = () => { clearTimeout(timer); signal?.removeEventListener('abort', onAbort); };
+    if (signal?.aborted) { cleanup(); reject(new MusicError('cancelled', 'Resolve was cancelled')); return; }
+    signal?.addEventListener('abort', onAbort, { once: true });
+    Promise.race([promise, timeout]).then(
+      (value) => { cleanup(); resolve(value); },
+      (error) => { cleanup(); reject(error); },
+    );
+  });
+}
+
 const DEFAULT_SETTINGS = Object.freeze({
   listening: true,
   humanPlayback: true,
@@ -55,7 +73,7 @@ function _pruneExpiries(map, now, keepMs = 10 * 60 * 1000, max = 32) {
 }
 
 export class MusicCore {
-  constructor({ store, provider, playback, selector = null, onListened = null, onLog = () => {}, clock = { now: () => Date.now(), sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)) } }) {
+  constructor({ store, provider, playback, selector = null, onListened = null, onLog = () => {}, prefetchDelayMs = 3000, clock = { now: () => Date.now(), sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)) } }) {
     if (!store || !provider || !playback) throw new Error('store, provider and playback are required');
     this.store = store;
     this.provider = provider;
@@ -103,11 +121,20 @@ export class MusicCore {
     this.autoFailures = 0;
     this.abortController = null;
     this.tasks = new Set();
+    // Resolved platform handles are reusable until they expire; the next track's
+    // URL is prefetched while the current one plays so a switch does not wait
+    // for the platform. Prefetch is advisory: a miss only means resolve runs on
+    // demand, exactly as before.
+    this.resourceCache = new Map();
+    this.resolveInflight = new Map();
+    this.prefetchTimer = null;
+    this.prefetchAbort = null;
+    this.prefetchDelayMs = prefetchDelayMs;
     initializeRecentPlayback(store);
     this.store.setCoreState(this.state);
   }
 
-  snapshot() { return structuredClone({ ...this.state, ...(this.provider.discoveryStatus ? { discovery: this.provider.discoveryStatus() } : {}) }); }
+  snapshot() { return structuredClone({ ...this.state, ...(this.provider.discoveryStatus ? { discovery: this.provider.discoveryStatus() } : {}), navigation: this._navigationView() }); }
 
   setQueue(tracks) {
     this.state.queue = tracks.map(normalizeTrack);
@@ -124,6 +151,117 @@ export class MusicCore {
     this.state.commandVersion += 1;
     this.abortController?.abort();
     this.abortController = null;
+    this._cancelPrefetch();
+  }
+
+  /** Stops the advisory prefetch. Never touches the current playback. */
+  _cancelPrefetch() {
+    if (this.prefetchTimer) { clearTimeout(this.prefetchTimer); this.prefetchTimer = null; }
+    this.prefetchAbort?.abort();
+    this.prefetchAbort = null;
+  }
+
+  _resourceFresh(entry) {
+    if (!entry || typeof entry.handle !== 'string') return false;
+    if (Number.isSafeInteger(entry.expiresAt)) return entry.expiresAt - this.clock.now() > 60_000;
+    return this.clock.now() - entry.resolvedAt < 10 * 60_000;
+  }
+
+  _rememberResource(track, resource) {
+    const key = trackId(track);
+    this.resourceCache.set(key, {
+      handle: resource.handle,
+      expiresAt: Number.isSafeInteger(resource.expiresAt) ? resource.expiresAt : null,
+      resolvedAt: this.clock.now(),
+    });
+    if (this.resourceCache.size > 8) this.resourceCache.delete(this.resourceCache.keys().next().value);
+  }
+
+  /**
+   * Resolve one track, reusing a live cached handle and sharing an in-flight
+   * request with the prefetcher. The shared request keeps running when one
+   * waiter aborts: the handle is still useful to the next command.
+   */
+  _resolveResource(track, signal, version, force = false) {
+    const key = trackId(track);
+    // Recovery must not trust the handle that just failed: force starts a new
+    // request even when a cached one still looks fresh.
+    if (force) this.resourceCache.delete(key);
+    const cached = this.resourceCache.get(key);
+    if (this._resourceFresh(cached)) {
+      return Promise.resolve({ handle: cached.handle, ...(cached.expiresAt ? { expiresAt: cached.expiresAt } : {}) });
+    }
+    let inflight = force ? null : this.resolveInflight.get(key);
+    if (!inflight) {
+      const controller = new AbortController();
+      const onAbort = () => controller.abort();
+      signal?.addEventListener('abort', onAbort, { once: true });
+      inflight = resolveWithTimeout(this.provider, track, controller.signal, version, 15_000)
+        .then((resource) => { this._rememberResource(track, resource); return resource; })
+        .finally(() => {
+          signal?.removeEventListener('abort', onAbort);
+          if (this.resolveInflight.get(key) === inflight) this.resolveInflight.delete(key);
+        });
+      const previous = this.resolveInflight.get(key);
+      if (previous) previous.catch(() => { /* superseded by a forced resolve */ });
+      this.resolveInflight.set(key, inflight);
+    }
+    if (!signal) return inflight;
+    return new Promise((resolve, reject) => {
+      const onAbort = () => reject(new MusicError('cancelled', 'Resolve was cancelled'));
+      if (signal.aborted) { inflight.catch(() => {}); reject(new MusicError('cancelled', 'Resolve was cancelled')); return; }
+      signal.addEventListener('abort', onAbort, { once: true });
+      inflight.then(
+        (value) => { signal.removeEventListener('abort', onAbort); resolve(value); },
+        (error) => { signal.removeEventListener('abort', onAbort); reject(error); },
+      );
+    });
+  }
+
+  /**
+   * Peek at the next autonomous decision without advancing the seeded random
+   * stream, so the prefetched track is the one the real command will pick.
+   */
+  _peekNextDecision() {
+    const selector = this.selector ?? this.queueSelector;
+    if (!selector?.decide || typeof selector.randomState !== 'function' || typeof selector.restoreRandomState !== 'function') return null;
+    const saved = selector.randomState();
+    try {
+      return selector.decide({
+        discoveryRate: this.state.settings.discovery ? this.state.settings.discoveryRate : 0,
+        at: this.clock.now(),
+        excludeTrackKeys: this.state.current ? [trackId(this.state.current.track)] : [],
+        queuedTracks: this.state.queue,
+      });
+    } finally {
+      selector.restoreRandomState(saved);
+    }
+  }
+
+  _schedulePrefetch() {
+    this._cancelPrefetch();
+    if (!(this.selector ?? this.queueSelector) || this.state.paused || !this.state.current) return;
+    this.prefetchTimer = setTimeout(() => {
+      this.prefetchTimer = null;
+      this._prefetchNext().catch(() => {});
+    }, Math.max(0, this.prefetchDelayMs));
+    this.prefetchTimer.unref?.();
+  }
+
+  async _prefetchNext() {
+    if (this.state.paused || !this.state.current || this.resolveInflight.size >= 4) return;
+    const decision = this._peekNextDecision();
+    const track = decision?.track;
+    if (!track) return;
+    const key = trackId(track);
+    if (this._resourceFresh(this.resourceCache.get(key)) || this.resolveInflight.has(key)) return;
+    const controller = new AbortController();
+    this.prefetchAbort = controller;
+    try {
+      await this._resolveResource(track, controller.signal, this.state.commandVersion);
+    } catch { /* advisory only */ } finally {
+      if (this.prefetchAbort === controller) this.prefetchAbort = null;
+    }
   }
 
   _isCurrent(version, signal) {
@@ -256,6 +394,7 @@ export class MusicCore {
   }
 
   _select(track, selectedBy, keepPaused) {
+    this._cancelPrefetch();
     const stored=this.store.getTrack(track);
     const enriched=stored ? this.store.getNormalizedTrack(track) : null;
     this._finishCurrent('skipped');
@@ -286,7 +425,7 @@ export class MusicCore {
     else this._launch(() => this._resolveAndPlay(version), version);
   }
 
-  async _resolveAndPlay(version) {
+  async _resolveAndPlay(version, { forceResolve = false } = {}) {
     const current = this.state.current;
     if (!current) return;
     const controller = new AbortController();
@@ -301,26 +440,52 @@ export class MusicCore {
         catch { /* A logger fault is not a playback fault. */ }
       }
     };
-    await stage('stop', () => this.playback.stop({ version }));
-    if (!this._isCurrent(version, controller.signal)) return;
+    // Stop and resolve are independent. Waiting for the host to tear down the
+    // old stream before asking the platform for the next URL added the two
+    // phases together (measured 0.3-4.6 s + 0.7-9.5 s); they now overlap and
+    // load still runs only after both settle.
+    // A host that replaces the source on Open() needs no explicit stop: the
+    // old stream keeps playing until the new one is ready, and Stop()+Close()
+    // (measured up to 4.6 s on a network stream) leaves the critical path.
+    const reuseSwitch = this.playback.supportsReuseSwitch?.() === true;
+    let stopError = null;
+    const stopTask = reuseSwitch
+      ? Promise.resolve()
+      : stage('stop', () => this.playback.stop({ version })).catch((error) => { stopError = error; });
     let resource;
-    for (let attempt = 0; attempt < 3; attempt += 1) {
-      try {
-        resource = await stage('resolve', () => resolveWithTimeout(this.provider, current.track, controller.signal, version, 5000));
-        break;
-      } catch (error) {
-        if (!this._isCurrent(version, controller.signal)) return;
-        if (!error.retryable || attempt === 2) throw error;
-        await this.clock.sleep(100 * (attempt + 1), controller.signal);
-        if (!this._isCurrent(version, controller.signal)) return;
+    try {
+      for (let attempt = 0; attempt < 2; attempt += 1) {
+        try {
+          resource = await stage('resolve', () => withTimeout(
+            this._resolveResource(current.track, controller.signal, version, forceResolve), 4000, controller.signal));
+          break;
+        } catch (error) {
+          if (!this._isCurrent(version, controller.signal)) { await stopTask; return; }
+          if (!error.retryable || attempt === 1) throw error;
+          await this.clock.sleep(100 * (attempt + 1), controller.signal);
+          if (!this._isCurrent(version, controller.signal)) { await stopTask; return; }
+        }
       }
+    } catch (error) {
+      await stopTask;
+      // With source replacement the old track is still audible; a failed switch
+      // must silence it before the error state is published.
+      if (reuseSwitch) { try { await this.playback.stop({ version }); } catch { /* keep the original error */ } }
+      throw error;
     }
+    await stopTask;
+    if (stopError) throw stopError;
     if (!this._isCurrent(version, controller.signal)) return;
     if (!resource || typeof resource.handle !== 'string' || !resource.handle) {
       throw new MusicError('resource_unavailable', 'Provider returned no playable resource');
     }
+    // One round trip when the host can mute + start inside load. The old
+    // three-command sequence cost a host tick per step and could be superseded
+    // by a pause between them.
+    const autoplay = this.playback.supportsAutoplay?.() === true;
+    const muted = !this.state.settings.humanPlayback;
     const loaded = await stage('load', () => this.playback.load({ resource, playInstanceId: current.playInstanceId,
-      startPositionMs: current.positionMs, version, signal: controller.signal }));
+      startPositionMs: current.positionMs, version, signal: controller.signal, muted, autoplay }));
     if (!this._isCurrent(version, controller.signal)) return;
     // A platform handle is time limited. Remembering when it expires is what
     // lets the core recover instead of failing the track when it goes stale.
@@ -342,9 +507,11 @@ export class MusicCore {
       current.progressSource = 'audio';
       this._commit();
     }
-    await stage('mute', () => this.playback.setMuted({ muted: !this.state.settings.humanPlayback, version }));
-    if (!this._isCurrent(version, controller.signal)) return;
-    await stage('play', () => this.playback.play({ playInstanceId: current.playInstanceId, version }));
+    if (!autoplay) {
+      await stage('mute', () => this.playback.setMuted({ muted, version }));
+      if (!this._isCurrent(version, controller.signal)) return;
+      await stage('play', () => this.playback.play({ playInstanceId: current.playInstanceId, version }));
+    }
   }
 
   dispatch(rawCommand) {
@@ -392,6 +559,9 @@ export class MusicCore {
         this._applyRecommendation(decision,{trigger:'user-next',keepPaused:this.state.paused});
         break;
       }
+      case 'previous':
+        this._previousTrack();
+        break;
       case 'requestTrack':
         if (this._blockedTrack(command.track)) throw new MusicError('constraint_conflict', 'Track is banned by a user constraint');
         this._select(command.track, 'user', false);
@@ -590,6 +760,9 @@ export class MusicCore {
       // lastError，界面会在音乐正常播放时继续显示「播放未成功」。
       this.state.lastError = null;
       this.store.transaction(()=>{recordPlaybackStart(this.store,current,current.startedAt);this._commit();});
+      // The next track's URL is fetched while this one plays, so the next
+      // command does not wait for the platform.
+      this._schedulePrefetch();
       return true;
     }
     if (event.type === 'progress') {
@@ -649,10 +822,12 @@ export class MusicCore {
           };
           this._commit();
           const version = this.state.commandVersion;
-          this._launch(() => this._resolveAndPlay(version), version);
+          // The handle just failed; recovery re-resolves instead of reusing it.
+          this._launch(() => this._resolveAndPlay(version, { forceResolve: true }), version);
           return true;
         }
       }
+      this._cancelPrefetch();
       this._finishCurrent(event.type === 'ended' ? 'ended' : 'error');
       this.state.status = event.type === 'ended' ? 'idle' : 'error';
       if (event.type === 'error') this.state.lastError = { code: event.code ?? 'playback_error', message: event.message ?? 'Playback failed' };
@@ -666,5 +841,84 @@ export class MusicCore {
       return true;
     }
     return false;
+  }
+
+  /**
+   * 上一首：沿播放历史快照向前导航。
+   *
+   * 游标在第一次按下时固定为一份历史快照，不因本次导航产生的新播放记录
+   * 重建，否则「上一首」会在同样两首之间来回跳；外部切歌（下一首、自动
+   * 切歌、点播）会换掉当前播放实例，下一次按下时自动回到实时历史重新定位。
+   * 用户显式返回不受最近 50 首自动防重复窗口限制，但禁播与不可用仍然生效。
+   */
+  _previousTrack() {
+    const current = this.state.current;
+    const currentKey = current ? trackId(current.track) : null;
+    const currentInstance = current?.playInstanceId ?? null;
+    let cursor = this.navigation;
+    if (!cursor || currentInstance !== cursor.playInstanceId) {
+      cursor = this._historyCursor(currentInstance);
+      if (!cursor) throw new MusicError('no_previous', '还没有可以返回的播放记录。');
+    }
+    const candidate = this._previousCandidate(cursor, currentKey);
+    if (!candidate) {
+      // 已经到最早一首：保留游标，重复按下仍返回同一个明确错误。
+      this.navigation = cursor;
+      throw new MusicError('no_previous', '没有更早的可播放歌曲了。');
+    }
+    this.navigation = { keys: cursor.keys, index: candidate.index, playInstanceId: null };
+    this.onLog({ type: 'navigation', event: 'previous', direction: 'previous', trackKey: trackId(candidate.track) });
+    // 走用户点播路径：不写反馈、不触发成长，并保持当前的暂停语义。
+    this._select(candidate.track, 'user', this.state.paused);
+    this.navigation.playInstanceId = this.state.current?.playInstanceId ?? null;
+  }
+
+  /** 当前曲在最近播放历史里的位置；尚未记录的当前曲视为排在最后一条之后。 */
+  _historyCursor(currentInstance) {
+    const entries = recentPlayback(this.store);
+    if (!entries.length) return null;
+    const keys = entries.map((entry) => entry.trackKey);
+    const recorded = currentInstance ? entries.findIndex((entry) => entry.playInstanceId === currentInstance) : -1;
+    return { keys, index: recorded >= 0 ? recorded : keys.length, playInstanceId: currentInstance };
+  }
+
+  /** 从游标向前找第一首可播歌曲：跳过当前曲、禁播与不可用，不看自动防重复窗口。 */
+  _previousCandidate(cursor, currentKey) {
+    const now = this.clock.now();
+    const banned = new Set(this.store.activeConstraints(now)
+      .filter((row) => row.kind === 'ban_track' && typeof row.track_key === 'string')
+      .map((row) => row.track_key));
+    for (let index = cursor.index - 1; index >= 0; index -= 1) {
+      const key = cursor.keys[index];
+      if (key === currentKey) continue;
+      const track = this._trackFromKey(key);
+      if (!track || banned.has(trackId(track)) || !this.store.isTrackAvailable(track, now)) continue;
+      return { index, track };
+    }
+    return null;
+  }
+
+  _trackFromKey(key) {
+    if (typeof key !== 'string') return null;
+    const separator = key.indexOf(':');
+    const provider = separator > 0 ? key.slice(0, separator) : '';
+    const providerTrackId = separator > 0 ? key.slice(separator + 1) : '';
+    if (!PROVIDERS.includes(provider) || !providerTrackId) return null;
+    return this.store.getNormalizedTrack({ provider, providerTrackId });
+  }
+
+  /** 供 UI 判断「上一首」是否可用；只读，不推进游标。 */
+  _navigationView() {
+    try {
+      const current = this.state.current;
+      const currentKey = current ? trackId(current.track) : null;
+      const currentInstance = current?.playInstanceId ?? null;
+      const cursor = this.navigation && currentInstance === this.navigation.playInstanceId
+        ? this.navigation : this._historyCursor(currentInstance);
+      return { previous: Boolean(cursor && this._previousCandidate(cursor, currentKey)) };
+    } catch {
+      // 导航提示只是界面可用性，读取失败不能连累快照本身。
+      return { previous: false };
+    }
   }
 }

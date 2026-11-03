@@ -22,6 +22,7 @@ export function createController(connection) {
     expression: null, expressionBusy: false, expressionError: '', expressionNotice: '',
     feedbackPage: null, feedbackListBusy: false, feedbackClearBusy: false, feedbackError: '', feedbackNotice: '',
     login: null, imported: null, importAttempts: [], library: { total: 0, tracks: [] },
+    profileState: 'idle', profileError: '',
     widgetVisible: readPreference(WIDGET_VISIBLE_KEY, true) !== false,
     widgetPosition: readPreference(WIDGET_POSITION_KEY, null),
     playbackEffects: readPreference(PLAYBACK_EFFECTS_KEY, false) === true,
@@ -30,11 +31,15 @@ export function createController(connection) {
   };
   let epoch = 0, playbackEpoch = 0, libraryEpoch = 0, timer, playbackTimer, read, transportWrite, settingsWrite, platformWrite, libraryRead,summaryWrite,expressionWrite, disposed = false;
   const writes = new Set();
-  const transportCommands = new Set(['pause', 'resume', 'next', 'requestTrack', 'stopForToday']);
+  const transportCommands = new Set(['pause', 'resume', 'next', 'previous', 'requestTrack', 'stopForToday']);
   let libraryOptions = { query: '', offset: 0, limit: 12 };
   let feedbackOptions = { query: '', filter: 'all', offset: 0, limit: 12 };
   let feedbackOpen = false, feedbackEpoch = 0, feedbackRead, feedbackWrite, feedbackRetry;
   let feedbackRevision = -1, feedbackRequestedRevision = -1, feedbackRefreshQueued = false;
+  // The profile (insights/persona) is not part of the first console frame. It is
+  // requested once a profile-bearing tab is visible and refreshed only when
+  // playback or taste invalidates it, never on the 2.2s light poll.
+  let profileWanted = false, profileRead = null, profileEpoch = 0, profileRefreshQueued = false, profileDirty = false, profileTimer;
   const listeners = new Set();
   const emit = (patch) => { if (!disposed) {
     if (patch.insights?.feedback) {
@@ -94,6 +99,11 @@ export function createController(connection) {
       patch.persona = {...patch.persona, recommendationPipeline: state.persona?.recommendationPipeline};
     }
     if (older || (playbackVersion !== null && playbackVersion !== playbackEpoch)) delete patch.snapshot;
+    // A new playback instance changes the per-track reply and feedback state, so
+    // the already-loaded profile is refreshed once; the light poll never does.
+    if (patch.snapshot && (patch.snapshot.current?.playInstanceId ?? null) !== (state.snapshot?.current?.playInstanceId ?? null)) {
+      scheduleProfileRefresh();
+    }
     return patch;
   };
   function applyFeedbackPage(page, version) {
@@ -133,6 +143,48 @@ export function createController(connection) {
       playbackTimer = setTimeout(() => { void refresh(); }, 500);
     }
   }
+  async function loadProfile() {
+    if (disposed || !profileWanted || profileRead || !state.connected) return;
+    const version = ++profileEpoch;
+    const request = new AbortController();
+    profileRead = request;
+    const timeout = setTimeout(() => request.abort(), 18000);
+    emit({ profileState: 'loading', profileError: '' });
+    try {
+      const result = await connection.rpc.call('/api', 'fishfm/profile', {}, request.signal);
+      if (version !== profileEpoch || disposed) return;
+      if (!result.ok) throw result.error;
+      const value = result.value ?? {};
+      emit({ profileState: 'ready', profileError: '',
+        insights: value.insights ?? state.insights,
+        persona: value.persona ?? state.persona,
+        summaryModels: value.summaryModels ?? state.summaryModels,
+        features: { ...state.features, ...(value.features ?? {}) } });
+    } catch (error) {
+      if (version === profileEpoch) emit({ profileState: 'error', profileError: failure(error) });
+    } finally {
+      clearTimeout(timeout);
+      if (profileRead === request) profileRead = null;
+      if (profileDirty && !disposed) { profileDirty = false; scheduleProfileRefresh(); }
+    }
+  }
+  function ensureProfile() {
+    profileWanted = true;
+    if (!disposed && state.connected && state.profileState !== 'ready' && !profileRead) void loadProfile();
+  }
+  function scheduleProfileRefresh() {
+    if (!profileWanted) return;
+    // A track that changes while the profile is loading makes that reply stale:
+    // remember one more read instead of dropping the invalidation.
+    if (profileRead) { profileDirty = true; return; }
+    if (state.profileState !== 'ready') return;
+    if (profileRefreshQueued) return;
+    profileRefreshQueued = true;
+    profileTimer = setTimeout(() => {
+      profileRefreshQueued = false; profileTimer = null;
+      if (!disposed) void loadProfile();
+    }, 0);
+  }
   async function refresh() {
     if (disposed || read) return;
     const version = ++epoch;
@@ -143,16 +195,24 @@ export function createController(connection) {
     const timeout = setTimeout(() => controller.abort(), 18000);
     try {
       const playbackOnly = Boolean(state.transportPending || ['resolving', 'selecting'].includes(state.snapshot?.status));
-      const result = await connection.rpc.call('/api', 'fishfm/state', playbackOnly ? { playbackOnly: true } : { library: libraryOptions }, controller.signal);
+      // Every poll stays light: snapshot/platforms/library only. Profile data is
+      // loaded on demand by ensureProfile and refreshed by invalidation events.
+      const result = await connection.rpc.call('/api', 'fishfm/state',
+        playbackOnly ? { playbackOnly: true } : { minimal: true, library: libraryOptions }, controller.signal);
       if (version !== epoch) return;
       if (!result.ok) throw result.error;
       const projected = project(result.value, libraryVersion, playbackVersion);
       const discovery = projected.snapshot?.discovery;
       const finishedDiscovery = state.notice === '正在找新歌…' && discovery && !discovery.refreshing;
+      const wasConnected = state.connected;
       emit({ ...projected, ...(libraryVersion === libraryEpoch ? { libraryError: '' } : {}), connected: true, error: '', ...(finishedDiscovery ? {
         notice: discovery.state === 'disabled' ? '探索已关闭。' : discovery.reason && discovery.reason !== 'no-unfamiliar-candidates'
           ? '新歌没找成功，请查看状态。' : '新歌列表已更新。',
       } : {}) });
+      if (profileWanted && state.profileState === 'idle' && !profileRead) void loadProfile();
+      // A reconnect can leave the cached profile stale; refresh it once.
+      else if (profileWanted && !wasConnected && state.profileState === 'ready') scheduleProfileRefresh();
+      else if (profileWanted && !wasConnected && state.profileState === 'error') ensureProfile();
     } catch (error) {
       if (version === epoch) emit({ connected: false, error: failure(error) });
     } finally {
@@ -187,6 +247,9 @@ export function createController(connection) {
       return () => { listeners.delete(fn); if (!listeners.size) { clearInterval(timer); clearTimeout(playbackTimer); ++epoch; read?.abort(); read = null; } };
     },
     refresh,
+    // Called by the panel when a tab that shows insights/persona becomes visible.
+    // Idempotent: the profile is fetched once, then refreshed by invalidation.
+    ensureProfile,
     chooseRecommendationModel(value) {
       if (typeof value !== 'string' || (value && !state.summaryModels?.some(route => JSON.stringify([route.provider, route.model]) === value))) return false;
       emit({ recommendationChoice: value }); return true;
@@ -421,7 +484,7 @@ export function createController(connection) {
       }
       finally{clearTimeout(timeout);summaryWrite=null;emit({summaryBusy:false});}
     },
-    dispose() { disposed = true; ++epoch; ++libraryEpoch; ++feedbackEpoch; feedbackRead?.abort(); feedbackWrite?.abort(); clearInterval(timer); clearTimeout(playbackTimer); read?.abort(); writes.forEach(request => request.abort()); platformWrite?.abort(); libraryRead?.abort();summaryWrite?.abort();expressionWrite?.abort(); listeners.clear();
+    dispose() { disposed = true; ++epoch; ++libraryEpoch; ++feedbackEpoch; ++profileEpoch; profileRead?.abort(); profileRead = null; clearTimeout(profileTimer); profileTimer = null; profileRefreshQueued = false; profileDirty = false; feedbackRead?.abort(); feedbackWrite?.abort(); clearInterval(timer); clearTimeout(playbackTimer); read?.abort(); writes.forEach(request => request.abort()); platformWrite?.abort(); libraryRead?.abort();summaryWrite?.abort();expressionWrite?.abort(); listeners.clear();
       window.removeEventListener?.('storage', syncPlaybackEffects);
       document.removeEventListener?.('visibilitychange', syncVisibility); },
   };

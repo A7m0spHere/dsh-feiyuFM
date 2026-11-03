@@ -18,6 +18,59 @@ test('playback-only state reads return an authoritative snapshot without queryin
   assert.deepEqual(result, { ok: true, value: { snapshot: { revision: 9, paused: true, status: 'paused' } } });
 });
 
+test('minimal state reads only playback data, never builds the profile and never warms models', async () => {
+  const calls = [];
+  const api = createSettingsHandler({ async start() {}, async request(message) {
+    calls.push(message.type);
+    if (message.type === 'snapshot') return { snapshot: { revision: 4, paused: false, status: 'playing' } };
+    if (message.type === 'platforms') return { platforms: { netease: { installed: true } } };
+    if (message.type === 'library') return { library: { total: 3, tracks: [] } };
+    return { insights: { secret: true }, persona: { secret: true } };
+  } }, { current: { warm() { throw new Error('the first console frame must not warm models'); } } });
+  const result = await api('fishfm/state', { minimal: true, library: { query: '', offset: 0, limit: 12 } });
+  assert.deepEqual(calls, ['snapshot', 'platforms', 'library']);
+  assert.equal(result.ok, true);
+  assert.deepEqual(Object.keys(result.value).sort(), ['features', 'library', 'platforms', 'snapshot']);
+  assert.equal(result.value.features.personaSummary, true);
+  assert.equal(result.value.snapshot.revision, 4);
+});
+
+test('profile RPC loads insights and persona on demand and exposes the model routes', async () => {
+  const calls = [];
+  let warmed = 0;
+  const api = createSettingsHandler({ async start() {}, async request(message) {
+    calls.push(message.type);
+    if (message.type === 'insights') return { insights: { recommendationMode: 'filtered' } };
+    if (message.type === 'persona') return { persona: { generatedAt: 1, policy: { dailyTokens: 10 } } };
+    throw new Error('unexpected core request ' + message.type);
+  } }, { current: { warm() { warmed++; }, peekModels() { return [{ provider: 'p', model: 'm' }]; } } });
+  const result = await api('fishfm/profile', {});
+  assert.deepEqual(calls, ['insights', 'persona']);
+  assert.equal(result.ok, true);
+  assert.deepEqual(result.value.insights, { recommendationMode: 'filtered' });
+  assert.equal(result.value.persona.generatedAt, 1);
+  assert.deepEqual(result.value.summaryModels, [{ provider: 'p', model: 'm' }]);
+  assert.equal(result.value.features.personaSummary, true);
+  assert.equal(warmed, 1);
+});
+
+test('a full state read stays compatible and still carries insights and persona', async () => {
+  const calls = [];
+  const api = createSettingsHandler({ async start() {}, async request(message) {
+    calls.push(message.type);
+    if (message.type === 'snapshot') return { snapshot: { revision: 1 } };
+    if (message.type === 'platforms') return { platforms: {} };
+    if (message.type === 'library') return { library: { total: 0 } };
+    if (message.type === 'insights') return { insights: { recommendationMode: 'filtered' } };
+    if (message.type === 'persona') return { persona: { generatedAt: 2 } };
+    throw new Error('unexpected core request ' + message.type);
+  } });
+  const result = await api('fishfm/state', {});
+  assert.deepEqual(calls.sort(), ['insights', 'library', 'persona', 'platforms', 'snapshot']);
+  assert.equal(result.value.insights.recommendationMode, 'filtered');
+  assert.equal(result.value.persona.generatedAt, 2);
+});
+
 test('logout RPC exposes cleanup status without swallowing failure or disclosing backend details', async () => {
   const api = createSettingsHandler({ async start() {}, async request() {
     throw Object.assign(new Error('账号已退出，但本机凭据清理失败'), { code: 'credential_cleanup_failed', retryable: true,
@@ -93,6 +146,7 @@ test('settings API only intercepts its authenticated endpoints and is removed on
     intercept(channel, matches) {
       assert.equal(channel, '/api');
       assert.equal(matches('fishfm/state'), true);
+      assert.equal(matches('fishfm/profile'), true);
       assert.equal(matches('fishfm/command'), true);
       assert.equal(matches('session/create'), false);
       active = true;
@@ -121,7 +175,7 @@ test('desktop exact routes coexist with the Gateway and validate RPC envelopes b
       } },
     },
   }, bridge);
-  assert.equal(routes.size, 17);
+  assert.equal(routes.size, 18);
   assert.equal(routes.has('/api/session/create'), false);
   const path = '/api/fishfm/command';
   const request = body => new Request(`http://localhost${path}`, {

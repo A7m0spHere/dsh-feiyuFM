@@ -9,10 +9,11 @@ import { OUTPUT_RANGE } from '../persona.mjs';
 import {validateExpressionInput} from '../expression.mjs';
 import {validateFeedbackQuery,validateFeedbackClear} from '../feedback.mjs';
 
-const ALLOWED = new Set(['pause', 'resume', 'next', 'setListening', 'setHumanPlayback',
+const ALLOWED = new Set(['pause', 'resume', 'next', 'previous', 'setListening', 'setHumanPlayback',
   'setDiscovery', 'setDiscoveryRate', 'setMode', 'stopForToday', 'chooseSelf', 'requestTrack', 'setTrackFeedback', 'resetTaste', 'resetLibrary', 'undoTasteReset','setRecommendationMode']);
 const QUICK_LOGIN_PROVIDER = 'netease';
 const STATE_ENDPOINT = 'fishfm/state';
+const PROFILE_ENDPOINT = 'fishfm/profile';
 const LIBRARY_ENDPOINT = 'fishfm/library';
 const EXPRESSION_ENDPOINT = 'fishfm/expression-style';
 const FEEDBACK_ENDPOINTS = new Set(['fishfm/feedback-list','fishfm/feedback-clear']);
@@ -62,29 +63,55 @@ function libraryRequest(options = {}) {
   return { type: 'library', query: options?.query ?? '', offset: options?.offset ?? 0, limit: options?.limit ?? 12 };
 }
 
-async function readSettingsState(bridge, signal, libraryOptions) {
-  const [state, platforms, library,insights,persona] = await Promise.all([
+async function readSettingsState(bridge, signal, libraryOptions, { profile = true } = {}) {
+  const requests = [
     bridge.request({ type: 'snapshot' }, { signal, abortable: true }),
     bridge.request({ type: 'platforms' }, { signal, abortable: true }),
     bridge.request(libraryRequest(libraryOptions), { signal, abortable: true }),
-    bridge.request({type:'insights'},{signal,abortable:true}),
-    bridge.request({type:'persona'},{signal,abortable:true}),
-  ]);
+  ];
+  // The first console frame only needs playback data. The profile (insights and
+  // persona) is served by fishfm/profile when a tab that shows it becomes visible.
+  if (profile) requests.push(bridge.request({type:'insights'},{signal,abortable:true}),
+    bridge.request({type:'persona'},{signal,abortable:true}));
+  const [state, platforms, library, insights, persona] = await Promise.all(requests);
   // Publish only the UI projection, never credentials or media handles.
-  return { snapshot: state.snapshot, platforms: platforms.platforms, library: library.library, insights:insights?.insights,persona:persona?.persona,
+  return { snapshot: state.snapshot, platforms: platforms.platforms, library: library.library,
+    ...(profile ? { insights:insights?.insights,persona:persona?.persona } : {}),
     features: { discoveryRefresh: true,importSources:true,insights:true, artwork: artworkCapabilities } };
 }
 
 export function createSettingsHandler(bridge,summaryService={current:null}) {
   return async (endpoint, payload, signal) => {
     try {
-      if (endpoint !== STATE_ENDPOINT && endpoint !== LIBRARY_ENDPOINT && endpoint !== EXPRESSION_ENDPOINT && !FEEDBACK_ENDPOINTS.has(endpoint) && endpoint !== 'fishfm/command' && !PLATFORM_ENDPOINTS.has(endpoint)&&!PERSONA_ENDPOINTS.has(endpoint)) {
+      if (endpoint !== STATE_ENDPOINT && endpoint !== PROFILE_ENDPOINT && endpoint !== LIBRARY_ENDPOINT && endpoint !== EXPRESSION_ENDPOINT && !FEEDBACK_ENDPOINTS.has(endpoint) && endpoint !== 'fishfm/command' && !PLATFORM_ENDPOINTS.has(endpoint)&&!PERSONA_ENDPOINTS.has(endpoint)) {
         throw Object.assign(new Error('Unknown FishFM endpoint'), { code: 'not_found' });
       }
       if (endpoint === STATE_ENDPOINT && payload?.playbackOnly === true) {
         await bridge.start();
         const value = await bridge.request({ type: 'snapshot' }, { signal, abortable: true });
         return { ok: true, value: { snapshot: value.snapshot } };
+      }
+      if (endpoint === STATE_ENDPOINT && payload?.minimal === true) {
+        // Console first frame: snapshot/platforms/library only. No insights or
+        // persona build, no model warm-up; those arrive through fishfm/profile.
+        await bridge.start();
+        const value = await readSettingsState(bridge, signal, payload?.library, { profile: false });
+        value.features.personaSummary = Boolean(summaryService.current);
+        return { ok: true, value };
+      }
+      if (endpoint === PROFILE_ENDPOINT) {
+        // On-demand profile read: one request per visible tab, refreshed only
+        // when playback or taste actually invalidates it.
+        await bridge.start();
+        const [insights, persona] = await Promise.all([
+          bridge.request({ type: 'insights' }, { signal, abortable: true }),
+          bridge.request({ type: 'persona' }, { signal, abortable: true }),
+        ]);
+        summaryService.current?.warm();
+        return { ok: true, value: { insights: insights?.insights, persona: persona?.persona,
+          summaryModels: summaryService.current?.peekModels() ?? [],
+          features: { discoveryRefresh: true, importSources: true, insights: true, artwork: artworkCapabilities,
+            personaSummary: Boolean(summaryService.current) } } };
       }
       if (FEEDBACK_ENDPOINTS.has(endpoint)) {
         const clear=endpoint==='fishfm/feedback-clear';
@@ -235,7 +262,7 @@ export function registerSettingsApi(ctx, bridge,summaryService) {
   // both the Electron renderer and a Web profile.
   if (typeof ctx.connection.fetch?.register === 'function') {
     ctx.effect(() => {
-      const disposers = [STATE_ENDPOINT, LIBRARY_ENDPOINT, EXPRESSION_ENDPOINT, ...FEEDBACK_ENDPOINTS, 'fishfm/command', ...PLATFORM_ENDPOINTS,...PERSONA_ENDPOINTS].map(endpoint =>
+      const disposers = [STATE_ENDPOINT, PROFILE_ENDPOINT, LIBRARY_ENDPOINT, EXPRESSION_ENDPOINT, ...FEEDBACK_ENDPOINTS, 'fishfm/command', ...PLATFORM_ENDPOINTS,...PERSONA_ENDPOINTS].map(endpoint =>
         ctx.connection.fetch.register({
           path: `/api/${endpoint}`, methods: ['POST'], requestBody: 'buffered',
           async fetch(request) {
@@ -255,6 +282,6 @@ export function registerSettingsApi(ctx, bridge,summaryService) {
     }, 'fishfm: authenticated settings routes');
   } else {
     ctx.effect(() => ctx.connection.rpc.intercept('/api',
-      endpoint => endpoint === STATE_ENDPOINT || endpoint === LIBRARY_ENDPOINT || endpoint === EXPRESSION_ENDPOINT || FEEDBACK_ENDPOINTS.has(endpoint) || endpoint === 'fishfm/command' || PLATFORM_ENDPOINTS.has(endpoint)||PERSONA_ENDPOINTS.has(endpoint), handler));
+      endpoint => endpoint === STATE_ENDPOINT || endpoint === PROFILE_ENDPOINT || endpoint === LIBRARY_ENDPOINT || endpoint === EXPRESSION_ENDPOINT || FEEDBACK_ENDPOINTS.has(endpoint) || endpoint === 'fishfm/command' || PLATFORM_ENDPOINTS.has(endpoint)||PERSONA_ENDPOINTS.has(endpoint), handler));
   }
 }
