@@ -10,6 +10,8 @@ beta.3 的模型协议／最终回答与日常原生 Desktop 重启补验见 [N2
 
 [P0 首次安装初始化](P0-07-initial-state.md) 区分正式 npm 包正常安装与 GitHub 安装缺依赖的现场，记录 Core 启动失败、初始请求聚合和无限“读取中”的复现与修复。
 
+[P0-08 客户端状态顺序](P0-08-client-state-ordering.md) 记录合并审查发现的旧曲库应答回滚及平台分项错误丢失，包含写入失效边界、新搜索保留与错误恢复的回归。
+
 [N24 后台隔离 DSH 验收](N24-dsh-background-acceptance.md) 记录真实会话并发、启停请求／上下文对照、静音 WPF 成长与进程清理；平台替身、原生 Desktop 和默认 filtered 未验范围单列。
 
 [N25 最近播放窗口与多批待播池](N25-recent-playback-and-approved-pool.md) 记录短周期重复的实测线索、50 次播放窗口、100 首入选池和缺歌降级，以及隔离 DSH 的验证边界。
