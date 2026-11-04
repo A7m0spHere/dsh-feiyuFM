@@ -56,6 +56,10 @@ Provider 暴露账号和能力状态，`resolve(track, {signal, version})` 返�
 
 初始化诊断记录 `type=initialization`、`phase=core-start/snapshot/platforms/library`、`status=started/ok/error`、安全 `code` 与 `durationMs`。客户端 `getInitializationTrace()` 保留最多 60 条 RPC 阶段、错误码及耗时；不携带请求 payload、账号、曲名、Cookie、二维码 key 或链接。证据与安装边界见 [P0 初始化修复](spikes/P0-07-initial-state.md)。
 
+P1 引导只使用客户端状态与既有读取：`libraryReady` 表示收到带有效 total 的实际曲库结果，不以默认空数组判断首次使用；自动判定还等待面板原有 profile 读取就绪。账号、曲库、当前播放／队列／导航、已有收听／偏好等证据用于静默旧用户，未知数据不自动展示。没有新增 RPC、服务或数据库字段。
+
+同一浏览器 profile／origin 内以 `fishfm.guide.v1` 保存 `{version:1,status}`，只含 `started/skipped/completed/existing` 枚举；`started` 在新客户端重启时重新依据使用证据判定，跳过／完成／已有使用保持静默。主动重开不覆盖既有持久化关闭记录，后续显式跳过／完成才写新状态；同源 storage 事件同步关闭，异常降级为本次内存状态。`guideVisible/guideStage` 是临时界面状态，不送入 Core 或模型；步骤跳转只切页、展开和聚焦，复用真实登录／导入／播放控件，不自动执行它们。见 [U25](spikes/U25-first-use-guide.md)。
+
 Host 协议 v1 使用 JSON-lines：启动发 `ready`，请求返回带 `id` 的 `result/error`，状态变化发 `state`，退出发 `exiting`。快照含递增 `revision`、开关、策略、队列、当前实例、暂停和错误，不含凭据或 handle。
 
 客户端所有快照入口统一拒绝较低 `revision`；相等时拒绝较低 `commandVersion`。正常 Core 重启保留存储 revision，增加 commandVersion 并恢复暂停，因此重连可接收暂停，重启前迟到响应不能覆盖它。独立 playbackEpoch 继续保护本地播放命令取代的请求。

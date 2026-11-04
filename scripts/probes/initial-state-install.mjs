@@ -1,7 +1,7 @@
 // Opt-in real DSH installation + installed client initialization probe.
 // No production profile, credentials, model calls or audio playback.
 import { spawn, spawnSync } from 'node:child_process';
-import { cpSync, mkdirSync, readFileSync, writeFileSync, existsSync } from 'node:fs';
+import { cpSync, mkdirSync, readFileSync, writeFileSync, existsSync, statSync } from 'node:fs';
 import { join, resolve, relative, isAbsolute } from 'node:path';
 import { createServer } from 'node:net';
 import { createHash } from 'node:crypto';
@@ -10,6 +10,8 @@ const arg = (key, fallback) => { const i = process.argv.indexOf(key); return i <
 const out = resolve(arg('--out', '')), source = arg('--package', null);
 if (!source || !arg('--out', null) || existsSync(out)) throw new Error('Pass --package <tgz> --out <NEW directory>');
 const repo = resolve(import.meta.dirname, '../..');
+const sourceDirectory = statSync(resolve(source)).isDirectory();
+if (sourceDirectory && ['--missing-dependency', '--recover-dependency', '--database-from', '--reinstall'].some(flag => process.argv.includes(flag))) throw new Error('Source-checkout probes do not mutate dependencies or copy account data');
 const runtime = arg('--runtime-root', 'D:/dsh/resources/app.asar/dsh');
 const runtimeNode = arg('--runtime-node', 'D:/dsh/DeepSeek Harness.exe');
 const home = join(out, 'home'), workspace = join(out, 'workspace');
@@ -26,7 +28,7 @@ async function rpc(method, payload = {}) {
   const start = Date.now();
   const r = await fetch(`${baseUrl}/api/${method}`, { method: 'POST', headers: { 'content-type': 'application/json', cookie },
     body: JSON.stringify(method === 'fishfm-acceptance' ? payload : { type: 'client-request', rpcId: crypto.randomUUID(), method, payload }), signal: AbortSignal.timeout(25000) });
-  const json = await r.json(); return { http: r.status, ms: Date.now() - start, result: json.result };
+  const json = await r.json(); return { http: r.status, ms: Date.now() - start, result: json.result ?? json };
 }
 try {
   report.setup = JSON.parse(command([join(repo, 'scripts/fixtures/dsh-acceptance/setup.cjs'), runtime, home, repo]).trim().split('\n').at(-1));
@@ -40,9 +42,12 @@ try {
   const cli = join(runtime, 'node_modules/@deepseek-ai/dsh/lib/bin.js');
   writeFileSync(join(out, 'install-private.log'), command([cli, 'plugin', '--profile', 'fishfm-acceptance', 'add', resolve(source), ...(process.argv.includes('--online') ? [] : ['--offline'])]));
   report.install = JSON.parse(command(['-e', `const{createRequire}=require('node:module'),p=require('node:path'),fs=require('node:fs'),crypto=require('node:crypto');const req=createRequire(${JSON.stringify(join(home, 'profiles/fishfm-acceptance/package.json'))}),root=p.dirname(req.resolve('dsh-feiyufm/package.json'));console.log(JSON.stringify({root,version:req('dsh-feiyufm/package.json').version,clientHash:crypto.createHash('sha256').update(fs.readFileSync(p.join(root,'src/ui/dsh-client.js'))).digest('hex'),manifest:JSON.parse(fs.readFileSync(${JSON.stringify(join(home, 'profiles/fishfm-acceptance/package.json'))},'utf8'))}));`]).trim());
-  report.tarballSha256 = createHash('sha256').update(readFileSync(resolve(source))).digest('hex'); save();
+  if (sourceDirectory) report.sourceClientSha256 = report.install.clientHash;
+  else report.tarballSha256 = createHash('sha256').update(readFileSync(resolve(source))).digest('hex');
+  save();
   const installedRelative = relative(home, report.install.root);
-  if (!installedRelative || installedRelative.startsWith('..') || isAbsolute(installedRelative)) throw new Error('Installed package escaped the isolated profile');
+  if ((!installedRelative || installedRelative.startsWith('..') || isAbsolute(installedRelative))
+    && !(sourceDirectory && resolve(report.install.root) === resolve(source))) throw new Error('Installed package escaped the selected source/profile');
   if (process.argv.includes('--missing-dependency')) {
     command(['-e', `const fs=require('node:fs'),p=require('node:path');const d=p.join(${JSON.stringify(report.install.root)},'node_modules/@neteasecloudmusicapienhanced/api');fs.renameSync(d,d+'.probe-disabled');`]);
     report.missingDependency = '@neteasecloudmusicapienhanced/api';
@@ -111,6 +116,22 @@ try {
   await pause(20000);
   await clickButton('肥鱼电台', 'button,[role=button]');
   await until(() => evaluate(`!!document.querySelector('.fishfm')?.getClientRects().length`));
+  if (process.argv.includes('--guide')) {
+    const { verifyGuideInDsh } = await import('./first-use-guide-dsh.mjs');
+    const restart = async () => {
+      await rpc('fishfm-acceptance', { op: 'toggle', disabled: true });
+      await rpc('fishfm-acceptance', { op: 'shutdown' }); await until(() => host.exitCode !== null, 15000);
+      const fixedPort = new URL(baseUrl).port; log = '';
+      host = spawn(runtimeNode, [cli, '--profile', 'fishfm-acceptance', '--patch', join(home, 'acceptance.patch.yml'), '--no-open', '--port', fixedPort], { env, cwd: workspace, windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'] });
+      for (const stream of [host.stdout, host.stderr]) stream.on('data', b => { log += b; writeFileSync(join(out, 'host-restart-private.log'), log); });
+      const launch = await until(() => { const m = log.match(/http:\/\/127\.0\.0\.1:\d+\/[^\s\u001b]*/); return m ? new URL(m[0]) : null; });
+      const exchange = await fetch(`${baseUrl}/?token=${encodeURIComponent(launch.searchParams.get('token') ?? launch.searchParams.get('auth'))}`, { redirect: 'manual' });
+      cookie = exchange.headers.getSetCookie().map(v => v.split(';')[0]).join('; ');
+      for (const item of cookie.split('; ')) { const i = item.indexOf('='); await cdp('Network.setCookie', { name: item.slice(0, i), value: item.slice(i + 1), url: baseUrl }); }
+      await cdp('Page.navigate', { url: baseUrl });
+    };
+    report.guide = await verifyGuideInDsh({ evaluate, cdp, clickButton, until, rpc, restart, out, onProgress: value => { report.guide = value; save(); } }); save();
+  }
   await clickButton('电台设置', '.fishfm button');
   await until(() => evaluate(`!![...document.querySelectorAll('.fishfm button')].find(e=>e.textContent.trim()==='电台设置'&&e.getAttribute('aria-pressed')==='true')`));
   await evaluate(`(()=>{const s=[...document.querySelectorAll('.fishfm summary')].find(e=>e.textContent.includes('音乐平台'));if(s&&!s.parentElement.open)s.click();return true})()`);
@@ -136,6 +157,7 @@ try {
     loginButtons: report.ui.loginButtons }, clientMatchesInstalled: report.clientMatchesInstalled, qr: report.qr, recovery: report.recovery }));
 } catch (error) {
   report.failure = { name: error.name, message: error.message }; process.exitCode = 1; console.error(error.message);
+  if (process.argv.includes('--guide')) try { report.guideFailureState = await evaluate(`(()=>{const c=window.__guideDshController,s=c?.getSnapshot();return {bound:!!c,connected:s?.connected,status:s?.guideStatus,visible:s?.guideVisible,libraryReady:s?.libraryReady,libraryTotal:s?.library?.total,profileState:s?.profileState,accountStatus:s?.platforms?.netease?.account?.status,guideDom:!!document.querySelector('.fm-guide')?.getClientRects().length}})()`); } catch {}
   try { const shot = await cdp('Page.captureScreenshot', { format: 'png' }); writeFileSync(join(out, 'failure-private.png'), Buffer.from(shot.data, 'base64')); } catch { /* browser unavailable */ }
 }
 finally {

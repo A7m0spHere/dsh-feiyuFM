@@ -1,0 +1,238 @@
+{
+  "date": "2026-11-04",
+  "scope": "P1-first-use-lightweight-guide",
+  "baseCommit": "ce463a1",
+  "branch": "feat/first-use-guide",
+  "ui": {
+    "date": "2026-11-04T10:30:49.512Z",
+    "scope": "production-client-real-react-mocked-rpc-chrome",
+    "checks": [
+      {
+        "name": "fresh install shows the three-step guide after initialization",
+        "passed": true
+      },
+      {
+        "name": "unfinished guidance survives reload rather than being dismissed by a transient mount",
+        "passed": true
+      },
+      {
+        "name": "keyboard step 1 expands platform and focuses real login",
+        "passed": true
+      },
+      {
+        "name": "Tab reaches the third step in document order",
+        "passed": true
+      },
+      {
+        "name": "step 3 returns to listening, explains feedback and never plays",
+        "passed": true
+      },
+      {
+        "name": "guide actions call no account import playback or model endpoint",
+        "passed": true
+      },
+      {
+        "name": "skip survives client restart",
+        "passed": true
+      },
+      {
+        "name": "completion survives client restart",
+        "passed": true
+      },
+      {
+        "name": "authorized upgrade stays quiet",
+        "passed": true
+      },
+      {
+        "name": "authorized connect step describes existing connection rather than a missing login button",
+        "passed": true
+      },
+      {
+        "name": "step 2 focuses actual import source without reading playlists or importing",
+        "passed": true
+      },
+      {
+        "name": "existing library upgrade stays quiet",
+        "passed": true
+      },
+      {
+        "name": "P0 failure takes precedence",
+        "passed": true
+      },
+      {
+        "name": "P0 recovery permits fresh-user guide",
+        "passed": true
+      },
+      {
+        "name": "unknown library is not an empty library",
+        "passed": true
+      },
+      {
+        "name": "late existing library suppresses guide",
+        "passed": true
+      },
+      {
+        "name": "late empty library permits guide",
+        "passed": true
+      },
+      {
+        "name": "unavailable storage keeps navigation and in-memory skip working",
+        "passed": true
+      },
+      {
+        "name": "narrow 390px and reduced motion have no horizontal overflow",
+        "passed": true
+      },
+      {
+        "name": "narrow 320px and reduced motion have no horizontal overflow",
+        "passed": true
+      },
+      {
+        "name": "no uncaught errors or React errors",
+        "passed": true,
+        "detail": []
+      }
+    ],
+    "errors": [],
+    "finishedAt": "2026-11-04T10:31:02.743Z"
+  },
+  "isolatedDsh": {
+    "scope": "real-dsh-web-source-client-default-core-empty-database",
+    "runtime": {
+      "initialized": true,
+      "selected": null,
+      "runtimeVersion": "0.2.1-rc.5",
+      "runtimeNode": "v24.21.0",
+      "credentialValuesPrinted": false
+    },
+    "installation": {
+      "source": "checkout-link",
+      "version": "0.1.0",
+      "clientSha256": "4b68f84bcc90d708acf1403fe239e625da94d4b922cefc2bc721b778c1c31f34"
+    },
+    "rpc": {
+      "http": 200,
+      "ms": 117,
+      "ok": true,
+      "snapshot": true,
+      "neteaseInstalled": true
+    },
+    "checks": [
+      {
+        "name": "fresh source install shows guide after real initial reads",
+        "passed": true
+      },
+      {
+        "name": "connect opens platform and focuses real login without requesting a QR",
+        "passed": true
+      },
+      {
+        "name": "unsigned import step reaches account controls with explanation",
+        "passed": true
+      },
+      {
+        "name": "return to listening does not play or issue account/model actions",
+        "passed": true
+      },
+      {
+        "name": "no LLM stream calls",
+        "passed": true
+      },
+      {
+        "name": "skip survives renderer reload",
+        "passed": true
+      },
+      {
+        "name": "settings reopens guide",
+        "passed": true
+      },
+      {
+        "name": "completion survives real DSH and Core shutdown/restart at the retained origin",
+        "passed": true
+      },
+      {
+        "name": "no LLM stream calls after restart",
+        "passed": true
+      }
+    ],
+    "retainedGuideRecord": {
+      "version": 1,
+      "status": "completed"
+    },
+    "clientMatchesInstalled": true,
+    "gracefulShutdown": true,
+    "finishedAt": "2026-11-04T10:32:59.836Z"
+  },
+  "storage": {
+    "key": "fishfm.guide.v1",
+    "version": 1,
+    "states": [
+      "started",
+      "skipped",
+      "completed",
+      "existing"
+    ],
+    "started": "unfinished guide re-evaluates existing use after client restart; manual reopen preserves prior stored dismissal",
+    "unavailable": "in-memory only; normal plugin controls remain usable",
+    "scope": "same browser profile/origin; package upgrades and Core restarts do not clear it"
+  },
+  "boundary": {
+    "newRpc": 0,
+    "newServices": 0,
+    "newDependencies": 0,
+    "musicDatabaseSchemaChanged": false,
+    "recommendationChanged": false,
+    "accountValidationChanged": false,
+    "automaticAccountImportPlaybackCalls": 0,
+    "realLlmStreamCalls": 0,
+    "realAccountAuthorization": "not_executed",
+    "realAccountImport": "not_executed",
+    "nativeDailyDesktop": "unknown",
+    "dailyDataAndCredentials": "not_modified",
+    "npmPublished": false,
+    "mainMerged": false
+  },
+  "unitNew": {
+    "tests": 12,
+    "passed": 12,
+    "failed": 0
+  },
+  "fullSuite": {
+    "tests": 738,
+    "passed": 737,
+    "failed": 1,
+    "skipped": 0,
+    "durationMs": 94217.4486,
+    "concurrency": 2,
+    "failure": {
+      "file": "test/runtime-evidence.test.mjs",
+      "name": "production evidence retains actual counts, bounds traces and cannot claim unobserved DSH coverage",
+      "assertion": "droppedEvents",
+      "expected": 1,
+      "actual": 2,
+      "standaloneRetry": {
+        "tests": 1,
+        "passed": 1,
+        "failed": 0
+      },
+      "sourceUnchanged": true
+    },
+    "formerPlaybackFailureCases": "passed_this_run_historical_cause_not_reclassified",
+    "provenance": "Full suite preceded final copy-only authorized-connection hint adjustment; final 98 targeted cases and 21 browser / 9 isolated DSH checks validate the final client."
+  },
+  "checks": {
+    "syntaxModules": 185,
+    "build": true,
+    "debugSmoke": true,
+    "bundleMatchesIsolatedClient": true,
+    "documentLinks": 119,
+    "brokenLinks": 0,
+    "packageVerification": true,
+    "packageFiles": 4873
+  },
+  "targetedFinal": {
+    "tests": 98,
+    "passed": 98,
+    "failed": 0
+  }
+}

@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="zh-CN">
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>feiyuFM 首次使用引导 · 隔离预览</title>
+<link rel="icon" href="data:,">
+<style>
+*{box-sizing:border-box}body{margin:0;background:#f3f5f8;font:13px system-ui,'Segoe UI',sans-serif;color:#172235}
+.qa-toolbar{display:flex;align-items:center;flex-wrap:wrap;gap:8px;padding:12px 16px;min-height:56px;background:#fff;border-bottom:1px solid #dfe3e9}
+.qa-toolbar span{margin-right:auto;color:#566171}.qa-toolbar button,.qa-toolbar select{font:inherit;padding:5px 9px;border:1px solid #dfe3e9;border-radius:6px;background:transparent;color:inherit}
+#root{height:calc(100dvh - var(--qa-top,56px));max-width:1120px;margin:auto}
+[data-ds-dark-theme] body{background:#11151d;color:#e4e9f2}[data-ds-dark-theme] .qa-toolbar{background:#1b202a;border-color:#303644}[data-ds-dark-theme] .qa-toolbar span{color:#a5adba}
+@media(max-width:600px){.qa-toolbar{padding:8px;font-size:11px}.qa-toolbar span{width:100%}}
+</style>
+<header class="qa-toolbar"><span>隔离界面预览 · 模拟状态 · 不连接账号、导入或播放</span>
+<select aria-label="预览场景"><option value="fresh">首次使用</option><option value="used">已有曲库</option><option value="authorized">已授权（模拟）</option><option value="failure">P0 初始化失败</option><option value="pending">曲库尚未就绪</option><option value="blocked">本地存储不可用</option></select>
+<button id="theme">切换深浅色</button><button id="reset">重置本页引导</button></header>
+<main id="root"></main>
+<script src="/react.js"></script><script src="/react-dom.js"></script>
+<script>
+const parameters=new URLSearchParams(location.search),guideKey='fishfm.guide.v1';
+if(parameters.has('reset')){try{localStorage.removeItem(guideKey)}catch{}parameters.delete('reset');history.replaceState(null,'','/guide?'+parameters)}
+let scenario=parameters.get('scenario')||'fresh';
+if(scenario==='blocked')Object.defineProperty(window,'localStorage',{get(){throw new Error('Preview storage is unavailable')}});
+let bundle;window.__ModuleLoader__={load(value){bundle=value.factory(name=>{if(name!=='react')throw new Error('Unexpected preview dependency');return React})}};
+</script><script src="/client.js"></script>
+<script>
+(async()=>{
+const artwork=await(await fetch('/artwork.json')).json(),registrations=[],cleanups=[],calls=[];
+const snapshot={revision:1,commandVersion:1,paused:true,status:'idle',current:null,queue:[],navigation:{previous:false},settings:{listening:true,humanPlayback:true,discovery:true,discoveryRate:.2,strategy:'normal'}};
+let pendingResolved=false,libraryTotal=0,finishLibrary;
+const library=()=>({total:scenario==='used'?12:libraryTotal,matched:scenario==='used'?12:libraryTotal,query:'',offset:0,limit:12,tracks:[],firstTrack:null});
+const profile={insights:{statistics:{observedStarts:0},profile:{artists:[],tracks:[]},feedback:{version:1,liked:0,reduced:0,current:0}},persona:null,summaryModels:[]};
+const connection={rpc:{async call(_channel,endpoint,payload){
+ calls.push({endpoint,kind:payload?.type??null});await new Promise(r=>setTimeout(r,60));
+ if(scenario==='failure')return{ok:false,error:{code:'dependency_missing',message:'预览：网易云运行依赖缺失，请重新安装正式包后重试。'}};
+ if(endpoint==='fishfm/profile')return{ok:true,value:structuredClone(profile)};
+ if(endpoint==='fishfm/library'){
+  if(scenario==='pending'&&!pendingResolved)return new Promise(resolve=>{finishLibrary=resolve});
+  return{ok:true,value:{library:library()}};
+ }
+ if(endpoint!=='fishfm/state')return{ok:false,error:{code:'preview_only',message:'隔离预览不执行账号、导入、播放或模型操作。'}};
+ return{ok:true,value:{snapshot:structuredClone(snapshot),platforms:{netease:{installed:true,account:{status:scenario==='authorized'?'authorized':'login_required'}},qq:{installed:false}},
+  ...(scenario==='pending'&&!pendingResolved?{libraryPending:true}:{library:library()}),features:{importSources:true,artwork}}};
+}}};
+bundle.apply({connection,layout:{selectPanel(){}},effect(fn){cleanups.push(fn())},slots:{inject(_name,fn){fn()},register(options,component){registrations.push({options,component});return()=>{}}}});
+const main=registrations.find(r=>r.options.name==='main'),controller=main.options.inject().controller;
+window.__guideQa={controller,calls,setScenario(value){scenario=value;return controller.refresh()},releaseLibrary(total=0){libraryTotal=total;pendingResolved=true;finishLibrary?.({ok:true,value:{library:library()}})}};
+ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(main.component,{...main.options.inject()}));
+const toolbar=document.querySelector('.qa-toolbar');new ResizeObserver(()=>document.documentElement.style.setProperty('--qa-top',toolbar.getBoundingClientRect().height+'px')).observe(toolbar);
+const select=toolbar.querySelector('select');select.value=scenario;select.onchange=()=>location.href='/guide?scenario='+encodeURIComponent(select.value)+'&reset=1';
+document.getElementById('theme').onclick=()=>document.documentElement.toggleAttribute('data-ds-dark-theme');
+document.getElementById('reset').onclick=()=>location.href='/guide?scenario='+encodeURIComponent(scenario)+'&reset=1';
+window.addEventListener('beforeunload',()=>cleanups.forEach(fn=>fn?.()));
+})();
+</script>
+</html>

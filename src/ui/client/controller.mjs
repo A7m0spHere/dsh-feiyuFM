@@ -1,5 +1,6 @@
 import { sourceNames, EXPRESSION_LABELS } from './shared.mjs';
 import { recommendationFeedback } from './presentation.mjs';
+import { GUIDE_KEY, storedGuideStatus, firstUseDecision } from './guide.mjs';
 const WIDGET_VISIBLE_KEY = 'fishfm.widget.visible.v1';
 const WIDGET_POSITION_KEY = 'fishfm.widget.position.v1';
 const MOTION_KEY = 'fishfm.motion.v1';
@@ -37,7 +38,8 @@ export function createController(connection, { onPlaybackTrace = null } = {}) {
   };
   let state = {
     snapshot: null, platforms: {}, initializationState: 'idle', platformError: '', busy: false, transportPending: null, platformBusy: false, connected: false, error: '', notice: '', recommendationChoice: '',
-    libraryBusy: false, libraryError: '', libraryQuery: '',
+    libraryBusy: false, libraryError: '', libraryQuery: '', libraryReady: false,
+    guideStatus: storedGuideStatus(readPreference(GUIDE_KEY, null)), guideVisible: false, guideStage: null,
     expression: null, expressionBusy: false, expressionError: '', expressionNotice: '',
     feedbackPage: null, feedbackListBusy: false, feedbackClearBusy: false, feedbackError: '', feedbackNotice: '',
     login: null, imported: null, importAttempts: [], library: { total: 0, tracks: [] },
@@ -84,6 +86,16 @@ export function createController(connection, { onPlaybackTrace = null } = {}) {
     if(patch.persona?.generatedAt<state.persona?.generatedAt){patch={...patch};delete patch.persona;}
     if(patch.error==='')patch={...patch,errorCode:null};
     const previous = state.snapshot;
+    if (patch.library && patch.library !== state.library && Number.isSafeInteger(patch.library.total) && patch.library.total >= 0) patch.libraryReady = true;
+    const candidate = { ...state, ...patch };
+    if (candidate.guideStatus === 'pending') {
+      const decision = firstUseDecision(candidate);
+      if (decision !== 'wait') {
+        const status = decision === 'new' ? 'started' : 'existing';
+        writePreference(GUIDE_KEY, { version: 1, status });
+        patch = { ...patch, guideStatus: status, guideVisible: decision === 'new' };
+      }
+    }
     state = { ...state, ...patch }; listeners.forEach(fn => fn());
     if (patch.snapshot?.current) {
       const current = patch.snapshot.current;
@@ -106,6 +118,13 @@ export function createController(connection, { onPlaybackTrace = null } = {}) {
     if (value !== state.playbackEffects) emit({ playbackEffects: value });
   };
   window.addEventListener?.('storage', syncPlaybackEffects);
+  const syncGuidePreference = event => {
+    if (event.key !== GUIDE_KEY && event.key !== null) return;
+    try { if (event.storageArea !== window.localStorage) return; } catch { return; }
+    const status = storedGuideStatus(readPreference(GUIDE_KEY, null));
+    emit({ guideStatus: status, guideVisible: false, guideStage: null });
+  };
+  window.addEventListener?.('storage', syncGuidePreference);
   const syncVisibility = () => { if (document.hidden) clearTimeout(playbackTimer); else followPlayback(); };
   document.addEventListener?.('visibilitychange', syncVisibility);
   const failure = error => `${error?.message || '音乐服务连接失败，请刷新重试。'}${error?.code ? ` (${error.code})` : ''}`;
@@ -277,6 +296,17 @@ export function createController(connection, { onPlaybackTrace = null } = {}) {
     getSnapshot: () => state,
     getPlaybackTrace: () => playbackTrace.map(entry => ({ ...entry })),
     getInitializationTrace: () => initializationTrace.map(entry => ({ ...entry })),
+    openGuide() {
+      emit({ guideVisible: true, guideStatus: 'manual', guideStage: null });
+    },
+    closeGuide(status) {
+      if (!['skipped', 'completed'].includes(status)) return;
+      writePreference(GUIDE_KEY, { version: 1, status });
+      emit({ guideVisible: false, guideStatus: status, guideStage: null });
+    },
+    setGuideStage(stage) {
+      if (['connect', 'import', 'listen'].includes(stage)) emit({ guideStage: stage });
+    },
     setPlaybackEffects(value) {
       writePreference(PLAYBACK_EFFECTS_KEY, value === true);
       emit({ playbackEffects: value === true });
@@ -556,6 +586,7 @@ export function createController(connection, { onPlaybackTrace = null } = {}) {
     },
     dispose() { disposed = true; ++epoch; ++libraryEpoch; ++feedbackEpoch; ++profileEpoch; profileRead?.abort(); profileRead = null; clearTimeout(profileTimer); profileTimer = null; profileRefreshQueued = false; profileDirty = false; feedbackRead?.abort(); feedbackWrite?.abort(); clearInterval(timer); clearTimeout(playbackTimer); read?.abort(); writes.forEach(request => request.abort()); platformWrite?.abort(); libraryRead?.abort();summaryWrite?.abort();expressionWrite?.abort(); listeners.clear();
       window.removeEventListener?.('storage', syncPlaybackEffects);
+      window.removeEventListener?.('storage', syncGuidePreference);
       document.removeEventListener?.('visibilitychange', syncVisibility); },
   };
   return controllerApi;
