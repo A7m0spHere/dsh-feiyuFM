@@ -187,6 +187,8 @@ SOFTWARE.
 
 npm 包封装 `npm-shrinkwrap.json` 锁定的运行依赖，保留各依赖原有源码、版权与许可文件。下表列出安装包内的位置；这些 `node_modules/` 路径用于本机安装副本，不是 GitHub 源码目录。依赖声明与本文件中的补充原文共同适用，不能只读取 npm 的 `license` 字段。
 
+发行打包对 `get-uri@6.0.5`（MIT，来源为锁文件记录的 npm 包）的 `package.json` 做一处元数据修订：将 `basic-ftp` 声明从 `^5.0.2` 同步为本项目既有 override `6.2.2`，并同步发行树内部的 shrinkwrap 声明。消费端不会继承依赖包的顶层 overrides，这一同步使声明与实际封装的替换版本一致。修改只发生在临时发行树，不修改工作区依赖；`get-uri`／`basic-ftp` 的 JavaScript、包版本和许可原文保持原样，整包摘要覆盖该修订。
+
 `node-forge` 采用其双许可中的 BSD-3-Clause 选项。`node-windows@1.0.0-beta.8` 还携带 Sudowin（BSD-3-Clause，随包原文 `node_modules/node-windows/bin/sudowin/LICENSE.txt`）与 WinSW（MIT，补充原文见下文），顶层 MIT 不覆盖这些工具的独立通知。
 
 ### LGPL-3.0-only：@unblockneteasemusic/server
