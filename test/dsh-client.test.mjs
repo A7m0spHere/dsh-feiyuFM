@@ -77,6 +77,45 @@ const snapshot = (revision, humanPlayback = true) => ({ revision, settings: {
 const state = value => ({ ok: true, value: { snapshot: value, platforms: {} } });
 const tick = () => new Promise(resolve => setImmediate(resolve));
 
+test('a deferred initial library loads independently while the login button stays usable', async () => {
+  let finishLibrary; const calls = [];
+  const f = fixture(async (_channel, endpoint) => {
+    calls.push(endpoint);
+    if (endpoint === 'fishfm/library') return new Promise(resolve => { finishLibrary = resolve; });
+    return { ok: true, value: { snapshot: snapshot(1), platforms: { netease: { installed: true } }, libraryPending: true } };
+  });
+  try {
+    await f.controller.refresh(); await tick();
+    assert.equal(f.controller.getSnapshot().connected, true);
+    assert.equal(f.controller.getSnapshot().libraryBusy, true);
+    all(f.render()).find(n => n.type === 'nav').children.find(b => b.children.includes('电台设置')).props.onClick();
+    assert.ok(all(f.render()).some(n => n.type === 'button' && n.children.includes('扫码登录') && !n.props.disabled));
+    await f.controller.refresh();
+    assert.equal(calls.filter(e => e === 'fishfm/library').length, 1, 'polling must not repeatedly abort and restart the independent query');
+    finishLibrary({ ok: true, value: { library: { total: 3, tracks: [] } } }); await tick();
+    assert.equal(f.controller.getSnapshot().library.total, 3);
+    assert.equal(f.controller.getSnapshot().libraryBusy, false);
+    assert.equal(f.controller.getSnapshot().libraryError, '');
+  } finally { f.dispose(); }
+});
+
+test('a library RPC that ignores abort times out without disconnecting login and permits retry', async t => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  let hang = true;
+  const f = fixture(async (_channel, endpoint) => endpoint === 'fishfm/library'
+    ? hang ? new Promise(() => {}) : { ok: true, value: { library: { total: 2, tracks: [] } } }
+    : { ok: true, value: { snapshot: snapshot(1), platforms: { netease: { installed: true } } } });
+  try {
+    await f.controller.refresh(); void f.controller.queryLibrary();
+    t.mock.timers.tick(18001); await tick();
+    assert.equal(f.controller.getSnapshot().libraryBusy, false);
+    assert.match(f.controller.getSnapshot().libraryError, /rpc_timeout/);
+    assert.equal(f.controller.getSnapshot().connected, true);
+    hang = false; await f.controller.queryLibrary();
+    assert.equal(f.controller.getSnapshot().library.total, 2);
+  } finally { f.dispose(); t.mock.timers.reset(); }
+});
+
 test('first subscription requests minimal state and a failed initialization has retry instead of endless loading', async () => {
   let failed = true; const calls = [];
   const f = fixture(async (_channel, endpoint, payload) => {

@@ -52,6 +52,8 @@ Provider 暴露账号和能力状态，`resolve(track, {signal, version})` 返�
 
 `fishfm/state` 的 snapshot 为必要结果；platforms／library 分别结算，失败时保留其余成功结果，附 `platformError`／`libraryError` 固定描述与安全错误码，不伪造平台可用性或清空已有曲库。platforms 失败时客户端收起账号操作并提供“重试连接状态”；曲库失败不阻断可用平台的扫码入口。客户端状态读取 18 秒到期后必须结束本次等待、释放读取锁，即使宿主 RPC 忽略 abort 也能重试；迟到应答不写入新状态。
 
+曲库不参与初始化的完成屏障：snapshot／platforms（完整读取时还含原有画像项）就绪后，只收集此时已完成的 library；未完成则返回 `libraryPending:true` 并取消本次初始曲库请求，不伪装成读取失败。客户端通过既有 `fishfm/library` 独立读取；轮询不取消或重复启动该查询，旧页码／旧代次不能覆盖新结果。独立读取同样有 18 秒实际结束等待的上限，超时只显示曲库错误和重新查询入口，保持平台登录可用；失败后由用户重试或后续成功的状态曲库结果恢复。不新增接口或存储结构。
+
 初始化诊断记录 `type=initialization`、`phase=core-start/snapshot/platforms/library`、`status=started/ok/error`、安全 `code` 与 `durationMs`。客户端 `getInitializationTrace()` 保留最多 60 条 RPC 阶段、错误码及耗时；不携带请求 payload、账号、曲名、Cookie、二维码 key 或链接。证据与安装边界见 [P0 初始化修复](spikes/P0-07-initial-state.md)。
 
 Host 协议 v1 使用 JSON-lines：启动发 `ready`，请求返回带 `id` 的 `result/error`，状态变化发 `state`，退出发 `exiting`。快照含递增 `revision`、开关、策略、队列、当前实例、暂停和错误，不含凭据或 handle。

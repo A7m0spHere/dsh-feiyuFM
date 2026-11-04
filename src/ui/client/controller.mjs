@@ -113,6 +113,7 @@ export function createController(connection, { onPlaybackTrace = null } = {}) {
     'dependency_missing', 'core_start_timeout', 'core_request_timeout', 'rpc_timeout'].includes(error.code);
   const project = (value, libraryVersion, playbackVersion = null) => {
     const patch = { ...value };
+    delete patch.libraryPending;
     if (libraryVersion !== libraryEpoch) { delete patch.library; delete patch.libraryError; }
     else if (patch.library?.offset !== undefined) libraryOptions = { ...libraryOptions, offset: patch.library.offset };
     const incoming = patch.snapshot, current = state.snapshot;
@@ -249,10 +250,14 @@ export function createController(connection, { onPlaybackTrace = null } = {}) {
       const finishedDiscovery = state.notice === '正在找新歌…' && discovery && !discovery.refreshing;
       const wasConnected = state.connected;
       emit({ ...projected, ...(!playbackOnly ? { platformError: projected.platformError ?? '' } : {}),
-        ...(libraryVersion === libraryEpoch ? { libraryError: projected.libraryError ?? '' } : {}), initializationState: 'ready', connected: true, error: '', ...(finishedDiscovery ? {
+        ...(libraryVersion === libraryEpoch && (Object.hasOwn(projected, 'library') || Object.hasOwn(projected, 'libraryError'))
+          ? { libraryError: projected.libraryError ?? '' } : {}), initializationState: 'ready', connected: true, error: '', ...(finishedDiscovery ? {
         notice: discovery.state === 'disabled' ? '探索已关闭。' : discovery.reason && discovery.reason !== 'no-unfamiliar-candidates'
           ? '新歌没找成功，请查看状态。' : '新歌列表已更新。',
       } : {}) });
+      if (result.value.libraryPending && libraryVersion === libraryEpoch && !libraryRead && !state.libraryError) {
+        void controllerApi.queryLibrary(libraryOptions.query, libraryOptions.offset);
+      }
       if (profileWanted && state.profileState === 'idle' && !profileRead) void loadProfile();
       // A reconnect can leave the cached profile stale; refresh it once.
       else if (profileWanted && !wasConnected && state.profileState === 'ready') scheduleProfileRefresh();
@@ -268,7 +273,7 @@ export function createController(connection, { onPlaybackTrace = null } = {}) {
       followPlayback();
     }
   }
-  return {
+  const controllerApi = {
     getSnapshot: () => state,
     getPlaybackTrace: () => playbackTrace.map(entry => ({ ...entry })),
     getInitializationTrace: () => initializationTrace.map(entry => ({ ...entry })),
@@ -350,10 +355,15 @@ export function createController(connection, { onPlaybackTrace = null } = {}) {
       libraryRead?.abort();
       const controller = new AbortController();
       libraryRead = controller;
-      const timeout = setTimeout(() => controller.abort(), 18000);
+      let timeout, onAbort;
+      const interrupted = new Promise((_, reject) => {
+        onAbort = () => reject({ code: 'cancelled', message: '曲库读取已取消。' });
+        controller.signal.addEventListener('abort', onAbort, { once: true });
+        timeout = setTimeout(() => { reject({ code: 'rpc_timeout', message: '曲库读取超时，请重新查询。' }); controller.abort(); }, 18000);
+      });
       emit({ libraryQuery: query, libraryBusy: true, libraryError: '' });
       try {
-        const result = await connection.rpc.call('/api', 'fishfm/library', libraryOptions, controller.signal);
+        const result = await Promise.race([connection.rpc.call('/api', 'fishfm/library', libraryOptions, controller.signal), interrupted]);
         if (version !== libraryEpoch) return;
         if (!result.ok) throw result.error;
         emit(project(result.value, version));
@@ -361,6 +371,7 @@ export function createController(connection, { onPlaybackTrace = null } = {}) {
         if (version === libraryEpoch) emit({ libraryError: failure(error) });
       } finally {
         clearTimeout(timeout);
+        controller.signal.removeEventListener('abort', onAbort);
         if (libraryRead === controller) { libraryRead = null; emit({ libraryBusy: false }); }
       }
     },
@@ -547,4 +558,5 @@ export function createController(connection, { onPlaybackTrace = null } = {}) {
       window.removeEventListener?.('storage', syncPlaybackEffects);
       document.removeEventListener?.('visibilitychange', syncVisibility); },
   };
+  return controllerApi;
 }

@@ -7,6 +7,23 @@ import { join, resolve } from 'node:path';
 import { CoreBridge } from '../src/dsh-adapter.mjs';
 import { createSettingsHandler, registerSettingsApi } from '../src/ui/dsh-settings.mjs';
 
+for (const minimal of [true, false]) test(`a hanging library cannot delay usable login state (minimal=${minimal})`, async () => {
+  let completed = false, librarySignal;
+  const api = createSettingsHandler({ async start() {}, async request(message, options) {
+    if (message.type === 'library') { librarySignal = options.signal; return new Promise(() => {}); }
+    return { snapshot: { revision: 1 }, platforms: { netease: { installed: true } }, insights: {}, persona: {} };
+  } });
+  const pending = api('fishfm/state', { minimal }).then(result => { completed = true; return result; });
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(completed, true, 'snapshot/platforms are ready; a library that ignores cancellation must not hold the response');
+  const result = await pending;
+  assert.equal(result.ok, true);
+  assert.equal(result.value.platforms.netease.installed, true);
+  assert.equal(result.value.libraryPending, true);
+  assert.equal(Object.hasOwn(result.value, 'libraryError'), false, 'pending is not a failed library');
+  assert.equal(librarySignal.aborted, true, 'do not leave an abandoned Core read in the pending map');
+});
+
 for (const failed of ['platforms', 'library']) test(`initial state keeps snapshot when ${failed} fails`, async () => {
   const diagnostics = [];
   const api = createSettingsHandler({ _log(entry) { diagnostics.push(entry); }, async start() {}, async request(message) {
