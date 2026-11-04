@@ -236,6 +236,12 @@
     "debugSmoke": true,
     "documentLinks": 120,
     "brokenLinks": 0,
-    "packageVerification": "pending"
+    "packageVerification": true,
+    "packageFiles": 4873
+  },
+  "p1Ci": {
+    "validatedImplementationCommit": "e899f9a3aef52ffe5bf11e20fe84fe869146a496",
+    "conclusion": "success",
+    "url": "https://github.com/A7m0spHere/dsh-feiyuFM/actions/runs/41827445946"
   }
 }
