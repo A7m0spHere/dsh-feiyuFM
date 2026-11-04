@@ -1,6 +1,6 @@
 # 交付与使用说明
 
-更新：2026-11-04，发行基线为 **0.1.1**，首发范围为 Windows／网易云。包含陪伴界面、四个标签页、ASCII 频谱、持续补歌与播放延迟优化。macOS 适配随包提供，真机验收未完成；QQ 暂缓。版本范围与摘要见 [0.1.0 发布记录](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/releases/0.1.0.md)，完整产品验收及长期体验缺口仍在 [开发状态](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/PROJECT_PLAN.md) 保留。
+更新：2026-11-04，发行基线为 **0.1.1**，首发范围为 Windows／网易云。包含陪伴界面、四个标签页、ASCII 频谱、持续补歌与播放延迟优化。macOS 适配随包提供，真机验收未完成；QQ 暂缓。版本范围与摘要见 [0.1.1 发布记录](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/releases/0.1.1.md)，完整产品验收及长期体验缺口仍在 [开发状态](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/PROJECT_PLAN.md) 保留。
 
 ## 支持范围
 

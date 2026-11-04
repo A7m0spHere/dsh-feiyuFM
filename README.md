@@ -23,8 +23,6 @@
 
 在 DSH「插件 → 添加插件」的「包名或地址」中输入：
 
-npm 正在处理 0.1.1；如果提示找不到该版本，请稍后重试。
-
 ```text
 dsh-feiyufm@0.1.1
 ```
@@ -100,7 +98,7 @@ dsh plugin --profile web add dsh-feiyufm@0.1.1 --registry https://registry.npmjs
 
 | 项目 | 当前范围 |
 | --- | --- |
-| Windows + 网易云 | `0.1.1`；历史安装包和隔离宿主验证见 [0.1.0 发布记录](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/releases/0.1.0.md)，0.1.1 的日常 Desktop 验收待完成 |
+| Windows + 网易云 | `0.1.1`；安装包和隔离宿主验证见 [发布记录](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/releases/0.1.1.md)，日常 Desktop 验收待完成 |
 | DSH / Node.js | 本机隔离验证 DSH `0.2.1-rc.5`；Node `>=24.14.0 <25`，桌面宿主自带兼容版本时无需另装 |
 | macOS | 实验性适配随包提供；真实登录、音频与退出生命周期待真机验收 |
 | QQ 音乐 | 接入暂缓，当前没有可用登录与播放链路 |
