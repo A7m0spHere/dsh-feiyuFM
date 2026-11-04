@@ -8,6 +8,7 @@ import {FeedbackSettings} from './feedback.mjs';
 import {Discoveries} from './discoveries.mjs';
 import {ExpressionSettings} from './expression.mjs';
 import { DollLayer } from './dolls.mjs';
+import { UsageGuide, guideReady } from './guide.mjs';
 export function Panel({ controller, back }) {
   const state = React.useSyncExternalStore(controller.subscribe, controller.getSnapshot);
   const snapshot = state.snapshot;
@@ -17,10 +18,25 @@ export function Panel({ controller, back }) {
   const [playlistId,setPlaylistId]=React.useState('');
   const rateId = React.useId();
   const feedbackRef = React.useRef(null);
+  const platformDetailsRef = React.useRef(null), neteaseRef = React.useRef(null);
+  const guideRef = React.useRef(null), playRef = React.useRef(null);
+  const [platformExpanded, setPlatformExpanded] = React.useState(false);
+  const [guideFocus, setGuideFocus] = React.useState(null);
   const [view, setView] = React.useState('listen');
   // Pages mount on first visit and stay mounted (hidden) afterwards, so the
   // first frame only renders the visible tab instead of all four.
   const [mountedViews, setMountedViews] = React.useState(() => new Set([view]));
+  React.useEffect(() => {
+    if (!guideFocus || view !== (['connect', 'import'].includes(guideFocus) ? 'settings' : 'listen')) return;
+    const region = neteaseRef.current;
+    const target = guideFocus === 'connect' ? region?.querySelector('[data-guide-login]:not(:disabled)') ?? region
+      : guideFocus === 'import' ? region?.querySelector('[data-guide-import]:not(:disabled)') ?? region?.querySelector('[data-guide-login]:not(:disabled)') ?? region
+        : guideFocus === 'listen' && playRef.current && !playRef.current.disabled ? playRef.current : guideRef.current;
+    if (!target) return;
+    target.focus({ preventScroll: true });
+    target.scrollIntoView?.({ block: 'nearest', behavior: 'instant' });
+    setGuideFocus(null);
+  }, [guideFocus, view, state.guideVisible]);
   const selectedModel = state.recommendationChoice || '';
   const setSelectedModel = value => controller.chooseRecommendationModel(value);
   React.useEffect(() => { if (snapshot) setRate(Math.round(settings.discoveryRate * 100)); }, [settings.discoveryRate]);
@@ -42,6 +58,7 @@ export function Panel({ controller, back }) {
   const insights=state.insights;
   const art = presentation.art;
   const accountHint = state.platformError ? '连接状态读取失败' : !state.connected ? '连接中断' : ({authorized:'网易云已登录',expired:'登录已过期',signed_out:'未登录',login_required:'等待登录'}[state.platforms?.netease?.account?.status] || '查看连接');
+  const guideAccountHint = state.guideVisible && ['connect', 'import'].includes(state.guideStage);
   function toggle(title, description, field, command) {
     return h('div', { className: 'fm-row', key: field }, h('div', null, h('div', { className: 'fm-label' }, title), h('p', null, description)),
       h('button', { type: 'button', className: 'fm-toggle', role: 'switch', 'aria-label': title, 'aria-checked': Boolean(settings[field]), disabled,
@@ -62,18 +79,18 @@ export function Panel({ controller, back }) {
         onClick: () => controller.platformAction('logout', id) }, '重试清理凭据')
       : platform?.account?.status === 'authorized'
       ? h(React.Fragment, null,
-        state.features?.importSources&&h('select',{ 'aria-label':'导入来源',value:importSource,disabled:(state.busy || state.platformBusy)||!state.connected,
+        state.features?.importSources&&h('select',{ 'aria-label':'导入来源','data-guide-import':true,value:importSource,disabled:(state.busy || state.platformBusy)||!state.connected,
           onChange:e=>{setImportSource(e.target.value);if(e.target.value==='playlist')controller.platformAction('playlists',id);} },
           h('option',{value:'auto'},'自动来源'),h('option',{value:'recent'},'近期播放'),h('option',{value:'liked'},'我喜欢'),h('option',{value:'playlist'},'指定歌单')),
         state.features?.importSources&&importSource==='playlist'&&h('select',{'aria-label':'输入歌单',value:selectedPlaylist,disabled:(state.busy || state.platformBusy)||!state.playlists?.length,
           onChange:e=>setPlaylistId(e.target.value)},...(state.playlists?.length?state.playlists.map(p=>h('option',{key:p.id,value:p.id},p.title)):[h('option',{value:''},'读取歌单…')])),
-        h('button', { type: 'button', className: 'fm-button fm-primary', disabled: (state.busy || state.platformBusy) || !state.connected || (importSource==='playlist'&&!selectedPlaylist),
+        h('button', { type: 'button', className: 'fm-button fm-primary', 'data-guide-import': true, disabled: (state.busy || state.platformBusy) || !state.connected || (importSource==='playlist'&&!selectedPlaylist),
           onClick: () => controller.platformAction('import', id,{source:importSource==='auto'?null:importSource,playlistId:importSource==='playlist'?selectedPlaylist:null}) }, '导入我的音乐'),
         h('button', { type: 'button', className: 'fm-button fm-subtle', disabled: (state.busy || state.platformBusy) || !state.connected,
           onClick: () => controller.platformAction('logout', id) }, '退出'))
-      : available && !state.login && h('button', { type: 'button', className: 'fm-button fm-primary', disabled: (state.busy || state.platformBusy) || !state.connected,
+      : available && !state.login && h('button', { type: 'button', className: 'fm-button fm-primary', 'data-guide-login': true, disabled: (state.busy || state.platformBusy) || !state.connected,
         onClick: () => controller.platformAction('begin', id) }, '扫码登录');
-    return h('div', { className: 'fm-platform', key: id },
+    return h('div', { className: 'fm-platform', key: id, ...(id === 'netease' ? { ref: neteaseRef, tabIndex: -1, role: 'group', 'aria-label': '网易云音乐连接与导入' } : {}) },
       h('div', { className: 'fm-platform-name' }, h('span', { className: 'fm-platform-mark', 'aria-hidden': true }, mark), title),
       h('div', { className: 'fm-platform-actions' }, h('span', { className: 'fm-badge', 'data-ok': platform?.account?.status === 'authorized' || undefined }, label), action));
   });
@@ -115,6 +132,11 @@ export function Panel({ controller, back }) {
     h('div', { className: 'fm-card' }, platformRows,
       state.platformError && h('div', { className: 'fm-notice', role: 'alert' }, state.platformError,
         h('button', { type: 'button', className: 'fm-button', onClick: controller.refresh }, '重试连接状态')),
+      guideAccountHint && h('p', { className: 'fm-note fm-guide-target-note', role: 'status' }, state.guideStage === 'import'
+        ? state.platforms?.netease?.account?.status === 'authorized' ? '选择来源，再点击“导入我的音乐”。参考歌曲是后续推荐的起点。'
+          : '请先扫码连接网易云，授权后即可在这里选择来源并导入。'
+        : state.platforms?.netease?.account?.status === 'authorized' ? '网易云已连接，可在这里选择来源并导入参考歌曲。'
+          : '点击“扫码登录”，用网易云音乐 App 扫描并确认。'),
       loginPanel, importNotice, attempts,
       h('p', { className: 'fm-platform-note' }, '近期记录优先，读取失败时尝试喜欢列表和用户歌单。QQ 接入暂缓。登录材料仅保存在本机。')));
 
@@ -156,7 +178,15 @@ export function Panel({ controller, back }) {
   const management = h('div', {className:'fm-management','aria-label':'曲库与界面设置'},
         h('section', null, h('h2', null, '输入与连接',h('small',null,'LIBRARY')),
           h('details',{className:'fm-input-library'},h('summary',null,`输入曲库 · ${state.library?.total??0} 首（展开查看）`),h(Library,{state,controller})),
-          h('details',{className:'fm-platform-details fm-input-library'},h('summary',null,'音乐平台',h('span',{className:'fm-disclosure-meta'},accountHint)),platformSection)),
+          h('details',{className:'fm-platform-details fm-input-library',ref:platformDetailsRef,open:platformExpanded,
+            'data-guide-reveal':['connect','import'].includes(guideFocus)||undefined,
+            onToggle:event=>setPlatformExpanded(event.currentTarget.open)},h('summary',null,'音乐平台',h('span',{className:'fm-disclosure-meta'},accountHint)),platformSection)),
+        h('section', null, h('h2', null, '使用指南'), h('div', { className: 'fm-card' },
+          h('p', { className: 'fm-note' }, '连接网易云、导入参考歌曲，了解推荐反馈。'),
+          h('button', { type: 'button', className: 'fm-button fm-guide-open', disabled: !guideReady(state), onClick: () => {
+            controller.openGuide(); selectView('listen', false); setGuideFocus('guide');
+          } }, '打开使用指南'),
+          !guideReady(state) && h('p', { className: 'fm-note' }, '连接状态恢复后可打开指南。'))),
         h(Persona,{key:'settings',state,controller,settingsOnly:true,selectedModel,onSelectModel:setSelectedModel}),
         h('section', null, h('h2', null, '界面选项', h('small', null, 'INTERFACE')), h('details', { className: 'fm-card fm-interface-details' }, h('summary',null,'界面与悬浮条'),
           h(ExpressionSettings,{state,controller}),
@@ -175,11 +205,17 @@ export function Panel({ controller, back }) {
               onClick: () => controller.setWidgetVisible(!state.widgetVisible) }, state.widgetVisible ? '隐藏' : '显示')))));
   const settingsBody = h('div', { className: 'fm-settings-body' }, controlsColumn, management);
   const replyCurrent = !current?.decisionId || !insights?.reply?.decisionId || current.decisionId === insights.reply.decisionId;
-  const selectView = value => {
+  const selectView = (value, loadProfile = true) => {
     controller.setFeedbackOpen(value === 'taste' && feedbackRef.current?.querySelector('.fm-feedback-manager')?.open === true);
     setView(value);
     setMountedViews(current => current.has(value) ? current : new Set(current).add(value));
-    controller.ensureProfile();
+    if (loadProfile) controller.ensureProfile();
+  };
+  const guideStep = step => {
+    controller.setGuideStage(step);
+    selectView(step === 'listen' ? 'listen' : 'settings', false);
+    if (step !== 'listen') setPlatformExpanded(true);
+    setGuideFocus(step);
   };
   const dock = () => h('div', { className: 'fm-player-dock', 'aria-label': '播放控制' },
     h('div', { className: 'fm-dock-track' }, h('strong', null, current?.track?.title || '肥鱼电台'), h('span', null, current?.track?.artist || '等待音乐')),
@@ -187,7 +223,7 @@ export function Panel({ controller, back }) {
       h('button', { type: 'button', className: 'fm-button fm-transport', disabled: transport.previousDisabled,
         'aria-busy': state.transportPending === 'previous', onClick: () => controller.command('previous') },
         h(Svg, { type: 'prev' }), transport.previousLabel),
-      h('button', { type: 'button', className: 'fm-button fm-primary fm-transport', disabled: transport.playDisabled,
+      h('button', { type: 'button', className: 'fm-button fm-primary fm-transport', ref: playRef, disabled: transport.playDisabled,
         'aria-busy': state.transportPending === 'pause', onClick: () => transport.action === 'pause' ? controller.command('pause') : controller.playOrPause() },
         h(Svg, { type: transport.icon }), transport.label),
       h('button', { type: 'button', className: 'fm-button fm-transport', disabled: transport.nextDisabled,
@@ -252,7 +288,8 @@ export function Panel({ controller, back }) {
       snapshot?.lastError && h('div', { className: 'fm-notice', role: 'status' }, playbackNotice(snapshot)),
       snapshot?.blockUntil > Date.now() && h('div', { className: 'fm-notice' }, '今天已停止自主听歌。到期后保持暂停，直到你主动恢复。',
         h('button', { className: 'fm-button', type: 'button', disabled: state.busy || !state.connected, onClick: () => controller.command('chooseSelf') }, '恢复自主听歌')),
-      mountedViews.has('listen') && h('div', { className: 'fm-listen-page', id: `${rateId}-listen`, hidden: view !== 'listen' }, hero,
+      mountedViews.has('listen') && h('div', { className: 'fm-listen-page', id: `${rateId}-listen`, hidden: view !== 'listen' },
+        h(UsageGuide, { state, onStep: guideStep, onClose: controller.closeGuide, rootRef: guideRef, titleId: `${rateId}-guide` }), hero,
         h(Persona, { key: 'pool', state, controller, selectedModel, onSelectModel: setSelectedModel })),
       mountedViews.has('discover') && h('div', { className: 'fm-discover-page', id: `${rateId}-discover`, hidden: view !== 'discover' }, h(Discoveries, { state, expanded: true })),
       mountedViews.has('taste') && h('div', { ref: feedbackRef, className: 'fm-taste-page', id: `${rateId}-taste`, hidden: view !== 'taste' }, preferencesColumn),

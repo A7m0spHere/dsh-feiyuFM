@@ -37,8 +37,19 @@
     "passed": 117,
     "failed": 0
   },
-  "p1Targeted": null,
-  "fullSuite": null,
+  "p1Targeted": {
+    "tests": 129,
+    "passed": 129,
+    "failed": 0
+  },
+  "fullSuite": {
+    "tests": 749,
+    "passed": 749,
+    "failed": 0,
+    "skipped": 0,
+    "durationMs": 89678.2706,
+    "concurrency": 2
+  },
   "scope": {
     "newRpc": 0,
     "newServices": 0,
@@ -55,5 +66,182 @@
     "debugSmoke": true,
     "documentLinks": 119,
     "brokenLinks": 0
+  },
+  "p0Commit": "a4757cc",
+  "p1MergeCommit": "da508f0",
+  "p1Browser": {
+    "scope": "production-client-real-react-mocked-rpc-chrome",
+    "checks": [
+      {
+        "name": "fresh install shows the three-step guide after initialization",
+        "passed": true
+      },
+      {
+        "name": "unfinished guidance survives reload rather than being dismissed by a transient mount",
+        "passed": true
+      },
+      {
+        "name": "keyboard step 1 expands platform and focuses real login",
+        "passed": true
+      },
+      {
+        "name": "Tab reaches the third step in document order",
+        "passed": true
+      },
+      {
+        "name": "step 3 returns to listening, explains feedback and never plays",
+        "passed": true
+      },
+      {
+        "name": "guide actions call no account import playback or model endpoint",
+        "passed": true
+      },
+      {
+        "name": "skip survives client restart",
+        "passed": true
+      },
+      {
+        "name": "completion survives client restart",
+        "passed": true
+      },
+      {
+        "name": "authorized upgrade stays quiet",
+        "passed": true
+      },
+      {
+        "name": "authorized connect step describes existing connection rather than a missing login button",
+        "passed": true
+      },
+      {
+        "name": "step 2 focuses actual import source without reading playlists or importing",
+        "passed": true
+      },
+      {
+        "name": "existing library upgrade stays quiet",
+        "passed": true
+      },
+      {
+        "name": "P0 failure takes precedence",
+        "passed": true
+      },
+      {
+        "name": "P0 recovery permits fresh-user guide",
+        "passed": true
+      },
+      {
+        "name": "unknown library is not an empty library",
+        "passed": true
+      },
+      {
+        "name": "late existing library suppresses guide",
+        "passed": true
+      },
+      {
+        "name": "late empty library permits guide",
+        "passed": true
+      },
+      {
+        "name": "unavailable storage keeps navigation and in-memory skip working",
+        "passed": true
+      },
+      {
+        "name": "narrow 390px and reduced motion have no horizontal overflow",
+        "passed": true
+      },
+      {
+        "name": "narrow 320px and reduced motion have no horizontal overflow",
+        "passed": true
+      },
+      {
+        "name": "delayed pre-import library does not roll back the visible imported total",
+        "passed": true
+      },
+      {
+        "name": "partial logout clears cached authorization and a fresh platform response restores login",
+        "passed": true
+      },
+      {
+        "name": "no uncaught errors or React errors",
+        "passed": true,
+        "detail": []
+      }
+    ],
+    "errors": [],
+    "finishedAt": "2026-11-04T12:04:11.933Z"
+  },
+  "p1Dsh": {
+    "scope": "real-dsh-web-source-client-default-core-empty-database",
+    "runtime": {
+      "initialized": true,
+      "selected": null,
+      "runtimeVersion": "0.2.1-rc.5",
+      "runtimeNode": "v24.21.0",
+      "credentialValuesPrinted": false
+    },
+    "clientSha256": "5640641b411e70554bccbde241c02e0e9192f5ae13dc730cffbf6ef8abc30d14",
+    "checks": [
+      {
+        "name": "fresh source install shows guide after real initial reads",
+        "passed": true
+      },
+      {
+        "name": "connect opens platform and focuses real login without requesting a QR",
+        "passed": true
+      },
+      {
+        "name": "unsigned import step reaches account controls with explanation",
+        "passed": true
+      },
+      {
+        "name": "return to listening does not play or issue account/model actions",
+        "passed": true
+      },
+      {
+        "name": "no LLM stream calls",
+        "passed": true
+      },
+      {
+        "name": "skip survives renderer reload",
+        "passed": true
+      },
+      {
+        "name": "settings reopens guide",
+        "passed": true
+      },
+      {
+        "name": "completion survives real DSH and Core shutdown/restart at the retained origin",
+        "passed": true
+      },
+      {
+        "name": "no LLM stream calls after restart",
+        "passed": true
+      }
+    ],
+    "guideRecord": {
+      "version": 1,
+      "status": "completed"
+    },
+    "clientMatchesInstalled": true,
+    "gracefulShutdown": true,
+    "finishedAt": "2026-11-04T12:05:59.461Z"
+  },
+  "p0Ci": {
+    "head": "a4757ccdefa15e797248f1546ef0590b29244579",
+    "conclusion": "success",
+    "url": "https://github.com/A7m0spHere/dsh-feiyuFM/actions/runs/41825195542"
+  },
+  "p1Checks": {
+    "syntaxModules": 185,
+    "build": true,
+    "debugSmoke": true,
+    "documentLinks": 120,
+    "brokenLinks": 0,
+    "packageVerification": true,
+    "packageFiles": 4873
+  },
+  "p1Ci": {
+    "validatedImplementationCommit": "e899f9a3aef52ffe5bf11e20fe84fe869146a496",
+    "conclusion": "success",
+    "url": "https://github.com/A7m0spHere/dsh-feiyuFM/actions/runs/41827445946"
   }
 }

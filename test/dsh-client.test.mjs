@@ -77,6 +77,135 @@ const snapshot = (revision, humanPlayback = true) => ({ revision, settings: {
 const state = value => ({ ok: true, value: { snapshot: value, platforms: {} } });
 const tick = () => new Promise(resolve => setImmediate(resolve));
 
+const GUIDE_KEY = 'fishfm.guide.v1';
+function guideFixture(options = {}, storage = new Map()) {
+  const calls = [];
+  const data = { snapshot: snapshot(1), platforms: { netease: { installed: true, account: { status: 'login_required' } } },
+    library: { total: 0, tracks: [] }, ...options };
+  const profile = { insights: { statistics: { observedStarts: 0 }, profile: { artists: [], tracks: [] }, feedback: { liked: 0, reduced: 0 }, ...options.insights },
+    persona: null };
+  const f = fixture(async (_channel, endpoint) => { calls.push(endpoint);
+    if (endpoint === 'fishfm/profile') return { ok: true, value: profile };
+    return { ok: true, value: { ...data, features: { importSources: true } } };
+  }, storage);
+  return { ...f, calls, async ready() { await f.controller.refresh(); f.controller.ensureProfile(); await tick(); } };
+}
+
+test('first use guide waits for real reads and unfinished guidance can resume after restart', async () => {
+  const store = new Map(), f = guideFixture({}, store);
+  try {
+    assert.equal(f.controller.getSnapshot().guideVisible, false);
+    await f.controller.refresh();
+    assert.equal(f.controller.getSnapshot().guideVisible, false, 'the existing profile has not arrived');
+    f.controller.ensureProfile(); await tick();
+    assert.equal(f.controller.getSnapshot().guideVisible, true);
+    assert.ok(all(f.render()).some(n => n.children.includes('欢迎使用feiyuFM')));
+    assert.deepEqual(JSON.parse(store.get(GUIDE_KEY)), { version: 1, status: 'started' });
+    assert.deepEqual(f.calls, ['fishfm/state', 'fishfm/profile'], 'the guide introduces no extra requests');
+  } finally { f.dispose(); }
+  const restarted = guideFixture({}, store);
+  try { await restarted.ready(); assert.equal(restarted.controller.getSnapshot().guideVisible, true, 'unfinished fresh-user guidance resumes without erasing the versioned record'); }
+  finally { restarted.dispose(); }
+});
+
+test('guide routes connect and import to the actual expanded account controls and returns without playback', async () => {
+  const f = guideFixture();
+  try {
+    await f.ready(); const baseline = f.calls.length;
+    all(f.render()).find(n => n.props['data-guide-step'] === 'connect').props.onClick();
+    let tree = all(f.render());
+    assert.equal(tree.find(n => n.type === 'button' && n.children.includes('电台设置')).props['aria-pressed'], true);
+    assert.equal(tree.find(n => n.props.className?.includes('fm-platform-details')).props.open, true);
+    assert.ok(tree.some(n => n.props['data-guide-login'] && n.children.includes('扫码登录')));
+    tree.find(n => n.props['data-guide-step'] === 'import').props.onClick(); tree = all(f.render());
+    assert.ok(tree.some(n => n.children.includes('请先扫码连接网易云，授权后即可在这里选择来源并导入。')));
+    tree.find(n => n.props['data-guide-step'] === 'listen').props.onClick(); tree = all(f.render());
+    assert.equal(tree.find(n => n.type === 'button' && n.children.includes('正在听')).props['aria-pressed'], true);
+    assert.ok(tree.some(n => n.props.role === 'status' && n.children.some(s => typeof s === 'string' && s.includes('喜欢／少推荐'))));
+    assert.equal(f.calls.length, baseline, 'guide navigation cannot login, list playlists, import, warm models or play');
+    assert.equal(f.controller.getSnapshot().snapshot.paused, true);
+    // Native manual disclosure stays closable after a guide jump.
+    tree.find(n => n.props.className?.includes('fm-platform-details')).props.onToggle({ currentTarget: { open: false } });
+    assert.equal(all(f.render()).find(n => n.props.className?.includes('fm-platform-details')).props.open, false);
+  } finally { f.dispose(); }
+});
+
+for (const status of ['skipped', 'completed']) test(`guide ${status} persists through Core refresh and client restart and can be reopened explicitly`, async () => {
+  const store = new Map(), f = guideFixture({}, store);
+  try {
+    await f.ready();
+    all(f.render()).find(n => n.type === 'button' && n.children.includes(status === 'skipped' ? '跳过引导' : '完成引导')).props.onClick();
+    await f.controller.refresh(); assert.equal(f.controller.getSnapshot().guideVisible, false);
+    assert.equal(JSON.parse(store.get(GUIDE_KEY)).status, status);
+  } finally { f.dispose(); }
+  const restarted = guideFixture({}, store);
+  try {
+    await restarted.ready(); assert.equal(restarted.controller.getSnapshot().guideVisible, false);
+    all(restarted.render()).find(n => n.type === 'button' && n.children.includes('电台设置')).props.onClick();
+    all(restarted.render()).find(n => n.type === 'button' && n.children.includes('打开使用指南')).props.onClick();
+    const tree = all(restarted.render());
+    assert.equal(restarted.controller.getSnapshot().guideVisible, true);
+    assert.equal(tree.find(n => n.type === 'button' && n.children.includes('正在听')).props['aria-pressed'], true);
+  } finally { restarted.dispose(); }
+});
+
+for (const [name, options] of [
+  ['library', { library: { total: 8, tracks: [] } }],
+  ['authorized account', { platforms: { netease: { installed: true, account: { status: 'authorized' } } } }],
+  ['expired account', { platforms: { netease: { installed: true, account: { status: 'expired' } } } }],
+  ['history', { insights: { statistics: { observedStarts: 3 } } }],
+  ['saved preferences', { insights: { profile: { artists: [{ name: 'Fixture' }], tracks: [] } } }],
+]) test(`upgrade with ${name} does not automatically show the guide`, async () => {
+  const f = guideFixture(options);
+  try { await f.ready(); assert.equal(f.controller.getSnapshot().guideVisible, false); assert.equal(f.controller.getSnapshot().guideStatus, 'existing');
+    if (name === 'authorized account') { f.controller.openGuide();
+      all(f.render()).find(n => n.props['data-guide-step'] === 'connect').props.onClick();
+      assert.ok(all(f.render()).some(n => n.children.includes('网易云已连接，可在这里选择来源并导入参考歌曲。')));
+      all(f.render()).find(n => n.props['data-guide-step'] === 'import').props.onClick();
+      assert.ok(all(f.render()).some(n => n.props['data-guide-import'] && n.props['aria-label'] === '导入来源')); }
+  } finally { f.dispose(); }
+});
+
+test('guide waits for a pending library and yields to P0 errors', async () => {
+  let finishLibrary, failure = false;
+  const f = fixture(async (_c, endpoint) => {
+    if (failure) return { ok: false, error: { code: 'dependency_missing', message: '运行依赖缺失' } };
+    if (endpoint === 'fishfm/library') return new Promise(resolve => { finishLibrary = resolve; });
+    if (endpoint === 'fishfm/profile') return { ok: true, value: { insights: { statistics: { observedStarts: 0 } } } };
+    return { ok: true, value: { snapshot: snapshot(1), platforms: { netease: { installed: true, account: { status: 'login_required' } } }, libraryPending: true } };
+  });
+  try {
+    await f.controller.refresh(); f.controller.ensureProfile(); await tick();
+    assert.equal(f.controller.getSnapshot().guideVisible, false);
+    finishLibrary({ ok: true, value: { library: { total: 0, tracks: [] } } }); await tick();
+    assert.equal(f.controller.getSnapshot().guideVisible, true);
+    failure = true; await f.controller.refresh();
+    const tree = all(f.render());
+    assert.equal(tree.some(n => n.children.includes('欢迎使用feiyuFM')), false);
+    assert.ok(tree.some(n => n.props.role === 'alert'));
+    assert.match(f.controller.getSnapshot().error, /dependency_missing/);
+  } finally { f.dispose(); }
+});
+
+test('guide storage failure degrades to in-memory dismissal without blocking normal controls', async () => {
+  class BlockedStorage extends Map { get() { throw new Error('blocked'); } set() { throw new Error('blocked'); } }
+  const f = guideFixture({}, new BlockedStorage());
+  try { await f.ready(); assert.equal(f.controller.getSnapshot().guideVisible, true);
+    f.controller.closeGuide('skipped'); await f.controller.refresh();
+    assert.equal(f.controller.getSnapshot().guideVisible, false);
+    await f.controller.command('pause'); assert.equal(f.controller.getSnapshot().connected, true);
+  } finally { f.dispose(); }
+});
+
+test('guide dismissal synchronizes across same-origin windows and storage listeners clean up', async () => {
+  const f = guideFixture();
+  try { await f.ready(); f.storage.set(GUIDE_KEY, JSON.stringify({ version: 1, status: 'completed' }));
+    f.dispatchStorage(GUIDE_KEY); assert.equal(f.controller.getSnapshot().guideVisible, false);
+    await f.controller.refresh(); assert.equal(f.controller.getSnapshot().guideStatus, 'completed');
+  } finally { f.dispose(); }
+  assert.equal(f.windowListeners.get('storage').size, 0);
+});
+
 test('a deferred initial library loads independently while the login button stays usable', async () => {
   let finishLibrary; const calls = [];
   const f = fixture(async (_channel, endpoint) => {

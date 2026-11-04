@@ -426,6 +426,24 @@ export const css = `
     background:transparent; color:var(--fm-muted); font-size:13px; white-space:nowrap; }
   .fm-page-nav button[aria-pressed=true] { color:var(--fm-ink); border-bottom-color:var(--fm-accent); font-weight:600; }
   .fm-listen-page { padding-bottom:28px; }
+  .fm-guide { margin-bottom:24px; }
+  .fm-guide h2 { font-size:20px; line-height:1.4; margin:0; }
+  .fm-guide-intro { margin-top:6px!important; }
+  .fm-guide-steps { list-style:none; padding:0; margin:16px 0 0; }
+  .fm-guide-step { display:grid; grid-template-columns:28px minmax(0,1fr) auto; gap:10px 12px;
+    align-items:center; padding:14px 0; border-bottom:1px solid var(--fm-line); }
+  .fm-guide-step:last-child { border-bottom:0; }
+  .fm-guide-step h3 { margin:0 0 3px; font-size:14px; line-height:1.5; }
+  .fm-guide-step .fm-note { margin:0; }
+  .fm-guide-footer { display:flex; justify-content:flex-end; flex-wrap:wrap; gap:8px; margin-top:12px; }
+  .fm-guide-tip { padding:10px 12px; background:var(--fm-accent-soft); border-radius:8px; }
+  .fm-guide-open { margin-top:10px; }
+  .fm-guide-target-note { margin-bottom:10px!important; }
+  .fm-platform-details[data-guide-reveal]::details-content { transition:none!important; }
+  @container fishfm (max-width:520px) {
+    .fm-guide-step { grid-template-columns:28px minmax(0,1fr); align-items:start; }
+    .fm-guide-step > .fm-button { grid-column:2; justify-self:start; }
+  }
   .fm-companion-hero { grid-template-columns:minmax(180px,.85fr) minmax(0,1fr); gap:32px; align-items:center;
     padding:20px 30px 30px; margin:0 0 24px; border:0; background:transparent; box-shadow:none; border-radius:0; }
   .fm-companion-hero .fm-art { grid-column:1; grid-row:1; min-height:250px; position:relative; isolation:isolate; }

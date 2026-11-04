@@ -12,6 +12,8 @@ beta.3 的模型协议／最终回答与日常原生 Desktop 重启补验见 [N2
 
 [P0-08 客户端状态顺序](P0-08-client-state-ordering.md) 记录合并审查发现的旧曲库应答回滚及平台分项错误丢失，包含写入失效边界、新搜索保留与错误恢复的回归。
 
+[U25 首次使用轻量引导](U25-first-use-guide.md) 记录独立 P1 分支的三个实际入口、版本化本地状态、保守新用户判定、键盘焦点与隔离 DSH 重启；不改写 P0 当时的播放或发布结论。
+
 [N24 后台隔离 DSH 验收](N24-dsh-background-acceptance.md) 记录真实会话并发、启停请求／上下文对照、静音 WPF 成长与进程清理；平台替身、原生 Desktop 和默认 filtered 未验范围单列。
 
 [N25 最近播放窗口与多批待播池](N25-recent-playback-and-approved-pool.md) 记录短周期重复的实测线索、50 次播放窗口、100 首入选池和缺歌降级，以及隔离 DSH 的验证边界。
