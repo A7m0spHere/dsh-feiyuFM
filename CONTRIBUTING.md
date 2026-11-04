@@ -27,6 +27,10 @@ npm run build
 
 源码位置和生成物规则统一查 [仓库入口](docs/REPOSITORY.md)。UI 改动须同步生成的 `src/ui/dsh-client.js`；文档改动运行 `npm run audit:acceptance` 与 `git diff --check`，不需要为静态文字重跑账号、音频或生产验收。
 
+### 打包与发行
+
+发行包使用 `npm run pack:release -- --pack-destination <目录>` 生成：仅临时发行树声明 `bundleDependencies`，GitHub 源码安装按普通 dependencies 解析。发布前运行 `npm test` 与 `npm run verify:package`，再发布已验证的 tgz；源码目录的直接 publish 会拒绝执行。打包本身不发布。
+
 ### 隔离 UI 预览
 
 复用已有的 React 18 UMD，不需要连接真实 DSH 或音乐账号：

@@ -48,6 +48,12 @@ Provider 暴露账号和能力状态，`resolve(track, {signal, version})` 返�
 
 ## 3. Host、UI RPC 与快照
 
+初始化必须先完成 `bridge.start()`。Core 启动异常通过 `startup-error` 返回固定错误码；缺依赖为 `dependency_missing`，启动超时为 `core_start_timeout`，意外退出为 `core_exited`，请求超时为 `core_request_timeout`。不把原始异常、路径或凭据放进启动应答。
+
+`fishfm/state` 的 snapshot 为必要结果；platforms／library 分别结算，失败时保留其余成功结果，附 `platformError`／`libraryError` 固定描述与安全错误码，不伪造平台可用性或清空已有曲库。platforms 失败时客户端收起账号操作并提供“重试连接状态”；曲库失败不阻断可用平台的扫码入口。客户端状态读取 18 秒到期后必须结束本次等待、释放读取锁，即使宿主 RPC 忽略 abort 也能重试；迟到应答不写入新状态。
+
+初始化诊断记录 `type=initialization`、`phase=core-start/snapshot/platforms/library`、`status=started/ok/error`、安全 `code` 与 `durationMs`。客户端 `getInitializationTrace()` 保留最多 60 条 RPC 阶段、错误码及耗时；不携带请求 payload、账号、曲名、Cookie、二维码 key 或链接。证据与安装边界见 [P0 初始化修复](spikes/P0-07-initial-state.md)。
+
 Host 协议 v1 使用 JSON-lines：启动发 `ready`，请求返回带 `id` 的 `result/error`，状态变化发 `state`，退出发 `exiting`。快照含递增 `revision`、开关、策略、队列、当前实例、暂停和错误，不含凭据或 handle。
 
 客户端所有快照入口统一拒绝较低 `revision`；相等时拒绝较低 `commandVersion`。正常 Core 重启保留存储 revision，增加 commandVersion 并恢复暂停，因此重连可接收暂停，重启前迟到响应不能覆盖它。独立 playbackEpoch 继续保护本地播放命令取代的请求。

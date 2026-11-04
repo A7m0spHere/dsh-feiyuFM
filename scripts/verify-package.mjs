@@ -1,18 +1,13 @@
 // Inspect the exact npm payload, rather than assuming files/ignore rules work.
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { updateDependencyNotices } from './dependency-notices.mjs';
+import { packRelease } from './pack-release.mjs';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 updateDependencyNotices(root, { check: true });
-const npm = process.platform === 'win32'
-  ? { command: process.env.ComSpec ?? 'cmd.exe', args: ['/d', '/s', '/c', 'npm pack --dry-run --ignore-scripts --json'] }
-  : { command: 'npm', args: ['pack', '--dry-run', '--ignore-scripts', '--json'] };
-const result = spawnSync(npm.command, npm.args, { cwd: root, encoding: 'utf8', windowsHide: true });
-if (result.status !== 0) throw new Error(`npm pack failed: ${result.stderr || result.error?.message}`);
-const [pack] = JSON.parse(result.stdout);
+const [pack] = packRelease({ dryRun: true });
 const paths = new Set(pack.files.map(file => file.path));
 const manifest = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
 assert.equal(manifest.private, undefined);

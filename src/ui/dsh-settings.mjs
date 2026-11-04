@@ -64,20 +64,43 @@ function libraryRequest(options = {}) {
 }
 
 async function readSettingsState(bridge, signal, libraryOptions, { profile = true } = {}) {
+  const read = (phase, message, key) => initializationStage(bridge, phase, async () => {
+    const value = await bridge.request(message, { signal, abortable: true });
+    if (!value?.[key] || typeof value[key] !== 'object') throw Object.assign(new Error('状态应答不完整，请重试。'), { code: 'invalid_state' });
+    return value;
+  });
   const requests = [
-    bridge.request({ type: 'snapshot' }, { signal, abortable: true }),
-    bridge.request({ type: 'platforms' }, { signal, abortable: true }),
-    bridge.request(libraryRequest(libraryOptions), { signal, abortable: true }),
+    read('snapshot', { type: 'snapshot' }, 'snapshot'),
+    read('platforms', { type: 'platforms' }, 'platforms'),
+    read('library', libraryRequest(libraryOptions), 'library'),
   ];
   // The first console frame only needs playback data. The profile (insights and
   // persona) is served by fishfm/profile when a tab that shows it becomes visible.
   if (profile) requests.push(bridge.request({type:'insights'},{signal,abortable:true}),
     bridge.request({type:'persona'},{signal,abortable:true}));
-  const [state, platforms, library, insights, persona] = await Promise.all(requests);
+  const [state, platforms, library, insights, persona] = await Promise.allSettled(requests);
+  // Playback state is required; a failed optional read must not erase it or
+  // hide a working platform login. Full profile reads retain their old errors.
+  if (state.status === 'rejected') throw state.reason;
+  if (profile) for (const result of [insights, persona]) if (result.status === 'rejected') throw result.reason;
+  const partial = (result, key, label) => result.status === 'fulfilled' ? { [key]: result.value[key] }
+    : { [key === 'platforms' ? 'platformError' : 'libraryError']: `${label}读取失败，请重试。 (${initializationCode(result.reason)})` };
   // Publish only the UI projection, never credentials or media handles.
-  return { snapshot: state.snapshot, platforms: platforms.platforms, library: library.library,
-    ...(profile ? { insights:insights?.insights,persona:persona?.persona } : {}),
+  return { snapshot: state.value.snapshot, ...partial(platforms, 'platforms', '网易云连接状态'), ...partial(library, 'library', '曲库'),
+    ...(profile ? { insights:insights.value?.insights,persona:persona.value?.persona } : {}),
     features: { discoveryRefresh: true,importSources:true,insights:true, artwork: artworkCapabilities } };
+}
+
+function initializationCode(error) {
+  return /^[\w:.-]{1,100}$/.test(String(error?.code ?? '')) ? error.code : 'core_unavailable';
+}
+
+async function initializationStage(bridge, phase, operation) {
+  const started = performance.now();
+  const diagnostic = (status, code) => { try { bridge._log?.({ type: 'initialization', phase, status, code, durationMs: Math.round(performance.now() - started) }); } catch { /* diagnostics only */ } };
+  diagnostic('started', null);
+  try { const value = await operation(); diagnostic('ok', null); return value; }
+  catch (error) { diagnostic('error', initializationCode(error)); throw error; }
 }
 
 export function createSettingsHandler(bridge,summaryService={current:null}) {
@@ -94,7 +117,7 @@ export function createSettingsHandler(bridge,summaryService={current:null}) {
       if (endpoint === STATE_ENDPOINT && payload?.minimal === true) {
         // Console first frame: snapshot/platforms/library only. No insights or
         // persona build, no model warm-up; those arrive through fishfm/profile.
-        await bridge.start();
+        await initializationStage(bridge, 'core-start', () => bridge.start());
         const value = await readSettingsState(bridge, signal, payload?.library, { profile: false });
         value.features.personaSummary = Boolean(summaryService.current);
         return { ok: true, value };

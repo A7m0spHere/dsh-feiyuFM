@@ -81,7 +81,8 @@
   },
   "scripts": {
     "prepack": "npm run build:client && node scripts/dependency-notices.mjs && npm run check",
-    "prepublishOnly": "npm test && npm run verify:package",
+    "prepublishOnly": "node scripts/pack-release.mjs --reject-source-publish",
+    "pack:release": "npm run prepack && node scripts/pack-release.mjs",
     "verify:package": "node scripts/verify-package.mjs",
     "check": "node scripts/check.mjs",
     "test": "node --test --test-timeout=30000",
@@ -104,9 +105,5 @@
   },
   "overrides": {
     "basic-ftp": "6.2.2"
-  },
-  "bundleDependencies": [
-    "@neteasecloudmusicapienhanced/api",
-    "qrcode"
-  ]
+  }
 }

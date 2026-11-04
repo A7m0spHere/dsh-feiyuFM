@@ -112,7 +112,7 @@ export class CoreBridge {
       this._failChild = fail;
       const timer = setTimeout(() => {
         if (settled) return;
-        fail(new Error('The music core did not report ready in time'));
+        fail(Object.assign(new Error('音乐服务启动超时，请重试。'), { code: 'core_start_timeout', retryable: true }));
         try { child.kill(); } catch { /* Already gone. */ }
       }, this.requestTimeoutMs);
 
@@ -135,7 +135,7 @@ export class CoreBridge {
         if (this.child !== child) return;
         this.exitInfo = { code };
         this._log({ type: 'core-exit', code });
-        fail(new Error(`The music core exited ${settled ? '' : 'during startup '}with code ${String(code)}`));
+        fail(Object.assign(new Error(`The music core exited ${settled ? '' : 'during startup '}with code ${String(code)}`), { code: 'core_exited', retryable: true }));
       });
 
       this._onReady = (message) => {
@@ -175,6 +175,17 @@ export class CoreBridge {
 
   _dispatch(message) {
     if (!message || typeof message !== 'object' || Array.isArray(message)) return;
+    if (message.type === 'startup-error') {
+      const child = this.child;
+      const missing = message.error?.code === 'dependency_missing';
+      const error = Object.assign(new Error(missing
+        ? '网易云运行依赖缺失，请通过 DSH 插件管理器重新安装 npm 正式包 dsh-feiyufm，完整退出后重开 DSH。'
+        : '音乐服务启动失败，请重试或检查安装。'), { code: missing ? 'dependency_missing' : 'core_start_failed', retryable: true });
+      this._log({ type: 'initialization', phase: 'core-start', status: 'error', code: error.code });
+      this._failChild?.(error);
+      try { child?.kill(); } catch { /* already exiting */ }
+      return;
+    }
     if (message.type === 'ready') {
       this._onReady?.(message);
       return;
@@ -236,7 +247,7 @@ export class CoreBridge {
       const resolveRequest = finish(resolve);
       timer = setTimeout(() => {
         this.pending.delete(id);
-        rejectRequest(new Error(`The music core did not answer ${String(message.type)} in time`));
+        rejectRequest(Object.assign(new Error(`The music core did not answer ${String(message.type)} in time`), { code: 'core_request_timeout', retryable: true }));
       }, timeoutMs);
       this.pending.set(id, { resolve: resolveRequest, reject: rejectRequest, timer });
       if (abortable) {

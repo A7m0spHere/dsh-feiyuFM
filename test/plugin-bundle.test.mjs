@@ -16,6 +16,8 @@ test('the package is an installable bundle: manifest, exports and patch row', ()
   assert.equal(manifest.exports['.'], './index.js');
   assert.ok(manifest.meta?.title, 'display metadata is required by the plugin manager');
   assert.ok(manifest.exports['./package.json'], 'the plugin manager reads the manifest through exports');
+  assert.equal(manifest.bundleDependencies, undefined, 'GitHub source archives contain no bundled node_modules; pnpm must install dependencies');
+  assert.equal(manifest.bundledDependencies, undefined);
 
   const patch = readFileSync(join(root, 'cordis.patch.yml'), 'utf8');
   assert.match(patch, /- insert:/);

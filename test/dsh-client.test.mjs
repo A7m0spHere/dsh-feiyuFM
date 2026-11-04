@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createCoreHost } from '../src/core-host.mjs';
 import { FakeProvider } from '../src/fakes.mjs';
+import { createSettingsHandler } from '../src/ui/dsh-settings.mjs';
 
 function fixture(call, storage = new Map()) {
   const registrations = [], effects = [], styles = [];
@@ -75,6 +76,64 @@ const snapshot = (revision, humanPlayback = true) => ({ revision, settings: {
 }, paused: true, current: null, queue: [], status: 'idle' });
 const state = value => ({ ok: true, value: { snapshot: value, platforms: {} } });
 const tick = () => new Promise(resolve => setImmediate(resolve));
+
+test('first subscription requests minimal state and a failed initialization has retry instead of endless loading', async () => {
+  let failed = true; const calls = [];
+  const f = fixture(async (_channel, endpoint, payload) => {
+    calls.push({ endpoint, payload });
+    return failed ? { ok: false, error: { code: 'dependency_missing', message: '运行依赖缺失，请重新安装正式包。' } }
+      : { ok: true, value: { snapshot: snapshot(1), platforms: { netease: { installed: true } } } };
+  });
+  const off = f.controller.subscribe(() => {});
+  try {
+    await tick();
+    assert.equal(calls[0].endpoint, 'fishfm/state'); assert.equal(calls[0].payload.minimal, true);
+    all(f.render()).find(n => n.type === 'nav').children.find(b => b.children.includes('电台设置')).props.onClick();
+    const nodes = all(f.render());
+    assert.equal(nodes.some(n => n.children.includes('读取中')), false);
+    assert.ok(nodes.some(n => n.children.includes('读取失败')));
+    const retry = nodes.find(n => n.type === 'button' && n.children.includes('重新连接'));
+    assert.ok(retry && !retry.props.disabled);
+    failed = false; await retry.props.onClick();
+    assert.equal(f.controller.getSnapshot().connected, true);
+    assert.ok(all(f.render()).some(n => n.type === 'button' && n.children.includes('扫码登录') && !n.props.disabled));
+  } finally { off(); f.dispose(); }
+});
+
+for (const failedStage of ['platforms', 'library']) test(`installed client handles partial ${failedStage} initialization and recovery`, async () => {
+  let failed = true;
+  const api = createSettingsHandler({ async start() {}, async request(m) {
+    if (failed && m.type === failedStage) throw Object.assign(new Error('read failed'), { code: 'read_failed' });
+    return { snapshot: snapshot(1), platforms: { netease: { installed: true } }, library: { total: 0, tracks: [] } };
+  } });
+  const f = fixture((_channel, endpoint, payload, signal) => api(endpoint, payload, signal));
+  try {
+    await f.controller.refresh();
+    assert.equal(f.controller.getSnapshot().connected, true);
+    assert.ok(f.controller.getSnapshot().snapshot);
+    all(f.render()).find(n => n.type === 'nav').children.find(b => b.children.includes('电台设置')).props.onClick();
+    const login = all(f.render()).find(n => n.type === 'button' && n.children.includes('扫码登录'));
+    if (failedStage === 'library') { assert.ok(login && !login.props.disabled); assert.match(f.controller.getSnapshot().libraryError, /read_failed/); }
+    else { assert.ok(!login || login.props.disabled); assert.match(f.controller.getSnapshot().platformError, /read_failed/); }
+    failed = false; await f.controller.refresh();
+    assert.equal(f.controller.getSnapshot().platformError, ''); assert.equal(f.controller.getSnapshot().libraryError, '');
+    assert.ok(all(f.render()).some(n => n.type === 'button' && n.children.includes('扫码登录') && !n.props.disabled));
+  } finally { f.dispose(); }
+});
+
+test('an RPC that ignores abort still times out and releases refresh for retry', async t => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  let hang = true;
+  const f = fixture(async () => hang ? new Promise(() => {}) : state(snapshot(1)));
+  try {
+    void f.controller.refresh();
+    t.mock.timers.tick(18001); await tick();
+    assert.equal(f.controller.getSnapshot().initializationState, 'error');
+    assert.match(f.controller.getSnapshot().error, /rpc_timeout/);
+    hang = false; await f.controller.refresh();
+    assert.equal(f.controller.getSnapshot().connected, true);
+  } finally { f.dispose(); t.mock.timers.reset(); }
+});
 
 test('the client manifest only loads the UI packages the single-entry panel uses', () => {
   const manifest = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));

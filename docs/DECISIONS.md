@@ -93,3 +93,5 @@
 第三方来源、版本、文件范围与许可只维护在 [版权声明](../THIRD_PARTY_NOTICES.md)，不在决策表重复许可结论。未核实的参考项目仍保留在归档，不能当作已获授权或已验证接口。
 
 2026-11-04，用户确认首个正式版本使用 npm 包名 `dsh-feiyufm`，产品名称统一为肥鱼电台 FeiyuFM。客户端模块标识与 npm 包名同步；既有 RPC、命令、环境变量与本机数据目录保留兼容，以便换包来源后继续使用原曲库和偏好。已发布测试版的包名、标签和原始证据保留在历史发行记录中。
+
+2026-11-04，首次安装故障证实 GitHub 归档不含 `node_modules`，而源码 manifest 的 `bundleDependencies` 让 pnpm 跳过网易云依赖，Core 因 `MODULE_NOT_FOUND` 退出。修订分发方式：源码 manifest 保留普通 dependencies，仅在临时发行树添加 bundle 标记；`npm run pack:release` 生成自带依赖与许可的 tgz，禁止直接从源码目录 publish，发布前仍需测试与包验证。正式 0.1.0 tarball 内容及版本不倒改。初始化各分项独立结算，错误明确显示并可重试，不改音乐策略、导航或数据库结构。依据见 [P0-07](spikes/P0-07-initial-state.md)；本轮按用户要求保留修复分支、不合并 main、不发布 npm。
