@@ -44,7 +44,7 @@ const connection={rpc:{async call(_channel,endpoint,payload){
 }}};
 bundle.apply({connection,layout:{selectPanel(){}},effect(fn){cleanups.push(fn())},slots:{inject(_name,fn){fn()},register(options,component){registrations.push({options,component});return()=>{}}}});
 const main=registrations.find(r=>r.options.name==='main'),controller=main.options.inject().controller;
-window.__guideQa={controller,calls,setScenario(value){scenario=value;return controller.refresh()},releaseLibrary(total=0){libraryTotal=total;pendingResolved=true;finishLibrary?.({ok:true,value:{library:library()}})}};
+window.__guideQa={controller,connection,calls,setScenario(value){scenario=value;return controller.refresh()},releaseLibrary(total=0){libraryTotal=total;pendingResolved=true;finishLibrary?.({ok:true,value:{library:library()}})}};
 ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(main.component,{...main.options.inject()}));
 const toolbar=document.querySelector('.qa-toolbar');new ResizeObserver(()=>document.documentElement.style.setProperty('--qa-top',toolbar.getBoundingClientRect().height+'px')).observe(toolbar);
 const select=toolbar.querySelector('select');select.value=scenario;select.onchange=()=>location.href='/guide?scenario='+encodeURIComponent(select.value)+'&reset=1';
