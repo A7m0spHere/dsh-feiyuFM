@@ -20,6 +20,8 @@ FeiyuFM 以 npm 包分发，通过 DSH 安装到当前 profile。在侧栏「插
 
 已安装 DSH CLI 的用户可通过 `dsh plugin --profile web add dsh-feiyufm@0.1.0 --registry https://registry.npmjs.org/` 安装到 Web profile；`web` 要对应实际启动的 profile，安装后重启该实例。桌面版使用上述应用内入口。
 
+人工验收尚未发布的 P0 登录修复与 P1 首次引导时，在「包名或地址」输入 `https://github.com/A7m0spHere/dsh-feiyuFM`，从 `main` 安装；需要固定验收代码时可使用 `github:A7m0spHere/dsh-feiyuFM#<完整提交号>`。记录 profile 锁文件实际解析的提交号，不能只凭界面中的 `0.1.0` 判断是否加载修复。GitHub 源码安装会解析普通运行依赖；已发布的 npm `0.1.0` 不含这些后续改动。安装后从托盘完整退出并重开，按 [人工验收卡](spikes/P0-07-desktop-checklist.md) 验证，保留现有数据与凭据。
+
 Windows 的隔离宿主验证使用 DSH `0.2.1-rc.5`；桌面宿主自带兼容 Node 24 时无需单独安装 Node。macOS 实验性适配要求 Xcode Command Line Tools 提供 `/usr/bin/swiftc`，首次启动原生后端时会编译 Helper 到 DSH 私有数据目录。这不代表 macOS 真机验收完成。
 
 在 macOS 桌面 profile 中从源码接入：
@@ -32,7 +34,7 @@ dsh plugin --profile desktop add /absolute/path/to/dsh-feiyuFM
 
 打开侧栏「肥鱼电台」，在音乐平台卡片扫码、手机确认，再导入歌曲；当前源码的登录入口在「电台设置」标签页。模型是可选功能，使用用户自己的 DSH 配置；没有模型可点播输入歌曲。
 
-已有 workspace 安装请经插件管理器更换来源，不在同一 profile 同时启用两份 FeiyuFM。仓库开发步骤在 [贡献指南](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/CONTRIBUTING.md)。包包含运行依赖树、源码与各自许可，安装不需重新解析这些依赖。
+已有 workspace 安装请经插件管理器更换来源，不在同一 profile 同时启用两份 FeiyuFM。仓库开发步骤在 [贡献指南](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/CONTRIBUTING.md)。npm 发行包包含运行依赖树、源码与各自许可，安装不需重新解析这些依赖。
 
 从旧测试包 `dsh-feiyufm-core` 升级时，先在插件管理器移除旧来源，再添加 `dsh-feiyufm@0.1.0`。内部 RPC 标识和 `$DSH_HOME/fishfm/` 数据目录保持兼容，已有曲库、偏好与凭据引用继续使用；不要同时启用两个包来源。
 

@@ -243,5 +243,81 @@
     "validatedImplementationCommit": "e899f9a3aef52ffe5bf11e20fe84fe869146a496",
     "conclusion": "success",
     "url": "https://github.com/A7m0spHere/dsh-feiyuFM/actions/runs/41827445946"
+  },
+  "mergeFollowup": {
+    "date": "2026-11-04",
+    "authorizedByUser": true,
+    "npmPublished": false,
+    "p0": {
+      "pr": 16,
+      "url": "https://github.com/A7m0spHere/dsh-feiyuFM/pull/16",
+      "merged": true,
+      "mergeCommit": "b13f7442998812d9a0af10c5d09ea8a1f6252dea",
+      "prCi": "https://github.com/A7m0spHere/dsh-feiyuFM/actions/runs/41828903680",
+      "conclusion": "success"
+    },
+    "p1": {
+      "pr": 17,
+      "url": "https://github.com/A7m0spHere/dsh-feiyuFM/pull/17",
+      "merged": true,
+      "mergeCommit": "b5231c7be3128dba2e6074c5c96dcf9c30bfd053",
+      "prCi": "https://github.com/A7m0spHere/dsh-feiyuFM/actions/runs/41829256599",
+      "conclusion": "success"
+    },
+    "mainCi": {
+      "validatedCommit": "b5231c7be3128dba2e6074c5c96dcf9c30bfd053",
+      "url": "https://github.com/A7m0spHere/dsh-feiyuFM/actions/runs/41829618615",
+      "conclusion": "success"
+    },
+    "githubInstall": {
+      "date": "2026-11-04T12:31:28.263Z",
+      "scope": "official-dsh-cli-github-url-install-and-installed-core-minimal",
+      "source": "https://github.com/A7m0spHere/dsh-feiyuFM",
+      "expectedCommit": "b5231c7be3128dba2e6074c5c96dcf9c30bfd053",
+      "productionProfileTouched": false,
+      "credentialsCopied": false,
+      "qrRequested": false,
+      "accountOperations": false,
+      "playbackRequested": false,
+      "modelRequested": false,
+      "rendererRechecked": false,
+      "runtime": {
+        "initialized": true,
+        "selected": null,
+        "runtimeVersion": "0.2.1-rc.5",
+        "runtimeNode": "v24.21.0",
+        "credentialValuesPrinted": false
+      },
+      "version": "0.1.0",
+      "lockPinsExpectedCommit": true,
+      "neteaseVersion": "4.40.1",
+      "qrcodeVersion": "1.5.4",
+      "bundleDependencies": false,
+      "clientSha256": "5640641b411e70554bccbde241c02e0e9192f5ae13dc730cffbf6ef8abc30d14",
+      "checkoutEolNormalized": true,
+      "reviewedClientSha256": "5640641b411e70554bccbde241c02e0e9192f5ae13dc730cffbf6ef8abc30d14",
+      "clientMatchesReviewed": true,
+      "initializationMs": 4791,
+      "minimal": {
+        "ok": true,
+        "snapshot": true,
+        "neteaseInstalled": true,
+        "accountStatus": "login_required",
+        "libraryPending": true,
+        "platformError": null,
+        "errorCode": null
+      },
+      "pass": true,
+      "coreStopped": true
+    },
+    "comparisonNote": {
+      "initialRawHashCheck": "client_mismatch",
+      "cause": "Windows checkout core.autocrlf=true; GitHub bundle LF and local checkout CRLF",
+      "installedBundleChanged": false,
+      "reranInstallation": false,
+      "resolution": "compared canonical LF content and generated bundle, then reused the same isolated installation for Core verification"
+    },
+    "dailyManualAcceptance": "awaiting_user",
+    "dailyDataAndCredentials": "not_modified"
   }
 }
