@@ -1,0 +1,614 @@
+{
+  "date": "2026-11-04",
+  "scope": {
+    "branch": "fix/netease-initial-state",
+    "npmPublished": false,
+    "mainMerged": false,
+    "repositoryVersion": "0.1.0",
+    "rehearsalVersion": "0.1.1",
+    "dailyDesktop": "unknown_not_modified",
+    "manualChecklist": "docs/spikes/P0-07-desktop-checklist.md",
+    "p1": "not_started",
+    "previousCredentialCopy": "left_untouched_by_this_task_no_cleanup_attempts"
+  },
+  "libraryHang": {
+    "red": {
+      "tests": 4,
+      "passed": 0,
+      "failed": 4
+    },
+    "green": {
+      "tests": 4,
+      "passed": 4,
+      "failed": 0
+    },
+    "behavior": "libraryPending returns usable platform state without waiting; independent library read has its own 18s completion and retry; polling does not cancel it"
+  },
+  "wpfComparison": {
+    "date": "2026-11-04T07:53:10.786Z",
+    "node": "v24.22.1",
+    "main": "50c84428447eacde9c768389671fd312ad058366",
+    "fix": "62d84e89a06a03cb5974c4ef2da26b399a02bb2f",
+    "order": [
+      "main",
+      "fix",
+      "fix",
+      "main"
+    ],
+    "thresholdsMs": {
+      "generatedSilentResource": 12000,
+      "sameSourceReload": 8000
+    },
+    "sourceComparison": [
+      {
+        "file": "test/playback-warm.test.mjs",
+        "identical": true
+      },
+      {
+        "file": "test/playback-wpf.test.mjs",
+        "identical": true
+      },
+      {
+        "file": "src/playback/backends.mjs",
+        "identical": true
+      },
+      {
+        "file": "src/playback/fake-backend.mjs",
+        "identical": true
+      },
+      {
+        "file": "src/playback/host/fishfm-macos-host.swift",
+        "identical": true
+      },
+      {
+        "file": "src/playback/host/macos-host-launcher.mjs",
+        "identical": true
+      },
+      {
+        "file": "src/playback/host/wpf-media-host.ps1",
+        "identical": true
+      },
+      {
+        "file": "src/playback/protocol.mjs",
+        "identical": true
+      },
+      {
+        "file": "src/playback/service.mjs",
+        "identical": true
+      },
+      {
+        "file": "src/playback/supervisor.mjs",
+        "identical": true
+      },
+      {
+        "file": "src/playback/transport.mjs",
+        "identical": true
+      },
+      {
+        "file": "src/playback/ui-probe.mjs",
+        "identical": true
+      },
+      {
+        "file": "src/contracts.mjs",
+        "identical": true
+      }
+    ],
+    "runs": [
+      {
+        "ref": "main",
+        "startedAt": "2026-11-04T07:53:21.403Z",
+        "finishedAt": "2026-11-04T07:53:40.064Z",
+        "exit": 0,
+        "tests": 2,
+        "passed": 2,
+        "failed": 0,
+        "skipped": 0,
+        "before": {
+          "fingerprint": "e9b92126c965c4224e5f63f16af226d5dbf16502f94b3882b0e4f5b323453723",
+          "services": [
+            {
+              "Name": "AudioEndpointBuilder",
+              "Status": "Running"
+            },
+            {
+              "Name": "Audiosrv",
+              "Status": "Running"
+            }
+          ],
+          "devices": 10,
+          "endpoints": 21
+        },
+        "after": {
+          "fingerprint": "e9b92126c965c4224e5f63f16af226d5dbf16502f94b3882b0e4f5b323453723",
+          "services": [
+            {
+              "Name": "AudioEndpointBuilder",
+              "Status": "Running"
+            },
+            {
+              "Name": "Audiosrv",
+              "Status": "Running"
+            }
+          ],
+          "devices": 10,
+          "endpoints": 21
+        },
+        "failures": [],
+        "mediaOpenTimeout": false
+      },
+      {
+        "ref": "fix",
+        "startedAt": "2026-11-04T07:53:45.751Z",
+        "finishedAt": "2026-11-04T07:54:03.056Z",
+        "exit": 0,
+        "tests": 2,
+        "passed": 2,
+        "failed": 0,
+        "skipped": 0,
+        "before": {
+          "fingerprint": "e9b92126c965c4224e5f63f16af226d5dbf16502f94b3882b0e4f5b323453723",
+          "services": [
+            {
+              "Name": "AudioEndpointBuilder",
+              "Status": "Running"
+            },
+            {
+              "Name": "Audiosrv",
+              "Status": "Running"
+            }
+          ],
+          "devices": 10,
+          "endpoints": 21
+        },
+        "after": {
+          "fingerprint": "e9b92126c965c4224e5f63f16af226d5dbf16502f94b3882b0e4f5b323453723",
+          "services": [
+            {
+              "Name": "AudioEndpointBuilder",
+              "Status": "Running"
+            },
+            {
+              "Name": "Audiosrv",
+              "Status": "Running"
+            }
+          ],
+          "devices": 10,
+          "endpoints": 21
+        },
+        "failures": [],
+        "mediaOpenTimeout": false
+      },
+      {
+        "ref": "fix",
+        "startedAt": "2026-11-04T07:54:08.972Z",
+        "finishedAt": "2026-11-04T07:54:24.986Z",
+        "exit": 0,
+        "tests": 2,
+        "passed": 2,
+        "failed": 0,
+        "skipped": 0,
+        "before": {
+          "fingerprint": "e9b92126c965c4224e5f63f16af226d5dbf16502f94b3882b0e4f5b323453723",
+          "services": [
+            {
+              "Name": "AudioEndpointBuilder",
+              "Status": "Running"
+            },
+            {
+              "Name": "Audiosrv",
+              "Status": "Running"
+            }
+          ],
+          "devices": 10,
+          "endpoints": 21
+        },
+        "after": {
+          "fingerprint": "e9b92126c965c4224e5f63f16af226d5dbf16502f94b3882b0e4f5b323453723",
+          "services": [
+            {
+              "Name": "AudioEndpointBuilder",
+              "Status": "Running"
+            },
+            {
+              "Name": "Audiosrv",
+              "Status": "Running"
+            }
+          ],
+          "devices": 10,
+          "endpoints": 21
+        },
+        "failures": [],
+        "mediaOpenTimeout": false
+      },
+      {
+        "ref": "main",
+        "startedAt": "2026-11-04T07:54:31.190Z",
+        "finishedAt": "2026-11-04T07:54:49.234Z",
+        "exit": 0,
+        "tests": 2,
+        "passed": 2,
+        "failed": 0,
+        "skipped": 0,
+        "before": {
+          "fingerprint": "e9b92126c965c4224e5f63f16af226d5dbf16502f94b3882b0e4f5b323453723",
+          "services": [
+            {
+              "Name": "AudioEndpointBuilder",
+              "Status": "Running"
+            },
+            {
+              "Name": "Audiosrv",
+              "Status": "Running"
+            }
+          ],
+          "devices": 10,
+          "endpoints": 21
+        },
+        "after": {
+          "fingerprint": "e9b92126c965c4224e5f63f16af226d5dbf16502f94b3882b0e4f5b323453723",
+          "services": [
+            {
+              "Name": "AudioEndpointBuilder",
+              "Status": "Running"
+            },
+            {
+              "Name": "Audiosrv",
+              "Status": "Running"
+            }
+          ],
+          "devices": 10,
+          "endpoints": 21
+        },
+        "failures": [],
+        "mediaOpenTimeout": false
+      }
+    ],
+    "sameObservedAudioEnvironment": true,
+    "finishedAt": "2026-11-04T07:54:49.236Z"
+  },
+  "playbackConclusion": {
+    "bothRefsPassed": 8,
+    "skipped": 0,
+    "thresholdsChanged": false,
+    "nativeFilesUnchanged": true,
+    "previousTimeouts": "not_reproduced",
+    "historicalCause": "unknown",
+    "newBranchRegressionEvidence": false
+  },
+  "packagingBefore": {
+    "repeatedSha256": "4ff8719108bc2c3e6382edcb20f79a9c26980bc2c5bb2402009ecca41e613b85",
+    "normalOfflineInstalls": 2,
+    "installedSmoke": "passed",
+    "npmLs": {
+      "exit": 1,
+      "code": "ELSPROBLEMS",
+      "problem": "get-uri@6.0.5 declares basic-ftp ^5.0.2 but bundled existing override selects 6.2.2"
+    },
+    "lifecycle": {
+      "tgzDryRunSucceededWithScriptsEnabled": true,
+      "sourcePublishRejected": true,
+      "registryWrites": 0,
+      "note": "npm publish tgz skips prepublishOnly/prepack/prepare/postpack/publish/postpublish; explicit tests and artifact verification are required before any real publish"
+    }
+  },
+  "packagingAfter": {
+    "startedAt": "2026-11-04T08:21:11.917Z",
+    "version": "0.1.1",
+    "scope": "temporary-version-only-no-publication",
+    "commands": [
+      {
+        "name": "npm-version",
+        "exit": 0,
+        "durationMs": 968
+      },
+      {
+        "name": "pack-a",
+        "exit": 0,
+        "durationMs": 108254
+      },
+      {
+        "name": "pack-b",
+        "exit": 0,
+        "durationMs": 100413
+      },
+      {
+        "name": "extract",
+        "exit": 0,
+        "durationMs": 26914
+      },
+      {
+        "name": "install-a",
+        "exit": 0,
+        "durationMs": 199509
+      },
+      {
+        "name": "dependency-tree-a",
+        "exit": 0,
+        "durationMs": 2762
+      },
+      {
+        "name": "installed-smoke-a",
+        "exit": 0,
+        "durationMs": 4580
+      },
+      {
+        "name": "install-b",
+        "exit": 0,
+        "durationMs": 143032
+      },
+      {
+        "name": "dependency-tree-b",
+        "exit": 0,
+        "durationMs": 4112
+      },
+      {
+        "name": "installed-smoke-b",
+        "exit": 0,
+        "durationMs": 3901
+      },
+      {
+        "name": "tgz-publish-dry-run",
+        "exit": 0,
+        "durationMs": 165503
+      },
+      {
+        "name": "source-publish-dry-run",
+        "exit": 1,
+        "durationMs": 4581
+      }
+    ],
+    "registryRequests": [
+      {
+        "method": "GET",
+        "path": "/dsh-feiyufm"
+      }
+    ],
+    "artifacts": [
+      {
+        "name": "a",
+        "sha256": "41aa2e3cc8fbd7d89c27a1867b1d7207ed9a0a16c0f926532284cdf3d8641388"
+      },
+      {
+        "name": "b",
+        "sha256": "41aa2e3cc8fbd7d89c27a1867b1d7207ed9a0a16c0f926532284cdf3d8641388"
+      }
+    ],
+    "npm": "11.19.1",
+    "lockedRuntimeManifests": 287,
+    "lifecycle": {
+      "tgzDryRunSucceededWithScriptsEnabled": true,
+      "sourcePublishRejected": true,
+      "registryWrites": 0,
+      "note": "npm publish tgz skips prepublishOnly/prepack/prepare/postpack/publish/postpublish; explicit tests and artifact verification are required before any real publish"
+    },
+    "repositoryFilesUnchanged": true,
+    "finishedAt": "2026-11-04T08:33:57.362Z",
+    "note": "Only temporary source uses 0.1.1. Both fresh consumers passed normal npm ls, exact locked manifests, and installed smoke. No registry writes."
+  },
+  "finalSuite": {
+    "tests": 726,
+    "passed": 725,
+    "failed": 1,
+    "skipped": 0,
+    "durationMs": 94868.9294,
+    "testFileConcurrency": 2,
+    "formerWpfFailureCases": "both_passed",
+    "failure": {
+      "file": "test/playback.test.mjs",
+      "name": "a song ending during a pipe disconnect reaches Core and starts the queued song",
+      "message": "Timed out waiting for continuation after a missed end",
+      "thresholdMs": 6000
+    }
+  },
+  "checks": {
+    "modules": 182,
+    "build": true,
+    "debugSmoke": true,
+    "packageWhitelist": true,
+    "dependencyNotices": true,
+    "documentLinks": 118,
+    "brokenLinks": 0,
+    "gitDiffCheck": true
+  },
+  "metadataScope": {
+    "sourceGetUriRange": "^5.0.2",
+    "bundledGetUriRange": "6.2.2",
+    "actualFtpVersion": "6.2.2",
+    "thirdPartyJsUnchanged": true,
+    "modifications": "temporary bundled get-uri/package.json dependency and internal shrinkwrap declaration only"
+  },
+  "continuationFollowup": {
+    "mainIsolated": {
+      "passed": 1,
+      "failed": 0
+    },
+    "fixWorkspaceIsolated": {
+      "passed": 0,
+      "failed": 1
+    },
+    "fixSnapshotSameDriveAsMain": {
+      "ref": "c42539e",
+      "passed": 1,
+      "failed": 0,
+      "processCwd": "original_workspace"
+    },
+    "sourceAndTestChanges": false,
+    "conclusion": "Checkout/environment sensitivity is an observed lead; root cause remains unknown. Full-suite failure is retained; no thresholds changed and no tests skipped."
+  },
+  "isolatedDsh011": {
+    "scope": "real-isolated-dsh-installed-client",
+    "runtime": {
+      "initialized": true,
+      "selected": null,
+      "runtimeVersion": "0.2.1-rc.5",
+      "runtimeNode": "v24.21.0",
+      "credentialValuesPrinted": false
+    },
+    "installedVersion": "0.1.1",
+    "installedClientHash": "1ac83a76fe04993806cd71eb7eea98e0ac0309bb6b848fa26b5b3e2157f5caec",
+    "artifactSha256": "41aa2e3cc8fbd7d89c27a1867b1d7207ed9a0a16c0f926532284cdf3d8641388",
+    "rpc": {
+      "http": 200,
+      "ms": 63,
+      "ok": true,
+      "snapshot": true,
+      "neteaseInstalled": true
+    },
+    "ui": {
+      "hasController": true,
+      "connected": true,
+      "hasSnapshot": true,
+      "error": "",
+      "neteaseInstalled": true,
+      "platformText": "网\n网易云音乐\n未登录\n扫码登录",
+      "loginButtons": [
+        {
+          "disabled": false,
+          "visible": true,
+          "clickable": true
+        }
+      ],
+      "initializationTrace": [
+        {
+          "phase": "rpc-start",
+          "code": null,
+          "durationMs": 0
+        },
+        {
+          "phase": "rpc-ok",
+          "code": null,
+          "durationMs": 139
+        },
+        {
+          "phase": "rpc-start",
+          "code": null,
+          "durationMs": 0
+        },
+        {
+          "phase": "rpc-ok",
+          "code": null,
+          "durationMs": 28
+        },
+        {
+          "phase": "rpc-start",
+          "code": null,
+          "durationMs": 0
+        },
+        {
+          "phase": "rpc-ok",
+          "code": null,
+          "durationMs": 90
+        },
+        {
+          "phase": "rpc-start",
+          "code": null,
+          "durationMs": 0
+        },
+        {
+          "phase": "rpc-ok",
+          "code": null,
+          "durationMs": 15
+        },
+        {
+          "phase": "rpc-start",
+          "code": null,
+          "durationMs": 0
+        },
+        {
+          "phase": "rpc-ok",
+          "code": null,
+          "durationMs": 14
+        },
+        {
+          "phase": "rpc-start",
+          "code": null,
+          "durationMs": 0
+        },
+        {
+          "phase": "rpc-ok",
+          "code": null,
+          "durationMs": 16
+        },
+        {
+          "phase": "rpc-start",
+          "code": null,
+          "durationMs": 0
+        },
+        {
+          "phase": "rpc-ok",
+          "code": null,
+          "durationMs": 22
+        },
+        {
+          "phase": "rpc-start",
+          "code": null,
+          "durationMs": 0
+        },
+        {
+          "phase": "rpc-ok",
+          "code": null,
+          "durationMs": 29
+        },
+        {
+          "phase": "rpc-start",
+          "code": null,
+          "durationMs": 0
+        },
+        {
+          "phase": "rpc-ok",
+          "code": null,
+          "durationMs": 14
+        },
+        {
+          "phase": "rpc-start",
+          "code": null,
+          "durationMs": 0
+        },
+        {
+          "phase": "rpc-ok",
+          "code": null,
+          "durationMs": 16
+        }
+      ]
+    },
+    "qr": {
+      "status": "waiting",
+      "qrImage": true,
+      "errorCode": null,
+      "error": ""
+    },
+    "clientMatchesInstalled": true,
+    "hostPreviewDismissed": true,
+    "optionalHostSignInDismissed": true,
+    "gracefulShutdown": true,
+    "finishedAt": "2026-11-04T08:47:48.969Z",
+    "accountAuthorization": "pending_user"
+  },
+  "thirdPartyJsChecks": [
+    {
+      "name": "get-uri",
+      "files": 9,
+      "byteIdentical": true
+    },
+    {
+      "name": "basic-ftp",
+      "files": 15,
+      "byteIdentical": true
+    }
+  ],
+  "manualDesktop": {
+    "install_source": "unknown",
+    "qr_display": "unknown",
+    "user_scan_authorization": "unknown",
+    "account_validation": "unknown",
+    "playlist_import": "unknown",
+    "real_playback": "unknown",
+    "restart_retention": "unknown"
+  },
+  "goNoGo": {
+    "p0Login": "GO_for_manual_acceptance_code_and_isolated_host_only",
+    "playback": "NO_GO_for_stability_claim_full_suite_continuation_failure_unresolved",
+    "release": "NO_GO_manual_Desktop_acceptance_pending_and_full_suite_not_clean",
+    "p1": "not_started"
+  }
+}
