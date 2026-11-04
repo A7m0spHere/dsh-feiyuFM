@@ -28,6 +28,10 @@
 |---|---|
 | `npm run preview:ui -- --react-root <已有 node_modules> --port 4179` | 模拟 UI；`/spectrum-ab` 对照密度柱与亚字符扭曲、12/24fps；复用生产渲染与样式，不访问账号或播放歌曲 |
 | `npm run verify:package` | 核对统一版权声明、随包许可与 npm dry-run 白名单；测试版要求 beta 标签，正式版本要求 latest；不发布 |
+| `npm run pack:release -- --pack-destination <目录>` | 构建／检查后在临时发行树加入 bundle 标记，生成自带依赖的 tgz；源码 manifest 不宣称已打包依赖。发布前另跑 `npm test` 和 `npm run verify:package`，只发布已检查的 tgz，不直接发布源码目录 |
+| `node scripts/probes/release-rehearsal.mjs --out <全新目录>` | 只在临时源码副本设为 0.1.1，重复构建、比对 tgz、核对锁定依赖并以空缓存正常离线安装；仅对本机只读模拟 registry 做 publish `--dry-run`，验证文件／目录生命周期差异，不发布也不修改仓库版本 |
+| `node scripts/probes/wpf-branch-compare.mjs --baseline <main 源码快照> --out <全新目录>` | 校验播放源码／两项媒体测试相同，记录音频环境，按 main→fix→fix→main 串行执行原始测试；不增加阈值、不跳过或改动音频设置 |
+| `node scripts/probes/initial-state-install.mjs --package <tgz> --out <全新目录>` | 官方隔离 DSH、默认生产 Core、认证 minimal RPC、安装客户端的登录入口与阶段诊断；`--missing-dependency` 注入缺包，`--database-from <库> --reinstall` 只读复制旧库并核对重装保留，`--online` 允许普通源码依赖解析，`--qr` 只申请二维码、授权由用户完成 |
 | `node scripts/verify-installed-package.mjs <consumer-directory>` | 在已安装的隔离消费者目录核对入口、资源、依赖及静音 WPF；消费者通常应在仓库外 |
 | `node scripts/verify-windows-credentials.mjs <installed-package-root>` | 必须在 Windows 上实测已安装包的 DPAPI：PowerShell 7、5.1、仅 5.1 PATH 的写入/跨进程读取/删除；使用合成数据，不输出凭据。非 Windows 明示不适用 |
 | `node scripts/dependency-notices.mjs` | 仅更新版权声明中的依赖清单，核对 README／子目录原文与补充通知；`--check` 只检查是否过期；生成结果需审阅并提交 |

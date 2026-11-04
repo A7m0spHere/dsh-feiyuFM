@@ -76,6 +76,13 @@ try {
     ...(store ? { store, providerRegistry, platformsFacade } : {}),
     onLog,
   });
+} catch (error) {
+  // Report startup failures through the protocol before exiting. Never forward
+  // the exception message/stack: dependencies and credentials may include paths.
+  const code = ['MODULE_NOT_FOUND', 'ERR_MODULE_NOT_FOUND'].includes(error?.code) ? 'dependency_missing' : 'core_start_failed';
+  process.stdout.write(`${JSON.stringify({ type: 'startup-error', error: { code } })}\n`);
+  process.stderr.write(`fishfm-core: startup failed (${code})\n`);
+  process.exitCode = 1;
 } finally {
   evidence.close();
   store?.close();

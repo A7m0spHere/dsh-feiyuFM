@@ -7,6 +7,50 @@ import { join, resolve } from 'node:path';
 import { CoreBridge } from '../src/dsh-adapter.mjs';
 import { createSettingsHandler, registerSettingsApi } from '../src/ui/dsh-settings.mjs';
 
+for (const minimal of [true, false]) test(`a hanging library cannot delay usable login state (minimal=${minimal})`, async () => {
+  let completed = false, librarySignal;
+  const api = createSettingsHandler({ async start() {}, async request(message, options) {
+    if (message.type === 'library') { librarySignal = options.signal; return new Promise(() => {}); }
+    return { snapshot: { revision: 1 }, platforms: { netease: { installed: true } }, insights: {}, persona: {} };
+  } });
+  const pending = api('fishfm/state', { minimal }).then(result => { completed = true; return result; });
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(completed, true, 'snapshot/platforms are ready; a library that ignores cancellation must not hold the response');
+  const result = await pending;
+  assert.equal(result.ok, true);
+  assert.equal(result.value.platforms.netease.installed, true);
+  assert.equal(result.value.libraryPending, true);
+  assert.equal(Object.hasOwn(result.value, 'libraryError'), false, 'pending is not a failed library');
+  assert.equal(librarySignal.aborted, true, 'do not leave an abandoned Core read in the pending map');
+});
+
+for (const failed of ['platforms', 'library']) test(`initial state keeps snapshot when ${failed} fails`, async () => {
+  const diagnostics = [];
+  const api = createSettingsHandler({ _log(entry) { diagnostics.push(entry); }, async start() {}, async request(message) {
+    if (message.type === failed) throw Object.assign(new Error('PRIVATE cookie=MUSIC_U_SECRET'), { code: 'read_failed' });
+    return { snapshot: { revision: 1 }, platforms: { netease: { installed: true } }, library: { total: 0, tracks: [] } };
+  } });
+  const result = await api('fishfm/state', { minimal: true });
+  assert.equal(result.ok, true);
+  assert.equal(result.value.snapshot.revision, 1);
+  assert.match(result.value[failed === 'platforms' ? 'platformError' : 'libraryError'], /read_failed/);
+  if (failed === 'library') assert.equal(result.value.platforms.netease.installed, true);
+  assert.ok(diagnostics.some(e => e.phase === failed && e.code === 'read_failed' && e.durationMs >= 0));
+  assert.doesNotMatch(JSON.stringify({ result, diagnostics }), /PRIVATE|MUSIC_U_SECRET/);
+});
+
+test('initial snapshot failure stays an explicit failure with a safe stage diagnostic', async () => {
+  const diagnostics = [];
+  const api = createSettingsHandler({ _log(e) { diagnostics.push(e); }, async start() {}, async request(m) {
+    if (m.type === 'snapshot') throw Object.assign(new Error('snapshot failed'), { code: 'core_request_timeout' });
+    return { platforms: {}, library: {} };
+  } });
+  const result = await api('fishfm/state', { minimal: true });
+  assert.equal(result.ok, false);
+  assert.equal(result.error.code, 'core_request_timeout');
+  assert.ok(diagnostics.some(e => e.phase === 'snapshot' && e.status === 'error'));
+});
+
 test('transport timing correlation preserves the server command id and rejects unsafe metadata', async () => {
   const sent = [];
   const api = createSettingsHandler({ async start() {}, async command(command) { sent.push(command); return { snapshot: {}, timing: { traceId: command.traceId } }; } });

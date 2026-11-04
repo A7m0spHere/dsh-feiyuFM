@@ -14,6 +14,22 @@ import { CoreBridge, registerAdapter, translateSessionEvent, TOOL_NAMES, COMMAND
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
+test('a structured dependency startup failure is actionable, safe and can restart', async () => {
+  let attempts = 0;
+  const bridge = new CoreBridge({ spawnCore: () => {
+    if (++attempts > 1) return spawnFakeCore();
+    const child = new EventEmitter();
+    Object.assign(child, { exitCode: null, signalCode: null, stdin: new PassThrough(), stdout: new PassThrough(), stderr: new PassThrough(), kill() { this.signalCode = 'SIGTERM'; this.emit('exit', null); } });
+    queueMicrotask(() => child.stdout.write(JSON.stringify({ type: 'startup-error', error: { code: 'dependency_missing', message: 'PRIVATE cookie=secret' } }) + '\n'));
+    return child;
+  } });
+  try {
+    await assert.rejects(bridge.start(), e => e.code === 'dependency_missing' && /重新安装 npm 正式包/.test(e.message) && !/PRIVATE|secret/.test(e.message));
+    await bridge.start();
+    assert.ok((await bridge.request({ type: 'snapshot' })).snapshot);
+  } finally { await bridge.stop(); }
+});
+
 test('a broken Core input pipe rejects requests without throwing into the host and can restart', async () => {
   const children = [];
   const bridge = new CoreBridge({ spawnCore: () => {

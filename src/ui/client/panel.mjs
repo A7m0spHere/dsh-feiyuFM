@@ -41,7 +41,7 @@ export function Panel({ controller, back }) {
   const positionMs = useSmoothProgress(current, presentation.active);
   const insights=state.insights;
   const art = presentation.art;
-  const accountHint = !state.connected ? '连接中断' : ({authorized:'网易云已登录',expired:'登录已过期',signed_out:'未登录',login_required:'等待登录'}[state.platforms?.netease?.account?.status] || '查看连接');
+  const accountHint = state.platformError ? '连接状态读取失败' : !state.connected ? '连接中断' : ({authorized:'网易云已登录',expired:'登录已过期',signed_out:'未登录',login_required:'等待登录'}[state.platforms?.netease?.account?.status] || '查看连接');
   function toggle(title, description, field, command) {
     return h('div', { className: 'fm-row', key: field }, h('div', null, h('div', { className: 'fm-label' }, title), h('p', null, description)),
       h('button', { type: 'button', className: 'fm-toggle', role: 'switch', 'aria-label': title, 'aria-checked': Boolean(settings[field]), disabled,
@@ -50,13 +50,14 @@ export function Panel({ controller, back }) {
   const button = (label, type, blocked = false, extra = {}) => h('button', { type: 'button', className: 'fm-button', disabled: disabled || blocked, onClick: () => controller.command(type), ...extra }, label);
   const platformRows = [['netease', '网易云音乐', '网'], ['qq', 'QQ 音乐', 'Q']].map(([id, title, mark]) => {
     const platform = state.platforms?.[id];
-    const label = !snapshot ? '读取中' : !platform?.installed ? '接口尚未接入' : ({
+    const label = !snapshot ? (state.initializationState === 'error' ? '读取失败' : '读取中')
+      : state.platformError ? '读取失败' : !platform?.installed ? '接口尚未接入' : ({
       authorized: '已登录', expired: '登录已过期', signed_out: '未登录',
       login_required: platform.account?.pending ? '等待扫码' : '未登录',
     }[platform.account?.status] || '未连接');
-    const available = id === 'netease' && platform?.installed;
+    const available = id === 'netease' && platform?.installed && !state.platformError;
     const selectedPlaylist=playlistId||state.playlists?.[0]?.id||'';
-    const action = platform?.account?.cleanupPending
+    const action = state.platformError ? null : platform?.account?.cleanupPending
       ? h('button', { type: 'button', className: 'fm-button', disabled: (state.busy || state.platformBusy) || !state.connected,
         onClick: () => controller.platformAction('logout', id) }, '重试清理凭据')
       : platform?.account?.status === 'authorized'
@@ -111,7 +112,10 @@ export function Panel({ controller, back }) {
     : null;
   const platformSection = h('section', null,
     h('h2', null, '音乐平台', h('small', null, 'ACCOUNTS')),
-    h('div', { className: 'fm-card' }, platformRows, loginPanel, importNotice, attempts,
+    h('div', { className: 'fm-card' }, platformRows,
+      state.platformError && h('div', { className: 'fm-notice', role: 'alert' }, state.platformError,
+        h('button', { type: 'button', className: 'fm-button', onClick: controller.refresh }, '重试连接状态')),
+      loginPanel, importNotice, attempts,
       h('p', { className: 'fm-platform-note' }, '近期记录优先，读取失败时尝试喜欢列表和用户歌单。QQ 接入暂缓。登录材料仅保存在本机。')));
 
   const preferencesColumn = h('div', {className:'fm-main-column'},

@@ -1,0 +1,978 @@
+{
+  "date": "2026-11-04",
+  "formalPackage": {
+    "version": "0.1.0",
+    "sha256": "9c0e4f2bd8d95ee5956e001a13ac1259052e3186286c7c019cf029f32fc92e4c"
+  },
+  "localFailure": {
+    "source": "github:A7m0spHere/dsh-feiyuFM",
+    "commit": "50c84428447eacde9c768389671fd312ad058366",
+    "coreExit": 1,
+    "errorCode": "MODULE_NOT_FOUND",
+    "module": "@neteasecloudmusicapienhanced/api",
+    "databaseSchema": 11,
+    "sourceDatabaseReadOnly": true,
+    "productionProfileChanged": false
+  },
+  "beforeFixRegression": {
+    "passed": 0,
+    "failed": 7
+  },
+  "runs": [
+    {
+      "name": "baseline",
+      "runtime": {
+        "initialized": true,
+        "selected": null,
+        "runtimeVersion": "0.2.1-rc.5",
+        "runtimeNode": "v24.21.0",
+        "credentialValuesPrinted": false
+      },
+      "rpc": {
+        "http": 200,
+        "ms": 1886,
+        "ok": true,
+        "snapshot": true,
+        "neteaseInstalled": true,
+        "libraryTotal": 0
+      },
+      "ui": {
+        "hasController": true,
+        "connected": true,
+        "hasSnapshot": true,
+        "error": "",
+        "neteaseInstalled": true,
+        "platformText": "网\n网易云音乐\n未登录\n扫码登录",
+        "loginButtons": [
+          {
+            "disabled": false,
+            "visible": true
+          }
+        ]
+      },
+      "finishedAt": "2026-11-04T05:59:03.347Z"
+    },
+    {
+      "name": "baseline-missing",
+      "runtime": {
+        "initialized": true,
+        "selected": null,
+        "runtimeVersion": "0.2.1-rc.5",
+        "runtimeNode": "v24.21.0",
+        "credentialValuesPrinted": false
+      },
+      "rpc": {
+        "http": 200,
+        "ms": 306,
+        "ok": false,
+        "error": {
+          "code": "core_unavailable",
+          "message": "The music core exited during startup with code 1",
+          "retryable": false,
+          "details": {}
+        },
+        "snapshot": false
+      },
+      "ui": {
+        "hasController": true,
+        "connected": false,
+        "hasSnapshot": false,
+        "error": "The music core exited during startup with code 1 (core_unavailable)",
+        "platformText": "网\n网易云音乐\n读取中",
+        "loginButtons": []
+      },
+      "finishedAt": "2026-11-04T06:03:56.191Z"
+    }
+  ],
+  "afterFix": {
+    "targeted": {
+      "tests": 100,
+      "passed": 100,
+      "failed": 0,
+      "skipped": 0
+    },
+    "initializationRegressions": {
+      "before": {
+        "passed": 0,
+        "failed": 7
+      },
+      "after": {
+        "passed": 7,
+        "failed": 0
+      },
+      "additionalStructuredStartupRecovery": 1
+    },
+    "currentSuite": {
+      "tests": 720,
+      "passed": 718,
+      "failed": 2,
+      "skipped": 0,
+      "durationMs": 133346.0216,
+      "failedCases": [
+        {
+          "file": "test/playback-warm.test.mjs",
+          "name": "the host writes its own silent resource rather than shipping one",
+          "code": "media_open_timeout",
+          "standaloneRetry": "failed",
+          "timeoutMs": 12000
+        },
+        {
+          "file": "test/playback-wpf.test.mjs",
+          "name": "WPF re-opens the same source after a resume-style reload",
+          "code": "media_open_timeout",
+          "standaloneRetry": "failed",
+          "timeoutMs": 8000
+        }
+      ],
+      "playbackFilesAndTestsUnchanged": true
+    },
+    "firstAutoDiscovery": {
+      "tests": 1375,
+      "passed": 1371,
+      "failed": 4,
+      "note": "Included pre-existing work/baseline tests; not the current-suite denominator"
+    },
+    "checks": {
+      "build": true,
+      "syntaxModules": 179,
+      "debugSmoke": true,
+      "packageWhitelist": true,
+      "dependencyNotices": true,
+      "documentLinks": 117,
+      "brokenLinks": 0,
+      "gitDiffCheck": true
+    },
+    "scope": {
+      "npmPublished": false,
+      "mainMerged": false,
+      "productionProfileChanged": false,
+      "accountAuthorization": "pending_user",
+      "lightweightOnboarding": "P1_not_started"
+    }
+  },
+  "verifiedRuns": [
+    {
+      "name": "published-interactive-final",
+      "packageSha256": "9c0e4f2bd8d95ee5956e001a13ac1259052e3186286c7c019cf029f32fc92e4c",
+      "installedVersion": "0.1.0",
+      "installedClientHash": "11a0188197476bd9bb17aa78e5749e2f7e0f2e1725b33cd00fde43b1f4f3976e",
+      "runtime": {
+        "initialized": true,
+        "selected": null,
+        "runtimeVersion": "0.2.1-rc.5",
+        "runtimeNode": "v24.21.0",
+        "credentialValuesPrinted": false
+      },
+      "hostPreviewDismissed": true,
+      "optionalHostSignInDismissed": true,
+      "clientMatchesInstalled": true,
+      "rpc": {
+        "http": 200,
+        "ms": 88,
+        "ok": true,
+        "snapshot": true,
+        "neteaseInstalled": true,
+        "libraryTotal": 0
+      },
+      "ui": {
+        "hasController": true,
+        "connected": true,
+        "hasSnapshot": true,
+        "error": "",
+        "neteaseInstalled": true,
+        "platformText": "网\n网易云音乐\n未登录\n扫码登录",
+        "loginButtons": [
+          {
+            "disabled": false,
+            "visible": true,
+            "clickable": true
+          }
+        ]
+      },
+      "qr": {
+        "status": "waiting",
+        "qrImage": true,
+        "errorCode": null,
+        "error": ""
+      },
+      "gracefulShutdown": true,
+      "initializationDiagnostics": [],
+      "finishedAt": "2026-11-04T06:39:37.873Z"
+    },
+    {
+      "name": "retained-interactive",
+      "packageSha256": "9c0e4f2bd8d95ee5956e001a13ac1259052e3186286c7c019cf029f32fc92e4c",
+      "installedVersion": "0.1.0",
+      "installedClientHash": "11a0188197476bd9bb17aa78e5749e2f7e0f2e1725b33cd00fde43b1f4f3976e",
+      "runtime": {
+        "initialized": true,
+        "selected": null,
+        "runtimeVersion": "0.2.1-rc.5",
+        "runtimeNode": "v24.21.0",
+        "credentialValuesPrinted": false
+      },
+      "hostPreviewDismissed": true,
+      "optionalHostSignInDismissed": true,
+      "clientMatchesInstalled": true,
+      "reinstallDatabaseUnchanged": true,
+      "rpc": {
+        "http": 200,
+        "ms": 103,
+        "ok": true,
+        "snapshot": true,
+        "neteaseInstalled": true,
+        "libraryTotal": 233
+      },
+      "ui": {
+        "hasController": true,
+        "connected": true,
+        "hasSnapshot": true,
+        "error": "",
+        "neteaseInstalled": true,
+        "platformText": "网\n网易云音乐\n未登录\n扫码登录",
+        "loginButtons": [
+          {
+            "disabled": false,
+            "visible": true,
+            "clickable": true
+          }
+        ]
+      },
+      "gracefulShutdown": true,
+      "initializationDiagnostics": [],
+      "finishedAt": "2026-11-04T06:37:44.282Z"
+    },
+    {
+      "name": "source-interactive",
+      "packageSha256": "55cb2feaf0cefac08ca6094b1599f309ce11ab25a2f403926b5e7b5c871c9487",
+      "installedVersion": "0.1.0",
+      "installedClientHash": "01a942a8a6b5ba079fdb8e2f509987933eaf783ff196b460e04bee6caeaee5c5",
+      "runtime": {
+        "initialized": true,
+        "selected": null,
+        "runtimeVersion": "0.2.1-rc.5",
+        "runtimeNode": "v24.21.0",
+        "credentialValuesPrinted": false
+      },
+      "hostPreviewDismissed": true,
+      "optionalHostSignInDismissed": true,
+      "clientMatchesInstalled": true,
+      "rpc": {
+        "http": 200,
+        "ms": 83,
+        "ok": true,
+        "snapshot": true,
+        "neteaseInstalled": true,
+        "libraryTotal": 0
+      },
+      "ui": {
+        "hasController": true,
+        "connected": true,
+        "hasSnapshot": true,
+        "error": "",
+        "neteaseInstalled": true,
+        "platformText": "网\n网易云音乐\n未登录\n扫码登录",
+        "loginButtons": [
+          {
+            "disabled": false,
+            "visible": true,
+            "clickable": true
+          }
+        ],
+        "initializationTrace": [
+          {
+            "phase": "rpc-start",
+            "code": null,
+            "durationMs": 0
+          },
+          {
+            "phase": "rpc-ok",
+            "code": null,
+            "durationMs": 213
+          },
+          {
+            "phase": "rpc-start",
+            "code": null,
+            "durationMs": 0
+          },
+          {
+            "phase": "rpc-ok",
+            "code": null,
+            "durationMs": 35
+          },
+          {
+            "phase": "rpc-start",
+            "code": null,
+            "durationMs": 0
+          },
+          {
+            "phase": "rpc-ok",
+            "code": null,
+            "durationMs": 1031
+          },
+          {
+            "phase": "rpc-start",
+            "code": null,
+            "durationMs": 0
+          },
+          {
+            "phase": "rpc-ok",
+            "code": null,
+            "durationMs": 48
+          },
+          {
+            "phase": "rpc-start",
+            "code": null,
+            "durationMs": 0
+          },
+          {
+            "phase": "rpc-ok",
+            "code": null,
+            "durationMs": 106
+          },
+          {
+            "phase": "rpc-start",
+            "code": null,
+            "durationMs": 0
+          },
+          {
+            "phase": "rpc-ok",
+            "code": null,
+            "durationMs": 49
+          },
+          {
+            "phase": "rpc-start",
+            "code": null,
+            "durationMs": 0
+          },
+          {
+            "phase": "rpc-ok",
+            "code": null,
+            "durationMs": 132
+          },
+          {
+            "phase": "rpc-start",
+            "code": null,
+            "durationMs": 0
+          },
+          {
+            "phase": "rpc-ok",
+            "code": null,
+            "durationMs": 43
+          },
+          {
+            "phase": "rpc-start",
+            "code": null,
+            "durationMs": 0
+          },
+          {
+            "phase": "rpc-ok",
+            "code": null,
+            "durationMs": 39
+          },
+          {
+            "phase": "rpc-start",
+            "code": null,
+            "durationMs": 0
+          },
+          {
+            "phase": "rpc-ok",
+            "code": null,
+            "durationMs": 27
+          }
+        ]
+      },
+      "gracefulShutdown": true,
+      "initializationDiagnostics": [
+        {
+          "seq": 9,
+          "at": 1793774186992,
+          "type": "initialization",
+          "phase": "core-start",
+          "status": "started",
+          "durationMs": 0
+        },
+        {
+          "seq": 10,
+          "at": 1793774186992,
+          "type": "initialization",
+          "phase": "core-start",
+          "status": "ok",
+          "durationMs": 0
+        },
+        {
+          "seq": 11,
+          "at": 1793774186992,
+          "type": "initialization",
+          "phase": "snapshot",
+          "status": "started",
+          "durationMs": 0
+        },
+        {
+          "seq": 12,
+          "at": 1793774186992,
+          "type": "initialization",
+          "phase": "platforms",
+          "status": "started",
+          "durationMs": 0
+        },
+        {
+          "seq": 13,
+          "at": 1793774186992,
+          "type": "initialization",
+          "phase": "library",
+          "status": "started",
+          "durationMs": 0
+        },
+        {
+          "seq": 14,
+          "at": 1793774187001,
+          "type": "initialization",
+          "phase": "snapshot",
+          "status": "ok",
+          "durationMs": 9
+        },
+        {
+          "seq": 15,
+          "at": 1793774187004,
+          "type": "initialization",
+          "phase": "platforms",
+          "status": "ok",
+          "durationMs": 12
+        },
+        {
+          "seq": 16,
+          "at": 1793774187006,
+          "type": "initialization",
+          "phase": "library",
+          "status": "ok",
+          "durationMs": 13
+        },
+        {
+          "seq": 17,
+          "at": 1793774190507,
+          "type": "initialization",
+          "phase": "core-start",
+          "status": "started",
+          "durationMs": 0
+        },
+        {
+          "seq": 18,
+          "at": 1793774190507,
+          "type": "initialization",
+          "phase": "core-start",
+          "status": "ok",
+          "durationMs": 0
+        },
+        {
+          "seq": 19,
+          "at": 1793774190507,
+          "type": "initialization",
+          "phase": "snapshot",
+          "status": "started",
+          "durationMs": 0
+        },
+        {
+          "seq": 20,
+          "at": 1793774190508,
+          "type": "initialization",
+          "phase": "platforms",
+          "status": "started",
+          "durationMs": 0
+        }
+      ],
+      "finishedAt": "2026-11-04T06:36:52.534Z"
+    },
+    {
+      "name": "final-interactive",
+      "packageSha256": "71a777b606cfca31b28f90a40d8b1e0fa79716c3f833b86a8f6ad0caec2c0faa",
+      "installedVersion": "0.1.0",
+      "installedClientHash": "d1ebd22d7b350ec71620a31b9fb61ca2ff392bbe6b529c700e847393ac0472e6",
+      "runtime": {
+        "initialized": true,
+        "selected": null,
+        "runtimeVersion": "0.2.1-rc.5",
+        "runtimeNode": "v24.21.0",
+        "credentialValuesPrinted": false
+      },
+      "hostPreviewDismissed": true,
+      "optionalHostSignInDismissed": true,
+      "clientMatchesInstalled": true,
+      "rpc": {
+        "http": 200,
+        "ms": 89,
+        "ok": true,
+        "snapshot": true,
+        "neteaseInstalled": true,
+        "libraryTotal": 0
+      },
+      "ui": {
+        "hasController": true,
+        "connected": true,
+        "hasSnapshot": true,
+        "error": "",
+        "neteaseInstalled": true,
+        "platformText": "网\n网易云音乐\n未登录\n扫码登录",
+        "loginButtons": [
+          {
+            "disabled": false,
+            "visible": true,
+            "clickable": true
+          }
+        ],
+        "initializationTrace": [
+          {
+            "phase": "rpc-start",
+            "code": null,
+            "durationMs": 0
+          },
+          {
+            "phase": "rpc-ok",
+            "code": null,
+            "durationMs": 161
+          },
+          {
+            "phase": "rpc-start",
+            "code": null,
+            "durationMs": 0
+          },
+          {
+            "phase": "rpc-ok",
+            "code": null,
+            "durationMs": 25
+          },
+          {
+            "phase": "rpc-start",
+            "code": null,
+            "durationMs": 0
+          },
+          {
+            "phase": "rpc-ok",
+            "code": null,
+            "durationMs": 286
+          },
+          {
+            "phase": "rpc-start",
+            "code": null,
+            "durationMs": 0
+          },
+          {
+            "phase": "rpc-ok",
+            "code": null,
+            "durationMs": 27
+          },
+          {
+            "phase": "rpc-start",
+            "code": null,
+            "durationMs": 0
+          },
+          {
+            "phase": "rpc-ok",
+            "code": null,
+            "durationMs": 20
+          },
+          {
+            "phase": "rpc-start",
+            "code": null,
+            "durationMs": 0
+          },
+          {
+            "phase": "rpc-ok",
+            "code": null,
+            "durationMs": 18
+          },
+          {
+            "phase": "rpc-start",
+            "code": null,
+            "durationMs": 0
+          },
+          {
+            "phase": "rpc-ok",
+            "code": null,
+            "durationMs": 19
+          },
+          {
+            "phase": "rpc-start",
+            "code": null,
+            "durationMs": 0
+          },
+          {
+            "phase": "rpc-ok",
+            "code": null,
+            "durationMs": 24
+          },
+          {
+            "phase": "rpc-start",
+            "code": null,
+            "durationMs": 0
+          },
+          {
+            "phase": "rpc-ok",
+            "code": null,
+            "durationMs": 16
+          },
+          {
+            "phase": "rpc-start",
+            "code": null,
+            "durationMs": 0
+          },
+          {
+            "phase": "rpc-ok",
+            "code": null,
+            "durationMs": 19
+          }
+        ]
+      },
+      "qr": {
+        "status": "waiting",
+        "qrImage": true,
+        "errorCode": null,
+        "error": ""
+      },
+      "gracefulShutdown": true,
+      "initializationDiagnostics": [
+        {
+          "seq": 8,
+          "at": 1793774077533,
+          "type": "initialization",
+          "phase": "core-start",
+          "status": "started",
+          "durationMs": 0
+        },
+        {
+          "seq": 9,
+          "at": 1793774077533,
+          "type": "initialization",
+          "phase": "core-start",
+          "status": "ok",
+          "durationMs": 0
+        },
+        {
+          "seq": 10,
+          "at": 1793774077533,
+          "type": "initialization",
+          "phase": "snapshot",
+          "status": "started",
+          "durationMs": 0
+        },
+        {
+          "seq": 11,
+          "at": 1793774077533,
+          "type": "initialization",
+          "phase": "platforms",
+          "status": "started",
+          "durationMs": 0
+        },
+        {
+          "seq": 12,
+          "at": 1793774077533,
+          "type": "initialization",
+          "phase": "library",
+          "status": "started",
+          "durationMs": 0
+        },
+        {
+          "seq": 13,
+          "at": 1793774077565,
+          "type": "initialization",
+          "phase": "snapshot",
+          "status": "ok",
+          "durationMs": 32
+        },
+        {
+          "seq": 14,
+          "at": 1793774077567,
+          "type": "initialization",
+          "phase": "platforms",
+          "status": "ok",
+          "durationMs": 34
+        },
+        {
+          "seq": 15,
+          "at": 1793774077569,
+          "type": "initialization",
+          "phase": "library",
+          "status": "ok",
+          "durationMs": 35
+        },
+        {
+          "seq": 16,
+          "at": 1793774080644,
+          "type": "initialization",
+          "phase": "core-start",
+          "status": "started",
+          "durationMs": 0
+        },
+        {
+          "seq": 17,
+          "at": 1793774080644,
+          "type": "initialization",
+          "phase": "core-start",
+          "status": "ok",
+          "durationMs": 0
+        },
+        {
+          "seq": 18,
+          "at": 1793774080644,
+          "type": "initialization",
+          "phase": "snapshot",
+          "status": "started",
+          "durationMs": 0
+        },
+        {
+          "seq": 19,
+          "at": 1793774080645,
+          "type": "initialization",
+          "phase": "platforms",
+          "status": "started",
+          "durationMs": 0
+        }
+      ],
+      "finishedAt": "2026-11-04T06:35:02.839Z"
+    },
+    {
+      "name": "recovery-interactive",
+      "packageSha256": "71a777b606cfca31b28f90a40d8b1e0fa79716c3f833b86a8f6ad0caec2c0faa",
+      "installedVersion": "0.1.0",
+      "installedClientHash": "d1ebd22d7b350ec71620a31b9fb61ca2ff392bbe6b529c700e847393ac0472e6",
+      "runtime": {
+        "initialized": true,
+        "selected": null,
+        "runtimeVersion": "0.2.1-rc.5",
+        "runtimeNode": "v24.21.0",
+        "credentialValuesPrinted": false
+      },
+      "hostPreviewDismissed": true,
+      "optionalHostSignInDismissed": true,
+      "clientMatchesInstalled": true,
+      "rpc": {
+        "http": 200,
+        "ms": 465,
+        "ok": false,
+        "error": {
+          "code": "dependency_missing",
+          "message": "网易云运行依赖缺失，请通过 DSH 插件管理器重新安装 npm 正式包 dsh-feiyufm，完整退出后重开 DSH。",
+          "retryable": true,
+          "details": {}
+        },
+        "snapshot": false
+      },
+      "ui": {
+        "hasController": true,
+        "connected": false,
+        "hasSnapshot": false,
+        "error": "网易云运行依赖缺失，请通过 DSH 插件管理器重新安装 npm 正式包 dsh-feiyufm，完整退出后重开 DSH。 (dependency_missing)",
+        "platformText": "网\n网易云音乐\n读取失败",
+        "loginButtons": [],
+        "initializationTrace": [
+          {
+            "phase": "rpc-start",
+            "code": null,
+            "durationMs": 0
+          },
+          {
+            "phase": "rpc-error",
+            "code": "dependency_missing",
+            "durationMs": 792
+          },
+          {
+            "phase": "rpc-start",
+            "code": null,
+            "durationMs": 0
+          },
+          {
+            "phase": "rpc-error",
+            "code": "dependency_missing",
+            "durationMs": 2287
+          },
+          {
+            "phase": "rpc-start",
+            "code": null,
+            "durationMs": 0
+          },
+          {
+            "phase": "rpc-error",
+            "code": "dependency_missing",
+            "durationMs": 546
+          },
+          {
+            "phase": "rpc-start",
+            "code": null,
+            "durationMs": 0
+          },
+          {
+            "phase": "rpc-error",
+            "code": "dependency_missing",
+            "durationMs": 469
+          },
+          {
+            "phase": "rpc-start",
+            "code": null,
+            "durationMs": 0
+          },
+          {
+            "phase": "rpc-error",
+            "code": "dependency_missing",
+            "durationMs": 453
+          },
+          {
+            "phase": "rpc-start",
+            "code": null,
+            "durationMs": 0
+          },
+          {
+            "phase": "rpc-error",
+            "code": "dependency_missing",
+            "durationMs": 343
+          },
+          {
+            "phase": "rpc-start",
+            "code": null,
+            "durationMs": 0
+          },
+          {
+            "phase": "rpc-error",
+            "code": "dependency_missing",
+            "durationMs": 407
+          },
+          {
+            "phase": "rpc-start",
+            "code": null,
+            "durationMs": 0
+          },
+          {
+            "phase": "rpc-error",
+            "code": "dependency_missing",
+            "durationMs": 361
+          },
+          {
+            "phase": "rpc-start",
+            "code": null,
+            "durationMs": 0
+          },
+          {
+            "phase": "rpc-error",
+            "code": "dependency_missing",
+            "durationMs": 373
+          }
+        ]
+      },
+      "recovery": {
+        "connected": true,
+        "hasSnapshot": true,
+        "error": "",
+        "loginButton": true
+      },
+      "gracefulShutdown": true,
+      "initializationDiagnostics": [
+        {
+          "seq": 7,
+          "at": 1793774191542,
+          "type": "initialization",
+          "phase": "core-start",
+          "status": "error",
+          "code": "dependency_missing"
+        },
+        {
+          "seq": 9,
+          "at": 1793774195655,
+          "type": "initialization",
+          "phase": "core-start",
+          "status": "started",
+          "durationMs": 0
+        },
+        {
+          "seq": 10,
+          "at": 1793774196071,
+          "type": "initialization",
+          "phase": "core-start",
+          "status": "error",
+          "code": "dependency_missing"
+        },
+        {
+          "seq": 11,
+          "at": 1793774196072,
+          "type": "initialization",
+          "phase": "core-start",
+          "status": "error",
+          "code": "dependency_missing",
+          "durationMs": 418
+        },
+        {
+          "seq": 12,
+          "at": 1793774200216,
+          "type": "initialization",
+          "phase": "core-start",
+          "status": "started",
+          "durationMs": 0
+        },
+        {
+          "seq": 13,
+          "at": 1793774200931,
+          "type": "initialization",
+          "phase": "core-start",
+          "status": "error",
+          "code": "dependency_missing"
+        },
+        {
+          "seq": 14,
+          "at": 1793774200931,
+          "type": "initialization",
+          "phase": "core-start",
+          "status": "error",
+          "code": "dependency_missing",
+          "durationMs": 715
+        },
+        {
+          "seq": 15,
+          "at": 1793774202417,
+          "type": "initialization",
+          "phase": "core-start",
+          "status": "started",
+          "durationMs": 0
+        },
+        {
+          "seq": 16,
+          "at": 1793774204692,
+          "type": "initialization",
+          "phase": "core-start",
+          "status": "error",
+          "code": "dependency_missing"
+        },
+        {
+          "seq": 17,
+          "at": 1793774204692,
+          "type": "initialization",
+          "phase": "core-start",
+          "status": "error",
+          "code": "dependency_missing",
+          "durationMs": 2275
+        },
+        {
+          "seq": 18,
+          "at": 1793774206824,
+          "type": "initialization",
+          "phase": "core-start",
+          "status": "started",
+          "durationMs": 0
+        },
+        {
+          "seq": 19,
+          "at": 1793774207358,
+          "type": "initialization",
+          "phase": "core-start",
+          "status": "error",
+          "code": "dependency_missing"
+        }
+      ],
+      "finishedAt": "2026-11-04T06:37:12.431Z"
+    }
+  ],
+  "packageDistinction": {
+    "publishedSha256": "9c0e4f2bd8d95ee5956e001a13ac1259052e3186286c7c019cf029f32fc92e4c",
+    "localUnpublishedFixSha256": "71a777b606cfca31b28f90a40d8b1e0fa79716c3f833b86a8f6ad0caec2c0faa",
+    "sourceTarballContainsBundledDependencies": false,
+    "npmReleaseTarballContainsBundledDependencies": true
+  },
+  "supersededProbeResults": "Earlier DOM-only/overlaid or mixed-checkout-client runs excluded from final UI acceptance."
+}

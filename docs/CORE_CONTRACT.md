@@ -48,6 +48,20 @@ Provider 暴露账号和能力状态，`resolve(track, {signal, version})` 返�
 
 ## 3. Host、UI RPC 与快照
 
+初始化必须先完成 `bridge.start()`。Core 启动异常通过 `startup-error` 返回固定错误码；缺依赖为 `dependency_missing`，启动超时为 `core_start_timeout`，意外退出为 `core_exited`，请求超时为 `core_request_timeout`。不把原始异常、路径或凭据放进启动应答。
+
+`fishfm/state` 的 snapshot 为必要结果；platforms／library 分别结算，失败时保留其余成功结果，附 `platformError`／`libraryError` 固定描述与安全错误码，不伪造平台可用性或清空已有曲库。platforms 失败时客户端收起账号操作并提供“重试连接状态”；曲库失败不阻断可用平台的扫码入口。客户端状态读取 18 秒到期后必须结束本次等待、释放读取锁，即使宿主 RPC 忽略 abort 也能重试；迟到应答不写入新状态。
+
+曲库不参与初始化的完成屏障：snapshot／platforms（完整读取时还含原有画像项）就绪后，只收集此时已完成的 library；未完成则返回 `libraryPending:true` 并取消本次初始曲库请求，不伪装成读取失败。客户端通过既有 `fishfm/library` 独立读取；轮询不取消或重复启动该查询，旧页码／旧代次不能覆盖新结果。独立读取同样有 18 秒实际结束等待的上限，超时只显示曲库错误和重新查询入口，保持平台登录可用；失败后由用户重试或后续成功的状态曲库结果恢复。不新增接口或存储结构。
+
+导入、清空输入库与撤销恢复确认成功后，客户端推进曲库读取代次并取消确认前的独立查询；迟到查询及轮询不能覆盖新库。写入期间若用户切换查询／页码，旧写响应的曲库页被丢弃，保留用户选择并重新读取一次。写响应自身返回 `libraryPending` 时也走同一独立读取，不阻塞写入完成或播放控制。
+
+轮询与平台操作共用状态投影：`platformError/libraryError` 不因操作成功而丢失；收到新的平台／曲库数据才清对应旧错误，未返回的曲库保留原缓存。平台读取失败时清除可用性缓存，界面显示未知／失败并提供重试，不能把旧 authorized 当成当前授权。真实授权判定仍由 Core 完成。复现与回归见 [P0-08](spikes/P0-08-client-state-ordering.md)。
+
+平台操作开始及应答／恢复时推进独立的平台代次，轮询只可写入同代的平台状态与错误；旧轮询不能在退出后恢复旧授权或清除新错误。该保护只丢弃过期的平台字段，不取消同时进行的播放快照和独立曲库读取。
+
+初始化诊断记录 `type=initialization`、`phase=core-start/snapshot/platforms/library`、`status=started/ok/error`、安全 `code` 与 `durationMs`。客户端 `getInitializationTrace()` 保留最多 60 条 RPC 阶段、错误码及耗时；不携带请求 payload、账号、曲名、Cookie、二维码 key 或链接。证据与安装边界见 [P0 初始化修复](spikes/P0-07-initial-state.md)。
+
 Host 协议 v1 使用 JSON-lines：启动发 `ready`，请求返回带 `id` 的 `result/error`，状态变化发 `state`，退出发 `exiting`。快照含递增 `revision`、开关、策略、队列、当前实例、暂停和错误，不含凭据或 handle。
 
 客户端所有快照入口统一拒绝较低 `revision`；相等时拒绝较低 `commandVersion`。正常 Core 重启保留存储 revision，增加 commandVersion 并恢复暂停，因此重连可接收暂停，重启前迟到响应不能覆盖它。独立 playbackEpoch 继续保护本地播放命令取代的请求。

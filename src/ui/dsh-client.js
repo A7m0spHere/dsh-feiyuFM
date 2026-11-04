@@ -674,6 +674,12 @@ window.__ModuleLoader__.load({
       // handles. A diagnostic reader can correlate RPC and host stages without
       // adding a request to the user action or the ordinary poll.
       const playbackTrace = [];
+      const initializationTrace = [];
+      const initializationDiagnostic = (phase, code, started) => {
+        initializationTrace.push({ phase, code: /^[\w:.-]{1,100}$/.test(String(code ?? '')) ? code : null,
+          durationMs: Math.round((globalThis.performance?.now?.() ?? Date.now()) - started) });
+        if (initializationTrace.length > 60) initializationTrace.shift();
+      };
       const traceSession = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
       let traceSerial = 0;
       const traceInstances = new Map();
@@ -684,7 +690,7 @@ window.__ModuleLoader__.load({
         try { onPlaybackTrace?.({ ...entry }); } catch { /* Diagnostics cannot interrupt playback. */ }
       };
       let state = {
-        snapshot: null, platforms: {}, busy: false, transportPending: null, platformBusy: false, connected: false, error: '', notice: '', recommendationChoice: '',
+        snapshot: null, platforms: {}, initializationState: 'idle', platformError: '', busy: false, transportPending: null, platformBusy: false, connected: false, error: '', notice: '', recommendationChoice: '',
         libraryBusy: false, libraryError: '', libraryQuery: '',
         expression: null, expressionBusy: false, expressionError: '', expressionNotice: '',
         feedbackPage: null, feedbackListBusy: false, feedbackClearBusy: false, feedbackError: '', feedbackNotice: '',
@@ -696,7 +702,7 @@ window.__ModuleLoader__.load({
         spectrumVisible: readPreference(SPECTRUM_VISIBLE_KEY, true) !== false,
         motion: ['full', 'reduced', 'off'].includes(readPreference(MOTION_KEY, 'full')) ? readPreference(MOTION_KEY, 'full') : 'full',
       };
-      let epoch = 0, playbackEpoch = 0, libraryEpoch = 0, timer, playbackTimer, read, transportWrite, settingsWrite, platformWrite, libraryRead,summaryWrite,expressionWrite, disposed = false;
+      let epoch = 0, playbackEpoch = 0, libraryEpoch = 0, platformEpoch = 0, timer, playbackTimer, read, transportWrite, settingsWrite, platformWrite, libraryRead,summaryWrite,expressionWrite, disposed = false;
       const writes = new Set();
       const transportCommands = new Set(['pause', 'resume', 'next', 'previous', 'requestTrack', 'stopForToday']);
       let libraryOptions = { query: '', offset: 0, limit: 12 };
@@ -757,11 +763,19 @@ window.__ModuleLoader__.load({
       const syncVisibility = () => { if (document.hidden) clearTimeout(playbackTimer); else followPlayback(); };
       document.addEventListener?.('visibilitychange', syncVisibility);
       const failure = error => `${error?.message || '音乐服务连接失败，请刷新重试。'}${error?.code ? ` (${error.code})` : ''}`;
-      const unreachable = error => !error?.code || error.code === 'core_unavailable';
-      const project = (value, libraryVersion, playbackVersion = null) => {
+      const unreachable = error => !error?.code || ['core_unavailable', 'core_exited', 'core_start_failed',
+        'dependency_missing', 'core_start_timeout', 'core_request_timeout', 'rpc_timeout'].includes(error.code);
+      const project = (value, libraryVersion, playbackVersion = null, platformVersion = platformEpoch) => {
         const patch = { ...value };
-        if (libraryVersion !== libraryEpoch) delete patch.library;
-        else if (patch.library?.offset !== undefined) libraryOptions = { ...libraryOptions, offset: patch.library.offset };
+        delete patch.libraryPending;
+        if (platformVersion !== platformEpoch) { delete patch.platforms; delete patch.platformError; }
+        else if (patch.platformError) patch.platforms = {};
+        else if (Object.hasOwn(patch, 'platforms')) patch.platformError = '';
+        if (libraryVersion !== libraryEpoch) { delete patch.library; delete patch.libraryError; }
+        else if (Object.hasOwn(patch, 'library')) {
+          patch.libraryError ??= '';
+          if (patch.library?.offset !== undefined) libraryOptions = { ...libraryOptions, offset: patch.library.offset };
+        }
         const incoming = patch.snapshot, current = state.snapshot;
         // Startup retains revision but advances commandVersion and restores pause.
         // Apply ordering to every entrance, including polling and command replies.
@@ -782,6 +796,22 @@ window.__ModuleLoader__.load({
         }
         return patch;
       };
+      function libraryWriteReply(value, requestedVersion) {
+        const sameView = requestedVersion === libraryEpoch;
+        ++libraryEpoch;
+        libraryRead?.abort(); libraryRead = null;
+        const reply = { ...value };
+        // A query selected during the write remains the user's current view. The
+        // write's old page cannot replace it; re-read that selected view instead.
+        if (!sameView) { delete reply.library; delete reply.libraryError; }
+        if (!Object.hasOwn(reply, 'library') && !Object.hasOwn(reply, 'libraryError')) reply.libraryPending = true;
+        return reply;
+      }
+      function followLibrary(value, requestedVersion) {
+        if (value.libraryPending && requestedVersion === libraryEpoch && !libraryRead && !state.libraryError) {
+          void controllerApi.queryLibrary(libraryOptions.query, libraryOptions.offset);
+        }
+      }
       function applyFeedbackPage(page, version) {
         if (version !== feedbackEpoch || page?.version !== 1 || !Number.isSafeInteger(page.revision)) return;
         if (page.revision < feedbackRevision) { feedbackRequestedRevision = page.revision; return; }
@@ -866,40 +896,60 @@ window.__ModuleLoader__.load({
         const version = ++epoch;
         const libraryVersion = libraryEpoch;
         const playbackVersion = playbackEpoch;
+        const platformVersion = platformEpoch;
         const controller = new AbortController();
         read = controller;
-        const timeout = setTimeout(() => controller.abort(), 18000);
+        const started = globalThis.performance?.now?.() ?? Date.now();
+        initializationDiagnostic('rpc-start', null, started);
+        if (state.initializationState === 'idle') emit({ initializationState: 'loading' });
+        let timeout, onAbort;
+        // The host RPC may ignore AbortSignal. Race it explicitly so one lost
+        // response cannot hold `read` forever and prevent both polling and retry.
+        const interrupted = new Promise((_, reject) => {
+          onAbort = () => reject({ code: 'cancelled', message: '状态读取已取消。' });
+          controller.signal.addEventListener('abort', onAbort, { once: true });
+          timeout = setTimeout(() => {
+            reject({ code: 'rpc_timeout', message: '音乐服务状态读取超时，请重试。' });
+            controller.abort();
+          }, 18000);
+        });
         try {
           const playbackOnly = Boolean(state.transportPending || ['resolving', 'selecting'].includes(state.snapshot?.status));
           // Every poll stays light: snapshot/platforms/library only. Profile data is
           // loaded on demand by ensureProfile and refreshed by invalidation events.
-          const result = await connection.rpc.call('/api', 'fishfm/state',
-            playbackOnly ? { playbackOnly: true } : { minimal: true, library: libraryOptions }, controller.signal);
+          const result = await Promise.race([connection.rpc.call('/api', 'fishfm/state',
+            playbackOnly ? { playbackOnly: true } : { minimal: true, library: libraryOptions }, controller.signal), interrupted]);
           if (version !== epoch) return;
           if (!result.ok) throw result.error;
-          const projected = project(result.value, libraryVersion, playbackVersion);
+          if (!result.value?.snapshot || typeof result.value.snapshot !== 'object') throw { code: 'invalid_state', message: '音乐服务状态应答不完整，请重试。' };
+          const projected = project(result.value, libraryVersion, playbackVersion, platformVersion);
           const discovery = projected.snapshot?.discovery;
           const finishedDiscovery = state.notice === '正在找新歌…' && discovery && !discovery.refreshing;
           const wasConnected = state.connected;
-          emit({ ...projected, ...(libraryVersion === libraryEpoch ? { libraryError: '' } : {}), connected: true, error: '', ...(finishedDiscovery ? {
+          emit({ ...projected, initializationState: 'ready', connected: true, error: '', ...(finishedDiscovery ? {
             notice: discovery.state === 'disabled' ? '探索已关闭。' : discovery.reason && discovery.reason !== 'no-unfamiliar-candidates'
               ? '新歌没找成功，请查看状态。' : '新歌列表已更新。',
           } : {}) });
+          followLibrary(result.value, libraryVersion);
           if (profileWanted && state.profileState === 'idle' && !profileRead) void loadProfile();
           // A reconnect can leave the cached profile stale; refresh it once.
           else if (profileWanted && !wasConnected && state.profileState === 'ready') scheduleProfileRefresh();
           else if (profileWanted && !wasConnected && state.profileState === 'error') ensureProfile();
+          initializationDiagnostic('rpc-ok', null, started);
         } catch (error) {
-          if (version === epoch) emit({ connected: false, error: failure(error) });
+          initializationDiagnostic('rpc-error', error?.code, started);
+          if (version === epoch) emit({ initializationState: 'error', connected: false, error: failure(error), errorCode: error?.code ?? null });
         } finally {
           clearTimeout(timeout);
+          controller.signal.removeEventListener('abort', onAbort);
           if (read === controller) read = null;
           followPlayback();
         }
       }
-      return {
+      const controllerApi = {
         getSnapshot: () => state,
         getPlaybackTrace: () => playbackTrace.map(entry => ({ ...entry })),
+        getInitializationTrace: () => initializationTrace.map(entry => ({ ...entry })),
         setPlaybackEffects(value) {
           writePreference(PLAYBACK_EFFECTS_KEY, value === true);
           emit({ playbackEffects: value === true });
@@ -978,10 +1028,15 @@ window.__ModuleLoader__.load({
           libraryRead?.abort();
           const controller = new AbortController();
           libraryRead = controller;
-          const timeout = setTimeout(() => controller.abort(), 18000);
+          let timeout, onAbort;
+          const interrupted = new Promise((_, reject) => {
+            onAbort = () => reject({ code: 'cancelled', message: '曲库读取已取消。' });
+            controller.signal.addEventListener('abort', onAbort, { once: true });
+            timeout = setTimeout(() => { reject({ code: 'rpc_timeout', message: '曲库读取超时，请重新查询。' }); controller.abort(); }, 18000);
+          });
           emit({ libraryQuery: query, libraryBusy: true, libraryError: '' });
           try {
-            const result = await connection.rpc.call('/api', 'fishfm/library', libraryOptions, controller.signal);
+            const result = await Promise.race([connection.rpc.call('/api', 'fishfm/library', libraryOptions, controller.signal), interrupted]);
             if (version !== libraryEpoch) return;
             if (!result.ok) throw result.error;
             emit(project(result.value, version));
@@ -989,6 +1044,7 @@ window.__ModuleLoader__.load({
             if (version === libraryEpoch) emit({ libraryError: failure(error) });
           } finally {
             clearTimeout(timeout);
+            controller.signal.removeEventListener('abort', onAbort);
             if (libraryRead === controller) { libraryRead = null; emit({ libraryBusy: false }); }
           }
         },
@@ -1018,7 +1074,8 @@ window.__ModuleLoader__.load({
           const traceId = transport ? `${traceSession}-${++traceSerial}` : null;
           if (transport) trace('ui-click', { traceId, kind: type });
           const playbackVersion = ++playbackEpoch;
-          const libraryVersion = libraryEpoch;
+          let libraryVersion = libraryEpoch;
+          const changesLibrary = ['resetLibrary', 'undoTasteReset'].includes(type);
           ++epoch; read?.abort(); read = null;
           const request = new AbortController(); writes.add(request);
           if (transport) {
@@ -1047,7 +1104,12 @@ window.__ModuleLoader__.load({
             }
             const feedbackNotice = type==='setTrackFeedback' ? value.value===1?'已喜欢，将提高这首歌的排序权重':value.value===-1?'已降低这首歌的排序权重':'已撤销这首歌的反馈'
               :type==='resetTaste'?'已重置成长偏好，输入曲库保留':type==='resetLibrary'?'已清空输入曲库并重建偏好，可撤销':type==='undoTasteReset'?'已恢复最近一次重置前的数据':type==='setRecommendationMode'?'推荐来源已更新':null;
-            emit({ ...project(result.value, libraryVersion, playbackVersion),...(['resetTaste','resetLibrary','undoTasteReset','setRecommendationMode'].includes(type)?{summaryNotice:'',summaryError:''}:{}),...(type==='resetLibrary'?{imported:null,importAttempts:[]}:{}), notice: feedbackNotice || (transport ? '' : '已保存到本机') });
+            const stateValue = changesLibrary ? libraryWriteReply(result.value, libraryVersion) : result.value;
+            if (changesLibrary) libraryVersion = libraryEpoch;
+            const projected = project(stateValue, libraryVersion, playbackVersion);
+            emit({ ...projected, ...(changesLibrary ? { libraryBusy: false, libraryError: projected.libraryError ?? '' } : {}),
+              ...(['resetTaste','resetLibrary','undoTasteReset','setRecommendationMode'].includes(type)?{summaryNotice:'',summaryError:''}:{}),...(type==='resetLibrary'?{imported:null,importAttempts:[]}:{}), notice: feedbackNotice || (transport ? '' : '已保存到本机') });
+            if (changesLibrary) followLibrary(stateValue, libraryVersion);
           } catch (error) {
             if (transport && transportWrite !== request) return;
             const actionError = ['no_candidates', 'autonomy_blocked', 'constraint_conflict', 'invalid_command', 'media_unavailable','stale_track','summary_busy','no_reset_backup','invalid_track'].includes(error?.code);
@@ -1070,7 +1132,9 @@ window.__ModuleLoader__.load({
           if (disposed || state.busy || state.platformBusy || !state.connected) return;
           const endpoint = ({ begin: 'fishfm/login-start', poll: 'fishfm/login-poll', import: 'fishfm/import', logout: 'fishfm/logout', discovery: 'fishfm/discovery-refresh', playlists:'fishfm/playlists' })[action];
           if (!endpoint) return;
-          const playbackVersion = playbackEpoch, libraryVersion = libraryEpoch;
+          const playbackVersion = playbackEpoch;
+          let libraryVersion = libraryEpoch;
+          ++platformEpoch;
           const progress = action === 'poll' ? '正在确认手机扫码…'
             : action === 'import' ? options.source ? `正在读取${sourceNames[options.source]||'指定来源'}…` : '正在读取近期记录；若不可用会继续尝试喜欢列表和用户歌单…'
               : action === 'begin' ? '正在向网易云申请二维码…' : '正在连接音乐平台…';
@@ -1082,10 +1146,16 @@ window.__ModuleLoader__.load({
             const result = await connection.rpc.call('/api', endpoint, { provider, library: libraryOptions,
               ...(action==='import'?{source:options.source??null,playlistId:options.playlistId??null}:{}) }, controller.signal);
             if (!result.ok) throw result.error;
-            const value = result.value;
+            ++platformEpoch;
+            const changesLibrary = action === 'import';
+            const value = changesLibrary ? libraryWriteReply(result.value, libraryVersion) : result.value;
+            if (changesLibrary) libraryVersion = libraryEpoch;
             const login = Object.hasOwn(value, 'login') ? value.login : state.login;
             if (action === 'poll' && login) login.qrImage = state.login?.qrImage;
-            emit({ ...project({ snapshot: value.snapshot, library: value.library ?? state.library, persona: value.persona ?? state.persona }, libraryVersion, playbackVersion), platforms: value.platforms ?? state.platforms, login,
+            const projected = project(value, libraryVersion, playbackVersion);
+            delete projected.attempts;
+            emit({ ...projected, ...(changesLibrary ? { libraryBusy: false, libraryError: projected.libraryError ?? '' } : {}),
+              platforms: projected.platforms ?? state.platforms, login,
               insights:value.insights??state.insights,
               playlists: value.playlists??state.playlists,
               imported: action === 'logout' ? null : Object.hasOwn(value, 'imported') ? value.imported : state.imported,
@@ -1100,7 +1170,9 @@ window.__ModuleLoader__.load({
                     : value.login?.status === 'scanned' ? '已扫码，请在手机上确认登录。'
                       : value.login?.status === 'expired' ? '二维码已过期，请重新获取。'
                         : action === 'begin' ? '请用网易云音乐 App 扫描二维码。' : '等待手机确认…') });
+            followLibrary(value, libraryVersion);
           } catch (error) {
+            ++platformEpoch;
             const details = error?.details ?? {};
             let latest = {}, connected = !unreachable(error);
             try {
@@ -1175,6 +1247,7 @@ window.__ModuleLoader__.load({
           window.removeEventListener?.('storage', syncPlaybackEffects);
           document.removeEventListener?.('visibilitychange', syncVisibility); },
       };
+      return controllerApi;
     }
 
     // src/ui/client/components.mjs
@@ -1732,7 +1805,7 @@ window.__ModuleLoader__.load({
       const positionMs = useSmoothProgress(current, presentation.active);
       const insights=state.insights;
       const art = presentation.art;
-      const accountHint = !state.connected ? '连接中断' : ({authorized:'网易云已登录',expired:'登录已过期',signed_out:'未登录',login_required:'等待登录'}[state.platforms?.netease?.account?.status] || '查看连接');
+      const accountHint = state.platformError ? '连接状态读取失败' : !state.connected ? '连接中断' : ({authorized:'网易云已登录',expired:'登录已过期',signed_out:'未登录',login_required:'等待登录'}[state.platforms?.netease?.account?.status] || '查看连接');
       function toggle(title, description, field, command) {
         return h('div', { className: 'fm-row', key: field }, h('div', null, h('div', { className: 'fm-label' }, title), h('p', null, description)),
           h('button', { type: 'button', className: 'fm-toggle', role: 'switch', 'aria-label': title, 'aria-checked': Boolean(settings[field]), disabled,
@@ -1741,13 +1814,14 @@ window.__ModuleLoader__.load({
       const button = (label, type, blocked = false, extra = {}) => h('button', { type: 'button', className: 'fm-button', disabled: disabled || blocked, onClick: () => controller.command(type), ...extra }, label);
       const platformRows = [['netease', '网易云音乐', '网'], ['qq', 'QQ 音乐', 'Q']].map(([id, title, mark]) => {
         const platform = state.platforms?.[id];
-        const label = !snapshot ? '读取中' : !platform?.installed ? '接口尚未接入' : ({
+        const label = !snapshot ? (state.initializationState === 'error' ? '读取失败' : '读取中')
+          : state.platformError ? '读取失败' : !platform?.installed ? '接口尚未接入' : ({
           authorized: '已登录', expired: '登录已过期', signed_out: '未登录',
           login_required: platform.account?.pending ? '等待扫码' : '未登录',
         }[platform.account?.status] || '未连接');
-        const available = id === 'netease' && platform?.installed;
+        const available = id === 'netease' && platform?.installed && !state.platformError;
         const selectedPlaylist=playlistId||state.playlists?.[0]?.id||'';
-        const action = platform?.account?.cleanupPending
+        const action = state.platformError ? null : platform?.account?.cleanupPending
           ? h('button', { type: 'button', className: 'fm-button', disabled: (state.busy || state.platformBusy) || !state.connected,
             onClick: () => controller.platformAction('logout', id) }, '重试清理凭据')
           : platform?.account?.status === 'authorized'
@@ -1802,7 +1876,10 @@ window.__ModuleLoader__.load({
         : null;
       const platformSection = h('section', null,
         h('h2', null, '音乐平台', h('small', null, 'ACCOUNTS')),
-        h('div', { className: 'fm-card' }, platformRows, loginPanel, importNotice, attempts,
+        h('div', { className: 'fm-card' }, platformRows,
+          state.platformError && h('div', { className: 'fm-notice', role: 'alert' }, state.platformError,
+            h('button', { type: 'button', className: 'fm-button', onClick: controller.refresh }, '重试连接状态')),
+          loginPanel, importNotice, attempts,
           h('p', { className: 'fm-platform-note' }, '近期记录优先，读取失败时尝试喜欢列表和用户歌单。QQ 接入暂缓。登录材料仅保存在本机。')));
 
       const preferencesColumn = h('div', {className:'fm-main-column'},
