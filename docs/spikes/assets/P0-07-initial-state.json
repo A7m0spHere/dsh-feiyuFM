@@ -1,0 +1,87 @@
+{
+  "date": "2026-11-04",
+  "formalPackage": {
+    "version": "0.1.0",
+    "sha256": "9c0e4f2bd8d95ee5956e001a13ac1259052e3186286c7c019cf029f32fc92e4c"
+  },
+  "localFailure": {
+    "source": "github:A7m0spHere/dsh-feiyuFM",
+    "commit": "50c84428447eacde9c768389671fd312ad058366",
+    "coreExit": 1,
+    "errorCode": "MODULE_NOT_FOUND",
+    "module": "@neteasecloudmusicapienhanced/api",
+    "databaseSchema": 11,
+    "sourceDatabaseReadOnly": true,
+    "productionProfileChanged": false
+  },
+  "beforeFixRegression": {
+    "passed": 0,
+    "failed": 7
+  },
+  "runs": [
+    {
+      "name": "baseline",
+      "runtime": {
+        "initialized": true,
+        "selected": null,
+        "runtimeVersion": "0.2.1-rc.5",
+        "runtimeNode": "v24.21.0",
+        "credentialValuesPrinted": false
+      },
+      "rpc": {
+        "http": 200,
+        "ms": 1886,
+        "ok": true,
+        "snapshot": true,
+        "neteaseInstalled": true,
+        "libraryTotal": 0
+      },
+      "ui": {
+        "hasController": true,
+        "connected": true,
+        "hasSnapshot": true,
+        "error": "",
+        "neteaseInstalled": true,
+        "platformText": "网\n网易云音乐\n未登录\n扫码登录",
+        "loginButtons": [
+          {
+            "disabled": false,
+            "visible": true
+          }
+        ]
+      },
+      "finishedAt": "2026-11-04T05:59:03.347Z"
+    },
+    {
+      "name": "baseline-missing",
+      "runtime": {
+        "initialized": true,
+        "selected": null,
+        "runtimeVersion": "0.2.1-rc.5",
+        "runtimeNode": "v24.21.0",
+        "credentialValuesPrinted": false
+      },
+      "rpc": {
+        "http": 200,
+        "ms": 306,
+        "ok": false,
+        "error": {
+          "code": "core_unavailable",
+          "message": "The music core exited during startup with code 1",
+          "retryable": false,
+          "details": {}
+        },
+        "snapshot": false
+      },
+      "ui": {
+        "hasController": true,
+        "connected": false,
+        "hasSnapshot": false,
+        "error": "The music core exited during startup with code 1 (core_unavailable)",
+        "platformText": "网\n网易云音乐\n读取中",
+        "loginButtons": []
+      },
+      "finishedAt": "2026-11-04T06:03:56.191Z"
+    }
+  ]
+}
