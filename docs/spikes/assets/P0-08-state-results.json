@@ -1,0 +1,59 @@
+{
+  "date": "2026-11-04",
+  "baseP0": "ce463a1",
+  "baseP1": "ccf9d82",
+  "newRegressions": {
+    "stages": [
+      {
+        "name": "library-write-and-partial-status",
+        "red": {
+          "passed": 0,
+          "failed": 9
+        },
+        "green": {
+          "passed": 9,
+          "failed": 0
+        }
+      },
+      {
+        "name": "late-platform-poll",
+        "red": {
+          "passed": 0,
+          "failed": 2
+        },
+        "green": {
+          "passed": 2,
+          "failed": 0
+        }
+      }
+    ],
+    "final": {
+      "passed": 11,
+      "failed": 0
+    }
+  },
+  "p0Targeted": {
+    "tests": 117,
+    "passed": 117,
+    "failed": 0
+  },
+  "p1Targeted": null,
+  "fullSuite": null,
+  "scope": {
+    "newRpc": 0,
+    "newServices": 0,
+    "newDependencies": 0,
+    "backendChanged": false,
+    "musicDatabaseSchemaChanged": false,
+    "dailyDataAndCredentials": "not_modified",
+    "npmPublished": false,
+    "mainMerged": false
+  },
+  "p0Checks": {
+    "syntaxModules": 182,
+    "build": true,
+    "debugSmoke": true,
+    "documentLinks": 119,
+    "brokenLinks": 0
+  }
+}

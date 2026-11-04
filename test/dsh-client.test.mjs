@@ -1451,6 +1451,148 @@ test('platform failures distinguish disconnection, live business errors and succ
   } finally { f.dispose(); }
 });
 
+const reviewLibrary = (total, query = '', offset = 0) => ({ total, matched: total, query, offset, limit: 12, tracks: [] });
+const reviewState = (revision, total) => ({ ok: true, value: { snapshot: snapshot(revision),
+  platforms: { netease: { installed: true, account: { status: 'authorized' } } }, library: reviewLibrary(total), features: { importSources: true } } });
+
+for (const [action, total] of [['import', 5], ['resetLibrary', 0], ['undoTasteReset', 7]]) test(`review: ${action} invalidates a late independent library reply`, async () => {
+  let finishOld, oldSignal;
+  const f = fixture(async (_channel, endpoint, _payload, signal) => {
+    if (endpoint === 'fishfm/library') { oldSignal = signal; return new Promise(resolve => { finishOld = resolve; }); }
+    if (endpoint === 'fishfm/state') { const reply = reviewState(1, 9); delete reply.value.library; reply.value.libraryPending = true; return reply; }
+    return { ...reviewState(2, total), value: { ...reviewState(2, total).value, imported: { source: 'liked', imported: total, total } } };
+  });
+  try {
+    await f.controller.refresh(); await tick();
+    if (action === 'import') await f.controller.platformAction('import', 'netease'); else await f.controller.command(action);
+    assert.equal(f.controller.getSnapshot().library.total, total);
+    finishOld({ ok: true, value: { library: reviewLibrary(9) } }); await tick();
+    assert.equal(f.controller.getSnapshot().library.total, total, 'a pre-write reply cannot reverse the acknowledged library');
+    assert.equal(oldSignal.aborted, true);
+    assert.equal(f.controller.getSnapshot().libraryBusy, false);
+  } finally { f.dispose(); }
+});
+
+test('review: import also invalidates library data in a late state poll', async () => {
+  let finishPoll, polls = 0;
+  const f = fixture(async (_channel, endpoint) => endpoint === 'fishfm/state' && ++polls > 1
+    ? new Promise(resolve => { finishPoll = resolve; }) : reviewState(endpoint === 'fishfm/import' ? 2 : 1, endpoint === 'fishfm/import' ? 5 : 9));
+  try {
+    await f.controller.refresh(); const poll = f.controller.refresh();
+    await f.controller.platformAction('import', 'netease');
+    finishPoll(reviewState(1, 9)); await poll;
+    assert.equal(f.controller.getSnapshot().library.total, 5);
+    assert.equal(f.controller.getSnapshot().snapshot.revision, 2);
+  } finally { f.dispose(); }
+});
+
+test('review: import preserves a newer query and reloads it against the changed library', async () => {
+  let finishImport, finishOldQuery, reads = 0; const queries = [];
+  const f = fixture(async (_channel, endpoint, payload) => {
+    if (endpoint === 'fishfm/import') return new Promise(resolve => { finishImport = resolve; });
+    if (endpoint === 'fishfm/library') { queries.push({ ...payload });
+      return ++reads === 1 ? new Promise(resolve => { finishOldQuery = resolve; })
+        : { ok: true, value: { library: reviewLibrary(30, payload.query, payload.offset) } };
+    }
+    return reviewState(1, 20);
+  });
+  try {
+    await f.controller.refresh(); const importing = f.controller.platformAction('import', 'netease');
+    const query = f.controller.queryLibrary('new query', 12);
+    finishImport(reviewState(2, 30)); await importing; await tick();
+    finishOldQuery({ ok: true, value: { library: reviewLibrary(20, 'new query', 12) } }); await query; await tick();
+    assert.equal(f.controller.getSnapshot().library.total, 30);
+    assert.equal(f.controller.getSnapshot().library.query, 'new query');
+    assert.equal(f.controller.getSnapshot().library.offset, 12);
+    assert.equal(queries.length, 2, 'restart the selected query once after the write, not with the old response page');
+    assert.equal(queries[1].query, 'new query');
+  } finally { f.dispose(); }
+});
+
+for (const action of ['import', 'playlists']) test(`review: deferred ${action} reply starts the independent library read`, async () => {
+  let reads = 0;
+  const f = fixture(async (_channel, endpoint) => {
+    if (endpoint === 'fishfm/state') return reviewState(1, 0);
+    if (endpoint === 'fishfm/library') { reads++; return { ok: true, value: { library: reviewLibrary(5) } }; }
+    const reply = reviewState(2, 5); delete reply.value.library; reply.value.libraryPending = true; reply.value.imported = { source: 'liked', total: 5 }; return reply;
+  });
+  try {
+    await f.controller.refresh(); await f.controller.platformAction(action, 'netease'); await tick();
+    assert.equal(reads, 1);
+    assert.equal(f.controller.getSnapshot().library.total, 5);
+  } finally { f.dispose(); }
+});
+
+test('review: logout retains platform read errors and a later platform reply clears them', async () => {
+  let loggedOut = false, failed = true;
+  const api = createSettingsHandler({ async start() {}, async request(m) {
+    if (m.type === 'logout') { loggedOut = true; return {}; }
+    if (m.type === 'platforms') {
+      if (loggedOut && failed) throw Object.assign(new Error('fixture failed'), { code: 'read_failed' });
+      return { platforms: { netease: { installed: true, account: { status: loggedOut ? 'login_required' : 'authorized' } } } };
+    }
+    if (m.type === 'snapshot') return { snapshot: snapshot(loggedOut ? 2 : 1) };
+    if (m.type === 'library') return { library: reviewLibrary(0) };
+    if (m.type === 'persona') return { persona: null };
+    if (m.type === 'playlists') return { playlists: [] };
+    return { insights: {} };
+  } });
+  const f = fixture((_c, endpoint, payload, signal) => api(endpoint, payload, signal));
+  try {
+    await f.controller.refresh(); await f.controller.platformAction('logout', 'netease');
+    assert.match(f.controller.getSnapshot().platformError, /read_failed/);
+    assert.equal(f.controller.getSnapshot().connected, true);
+    assert.equal(f.controller.getSnapshot().platforms.netease, undefined, 'unknown platform status is not cached authorization');
+    all(f.render()).find(n => n.type === 'nav').children.find(b => b.children.includes('电台设置')).props.onClick();
+    assert.equal(all(f.render()).some(n => n.type === 'button' && n.children.includes('导入我的音乐') && !n.props.disabled), false);
+    assert.ok(all(f.render()).some(n => n.children.includes('重试连接状态')));
+    failed = false; await f.controller.platformAction('playlists', 'netease');
+    assert.equal(f.controller.getSnapshot().platformError, '');
+    assert.ok(all(f.render()).some(n => n.type === 'button' && n.children.includes('扫码登录') && !n.props.disabled));
+  } finally { f.dispose(); }
+});
+
+for (const partial of [false, true]) test(`review: old polls cannot revive authorization or erase a platform error (partial=${partial})`, async () => {
+  let finishPoll, polls = 0;
+  const f = fixture(async (_channel, endpoint) => {
+    if (endpoint === 'fishfm/state') return ++polls === 1 ? reviewState(1, 0) : new Promise(resolve => { finishPoll = resolve; });
+    const reply = reviewState(2, 0); reply.value.login = null;
+    if (partial) { delete reply.value.platforms; reply.value.platformError = '平台读取失败 (read_failed)'; }
+    else reply.value.platforms.netease.account.status = 'login_required';
+    return reply;
+  });
+  try {
+    await f.controller.refresh(); const poll = f.controller.refresh();
+    await f.controller.platformAction('logout', 'netease');
+    finishPoll(reviewState(1, 0)); await poll;
+    if (partial) { assert.match(f.controller.getSnapshot().platformError, /read_failed/); assert.equal(f.controller.getSnapshot().platforms.netease, undefined); }
+    else assert.equal(f.controller.getSnapshot().platforms.netease.account.status, 'login_required');
+    assert.equal(f.controller.getSnapshot().snapshot.revision, 2);
+  } finally { f.dispose(); }
+});
+
+test('review: platform replies preserve library errors and clear them only when library data recovers', async () => {
+  let failed = false;
+  const api = createSettingsHandler({ async start() {}, async request(m) {
+    if (m.type === 'snapshot') return { snapshot: snapshot(1) };
+    if (m.type === 'platforms') return { platforms: reviewState(1, 0).value.platforms };
+    if (m.type === 'library') { if (failed) throw Object.assign(new Error('fixture failed'), { code: 'read_failed' }); return { library: reviewLibrary(5) }; }
+    if (m.type === 'persona') return { persona: null };
+    if (m.type === 'playlists') return { playlists: [] };
+    return { insights: {} };
+  } });
+  const f = fixture((_c, endpoint, payload, signal) => api(endpoint, payload, signal));
+  try {
+    await f.controller.refresh(); failed = true; await f.controller.platformAction('playlists', 'netease');
+    assert.match(f.controller.getSnapshot().libraryError, /read_failed/);
+    assert.equal(f.controller.getSnapshot().library.total, 5);
+    assert.equal(f.controller.getSnapshot().platformError, '');
+    failed = false; await f.controller.platformAction('playlists', 'netease');
+    assert.equal(f.controller.getSnapshot().libraryError, '');
+    assert.equal(f.controller.getSnapshot().library.total, 5);
+  } finally { f.dispose(); }
+});
+
 test('library RPC ignores old searches and old polls and keeps the selected page in polling', async () => {
   let finishOld, finishPoll, delayPoll = false;
   const calls = [];
