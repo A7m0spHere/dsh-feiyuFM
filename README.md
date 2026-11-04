@@ -6,7 +6,7 @@
 
 导入常听的歌曲，让网易云找来候选，再由模型挑出一批。大肥鱼陪你听歌；点播、暂停、换曲和静音，随时由你决定。
 
-**Windows · 网易云 · 0.1.0**　[开始使用](#开始使用) · [使用说明](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/DELIVERY.md) · [发布记录](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/releases/0.1.0.md)
+**Windows · 网易云 · 0.1.1**　[开始使用](#开始使用) · [使用说明](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/DELIVERY.md) · [更新记录](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/CHANGELOG.md)
 
 ## 电台长什么样
 
@@ -24,7 +24,7 @@
 在 DSH「插件 → 添加插件」的「包名或地址」中输入：
 
 ```text
-dsh-feiyufm@0.1.0
+dsh-feiyufm@0.1.1
 ```
 
 安装后点击「立即启用」，然后：
@@ -39,7 +39,7 @@ dsh-feiyufm@0.1.0
 以 Web profile 为例，将 `web` 换成实际使用的 profile：
 
 ```sh
-dsh plugin --profile web add dsh-feiyufm@0.1.0 --registry https://registry.npmjs.org/
+dsh plugin --profile web add dsh-feiyufm@0.1.1 --registry https://registry.npmjs.org/
 ```
 
 安装后重启该实例。单独运行 `npm install` 不会完成 DSH 插件注册和启用。
@@ -95,7 +95,7 @@ dsh plugin --profile web add dsh-feiyufm@0.1.0 --registry https://registry.npmjs
 
 | 项目 | 当前范围 |
 | --- | --- |
-| Windows + 网易云 | `0.1.0` 正式版；安装包和隔离宿主验证见 [发布记录](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/releases/0.1.0.md) |
+| Windows + 网易云 | `0.1.1`；历史安装包和隔离宿主验证见 [0.1.0 发布记录](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/releases/0.1.0.md)，0.1.1 的日常 Desktop 验收待完成 |
 | DSH / Node.js | 本机隔离验证 DSH `0.2.1-rc.5`；Node `>=24.14.0 <25`，桌面宿主自带兼容版本时无需另装 |
 | macOS | 实验性适配随包提供；真实登录、音频与退出生命周期待真机验收 |
 | QQ 音乐 | 接入暂缓，当前没有可用登录与播放链路 |
