@@ -20,6 +20,7 @@ import { join } from 'node:path';
 import { createCookieJar } from './transport.mjs';
 import { NETEASE_QR_LOGIN_URL } from './endpoints/netease.mjs';
 import { setTimeout as delay } from 'node:timers/promises';
+import { normalizeNetEaseLyrics } from '../lyrics.mjs';
 
 const require = createRequire(import.meta.url);
 const communityCallContext = new AsyncLocalStorage();
@@ -90,6 +91,7 @@ function loadCommunityApi() {
 export const NETEASE = 'netease';
 
 const COMMUNITY_CALLS = Object.freeze({
+  lyrics: { method: 'lyric', stage: 'lyric', public: true },
   loginQr: { method: 'login_qr_key', stage: 'login_qr_key', qr: true },
   loginPoll: { method: 'login_qr_check', stage: 'login_qr_check', qr: true },
   accountInfo: { method: 'login_status', stage: 'login_status' },
@@ -104,6 +106,7 @@ const COMMUNITY_CALLS = Object.freeze({
 });
 
 const STAGE_LABELS = Object.freeze({
+  lyric: '歌词',
   search: '搜索',
   recommend_songs: '每日推荐', personal_fm: '私人 FM',
   simi_song:'相似歌曲',
@@ -157,9 +160,9 @@ function createCommunityTransport(transport, { api, credentials, accountRef, com
       if (request.signal?.aborted) throw request.signal.reason ?? new DOMException('Aborted', 'AbortError');
       // A new QR handshake has no account cookie, matching the upstream
       // no-cookie example. Never attach a previous account to a new scan.
-      if (!config.qr && !request.session && !currentSession) currentSession = credentials?.read?.(accountRef) ?? null;
+      if (!config.qr && !config.public && !request.session && !currentSession) currentSession = credentials?.read?.(accountRef) ?? null;
       const session = request.session ?? currentSession;
-      if (!config.qr && !session) throw new MusicError('login_required', '请先登录网易云音乐。', { details: { stage: config.stage } });
+      if (!config.qr && !config.public && !session) throw new MusicError('login_required', '请先登录网易云音乐。', { details: { stage: config.stage } });
       const method = api?.[config.method];
       if (typeof method !== 'function') {
         throw new MusicError('provider_failure', `网易云接口包缺少 ${config.method} 方法。`, {
@@ -170,7 +173,7 @@ function createCommunityTransport(transport, { api, credentials, accountRef, com
       for (let attempt = 0; attempt < 2; attempt++) {
         try {
           onLog({ type: 'platform-request', role: config.method, provider: NETEASE });
-          response = await communityCallContext.run(true, () => method({ ...request.params, cookie: config.qr ? {} : session, timeout: config.qr ? 10_000 : 15_000 }));
+          response = await communityCallContext.run(true, () => method({ ...request.params, cookie: config.qr || config.public ? {} : session, timeout: config.qr ? 10_000 : 15_000 }));
           if (request.role === 'loginPoll' && (response?.status >= 500 || response?.body?.code === 502)) throw response;
           break;
         } catch (error) {
@@ -210,9 +213,15 @@ function createCommunityTransport(transport, { api, credentials, accountRef, com
       }
       const platformCode = Number.isInteger(body?.code) ? body.code
         : Number.isInteger(body?.data?.code) ? body.data.code : null;
+      if (config.public && (platformCode === 301 || status === 401 || status === 403)) {
+        throw new MusicError('lyrics_unavailable', '网易云暂时无法提供这首歌的歌词。');
+      }
       if (status >= 400 || (platformCode !== null && platformCode !== 200)) {
         throw communityFailure(config.stage, { response: { status, body } });
       }
+      // Public lyrics are always anonymous; guest Set-Cookie must never replace
+      // or persist the user's playback/login session.
+      if (config.public) return { status, body, cookies: null };
 
       // The library returns Set-Cookie values separately. Merge them in memory
       // and persist only the changed session through the existing DPAPI store.
@@ -266,6 +275,7 @@ function communityTracks(body, limit) {
  * real wire format stays out of this file.
  */
 export const NETEASE_ROLES = Object.freeze([
+  'lyrics',
   'loginQr', 'loginPoll', 'accountInfo',
   'recentTracks', 'likedTracks', 'playlists', 'playlistTracks', 'songDetails',
   'search', 'resolve',
@@ -303,6 +313,7 @@ export function createNetEaseProvider(options = {}) {
     ...options,
     transport,
     parse: {
+      lyrics: normalizeNetEaseLyrics,
       // Scan responses.
       // CONFIRMED (2026-09-27): POST /api/login/qrcode/unikey?type=1 answers
       // {"code":200,"unikey":"<uuid>"} — the key is at the top level.

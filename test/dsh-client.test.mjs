@@ -77,6 +77,32 @@ const snapshot = (revision, humanPlayback = true) => ({ revision, settings: {
 const state = value => ({ ok: true, value: { snapshot: value, platforms: {} } });
 const tick = () => new Promise(resolve => setImmediate(resolve));
 
+test('lyrics reads abort even when RPC ignores the signal and seek passes instance/position without blocking pause', async () => {
+  let release;
+  const calls = [];
+  const initial = { ...snapshot(1), current: { playInstanceId: 'lyric-instance', track: { provider: 'netease', providerTrackId: '1', durationMs: 100000 }, positionMs: 1000 }, status: 'playing', paused: false };
+  const f = fixture(async (_channel, endpoint, payload) => {
+    calls.push({ endpoint, payload });
+    if (endpoint === 'fishfm/lyrics') return new Promise(() => {});
+    if (endpoint === 'fishfm/command' && payload.type === 'seek') return new Promise(resolve => { release = resolve; });
+    return state(endpoint === 'fishfm/command' ? { ...initial, revision: 3, paused: true, status: 'paused' } : initial);
+  });
+  try {
+    await f.controller.refresh();
+    const request = new AbortController();
+    const read = f.controller.readLyrics(initial.current.track, request.signal); request.abort();
+    await assert.rejects(read, error => error.code === 'lyrics_cancelled');
+    const seeking = f.controller.command('seek', { playInstanceId: 'lyric-instance', positionMs: 2000 });
+    await tick();
+    assert.equal(calls.find(row => row.payload?.type === 'seek').payload.positionMs, 2000);
+    assert.equal(calls.find(row => row.payload?.type === 'seek').payload.playInstanceId, 'lyric-instance');
+    await f.controller.command('pause');
+    release(state({ ...initial, revision: 2 })); await seeking;
+    assert.equal(f.controller.getSnapshot().snapshot.paused, true);
+    assert.equal(f.controller.getSnapshot().busy, false);
+  } finally { f.dispose(); }
+});
+
 const GUIDE_KEY = 'fishfm.guide.v1';
 function guideFixture(options = {}, storage = new Map()) {
   const calls = [];

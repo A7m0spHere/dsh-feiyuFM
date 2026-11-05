@@ -14,6 +14,7 @@
       ],
       "dependencies": {
         "@neteasecloudmusicapienhanced/api": "4.40.1",
+        "lrc-kit": "1.2.1",
         "qrcode": "^1.5.4"
       },
       "engines": {
@@ -1983,6 +1984,12 @@
       "engines": {
         "node": ">=8"
       }
+    },
+    "node_modules/lrc-kit": {
+      "version": "1.2.1",
+      "resolved": "https://registry.npmjs.org/lrc-kit/-/lrc-kit-1.2.1.tgz",
+      "integrity": "sha512-Ukfn5fleQEnl3ar5hmaI52HFrFQ6Xo5rM7gHcXpy9oXpdtxzZU50bN6EpO9wPeo9mFkJ4ojlKAWbuLijQUdjhg==",
+      "license": "MIT"
     },
     "node_modules/lru-cache": {
       "version": "10.4.3",

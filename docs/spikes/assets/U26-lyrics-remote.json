@@ -1,0 +1,32 @@
+{
+  "scope": "anonymous-netease-lyrics-and-muted-real-wpf",
+  "samples": [
+    {
+      "id": "347230",
+      "ms": 1078,
+      "status": "synced",
+      "lines": 49,
+      "translations": 0,
+      "romanizations": 35
+    },
+    {
+      "id": "186016",
+      "ms": 808,
+      "status": "synced",
+      "lines": 62,
+      "translations": 0,
+      "romanizations": 0
+    },
+    {
+      "id": "423228325",
+      "ms": 847,
+      "status": "synced",
+      "lines": 52,
+      "translations": 50,
+      "romanizations": 0
+    }
+  ],
+  "audio": {
+    "status": "no_anonymous_resource"
+  }
+}

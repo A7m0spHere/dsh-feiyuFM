@@ -9,6 +9,7 @@ import {Discoveries} from './discoveries.mjs';
 import {ExpressionSettings} from './expression.mjs';
 import { DollLayer } from './dolls.mjs';
 import { UsageGuide, guideReady } from './guide.mjs';
+import { Lyrics } from './lyrics.mjs';
 export function Panel({ controller, back }) {
   const state = React.useSyncExternalStore(controller.subscribe, controller.getSnapshot);
   const snapshot = state.snapshot;
@@ -54,7 +55,7 @@ export function Panel({ controller, back }) {
   const playing = snapshot?.status === 'playing';
   const presentation = playbackPresentation(snapshot, state.connected);
   const transport = playbackControls(state);
-  const positionMs = useSmoothProgress(current, presentation.active);
+  const positionMs = useSmoothProgress(current, presentation.active && !snapshot?.seekPending);
   const insights=state.insights;
   const art = presentation.art;
   const accountHint = state.platformError ? '连接状态读取失败' : !state.connected ? '连接中断' : ({authorized:'网易云已登录',expired:'登录已过期',signed_out:'未登录',login_required:'等待登录'}[state.platforms?.netease?.account?.status] || '查看连接');
@@ -269,6 +270,10 @@ export function Panel({ controller, back }) {
           h('p', null, `来源：${({ llm_recommendation: '大肥鱼推荐歌单', netease_similar: '与你常听的歌相似', netease_daily: '网易云每日推荐', netease_personal_fm: '网易云私人 FM', platform_recommendation: '平台推荐' })[current.origin?.source] ?? (current.selectedBy === 'user' ? '你点播' : '常听歌曲')}`),
           current.selectedBy === 'agent' && snapshot?.lastSelection?.detail && h('p', null, `排序得分 ${snapshot.lastSelection.score?.toFixed(3)}；近期已播 ${snapshot.lastSelection.detail.repeatPlays ?? 0} 次。`),
           h('p', null, '喜欢 / 少推荐只影响本机推荐；逐曲说明由已记录的决策生成，不新增模型请求。')))));
+  const heroWithLyrics = h('div', { className: 'fm-now-layout' }, hero,
+    h(Lyrics, { controller, snapshot, connected: state.connected, visible: view === 'listen', positionMs,
+      motion: state.motion, transportPending: state.transportPending,
+      accountContext: `${state.platforms?.[current?.track?.provider]?.account?.status ?? ''}:${state.platforms?.[current?.track?.provider]?.account?.accountId ?? ''}` }));
   return h('div', { className: 'fishfm', 'data-view': 'main', 'data-motion': state.motion || 'full' },
     h(DollLayer, { active: presentation.active && state.playbackEffects && state.features?.artwork?.gif, motion: state.motion, names: state.features?.artwork?.dolls }),
     h('div', { className: 'fm-wrap' },
@@ -289,7 +294,7 @@ export function Panel({ controller, back }) {
       snapshot?.blockUntil > Date.now() && h('div', { className: 'fm-notice' }, '今天已停止自主听歌。到期后保持暂停，直到你主动恢复。',
         h('button', { className: 'fm-button', type: 'button', disabled: state.busy || !state.connected, onClick: () => controller.command('chooseSelf') }, '恢复自主听歌')),
       mountedViews.has('listen') && h('div', { className: 'fm-listen-page', id: `${rateId}-listen`, hidden: view !== 'listen' },
-        h(UsageGuide, { state, onStep: guideStep, onClose: controller.closeGuide, rootRef: guideRef, titleId: `${rateId}-guide` }), hero,
+        h(UsageGuide, { state, onStep: guideStep, onClose: controller.closeGuide, rootRef: guideRef, titleId: `${rateId}-guide` }), heroWithLyrics,
         h(Persona, { key: 'pool', state, controller, selectedModel, onSelectModel: setSelectedModel })),
       mountedViews.has('discover') && h('div', { className: 'fm-discover-page', id: `${rateId}-discover`, hidden: view !== 'discover' }, h(Discoveries, { state, expanded: true })),
       mountedViews.has('taste') && h('div', { ref: feedbackRef, className: 'fm-taste-page', id: `${rateId}-taste`, hidden: view !== 'taste' }, preferencesColumn),

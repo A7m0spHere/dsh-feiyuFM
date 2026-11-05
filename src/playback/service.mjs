@@ -110,6 +110,54 @@ export class PlaybackService {
     return this.supervisor.hello?.capabilities?.preload === true;
   }
 
+  canSeek({ playInstanceId } = {}) {
+    return this.supervisor.hello?.capabilities?.seekInPlace === true && Boolean(this.active && !this.active.finished)
+      && (!playInstanceId || this.active.playInstanceId === playInstanceId);
+  }
+
+  _position(active, positionMs, version) {
+    if (this.active !== active || version !== this.acceptedVersion || !Number.isFinite(positionMs) || positionMs < 0) return;
+    active.positionMs = Math.round(positionMs);
+    this.lastForwardedMs = active.positionMs;
+    this.lastProgressAt = 0;
+    this.lastEffectiveAt = performance.now();
+    this._emit({ type: 'positioned', playInstanceId: active.playInstanceId, version, positionMs: active.positionMs });
+  }
+
+  async seek({ playInstanceId, positionMs, version, signal }) {
+    if (!this.canSeek({ playInstanceId })) throw playbackError('seek_unsupported', '当前播放宿主不支持歌词跳转。');
+    if (!this._acceptVersion(version)) throw playbackError('cancelled', '跳转已被新的操作取代。');
+    const active = this.active;
+    const seeking = { active, version };
+    this.seeking = seeking;
+    let observedState;
+    try {
+      const answer = await raceAbort(this._send('seek', { playInstanceId, positionMs, version },
+        { timeoutMs: this.commandTimeoutMs, invalidateOnTimeout: false }), signal);
+      if (signal?.aborted || this.active !== active || version !== this.acceptedVersion) throw playbackError('cancelled', '跳转已被新的操作取代。');
+      if (!Number.isFinite(answer.positionMs) || answer.positionMs < 0) throw playbackError('seek_failed', '宿主没有确认跳转位置。');
+      observedState = answer.state;
+      this._position(active, answer.positionMs, version);
+      return { positionMs: answer.positionMs };
+    } catch (error) {
+      if (this.active === active && version === this.acceptedVersion) {
+        try {
+          const snapshot = await this._send('snapshot', { version }, { invalidateOnTimeout: false });
+          observedState = snapshot.state;
+          if (snapshot.state?.playInstanceId === active.playInstanceId) this._position(active, snapshot.state.positionMs, version);
+        } catch { /* Preserve the seek failure; no automatic track replacement. */ }
+      }
+      throw error;
+    } finally {
+      if (this.seeking === seeking) {
+        this.seeking = null;
+        // An end arriving during seek may belong to the old position. Only the
+        // final host snapshot can prove that it really ended at the new one.
+        if (this.active === active && version === this.acceptedVersion && observedState) this._adoptState(observedState);
+      }
+    }
+  }
+
   /**
    * Opens the next track in the standby player. Advisory: a failure only means
    * the real load opens normally.
@@ -240,7 +288,13 @@ export class PlaybackService {
     const active = this.active;
     if (!active || active.finished) return;
     if (playInstanceId && playInstanceId !== active.playInstanceId) return;
-    await this._send('play', { playInstanceId: active.playInstanceId, version });
+    const pendingSeek = this.seeking;
+    const commandVersion = version ?? this.acceptedVersion;
+    const answer = await this._send('play', { playInstanceId: active.playInstanceId, version: commandVersion });
+    if (pendingSeek?.active === active && pendingSeek.version < commandVersion) {
+      this._position(active, answer.positionMs ?? answer.state?.positionMs, commandVersion);
+      if (answer.state) this._adoptState(answer.state);
+    }
     this.lastEffectiveAt = performance.now();
   }
 
@@ -248,7 +302,14 @@ export class PlaybackService {
     if (this.closing) return;
     if (!this._acceptVersion(version)) return;
     this._forgetPreload();
-    await this._send('pause', { version: version ?? this.acceptedVersion });
+    const active = this.active;
+    const pendingSeek = this.seeking;
+    const commandVersion = version ?? this.acceptedVersion;
+    const answer = await this._send('pause', { version: commandVersion });
+    const positionMs = answer.positionMs ?? answer.state?.positionMs;
+    // Resume can briefly expose 0 on WPF. Only a real pending seek permits
+    // adopting a position behind the last confirmed audio timeline.
+    if (active && (positionMs >= active.positionMs || pendingSeek?.active === active)) this._position(active, positionMs, commandVersion);
   }
 
   async stop({ version } = {}) {
@@ -263,8 +324,15 @@ export class PlaybackService {
   async setMuted({ muted, version } = {}) {
     if (this.closing) return;
     if (!this._acceptVersion(version)) return;
+    const active = this.active;
+    const pendingSeek = this.seeking;
+    const commandVersion = version ?? this.acceptedVersion;
     this.muted = Boolean(muted);
-    await this._send('setMuted', { muted: this.muted, version: version ?? this.acceptedVersion });
+    const answer = await this._send('setMuted', { muted: this.muted, version: commandVersion });
+    if (active && pendingSeek?.active === active && pendingSeek.version < commandVersion) {
+      this._position(active, answer.positionMs ?? answer.state?.positionMs, commandVersion);
+      if (answer.state) this._adoptState(answer.state);
+    }
   }
 
   /**
@@ -293,7 +361,8 @@ export class PlaybackService {
       // Every host result carries a fresh state snapshot. Keeping it here is
       // what lets a pause be recognised as directly resumable: the host only
       // pushes state on connect, so the greeting state would stay stale.
-      if (answer?.state && typeof answer.state === 'object') {
+      if (answer?.state && typeof answer.state === 'object'
+        && (!Number.isFinite(answer.state.version) || answer.state.version >= this.acceptedVersion)) {
         this.supervisor.hostState = { type: 'state', ...answer.state };
       }
       return answer;
@@ -348,6 +417,7 @@ export class PlaybackService {
     if (!active || active.finished) return;
     if (message.playInstanceId && message.playInstanceId !== active.playInstanceId) return;
     if (Number.isFinite(message.version) && message.version < active.version) return;
+    if (this.seeking?.active === active && this.seeking.version === active.version && ['progress', 'ended'].includes(type)) return;
 
     if (type === 'started') {
       if (active.started) return;

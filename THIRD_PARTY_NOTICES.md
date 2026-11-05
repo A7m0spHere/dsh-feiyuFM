@@ -8,7 +8,9 @@
 
 FeiyuFM 是独立维护的 DSH 社区插件，与 DeepSeek、网易云及其他相关厂商不存在官方隶属或背书关系。文中产品名称和标识用于识别相关产品，相关权利归各自权利人所有。
 
-平台提供的音乐及相关内容不属于本项目的 MIT 授权范围。本项目不授予这些内容的复制、传播或商业使用权；播放可用性受账号权限、平台服务规则和资源状态影响。仓库与 npm 包不提供歌曲音频、账号凭据或运行数据库。
+平台提供的音乐、歌词及相关内容不属于本项目的 MIT 授权范围。本项目不授予这些内容的复制、传播或商业使用权；播放可用性受账号权限、平台服务规则和资源状态影响。仓库与 npm 包不提供歌曲音频、歌词全文、账号凭据或运行数据库；预览中的歌词为本项目编写的示例文本。
+
+歌词解析复用 [lrc-kit](https://github.com/weirongxu/lrc-kit) 1.2.1 的 `Lrc.parse`，采用 MIT；上游作者 Weirong Xu，源码范围为发布包的 `lib/cjs/lrc.js` 及其 `line-parser.js`（经包入口加载）。项目自行完成时间规范化、翻译／音译对齐、缓存和 React 渲染，不复制 AMLL 或其他候选实现。包版本、完整性摘要和随包许可分别由 `npm-shrinkwrap.json`、下方依赖清单及依赖原包 `LICENSE` 保留。
 
 ## 鲸鱼娘（大肥鱼）与 AI 角色图像
 
@@ -312,7 +314,7 @@ MIT License, as follows:
 
 <!-- BEGIN GENERATED DEPENDENCY NOTICES -->
 
-共 287 个锁定运行依赖条目。下列路径相对于插件安装目录。
+共 288 个锁定运行依赖条目。下列路径相对于插件安装目录。
 
 | Package | Version | Declared license | 随包原文或补充通知 |
 |---|---|---|---|
@@ -459,6 +461,7 @@ MIT License, as follows:
 | jsdom | 24.1.3 | MIT | `node_modules/jsdom/LICENSE.txt` |
 | leven | 2.1.0 | MIT | `node_modules/leven/license` |
 | locate-path | 5.0.0 | MIT | `node_modules/locate-path/license` |
+| lrc-kit | 1.2.1 | MIT | `node_modules/lrc-kit/LICENSE` |
 | lru-cache | 10.4.3 | ISC | `node_modules/lru-cache/LICENSE` |
 | math-intrinsics | 1.1.0 | MIT | `node_modules/math-intrinsics/LICENSE` |
 | media-typer | 0.3.0 | MIT | `node_modules/@neteasecloudmusicapienhanced/unblockmusic-utils/node_modules/media-typer/LICENSE` |

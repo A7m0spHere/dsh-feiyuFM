@@ -52,7 +52,7 @@ export function createController(connection, { onPlaybackTrace = null } = {}) {
   };
   let epoch = 0, playbackEpoch = 0, libraryEpoch = 0, platformEpoch = 0, timer, playbackTimer, read, transportWrite, settingsWrite, platformWrite, libraryRead,summaryWrite,expressionWrite, disposed = false;
   const writes = new Set();
-  const transportCommands = new Set(['pause', 'resume', 'next', 'previous', 'requestTrack', 'stopForToday']);
+  const transportCommands = new Set(['pause', 'resume', 'next', 'previous', 'seek', 'requestTrack', 'stopForToday']);
   let libraryOptions = { query: '', offset: 0, limit: 12 };
   let feedbackOptions = { query: '', filter: 'all', offset: 0, limit: 12 };
   let feedbackOpen = false, feedbackEpoch = 0, feedbackRead, feedbackWrite, feedbackRetry;
@@ -210,7 +210,7 @@ export function createController(connection, { onPlaybackTrace = null } = {}) {
   function followPlayback() {
     clearTimeout(playbackTimer);
     if (!disposed && listeners.size && !document.hidden && state.connected
-      && (state.transportPending || ['resolving', 'selecting'].includes(state.snapshot?.status))) {
+      && (state.transportPending || state.snapshot?.seekPending || ['resolving', 'selecting'].includes(state.snapshot?.status))) {
       playbackTimer = setTimeout(() => { void refresh(); }, 500);
     }
   }
@@ -279,7 +279,7 @@ export function createController(connection, { onPlaybackTrace = null } = {}) {
       }, 18000);
     });
     try {
-      const playbackOnly = Boolean(state.transportPending || ['resolving', 'selecting'].includes(state.snapshot?.status));
+      const playbackOnly = Boolean(state.transportPending || state.snapshot?.seekPending || ['resolving', 'selecting'].includes(state.snapshot?.status));
       // Every poll stays light: snapshot/platforms/library only. Profile data is
       // loaded on demand by ensureProfile and refreshed by invalidation events.
       const result = await Promise.race([connection.rpc.call('/api', 'fishfm/state',
@@ -312,6 +312,20 @@ export function createController(connection, { onPlaybackTrace = null } = {}) {
     }
   }
   const controllerApi = {
+    async readLyrics(track, signal) {
+      if (disposed) throw { code: 'cancelled', message: '歌词读取已取消。' };
+      let interrupted;
+      const cancelled = new Promise((_, reject) => {
+        interrupted = () => reject({ code: 'lyrics_cancelled', message: '歌词读取未完成，请重试。' });
+        signal?.addEventListener('abort', interrupted, { once: true });
+        if (signal?.aborted) interrupted();
+      });
+      try {
+        const result = await Promise.race([connection.rpc.call('/api', 'fishfm/lyrics', { track }, signal), cancelled]);
+        if (!result.ok) throw result.error;
+        return result.value.lyrics;
+      } finally { signal?.removeEventListener('abort', interrupted); }
+    },
     getSnapshot: () => state,
     getPlaybackTrace: () => playbackTrace.map(entry => ({ ...entry })),
     getInitializationTrace: () => initializationTrace.map(entry => ({ ...entry })),
@@ -445,7 +459,8 @@ export function createController(connection, { onPlaybackTrace = null } = {}) {
       if (disposed || !state.connected || (!transport && (state.busy || state.transportPending))) return;
       // Pause must reach Core even when a preceding play/skip request is slow.
       // Other duplicate transport clicks are coalesced until acknowledged.
-      if (transport && state.transportPending && (type !== 'pause' || state.transportPending === 'pause')) return;
+      if (transport && state.transportPending && (type !== 'pause' || state.transportPending === 'pause')
+        && !(state.transportPending === 'seek' && ['seek', 'next', 'previous', 'requestTrack', 'resume'].includes(type))) return;
       if (state.platformBusy && ['resetTaste', 'resetLibrary', 'undoTasteReset'].includes(type)) return;
       const traceId = transport ? `${traceSession}-${++traceSerial}` : null;
       if (transport) trace('ui-click', { traceId, kind: type });
@@ -465,7 +480,7 @@ export function createController(connection, { onPlaybackTrace = null } = {}) {
       followPlayback();
       const timeout = setTimeout(() => request.abort(), 25000);
       try {
-        const payload = type === 'requestTrack' ? {type,track:value} : type === 'setTrackFeedback' ? {type,...value} : {type,value};
+        const payload = type === 'requestTrack' ? {type,track:value} : ['setTrackFeedback', 'seek'].includes(type) ? {type,...value} : {type,value};
         if (traceId) { payload.traceId = traceId; trace('rpc-sent', { traceId, kind: type }); }
         const result = await connection.rpc.call('/api', 'fishfm/command',
           ['setTrackFeedback','resetTaste','resetLibrary','undoTasteReset','setRecommendationMode'].includes(type) ? { ...payload, library: libraryOptions } : payload, request.signal);

@@ -43,7 +43,7 @@ export function playbackControls(state) {
   const snapshot = state.snapshot, pending = state.transportPending;
   const current = snapshot?.current;
   const preparing = !snapshot?.paused && ['resolving', 'selecting'].includes(snapshot?.status);
-  const canPause = (pending && !['pause', 'stopForToday'].includes(pending))
+  const canPause = (pending && !['pause', 'stopForToday'].includes(pending) && !(pending === 'seek' && snapshot?.paused))
     || (current && !snapshot.paused) || preparing;
   const hasMusic = current || state.library?.total || snapshot?.queue?.length
     || state.persona?.recommendationPipeline?.playbackPool?.available
@@ -56,12 +56,12 @@ export function playbackControls(state) {
     playDisabled: !state.connected || pending === 'pause' || pending === 'stopForToday'
       || (!canPause && (state.busy || !hasMusic)),
     // 没有更早的可播记录时由 Core 的 navigation.previous 明确告知，按钮据此禁用。
-    previousDisabled: !state.connected || state.busy || Boolean(pending) || !snapshot?.navigation?.previous,
+    previousDisabled: !state.connected || (state.busy && pending !== 'seek') || (Boolean(pending) && pending !== 'seek') || !snapshot?.navigation?.previous,
     previousLabel: pending === 'previous' ? '返回中…' : '上一首',
-    nextDisabled: !state.connected || state.busy || Boolean(pending) || !hasMusic,
+    nextDisabled: !state.connected || (state.busy && pending !== 'seek') || (Boolean(pending) && pending !== 'seek') || !hasMusic,
     nextLabel: pending === 'next' ? '切换中…' : '下一首',
     message: ({ pause: '正在暂停…', resume: '正在继续播放…', next: '正在切换下一首…', previous: '正在返回上一首…',
-      requestTrack: '正在准备歌曲…', stopForToday: '正在停止…' })[pending] ?? '',
+      seek: '正在跳转…', requestTrack: '正在准备歌曲…', stopForToday: '正在停止…' })[pending] ?? '',
   };
 }
 

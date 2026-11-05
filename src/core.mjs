@@ -112,6 +112,8 @@ export class MusicCore {
       lastError: null,
     };
     this.state.commandVersion += 1;
+    this.state.seekPending = null;
+    this.state.seekError = null;
     if (this.state.current) {
       if(this.state.current.selectedBy==='user'&&!this.state.current.selectionTrigger)this.state.current.selectionTrigger='legacy-unknown';
       this.state.current.effectiveMs ??= 0;
@@ -140,7 +142,8 @@ export class MusicCore {
     const started = performance.now();
     const discovery = this.provider.discoveryStatus ? this.provider.discoveryStatus() : null;
     const afterDiscovery = performance.now();
-    const value = structuredClone({ ...this.state, ...(discovery ? { discovery } : {}), navigation: this._navigationView() });
+    const value = structuredClone({ ...this.state, ...(discovery ? { discovery } : {}), navigation: this._navigationView(),
+      playbackCapabilities: { seek: this.playback.canSeek?.({ playInstanceId: this.state.current?.playInstanceId }) === true } });
     const afterClone = performance.now();
     const durationMs = afterClone - started;
     if (durationMs >= 40) this.onLog({ type: 'slow-op', op: 'snapshot-parts', durationMs: Math.round(durationMs),
@@ -164,6 +167,8 @@ export class MusicCore {
 
   _invalidate({ keepResourceKey = null } = {}) {
     this.state.commandVersion += 1;
+    this.state.seekPending = null;
+    this.state.seekError = null;
     this.abortController?.abort();
     this.abortController = null;
     this._cancelPrefetch({ keepResourceKey });
@@ -369,6 +374,39 @@ export class MusicCore {
 
   async waitForIdle() {
     while (this.tasks.size) await Promise.all([...this.tasks]);
+  }
+
+  _seek(command) {
+    const current = this.state.current;
+    if (!current || current.playInstanceId !== command.playInstanceId) throw new MusicError('stale_track', '歌曲已经切换，请重新选择歌词。');
+    if (current.finished || !['playing', 'paused'].includes(this.state.status)
+      || !this.playback.canSeek?.({ playInstanceId: current.playInstanceId })) throw new MusicError('seek_unsupported', '当前歌曲尚未就绪，或宿主不支持跳转。');
+    if (!current.track.durationMs || command.positionMs >= current.track.durationMs) throw new MusicError('invalid_command', '跳转位置超出歌曲时长。');
+    this._invalidate();
+    const version = this.state.commandVersion;
+    const controller = new AbortController();
+    this.abortController = controller;
+    this.state.seekPending = { playInstanceId: current.playInstanceId, positionMs: command.positionMs };
+    const task = Promise.resolve().then(async () => {
+      if (!this._isCurrent(version, controller.signal)) return;
+      try {
+        const result = await this.playback.seek({ playInstanceId: current.playInstanceId, positionMs: command.positionMs, version, signal: controller.signal });
+        if (!this._isCurrent(version, controller.signal) || this.state.current !== current) return;
+        if (!Number.isFinite(result?.positionMs) || result.positionMs < 0) throw new MusicError('seek_failed', '播放宿主没有返回实际位置。');
+        current.positionMs = Math.round(result.positionMs);
+        current.progressSource = 'audio';
+        this.state.seekPending = null;
+        this._commit();
+        if (!this.state.paused) this._schedulePrefetch();
+      } catch (error) {
+        if (!this._isCurrent(version, controller.signal) || this.state.current !== current) return;
+        this.state.seekPending = null;
+        this.state.seekError = { code: error.code ?? 'seek_failed', message: '歌词跳转未成功，请重试。' };
+        this._commit();
+      }
+    });
+    this.tasks.add(task);
+    task.finally(() => this.tasks.delete(task));
   }
 
   _control(method, args, stopOnError = false) {
@@ -617,6 +655,9 @@ export class MusicCore {
     }
     const now = this.clock.now();
     switch (command.type) {
+      case 'seek':
+        this._seek(command);
+        break;
       case 'pause':
         this._invalidate();
         // The host cancels the standby stream inside the pause command itself;
@@ -851,6 +892,13 @@ export class MusicCore {
     const current = this.state.current;
     if (!current || event.playInstanceId !== current.playInstanceId || current.finished) return false;
     if (event.version !== undefined && event.version !== this.state.commandVersion) return false;
+    if (event.type === 'positioned') {
+      if (!Number.isFinite(event.positionMs) || event.positionMs < 0) return false;
+      current.positionMs = current.track.durationMs ? Math.min(event.positionMs, current.track.durationMs) : event.positionMs;
+      current.progressSource = 'audio';
+      this._commit();
+      return true;
+    }
     if (event.type === 'started') {
       if (this.state.paused) return false;
       this.state.status = 'playing';

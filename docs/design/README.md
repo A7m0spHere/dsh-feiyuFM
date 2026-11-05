@@ -6,6 +6,7 @@
 
 | 设计 | 对应实现与证据 |
 |---|---|
+| [控制台歌词显示方案](FEAT_CONSOLE_LYRICS.md) | 用户截图对应的右侧歌词布局、社区候选和验证建议；当前状态见 [开发路线](../PROJECT_PLAN.md) |
 | [自主听歌与推荐规划](AUTONOMOUS_MUSIC_ROADMAP.md) | N0–N8 的原始拆分；两小时门槛已取消，实际结果从 [证据索引](../spikes/README.md) 查阅 |
 | [透明人格、选歌回复与 token 用量](FEAT_TRANSPARENT_PERSONA.md) | [N9](../spikes/N9-transparent-persona.md)；具体模型歌单由 [N11](../spikes/N11-model-playlist.md) 扩展 |
 | [平台候选与 LLM 筛选](FEAT_LLM_DISCOVERY_FILTER.md) | [N15](../spikes/N15-llm-discovery-filter.md)，状态计数修复见 [N20](../spikes/N20-review-fixes.md) |

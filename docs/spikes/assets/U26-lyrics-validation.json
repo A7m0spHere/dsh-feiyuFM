@@ -1,0 +1,82 @@
+{
+  "date": "2026-11-05",
+  "environment": {
+    "platform": "win32",
+    "node": "24.22.1"
+  },
+  "testRuns": [
+    {
+      "scope": "initial-full-run-before-route-count-update",
+      "tests": null,
+      "passed": null,
+      "failed": null,
+      "skipped": null,
+      "failures": [
+        "✖ desktop exact routes coexist with the Gateway and validate RPC envelopes before changing Core",
+        "✖ WPF re-opens the same source after a resume-style reload"
+      ]
+    },
+    {
+      "scope": "full-test-directory-concurrency-2",
+      "tests": 766,
+      "passed": 765,
+      "failed": 1,
+      "skipped": 0,
+      "failures": [
+        "✖ WPF re-opens the same source after a resume-style reload"
+      ]
+    },
+    {
+      "scope": "serial-before-module-list-expectation-update",
+      "tests": 767,
+      "passed": 766,
+      "failed": 1,
+      "skipped": 0,
+      "failures": [
+        "✖ the endpoint profile declares itself unverified and covers the sign-in roles"
+      ]
+    },
+    {
+      "scope": "final-full-test-directory-concurrency-1",
+      "tests": 767,
+      "passed": 767,
+      "failed": 0,
+      "skipped": 0,
+      "failures": []
+    }
+  ],
+  "legacyWpfSingle": {
+    "scope": "single-real-WPF-source-reopen",
+    "tests": 1,
+    "passed": 1,
+    "failed": 0,
+    "skipped": 0,
+    "failures": []
+  },
+  "build": {
+    "modules": 192,
+    "clientBundleMatchesSource": true,
+    "debugSmoke": "passed"
+  },
+  "package": {
+    "files": 4898,
+    "compressedMB": 35.11,
+    "licenseAndWhitelist": "passed"
+  },
+  "documents": {
+    "checked": 123,
+    "brokenLinks": 0
+  },
+  "browser": {
+    "checks": 31,
+    "passed": 31,
+    "pageErrors": 0
+  },
+  "boundaries": {
+    "wpf": "real-muted-generated-local-media",
+    "remoteLyrics": "real-anonymous-netease",
+    "remoteAudio": "no-anonymous-resource",
+    "dailyDesktop": "not_executed",
+    "macOSTrueDevice": "not_executed"
+  }
+}

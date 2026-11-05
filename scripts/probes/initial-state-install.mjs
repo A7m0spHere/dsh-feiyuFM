@@ -140,6 +140,10 @@ try {
   report.ui = await evaluate(`(()=>{let c;for(const el of document.querySelectorAll('.fishfm,.fm-float')){const key=Object.keys(el).find(k=>k.startsWith('__reactFiber$'));for(let f=el[key],n=0;f&&n++<35;f=f.return){if(f.memoizedProps?.controller){c=f.memoizedProps.controller;break}}if(c)break}window.__fishfmProbeController=c;const s=c?.getSnapshot();return {hasController:!!c,connected:s?.connected,hasSnapshot:!!s?.snapshot,error:s?.error,neteaseInstalled:s?.platforms?.netease?.installed,platformText:document.querySelector('.fm-platform')?.innerText,loginButtons:[...document.querySelectorAll('.fishfm button')].filter(b=>b.textContent==='扫码登录').map(b=>{const r=b.getBoundingClientRect();return {disabled:b.disabled,visible:b.getClientRects().length>0,clickable:!b.disabled&&!!r.width&&!!r.height&&b.contains(document.elementFromPoint(r.x+r.width/2,r.y+r.height/2))}}),initializationTrace:c?.getInitializationTrace?.()}})()`);
   report.clientMatchesInstalled = Boolean(report.ui.initializationTrace) === readFileSync(join(report.install.root, 'src/ui/dsh-client.js'), 'utf8').includes('getInitializationTrace');
   if (!report.clientMatchesInstalled) throw new Error('Mounted client differs from installed package');
+  if (process.argv.includes('--lyrics')) {
+    const { verifyConsoleLyricsInDsh } = await import('./console-lyrics-dsh.mjs');
+    report.lyrics = await verifyConsoleLyricsInDsh({ evaluate, rpc, clickButton, until }); save();
+  }
   if (process.argv.includes('--recover-dependency')) {
     if (!process.argv.includes('--missing-dependency')) throw new Error('--recover-dependency requires --missing-dependency');
     command(['-e', `const fs=require('node:fs'),p=require('node:path');const d=p.join(${JSON.stringify(report.install.root)},'node_modules/@neteasecloudmusicapienhanced/api');fs.renameSync(d+'.probe-disabled',d);`]);

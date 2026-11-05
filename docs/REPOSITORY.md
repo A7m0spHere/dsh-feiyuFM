@@ -10,6 +10,7 @@
 | [THIRD_PARTY_NOTICES.md](../THIRD_PARTY_NOTICES.md)、[LICENSE](../LICENSE) | 统一版权声明（含自动更新的依赖清单）与标准 MIT 原文；依赖各自原许可随原包保留 |
 | `src/core*.mjs`、`src/storage.mjs` | 播放控制、宿主协调与持久化；职责见架构 |
 | `src/providers/`、`src/discovery.mjs`、`src/persona*.mjs` | 平台导入/候选、缓存、模型筛选和预算；现行流程见 MVP/契约 |
+| `src/lyrics.mjs`、`src/ui/client/lyrics.mjs` | 独立歌词解析／缓存和控制台逐行显示；取词经 Provider，跳转经 Core／Playback，不由页面拥有音频 |
 | `src/playback/`、`src/runtime/` | 独立音频服务与运行证据采集 |
 | `src/ui/client/` | 主面板（含电台设置标签页）、悬浮条与工作区频谱的可编辑源码；`spectrum-bars/whale/canvas/backdrop` 分别维护场、彩蛋、绘制与挂载 |
 | `src/ui/assets/` | 运行图片的唯一文件位置；来源、hash 与许可见第三方声明及 U12 记录 |

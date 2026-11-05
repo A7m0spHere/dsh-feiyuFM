@@ -381,6 +381,7 @@ function Reset-PlaybackState {
 }
 
 function Stop-Playback {
+  Cancel-Seek
   if ($null -ne $script:pendingOpen) {
     $cancelled = $script:pendingOpen
     $script:pendingOpen = $null
@@ -536,6 +537,32 @@ function Step-Preload {
   Send-Result $pending.id @{ positionMs = 0; preloaded = $true; durationMs = $pending.durationMs }
 }
 
+$script:pendingSeek = $null
+
+function Cancel-Seek {
+  if ($null -ne $script:pendingSeek) {
+    $pending = $script:pendingSeek
+    $script:pendingSeek = $null
+    Send-ResultError $pending.id 'cancelled' 'Seek was superseded by another control'
+  }
+}
+
+function Step-Seek {
+  $pending = $script:pendingSeek
+  if ($null -eq $pending) { return }
+  $position = Get-Position
+  if ([Math]::Abs($position - $pending.target) -le 300) {
+    $script:pendingSeek = $null
+    $script:lastProgress = $position
+    $script:positionAtPlay = $position
+    if ($script:status -eq 'playing') { $script:progressWatch.Restart() }
+    Send-Result $pending.id @{ positionMs = $position }
+  } elseif ((Get-Date) -ge $pending.deadline) {
+    $script:pendingSeek = $null
+    Send-ResultError $pending.id 'seek_failed' 'Media did not confirm the requested position'
+  }
+}
+
 function Invoke-Command($command) {
   $id = [string]$command.id
   $type = [string]$command.type
@@ -544,10 +571,25 @@ function Invoke-Command($command) {
       Send-ResultError $id 'stale_version' 'Ignored an older playback command'
       return
     }
+    if ([long]$command.version -gt $script:acceptedVersion) { Cancel-Seek }
     $script:acceptedVersion = [long]$command.version
     if ($null -ne $script:instance) { $script:version = $command.version }
   }
   switch ($type) {
+    'seek' {
+      if ($null -eq $script:instance -or $null -ne $script:pendingOpen -or $script:status -notin @('playing', 'paused', 'ready')) {
+        Send-ResultError $id 'seek_unsupported' 'Media is not ready for seeking'; return
+      }
+      if ([string]$command.playInstanceId -ne $script:instance) { Send-ResultError $id 'stale_track' 'The track has changed'; return }
+      $target = [double]$command.positionMs
+      if ($null -eq $command.positionMs -or $target -lt 0 -or $null -eq $script:durationMs -or $target -ge $script:durationMs) {
+        Send-ResultError $id 'invalid_command' 'Invalid seek position'; return
+      }
+      Cancel-Seek
+      try { $script:player.Position = [TimeSpan]::FromMilliseconds($target) }
+      catch { Send-ResultError $id 'seek_failed' 'Media rejected seeking'; return }
+      $script:pendingSeek = @{ id = $id; target = $target; deadline = (Get-Date).AddMilliseconds(1600) }
+    }
     'load' {
       $hostStartedAt = [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()
       $resource = [string]$command.resource
@@ -728,6 +770,7 @@ function Handle-Line([string]$line) {
 }
 
 function Step-Playback {
+  if ($null -ne $script:pendingSeek) { return }
   if ($script:status -ne 'playing') { return }
   if ($null -ne $script:failed) {
     Fail-Playback $script:failed $script:failedMessage
@@ -816,7 +859,7 @@ try {
         pid = $PID
         backend = 'wpf-mediaplayer'
         ownerPid = $script:ownerPid
-        capabilities = @{ seek = $true; mute = $true; volume = $true; autoplay = $true; reuseSwitch = $true; preload = $true }
+        capabilities = @{ seek = $true; seekInPlace = $true; mute = $true; volume = $true; autoplay = $true; reuseSwitch = $true; preload = $true }
       }
       Send-Message (@{ type = 'state' } + (Get-State))
     }
@@ -845,6 +888,7 @@ try {
     }
     Pump
     Step-MediaOpen
+    Step-Seek
     Step-Preload
     Step-Warm
     Step-Playback

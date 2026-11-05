@@ -1,0 +1,159 @@
+{
+  "scope": "production-client-with-synthetic-preview-lyrics",
+  "checks": [
+    {
+      "name": "24 timed lyric rows",
+      "passed": true
+    },
+    {
+      "name": "translation and romanization default off",
+      "passed": true
+    },
+    {
+      "name": "current line highlighted",
+      "passed": true
+    },
+    {
+      "name": "translation independently enabled",
+      "passed": true
+    },
+    {
+      "name": "romanization independently enabled",
+      "passed": true
+    },
+    {
+      "name": "click seek keeps pause and instance",
+      "passed": true
+    },
+    {
+      "name": "seek and toggles do not refetch lyrics",
+      "passed": true
+    },
+    {
+      "name": "playing seek preserves playback",
+      "passed": true
+    },
+    {
+      "name": "manual scroll returns to following",
+      "passed": true
+    },
+    {
+      "name": "keyboard seek",
+      "passed": true
+    },
+    {
+      "name": "no horizontal overflow 1220",
+      "passed": true,
+      "detail": {
+        "width": 1120,
+        "scroll": 1120
+      }
+    },
+    {
+      "name": "dock remains visible 1220",
+      "passed": true
+    },
+    {
+      "name": "no horizontal overflow 960",
+      "passed": true,
+      "detail": {
+        "width": 960,
+        "scroll": 960
+      }
+    },
+    {
+      "name": "dock remains visible 960",
+      "passed": true
+    },
+    {
+      "name": "no horizontal overflow 740",
+      "passed": true,
+      "detail": {
+        "width": 740,
+        "scroll": 740
+      }
+    },
+    {
+      "name": "dock remains visible 740",
+      "passed": true
+    },
+    {
+      "name": "no horizontal overflow 560",
+      "passed": true,
+      "detail": {
+        "width": 560,
+        "scroll": 560
+      }
+    },
+    {
+      "name": "dock remains visible 560",
+      "passed": true
+    },
+    {
+      "name": "no horizontal overflow 440",
+      "passed": true,
+      "detail": {
+        "width": 440,
+        "scroll": 440
+      }
+    },
+    {
+      "name": "dock remains visible 440",
+      "passed": true
+    },
+    {
+      "name": "no horizontal overflow 300",
+      "passed": true,
+      "detail": {
+        "width": 300,
+        "scroll": 300
+      }
+    },
+    {
+      "name": "dock remains visible 300",
+      "passed": true
+    },
+    {
+      "name": "no horizontal overflow 225",
+      "passed": true,
+      "detail": {
+        "width": 225,
+        "scroll": 225
+      }
+    },
+    {
+      "name": "dock remains visible 225",
+      "passed": true
+    },
+    {
+      "name": "dark low-height lyrics visible",
+      "passed": true
+    },
+    {
+      "name": "a late lyric result cannot replace a newer song",
+      "passed": true
+    },
+    {
+      "name": "honest unavailable state",
+      "passed": true
+    },
+    {
+      "name": "honest instrumental state",
+      "passed": true
+    },
+    {
+      "name": "honest unsynced state",
+      "passed": true
+    },
+    {
+      "name": "honest error state",
+      "passed": true
+    },
+    {
+      "name": "no browser page errors",
+      "passed": true,
+      "detail": []
+    }
+  ],
+  "errors": []
+}

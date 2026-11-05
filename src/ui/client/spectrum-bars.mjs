@@ -1,6 +1,6 @@
 // 对话区左缘 ASCII 频谱背景带：本地动画时钟驱动的模拟频谱，不是 WPF 音频
 // 的测量值，也不是歌词或节拍识别。音频由原生宿主进程播放，媒体句柄不进 UI
-// （见 ARCHITECTURE），网页端拿不到真实 FFT，也没有歌词数据流；观感借鉴
+// （见 ARCHITECTURE），网页端拿不到真实 FFT；独立歌词显示不驱动此频谱。观感借鉴
 // audioMotion-analyzer 的峰值保持与重力下落、快起慢落包络，以及
 // soundscape 静默时的"呼吸"待机，全部离线生成。柱体字符按亮度映射到经典
 // ASCII 字符集（参考 ASCIIText 的 asciify 思路，不引入 Three.js 或第三方

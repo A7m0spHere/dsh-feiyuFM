@@ -229,6 +229,15 @@ function handle(command, id) {
       if (crashOn === 'play') setTimeout(crash, crashDelayMs);
       return void sendResult(id, { positionMs: Math.round(currentPosition()) });
     }
+    case 'seek': {
+      if (!supportsSeek) return void sendError(id, 'seek_unsupported', 'Seeking unavailable');
+      if (!instance || command.playInstanceId !== instance) return void sendError(id, 'stale_track', 'Track changed');
+      if (!Number.isFinite(command.positionMs) || command.positionMs < 0 || command.positionMs >= durationMs) return void sendError(id, 'invalid_command', 'Invalid seek target');
+      if (options.seekFailure) return void sendError(id, 'seek_failed', 'Simulated seek failure');
+      positionMs = basePosition = command.positionMs;
+      if (status === 'playing') playingSince = Date.now();
+      return void sendResult(id, { positionMs });
+    }
     case 'pause': {
       cancelPreload();
       if (pendingLoad) { cancelLoad(); status = 'paused'; }
@@ -325,7 +334,7 @@ function accept() {
       pid: process.pid,
       backend: 'fake-backend',
       ownerPid: OWNER_PID,
-      capabilities: { seek: supportsSeek, mute: true, autoplay: true, reuseSwitch: true, preload: true },
+      capabilities: { seek: supportsSeek, seekInPlace: supportsSeek, mute: true, autoplay: true, reuseSwitch: true, preload: true },
     });
     send({ type: 'state', ...state() });
     socket.on('data', (chunk) => {
