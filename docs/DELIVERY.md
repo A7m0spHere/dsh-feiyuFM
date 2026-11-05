@@ -2,6 +2,8 @@
 
 更新：2026-11-04，发行基线为 **0.1.1**，首发范围为 Windows／网易云。包含陪伴界面、四个标签页、ASCII 频谱、持续补歌与播放延迟优化。macOS 适配随包提供，真机验收未完成；QQ 暂缓。版本范围与摘要见 [0.1.1 发布记录](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/releases/0.1.1.md)，完整产品验收及长期体验缺口仍在 [开发状态](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/PROJECT_PLAN.md) 保留。
 
+2026-11-05 main 更新：Windows／网易云新增逐行歌词、翻译／音译独立开关及点击歌词原地跳转，默认只显示原文，暂停时定位仍保持暂停。该功能已合并源码，**尚未发布到 npm，正式版 0.1.1 不包含歌词**；提前体验可按下方 GitHub 源码方式安装并完整重启。日常候选和审查修订的实测边界见 [U26](spikes/U26-console-lyrics.md)，macOS 保持实验性。
+
 ## 支持范围
 
 | 项目 | 当前范围 |

@@ -23,7 +23,7 @@ npm run build
 
 以上检查不需要音乐账号，也不会播放账号里的歌曲。`npm run smoke:playback` 会播放合成测试音；`npm run login` 会发起真实扫码登录，不属于常规离线检查。
 
-`npm test` 在本机 Windows 默认包含 4 项真实 WPF/媒体回归（3 项静音预热 + 1 项同源重开），需要可用的音频环境。托管 CI 无法打开这些 WAV，设置 `FISHFM_TEST_REAL_AUDIO=0` 只跳过这 4 项；管道、取消控制和 fake-backend 测试仍运行。真实音频应在 Windows 工作站执行并单独记录，本机测试通过不能替代 runner 的硬件验证，反之亦然。
+`npm test` 在本机 Windows 默认包含真实 WPF／媒体回归（静音预热、同源重开和歌词原地定位），需要可用的音频环境。托管 CI 无法打开这些 WAV，设置 `FISHFM_TEST_REAL_AUDIO=0` 跳过需要真实音频环境的项目；管道、取消控制和 fake-backend 测试仍运行。测试基线见 [开发状态](docs/PROJECT_PLAN.md)。真实音频应在 Windows 工作站执行并单独记录，本机测试通过不能替代 runner 的硬件验证，反之亦然。
 
 源码位置和生成物规则统一查 [仓库入口](docs/REPOSITORY.md)。UI 改动须同步生成的 `src/ui/dsh-client.js`；文档改动运行 `npm run audit:acceptance` 与 `git diff --check`，不需要为静态文字重跑账号、音频或生产验收。
 

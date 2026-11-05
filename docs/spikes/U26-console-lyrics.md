@@ -1,6 +1,6 @@
 # U26：控制台逐行歌词与原地跳转
 
-日期：2026-11-05。范围为 `feat/console-lyrics`，需求来自用户截图及其后续选择。当前交付状态、测试总数和待验项只在 [PROJECT_PLAN](../PROJECT_PLAN.md) 维护；行为与接口分别见 [MVP](../MVP.md)、[CORE_CONTRACT](../CORE_CONTRACT.md)。本记录不代表 npm 发布或日常 Desktop 已加载。
+日期：2026-11-05。需求来自用户截图及其后续选择，从 `feat/console-lyrics` 开发，经 [PR #18](https://github.com/A7m0spHere/dsh-feiyuFM/pull/18) 按 Windows／网易云范围合并到 main（`21e170c`）。当前交付状态、测试总数和待验项只在 [PROJECT_PLAN](../PROJECT_PLAN.md) 维护；行为与接口分别见 [MVP](../MVP.md)、[CORE_CONTRACT](../CORE_CONTRACT.md)。源码合并不代表 npm 发布或日常 Desktop 已加载该版本。
 
 ## 实现与取舍
 

@@ -40,7 +40,7 @@ Workshop 来源为 [Wallpaper Engine 项目 3811739493](https://steamcommunity.c
 
 ### 仓库首页素材
 
-`assets/readme/hero.svg` 为本项目绘制的静态矢量介绍，按 MIT 提供。`panel.png`、`panel-dark.png`、`panel-narrow.png` 和 `panel-narrow-dark.png` 于 **2026-11-02** 从源码提交 `90c0453` 的隔离预览截取，展示当前陪伴界面、模拟数据与暂停状态，使用 `whale-idle.png`，没有展示锅盖 GIF 或 doll。截图中的鲸鱼娘仍适用上文的 CC BY-NC-SA 4.0，不能将整张截图中的角色图像按 MIT 使用。取景和尺寸见 [首页素材记录](assets/readme/README.md)；截图不构成真实账号、模型效果或音频验收证据。
+`assets/readme/hero.svg` 为本项目绘制的静态矢量介绍，按 MIT 提供。`panel.png`、`panel-dark.png`、`panel-narrow.png` 和 `panel-narrow-dark.png` 于 **2026-11-05** 从 main 提交 `21e170c` 的生产客户端预览截取，展示紧凑人物区、逐行歌词、示例数据与暂停状态，使用 `whale-idle.png`，没有展示锅盖 GIF 或 doll。示例歌词由本项目编写。截图中的鲸鱼娘仍适用上文的 CC BY-NC-SA 4.0，不能将整张截图中的角色图像按 MIT 使用。取景、尺寸与摘要见 [首页素材记录](assets/readme/README.md)；截图不构成真实账号、模型效果或音频验收证据。
 
 ## 第三方代码与交互参考
 
