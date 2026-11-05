@@ -16,6 +16,8 @@ beta.3 的模型协议／最终回答与日常原生 Desktop 重启补验见 [N2
 
 [U26 控制台歌词](U26-console-lyrics.md) 记录逐行显示、翻译／音译开关、真实原地定位、匿名网易云歌词与隔离 DSH 路由验证；原生静音媒体、模拟歌词和真实远端音频的证据分别说明。
 
+[U27 陪伴区 A 方案](U27-companion-horizontal-layout.md) 记录用户选择的左人物／右文本布局，修正中等宽度上下排列造成的留白，并核对宽窄、浅深色和低高度容器。
+
 [N24 后台隔离 DSH 验收](N24-dsh-background-acceptance.md) 记录真实会话并发、启停请求／上下文对照、静音 WPF 成长与进程清理；平台替身、原生 Desktop 和默认 filtered 未验范围单列。
 
 [N25 最近播放窗口与多批待播池](N25-recent-playback-and-approved-pool.md) 记录短周期重复的实测线索、50 次播放窗口、100 首入选池和缺歌降级，以及隔离 DSH 的验证边界。

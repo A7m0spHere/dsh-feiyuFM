@@ -552,12 +552,20 @@ window.__ModuleLoader__.load({
           .fishfm[data-view=main] .fm-companion-hero .fm-reply details{margin-top:7px}
         }
       }
-      .fm-now-layout { display:grid;grid-template-columns:minmax(0,1.1fr) minmax(340px,1fr);gap:32px;align-items:center;margin:8px 0 28px; }
-      .fishfm .fm-now-layout .fm-companion-hero { grid-template-columns:160px minmax(0,1fr);gap:22px;padding:10px 0 20px;margin:0; }
-      .fishfm .fm-now-layout .fm-companion-hero .fm-art { min-height:200px; }
-      .fishfm .fm-now-layout .fm-companion-hero .fm-art img { width:160px;height:190px; }
-      .fishfm .fm-now-layout .fm-companion-hero .fm-track { font-size:28px;overflow-wrap:anywhere; }
-      .fm-lyrics { min-width:0;border-left:1px solid var(--fm-line);padding-left:28px; }
+      .fm-now-layout { display:grid;grid-template-columns:minmax(0,1.2fr) minmax(300px,1fr);gap:28px;align-items:start;margin:12px 0 26px; }
+      .fishfm .fm-now-layout .fm-companion-hero { grid-template-columns:144px minmax(0,1fr);gap:22px;align-items:center;padding:16px 0;margin:0;min-width:0;text-align:left; }
+      .fishfm .fm-now-layout .fm-companion-hero .fm-art { grid-column:1;grid-row:1;min-height:0;align-self:center; }
+      .fishfm .fm-now-layout .fm-companion-hero .fm-art img { width:144px;height:176px; }
+      .fishfm .fm-now-layout .fm-companion-hero .fm-hero-copy { grid-column:2;grid-row:1;min-width:0; }
+      .fishfm .fm-now-layout .fm-companion-hero .fm-track { font-size:28px;letter-spacing:-.4px;overflow-wrap:anywhere; }
+      .fishfm .fm-now-layout .fm-companion-hero .fm-artist { margin-top:6px;overflow-wrap:anywhere; }
+      .fishfm .fm-now-layout .fm-companion-hero .fm-live { flex-wrap:wrap;justify-content:flex-start; }
+      .fishfm .fm-now-layout .fm-companion-hero .fm-feedback-actions { justify-content:flex-start;gap:8px;margin-top:18px; }
+      .fishfm .fm-now-layout .fm-companion-hero .fm-feedback-note[data-current-feedback=true] { display:none; }
+      .fishfm .fm-now-layout .fm-companion-hero .fm-reply { margin:20px 0 0;max-width:none; }
+      .fishfm .fm-now-layout .fm-companion-hero .fm-reply details { margin-top:8px; }
+      .fishfm .fm-now-layout .fm-companion-hero .fm-character-halo { inset:0 -18%; }
+      .fm-lyrics { min-width:0;border-left:1px solid var(--fm-line);padding-left:24px; }
       .fm-lyrics-heading { display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:36px;font-size:12px;color:var(--fm-muted); }
       .fm-lyric-options { display:flex;gap:6px; }
       .fm-lyric-option,.fm-lyric-return { border:0;background:transparent;color:var(--fm-muted);font:inherit;cursor:pointer;border-radius:6px;padding:5px 8px; }
@@ -579,30 +587,24 @@ window.__ModuleLoader__.load({
       .fm-lyric-return { color:var(--fm-accent);font-size:12px;padding-left:0; }
       .fm-lyric-error { font-size:12px;color:var(--fm-muted); }
       .fm-lyrics :is(button,[tabindex]):focus-visible { outline:2px solid var(--fm-accent);outline-offset:2px; }
-      @container fishfm (max-width:960px) {
-        .fm-now-layout { grid-template-columns:minmax(0,1fr) minmax(280px,1.15fr);gap:22px; }
-        .fishfm .fm-now-layout .fm-companion-hero { grid-template-columns:1fr;gap:8px; }
-        .fishfm .fm-now-layout .fm-companion-hero .fm-art { grid-column:1;grid-row:1;min-height:130px; }
-        .fishfm .fm-now-layout .fm-companion-hero .fm-art img { width:110px;height:125px; }
-        .fishfm .fm-now-layout .fm-companion-hero .fm-hero-copy { grid-column:1;grid-row:2; }
-        .fishfm .fm-now-layout .fm-companion-hero .fm-track { font-size:24px; }
-        .fm-lyrics { padding-left:20px; }
-      }
-      @container fishfm (max-width:640px) {
-        .fm-now-layout { grid-template-columns:minmax(0,1fr);gap:8px;margin-bottom:20px; }
-        .fishfm .fm-now-layout .fm-companion-hero { grid-template-columns:100px minmax(0,1fr);gap:16px;text-align:left;padding:0 0 12px; }
-        .fishfm .fm-now-layout .fm-companion-hero .fm-art { min-height:130px; }
-        .fishfm .fm-now-layout .fm-companion-hero .fm-art img { width:100px;height:120px; }
-        .fishfm .fm-now-layout .fm-companion-hero .fm-hero-copy { grid-column:2;grid-row:1; }
-        .fishfm .fm-now-layout .fm-companion-hero :is(.fm-live,.fm-feedback-actions) { justify-content:flex-start; }
-        .fishfm .fm-now-layout .fm-companion-hero .fm-reply { margin-inline:0; }
+      @container fishfm (max-width:760px) {
+        .fm-now-layout { grid-template-columns:minmax(0,1fr);gap:12px;margin-bottom:20px; }
         .fm-lyrics { border-left:0;border-top:1px solid var(--fm-line);padding:12px 0 0; }
         .fm-lyrics-scroll { height:250px;padding-top:10px; }
         .fm-lyric-original { font-size:20px; }
       }
+      @container fishfm (max-width:560px) {
+        .fishfm .fm-now-layout .fm-companion-hero { grid-template-columns:100px minmax(0,1fr);gap:16px;padding:12px 0; }
+        .fishfm .fm-now-layout .fm-companion-hero .fm-art img { width:100px;height:122px; }
+        .fishfm .fm-now-layout .fm-companion-hero .fm-track { font-size:24px; }
+        .fishfm .fm-now-layout .fm-companion-hero .fm-feedback-actions { margin-top:14px; }
+        .fishfm .fm-now-layout .fm-companion-hero .fm-reply { margin-top:16px; }
+      }
       @container fishfm (max-width:340px) {
         .fishfm .fm-now-layout .fm-companion-hero { grid-template-columns:70px minmax(0,1fr);gap:10px; }
         .fishfm .fm-now-layout .fm-companion-hero .fm-art img { width:70px;height:90px; }
+        .fishfm .fm-now-layout .fm-companion-hero .fm-track { font-size:22px; }
+        .fishfm .fm-now-layout .fm-companion-hero .fm-live { font-size:11px; }
         .fm-lyric-original { font-size:18px; }
       }
       @media (max-height:700px) { .fm-lyrics-scroll { height:220px; } }

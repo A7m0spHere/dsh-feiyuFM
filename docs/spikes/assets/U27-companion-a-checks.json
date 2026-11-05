@@ -1,0 +1,655 @@
+{
+  "scope": "production-client-with-synthetic-preview-data",
+  "checks": [
+    {
+      "name": "1220 light horizontal and no overflow",
+      "passed": true,
+      "detail": {
+        "content": 1072,
+        "horizontal": true,
+        "sameRow": true,
+        "heroWidth": 508.359375,
+        "heroHeight": 297.1562194824219,
+        "overflow": false,
+        "lyricsAside": true,
+        "lyricsBelow": false
+      }
+    },
+    {
+      "name": "1220 lyrics placement",
+      "passed": true
+    },
+    {
+      "name": "1220 character switch visible",
+      "passed": true
+    },
+    {
+      "name": "1220 dark horizontal and no overflow",
+      "passed": true,
+      "detail": {
+        "content": 1072,
+        "horizontal": true,
+        "sameRow": true,
+        "heroWidth": 508.359375,
+        "heroHeight": 297.1562805175781,
+        "overflow": false,
+        "lyricsAside": true,
+        "lyricsBelow": false
+      }
+    },
+    {
+      "name": "1220 lyrics placement",
+      "passed": true
+    },
+    {
+      "name": "1220 character switch visible",
+      "passed": true
+    },
+    {
+      "name": "1100 light horizontal and no overflow",
+      "passed": true,
+      "detail": {
+        "content": 1052,
+        "horizontal": true,
+        "sameRow": true,
+        "heroWidth": 508.359375,
+        "heroHeight": 297.15625,
+        "overflow": false,
+        "lyricsAside": true,
+        "lyricsBelow": false
+      }
+    },
+    {
+      "name": "1100 lyrics placement",
+      "passed": true
+    },
+    {
+      "name": "1100 character switch visible",
+      "passed": true
+    },
+    {
+      "name": "1100 dark horizontal and no overflow",
+      "passed": true,
+      "detail": {
+        "content": 1052,
+        "horizontal": true,
+        "sameRow": true,
+        "heroWidth": 508.359375,
+        "heroHeight": 297.15625,
+        "overflow": false,
+        "lyricsAside": true,
+        "lyricsBelow": false
+      }
+    },
+    {
+      "name": "1100 lyrics placement",
+      "passed": true
+    },
+    {
+      "name": "1100 character switch visible",
+      "passed": true
+    },
+    {
+      "name": "1000 light horizontal and no overflow",
+      "passed": true,
+      "detail": {
+        "content": 952,
+        "horizontal": true,
+        "sameRow": true,
+        "heroWidth": 504,
+        "heroHeight": 297.15625,
+        "overflow": false,
+        "lyricsAside": true,
+        "lyricsBelow": false
+      }
+    },
+    {
+      "name": "1000 lyrics placement",
+      "passed": true
+    },
+    {
+      "name": "1000 character switch visible",
+      "passed": true
+    },
+    {
+      "name": "long title and artist wrap",
+      "passed": true
+    },
+    {
+      "name": "1000 dark horizontal and no overflow",
+      "passed": true,
+      "detail": {
+        "content": 952,
+        "horizontal": true,
+        "sameRow": true,
+        "heroWidth": 504,
+        "heroHeight": 297.1562194824219,
+        "overflow": false,
+        "lyricsAside": true,
+        "lyricsBelow": false
+      }
+    },
+    {
+      "name": "1000 lyrics placement",
+      "passed": true
+    },
+    {
+      "name": "1000 character switch visible",
+      "passed": true
+    },
+    {
+      "name": "960 light horizontal and no overflow",
+      "passed": true,
+      "detail": {
+        "content": 912,
+        "horizontal": true,
+        "sameRow": true,
+        "heroWidth": 482.171875,
+        "heroHeight": 297.15625,
+        "overflow": false,
+        "lyricsAside": true,
+        "lyricsBelow": false
+      }
+    },
+    {
+      "name": "960 lyrics placement",
+      "passed": true
+    },
+    {
+      "name": "960 character switch visible",
+      "passed": true
+    },
+    {
+      "name": "960 dark horizontal and no overflow",
+      "passed": true,
+      "detail": {
+        "content": 912,
+        "horizontal": true,
+        "sameRow": true,
+        "heroWidth": 482.171875,
+        "heroHeight": 297.15625,
+        "overflow": false,
+        "lyricsAside": true,
+        "lyricsBelow": false
+      }
+    },
+    {
+      "name": "960 lyrics placement",
+      "passed": true
+    },
+    {
+      "name": "960 character switch visible",
+      "passed": true
+    },
+    {
+      "name": "900 light horizontal and no overflow",
+      "passed": true,
+      "detail": {
+        "content": 852,
+        "horizontal": true,
+        "sameRow": true,
+        "heroWidth": 449.453125,
+        "heroHeight": 297.15625,
+        "overflow": false,
+        "lyricsAside": true,
+        "lyricsBelow": false
+      }
+    },
+    {
+      "name": "900 lyrics placement",
+      "passed": true
+    },
+    {
+      "name": "900 character switch visible",
+      "passed": true
+    },
+    {
+      "name": "900 dark horizontal and no overflow",
+      "passed": true,
+      "detail": {
+        "content": 852,
+        "horizontal": true,
+        "sameRow": true,
+        "heroWidth": 449.453125,
+        "heroHeight": 297.15625,
+        "overflow": false,
+        "lyricsAside": true,
+        "lyricsBelow": false
+      }
+    },
+    {
+      "name": "900 lyrics placement",
+      "passed": true
+    },
+    {
+      "name": "900 character switch visible",
+      "passed": true
+    },
+    {
+      "name": "840 light horizontal and no overflow",
+      "passed": true,
+      "detail": {
+        "content": 792,
+        "horizontal": true,
+        "sameRow": true,
+        "heroWidth": 416.71875,
+        "heroHeight": 322.34375,
+        "overflow": false,
+        "lyricsAside": true,
+        "lyricsBelow": false
+      }
+    },
+    {
+      "name": "840 lyrics placement",
+      "passed": true
+    },
+    {
+      "name": "840 character switch visible",
+      "passed": true
+    },
+    {
+      "name": "840 dark horizontal and no overflow",
+      "passed": true,
+      "detail": {
+        "content": 792,
+        "horizontal": true,
+        "sameRow": true,
+        "heroWidth": 416.71875,
+        "heroHeight": 322.34375,
+        "overflow": false,
+        "lyricsAside": true,
+        "lyricsBelow": false
+      }
+    },
+    {
+      "name": "840 lyrics placement",
+      "passed": true
+    },
+    {
+      "name": "840 character switch visible",
+      "passed": true
+    },
+    {
+      "name": "800 light horizontal and no overflow",
+      "passed": true,
+      "detail": {
+        "content": 752,
+        "horizontal": true,
+        "sameRow": true,
+        "heroWidth": 752,
+        "heroHeight": 271.96875,
+        "overflow": false,
+        "lyricsAside": false,
+        "lyricsBelow": true
+      }
+    },
+    {
+      "name": "800 lyrics placement",
+      "passed": true
+    },
+    {
+      "name": "800 character switch visible",
+      "passed": true
+    },
+    {
+      "name": "800 dark horizontal and no overflow",
+      "passed": true,
+      "detail": {
+        "content": 752,
+        "horizontal": true,
+        "sameRow": true,
+        "heroWidth": 752,
+        "heroHeight": 271.96875,
+        "overflow": false,
+        "lyricsAside": false,
+        "lyricsBelow": true
+      }
+    },
+    {
+      "name": "800 lyrics placement",
+      "passed": true
+    },
+    {
+      "name": "800 character switch visible",
+      "passed": true
+    },
+    {
+      "name": "740 light horizontal and no overflow",
+      "passed": true,
+      "detail": {
+        "content": 692,
+        "horizontal": true,
+        "sameRow": true,
+        "heroWidth": 692,
+        "heroHeight": 271.96875,
+        "overflow": false,
+        "lyricsAside": false,
+        "lyricsBelow": true
+      }
+    },
+    {
+      "name": "740 lyrics placement",
+      "passed": true
+    },
+    {
+      "name": "740 character switch visible",
+      "passed": true
+    },
+    {
+      "name": "740 dark horizontal and no overflow",
+      "passed": true,
+      "detail": {
+        "content": 692,
+        "horizontal": true,
+        "sameRow": true,
+        "heroWidth": 692,
+        "heroHeight": 271.96875,
+        "overflow": false,
+        "lyricsAside": false,
+        "lyricsBelow": true
+      }
+    },
+    {
+      "name": "740 lyrics placement",
+      "passed": true
+    },
+    {
+      "name": "740 character switch visible",
+      "passed": true
+    },
+    {
+      "name": "640 light horizontal and no overflow",
+      "passed": true,
+      "detail": {
+        "content": 592,
+        "horizontal": true,
+        "sameRow": true,
+        "heroWidth": 592,
+        "heroHeight": 297.15625,
+        "overflow": false,
+        "lyricsAside": false,
+        "lyricsBelow": true
+      }
+    },
+    {
+      "name": "640 lyrics placement",
+      "passed": true
+    },
+    {
+      "name": "640 character switch visible",
+      "passed": true
+    },
+    {
+      "name": "640 dark horizontal and no overflow",
+      "passed": true,
+      "detail": {
+        "content": 592,
+        "horizontal": true,
+        "sameRow": true,
+        "heroWidth": 592,
+        "heroHeight": 297.1562805175781,
+        "overflow": false,
+        "lyricsAside": false,
+        "lyricsBelow": true
+      }
+    },
+    {
+      "name": "640 lyrics placement",
+      "passed": true
+    },
+    {
+      "name": "640 character switch visible",
+      "passed": true
+    },
+    {
+      "name": "560 light horizontal and no overflow",
+      "passed": true,
+      "detail": {
+        "content": 532,
+        "horizontal": true,
+        "sameRow": true,
+        "heroWidth": 532,
+        "heroHeight": 275.953125,
+        "overflow": false,
+        "lyricsAside": false,
+        "lyricsBelow": true
+      }
+    },
+    {
+      "name": "560 lyrics placement",
+      "passed": true
+    },
+    {
+      "name": "560 character switch visible",
+      "passed": true
+    },
+    {
+      "name": "560 dark horizontal and no overflow",
+      "passed": true,
+      "detail": {
+        "content": 532,
+        "horizontal": true,
+        "sameRow": true,
+        "heroWidth": 532,
+        "heroHeight": 275.953125,
+        "overflow": false,
+        "lyricsAside": false,
+        "lyricsBelow": true
+      }
+    },
+    {
+      "name": "560 lyrics placement",
+      "passed": true
+    },
+    {
+      "name": "560 character switch visible",
+      "passed": true
+    },
+    {
+      "name": "440 light horizontal and no overflow",
+      "passed": true,
+      "detail": {
+        "content": 412,
+        "horizontal": true,
+        "sameRow": true,
+        "heroWidth": 412,
+        "heroHeight": 275.953125,
+        "overflow": false,
+        "lyricsAside": false,
+        "lyricsBelow": true
+      }
+    },
+    {
+      "name": "440 lyrics placement",
+      "passed": true
+    },
+    {
+      "name": "440 character switch visible",
+      "passed": true
+    },
+    {
+      "name": "440 dark horizontal and no overflow",
+      "passed": true,
+      "detail": {
+        "content": 412,
+        "horizontal": true,
+        "sameRow": true,
+        "heroWidth": 412,
+        "heroHeight": 275.953125,
+        "overflow": false,
+        "lyricsAside": false,
+        "lyricsBelow": true
+      }
+    },
+    {
+      "name": "440 lyrics placement",
+      "passed": true
+    },
+    {
+      "name": "440 character switch visible",
+      "passed": true
+    },
+    {
+      "name": "360 light horizontal and no overflow",
+      "passed": true,
+      "detail": {
+        "content": 332,
+        "horizontal": true,
+        "sameRow": true,
+        "heroWidth": 332,
+        "heroHeight": 297.0468444824219,
+        "overflow": false,
+        "lyricsAside": false,
+        "lyricsBelow": true
+      }
+    },
+    {
+      "name": "360 lyrics placement",
+      "passed": true
+    },
+    {
+      "name": "360 character switch visible",
+      "passed": true
+    },
+    {
+      "name": "360 dark horizontal and no overflow",
+      "passed": true,
+      "detail": {
+        "content": 332,
+        "horizontal": true,
+        "sameRow": true,
+        "heroWidth": 332,
+        "heroHeight": 297.046875,
+        "overflow": false,
+        "lyricsAside": false,
+        "lyricsBelow": true
+      }
+    },
+    {
+      "name": "360 lyrics placement",
+      "passed": true
+    },
+    {
+      "name": "360 character switch visible",
+      "passed": true
+    },
+    {
+      "name": "300 light horizontal and no overflow",
+      "passed": true,
+      "detail": {
+        "content": 272,
+        "horizontal": true,
+        "sameRow": true,
+        "heroWidth": 272,
+        "heroHeight": 297.046875,
+        "overflow": false,
+        "lyricsAside": false,
+        "lyricsBelow": true
+      }
+    },
+    {
+      "name": "300 lyrics placement",
+      "passed": true
+    },
+    {
+      "name": "300 character switch visible",
+      "passed": true
+    },
+    {
+      "name": "300 dark horizontal and no overflow",
+      "passed": true,
+      "detail": {
+        "content": 272,
+        "horizontal": true,
+        "sameRow": true,
+        "heroWidth": 272,
+        "heroHeight": 297.0469055175781,
+        "overflow": false,
+        "lyricsAside": false,
+        "lyricsBelow": true
+      }
+    },
+    {
+      "name": "300 lyrics placement",
+      "passed": true
+    },
+    {
+      "name": "300 character switch visible",
+      "passed": true
+    },
+    {
+      "name": "225 light horizontal and no overflow",
+      "passed": true,
+      "detail": {
+        "content": 197,
+        "horizontal": true,
+        "sameRow": true,
+        "heroWidth": 197,
+        "heroHeight": 454.5156555175781,
+        "overflow": false,
+        "lyricsAside": false,
+        "lyricsBelow": true
+      }
+    },
+    {
+      "name": "225 lyrics placement",
+      "passed": true
+    },
+    {
+      "name": "225 character switch visible",
+      "passed": true
+    },
+    {
+      "name": "225 dark horizontal and no overflow",
+      "passed": true,
+      "detail": {
+        "content": 197,
+        "horizontal": true,
+        "sameRow": true,
+        "heroWidth": 197,
+        "heroHeight": 454.5155944824219,
+        "overflow": false,
+        "lyricsAside": false,
+        "lyricsBelow": true
+      }
+    },
+    {
+      "name": "225 lyrics placement",
+      "passed": true
+    },
+    {
+      "name": "225 character switch visible",
+      "passed": true
+    },
+    {
+      "name": "lyric click preserves pause",
+      "passed": true
+    },
+    {
+      "name": "play and pause controls work",
+      "passed": true
+    },
+    {
+      "name": "feedback error remains visible",
+      "passed": true
+    },
+    {
+      "name": "1220 low-height layout",
+      "passed": true
+    },
+    {
+      "name": "900 low-height layout",
+      "passed": true
+    },
+    {
+      "name": "560 low-height layout",
+      "passed": true
+    },
+    {
+      "name": "no browser errors",
+      "passed": true,
+      "detail": []
+    }
+  ],
+  "errors": []
+}
