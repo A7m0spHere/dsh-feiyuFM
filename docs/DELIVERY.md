@@ -1,6 +1,6 @@
 # 交付与使用说明
 
-更新：2026-11-04，发行基线为 **0.1.1**，首发范围为 Windows／网易云。包含陪伴界面、四个标签页、ASCII 频谱、持续补歌与播放延迟优化。macOS 适配随包提供，真机验收未完成；QQ 暂缓。版本范围与摘要见 [0.1.1 发布记录](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/releases/0.1.1.md)，完整产品验收及长期体验缺口仍在 [开发状态](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/PROJECT_PLAN.md) 保留。
+更新：2026-11-06，发行基线为 **0.1.1**，首发范围为 Windows／网易云。包含陪伴界面、四个标签页、ASCII 频谱、持续补歌与播放延迟优化。macOS 适配随包提供，真机验收未完成；QQ 暂缓。版本范围与摘要见 [0.1.1 发布记录](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/releases/0.1.1.md)，完整产品验收及长期体验缺口仍在 [开发状态](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/PROJECT_PLAN.md) 保留。
 
 2026-11-05 main 更新：Windows／网易云新增逐行歌词、翻译／音译独立开关及点击歌词原地跳转，默认只显示原文，暂停时定位仍保持暂停。该功能已合并源码，**尚未发布到 npm，正式版 0.1.1 不包含歌词**；提前体验可按下方 GitHub 源码方式安装并完整重启。日常候选和审查修订的实测边界见 [U26](spikes/U26-console-lyrics.md)，macOS 保持实验性。
 
@@ -83,6 +83,34 @@ DSH `0.2.0-rc.2` 的插件页暂不支持自动更新。先在插件管理器卸
 - **不能补充歌单：** 当前任务、预算或平台节流可能限制请求；余量不足时后台也会自动补充，等待期间仍可点播、暂停或换曲。
 - **源码改动没有生效：** UI 修改后运行 `npm run build:client` 或 `npm run build`，再刷新界面。官方桌面版会缓存后端模块；后端或资源路由更新需从托盘完整退出 DSH 再启动，只关窗口、刷新页面或停用再启用插件不足以清除缓存。已发布 npm 安装不会自动取得尚未发布的源码改动。
 - **悬浮条显示错误：** 可从抽屉内重试或重新核对；只有 Core 不可达才标为断连。
+
+## Windows WPF 公网媒体兼容：Issue #19
+
+截至2026-11-06，使用 **npm 0.1.1 原版宿主**的开发者本机对照确认：pwsh 7.6.5／.NET 10.0.11 对公网 HTTP(S) 存在区域策略限制；同一公网 HTTPS MP3 经异步 `MediaFailed` 失败，消息为 `Only site-of-origin pack URIs are supported for media.`，旁路取得 HRESULT `0x80131509`，出现过进度 `0/0`、`openElapsedMs=33/1/0ms`。本机本地及环回HTTP音频可播，见[上游 #11856](https://github.com/dotnet/wpf/issues/11856)。
+
+Windows PowerShell 5.1／Framework 4.8.1 对同一HTTPS资源也失败：同步 `Open()` 内部为 `NullReferenceException`、`0x80004003`，原版只报告 `Open() rejected the resource`，与[上游历史问题](https://github.com/dotnet/wpf/issues/722)相似。**不能统一推荐切到5.1；目前没有经过验证的通用修复，测试用户 [#19](https://github.com/A7m0spHere/dsh-feiyuFM/issues/19) 的实际根因仍待确认。**
+
+公开 `v10.0.11` 标签的该源码文件无新区域检查，[`8218c1c`](https://github.com/dotnet/wpf/commit/8218c1c1856f91ffe2b7a1b8a8137ec375a875d6) 新增了检查，核对时 main 的该文件相同；它不是恢复公网播放的修复。所测10.0.11发行二进制的行为及IL独立确认含此逻辑，公开标签不能代替实际加载版本。上述结果不替代测试用户实机验收。
+
+**先读已有错误，不必重新点播、重启、登录或更换宿主。** 将[辅助脚本](../scripts/read-last-error.mjs)从GitHub的Raw另存为 `read-last-error.mjs`；它不在已发布的0.1.1包内，但能独立运行，无需安装源码依赖或重装插件。使用已有 Node `>=24.14.0 <25`，在脚本目录执行：
+
+```powershell
+node .\read-last-error.mjs "$env:USERPROFILE\.dsh\fishfm\music.sqlite"
+```
+
+配置过 `DSH_HOME` 或数据库位置时替换为本机实际路径，不接受UNC或URL；没有可用Node命令或不清楚路径时，回复“暂无法提取”即可，不要求安装/降级运行时。脚本只读查询，不导入插件、调用RPC、控制进程、发起平台请求、迁移或写入业务数据；SQLite仍使用正常只读锁及WAL读视图。
+
+| 信息 | npm 0.1.1 的取证边界 |
+|---|---|
+| 保存的 `snapshot.lastError.code/message` | 输出已知错误码/固定消息；未知自由文本隐藏，只提取其中的HRESULT，未识别错误码也隐藏。只粘贴输出JSON，不上传数据库、完整日志、CDN URL、Cookie或账号材料 |
+| 实际PowerShell可执行文件及版本、FrameworkDescription、实际加载的PresentationCore文件版本 | 未写入该持久状态，脚本输出 `null/unknown`。不另启PowerShell、不根据PATH或安装列表猜测；已有故障记录没有这些字段时回复 `unknown` 即可 |
+| 对应的媒体打开阶段 | 原版未保存phase。固定 `Open() rejected the resource`、`Could not finish opening media`、上述区域策略消息可分别推断同步Open、打开后设置/定位/启动、MediaFailed事件；输出注明“根据0.1.1固定消息推断”，其余为 `unknown` |
+
+读到的是当时已提交的状态，错误可能已被后续操作替换/清除；`lastError:null` 不证明此前没有故障。固定消息、快速 `media_failed`、进度 `0/0` 的组合与调查相似，单一错误码、HRESULT或版本号不足以定案。`resolve`计数只代表请求尝试；即使取得URL，HTTP可访问与WPF可打开仍是两个事实。`openElapsedMs` 不包含同步 `Open()` 耗时。`library cancelled` 保持独立调查。
+
+`FISHFM_PLAYBACK_SHELL` 只把指定exe放到候选首位：**启动/握手失败**后仍尝试PATH中的pwsh和系统Windows PowerShell，**媒体失败不会自动换宿主**。变量值不证明实际选中了它。只有同机同一失败资源已验证候选可用，才考虑进程级手动覆盖；需由设置变量的同一终端启动完整退出后的DSH，让新Core继承环境。当前不增加自动切换，也不把切到5.1当作本案解法。
+
+不建议开启 `Switch.System.Windows.Net.DoNotApplyZoneCheckForDefaultCredentials`、降低安全等级或回退安全更新：该开关改变默认Windows凭据的区域保护，不只是音频设置；不同宿主的安全策略也不保证等价。先保留现有策略并确认错误，无需为本次取证强制发布新版本。
 
 ## 验证与边界
 

@@ -53,6 +53,7 @@
 | `npm run observe:runtime -- --seconds <时长> --out <报告>` | 附着已运行生产插件的证据，不启动第二个 Core |
 | `node scripts/observe-processes.mjs --seconds <时长> --out <报告>` | Windows 进程资源只读观察，不输出命令行/凭据 |
 | `node scripts/audit-real-observation.mjs --report <报告> --database <库>` | 只读数据库核对既有真实观察，不实例化 Core |
+| `node scripts/read-last-error.mjs <实际 music.sqlite 路径>` | npm 0.1.1 可独立使用的只读错误提取；仅输出已知错误码/固定消息或HRESULT，缺失运行时信息为unknown，阶段仅作有来源的推断。不控制进程、登录或播放，见[WPF兼容取证](../docs/DELIVERY.md#windows-wpf-公网媒体兼容issue-19) |
 | `npm run soak -- --fake --minutes 5` | 合成耐久演练；延长到 120 分钟仍不能代替 A09 的真实平台/DSH 对照 |
 
 不要为了“整理仓库”执行登录、真实发声、生产观察或长跑。需要这些证据时按 [开发路线](../docs/PROJECT_PLAN.md) 的具体任务运行。
