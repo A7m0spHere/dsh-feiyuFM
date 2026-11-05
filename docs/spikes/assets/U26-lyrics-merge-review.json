@@ -1,0 +1,87 @@
+{
+  "date": "2026-11-05",
+  "pr": "https://github.com/A7m0spHere/dsh-feiyuFM/pull/18",
+  "environment": {
+    "platform": "win32",
+    "node": "24.22.1"
+  },
+  "review": {
+    "addedCases": 9,
+    "reproducedFailingCases": 7,
+    "groups": [
+      {
+        "name": "superseding-controls-and-ends",
+        "before": {
+          "tests": 5,
+          "passed": 1,
+          "failed": 4
+        }
+      },
+      {
+        "name": "terminal-snapshot-in-new-control",
+        "before": {
+          "tests": 2,
+          "passed": 0,
+          "failed": 2
+        }
+      },
+      {
+        "name": "pause-transient-zero",
+        "before": {
+          "tests": 2,
+          "passed": 1,
+          "failed": 1
+        }
+      }
+    ]
+  },
+  "intermediateFull": [
+    {
+      "tests": 772,
+      "passed": 772,
+      "failed": 0,
+      "skipped": 0
+    },
+    {
+      "tests": 774,
+      "passed": 774,
+      "failed": 0,
+      "skipped": 0
+    }
+  ],
+  "targetedFirst": {
+    "tests": 45,
+    "passed": 44,
+    "failed": 1,
+    "skipped": 0,
+    "failure": "a song ending during a pipe disconnect reaches Core and starts the queued song",
+    "singleRetry": "passed; cause unknown"
+  },
+  "targetedFinal": {
+    "tests": 47,
+    "passed": 47,
+    "failed": 0,
+    "skipped": 0
+  },
+  "fullFinal": {
+    "tests": 776,
+    "passed": 776,
+    "failed": 0,
+    "skipped": 0
+  },
+  "boundaries": {
+    "newCases": "deterministic IPC interleavings",
+    "nativeSeek": "real muted WPF local WAV passed in targeted and full tests",
+    "desktopInstalledCandidate": "4b6f0c1; review fixes not reinstalled",
+    "macOS": "not_executed"
+  },
+  "checks": {
+    "modules": 192,
+    "build": "passed",
+    "debugSmoke": "passed",
+    "packageFiles": 4898,
+    "packageLicenseAndWhitelist": "passed",
+    "documents": 123,
+    "brokenLinks": 0
+  }
+}

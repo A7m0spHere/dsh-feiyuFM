@@ -203,6 +203,8 @@ U24 为 filtered 状态投影的 `playbackPool` 可选增加 `tracks`：最多 1
 
 断线主动要新快照，不用 supervisor 缓存判断资源是否还在；匹配实例/版本的 `ended/error` 补发一次，不补计失联时间。每实例/版本共享恢复任务，最多三轮连接/快照尝试；await 后检查实例和版本，旧恢复不能清掉新曲目。超时/写入异常拒绝所有等待者；宿主退出、所有者消失及 `dispose` 都停止音频。
 
+跳转等待期间暂缓普通进度与结束事件，结束后以 seek 应答或失败核对得到的权威快照确认终态：确实结束则补发一次，已在新位置播放则忽略旧结束。更新的 play／setMuted 取代未确认定位时，采用该控制应答中的实际位置重新锚定并核对终态，迟到 seek 不得恢复旧位置或覆盖新版本；同样不补计定位跳过的时间。正常暂停只采纳向前的位置，防止 WPF 恢复后的瞬时零值清掉已确认进度；取代未确认跳转的暂停仍可采纳该跳转到达的低位置。
+
 播放期间的媒体失败上报 `media_failed`；连续 15 秒时间线不推进上报 `media_stalled`，暂停和实际推进重置检测。终态快照附加 `errorCode/errorMessage/retryable`，不改变协议版本。Core 对 `playback_host_lost/media_stalled` 或可重试的 `media_failed` 重新解析原曲一次，尝试从已确认位置继续，保留实例和实际收听累计；与过期地址恢复共用一次预算。暂停/换曲可取消，恢复 load 失败保留已听片段，未开始加载不伪造收听。见 [N21](spikes/N21-playback-interruption-recovery.md)。
 
 默认播放中从 5 个静音、不播放的持有者开始，根据实际 Open 耗时最多补齐到 8 个；`FISHFM_PLAYBACK_WARM_HOLDERS=0..8` 可覆盖为固定数量，0 关闭。首曲仍冷，资源在临时目录生成；参数不是跨机器性能保证，见 [N19](spikes/N19-wpf-audio-warmup.md)、[N20](spikes/N20-review-fixes.md)。
