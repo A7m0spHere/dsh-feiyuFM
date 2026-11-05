@@ -114,6 +114,7 @@ private final class AudioHost {
     private var endObserver: NSObjectProtocol?
     private var timeObserver: Any?
     private var pendingLoad: (id: String, item: AVPlayerItem, startMs: Int, deadline: DispatchTime)?
+    private var pendingSeek: (id: String, item: AVPlayerItem)?
     private var status = "idle"
     private var playInstanceID: String?
     private var version: Int?
@@ -241,7 +242,7 @@ private final class AudioHost {
         send([
             "type": "hello", "protocol": protocolVersion, "pid": getpid(),
             "backend": "avfoundation", "ownerPid": ownerPID,
-            "capabilities": ["seek": true, "mute": true, "volume": true],
+            "capabilities": ["seek": true, "seekInPlace": true, "mute": true, "volume": true],
         ])
         sendState()
         marker("FISHFM_PLAYBACK_CLIENT_CONNECTED")
@@ -289,11 +290,41 @@ private final class AudioHost {
                 sendResultError(id, code: "stale_version", message: "Ignored an older playback command")
                 return
             }
+            if value > acceptedVersion { cancelSeek() }
             acceptedVersion = value
             if playInstanceID != nil { version = value }
         }
 
         switch type {
+        case "seek":
+            guard let item = player.currentItem, pendingLoad == nil,
+                  command["playInstanceId"] as? String == playInstanceID,
+                  status == "playing" || status == "paused" || status == "ready",
+                  let number = command["positionMs"] as? NSNumber,
+                  number.doubleValue.isFinite, number.doubleValue >= 0,
+                  let duration = durationMs, number.doubleValue < Double(duration) else {
+                sendResultError(id, code: "seek_unsupported", message: "Media is not ready for this seek")
+                return
+            }
+            cancelSeek()
+            pendingSeek = (id, item)
+            player.seek(to: CMTime(value: number.int64Value, timescale: 1000), toleranceBefore: .zero, toleranceAfter: .zero) { [weak self, weak item] finished in
+                DispatchQueue.main.async {
+                    guard let self, let item, self.pendingSeek?.id == id, self.player.currentItem === item else { return }
+                    self.pendingSeek = nil
+                    self.lastProgress = self.position()
+                    self.positionAtPlay = self.lastProgress
+                    self.lastAdvanceAt = Date()
+                    if finished { self.sendResult(id, extra: ["positionMs": self.lastProgress]) }
+                    else { self.sendResultError(id, code: "seek_failed", message: "Media did not complete seeking") }
+                }
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 2) { [weak self] in
+                guard let self, self.pendingSeek?.id == id else { return }
+                self.pendingSeek = nil
+                item.cancelPendingSeeks()
+                self.sendResultError(id, code: "seek_failed", message: "Media seek timed out")
+            }
         case "load": load(command, id: id)
         case "play":
             guard player.currentItem != nil, playInstanceID != nil else {
@@ -445,7 +476,15 @@ private final class AudioHost {
         sendResultError(pending.id, code: "cancelled", message: message)
     }
 
+    private func cancelSeek() {
+        guard let pending = pendingSeek else { return }
+        pendingSeek = nil
+        pending.item.cancelPendingSeeks()
+        sendResultError(pending.id, code: "cancelled", message: "Seek was superseded by another control")
+    }
+
     private func stopPlayback() {
+        cancelSeek()
         cancelPendingLoad(message: "Media open was superseded by a playback control")
         player.pause()
         player.replaceCurrentItem(with: nil)
@@ -462,7 +501,7 @@ private final class AudioHost {
     }
 
     private func onTick(_ time: CMTime) {
-        guard status == "playing" else { return }
+        guard status == "playing", pendingSeek == nil else { return }
         if let pending = pendingLoad, DispatchTime.now() >= pending.deadline {
             failPendingLoad(code: "media_open_timeout", message: "Media did not open before its deadline")
             return

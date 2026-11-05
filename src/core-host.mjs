@@ -9,7 +9,8 @@
 // No music decision here contacts a model. Session events only gate local work.
 import { createInterface } from 'node:readline';
 import { randomUUID } from 'node:crypto';
-import { MusicError, normalizeTrack } from './contracts.mjs';
+import { createLyricsService } from './lyrics.mjs';
+import { MusicError, normalizeTrack, trackId } from './contracts.mjs';
 import { MusicStore } from './storage.mjs';
 import { MusicCore } from './core.mjs';
 import { FakePlayback } from './fakes.mjs';
@@ -397,6 +398,7 @@ export function createCoreHost({
     };
 
     const activeProvider = provider ?? platformsFacade ?? providerRegistry ?? registry;
+  const lyrics = createLyricsService({ providerFor: name => platformsFacade?.registry.providers[name] ?? registry.providers[name], now });
   let core = null;
   let playback = null;
   let disposePlayback = async () => {};
@@ -468,6 +470,13 @@ export function createCoreHost({
     const id = message.id ?? null;
     try {
       switch (message.type) {
+        case 'lyrics': {
+          const current = core.state.current;
+          if (!current || trackId(current.track) !== trackId(message.track)) throw new MusicError('stale_track', '歌曲已经切换，请重新读取歌词。');
+          const value = await lyrics.get(current.track);
+          send({ type: 'result', id, ok: true, lyrics: value });
+          return;
+        }
         case 'snapshot': {
           const snapshotStarted = performance.now();
           const snapshot = core.snapshot();
@@ -497,7 +506,7 @@ export function createCoreHost({
           // Transport commands do not change discovery settings. Dispatch has
           // already produced the accepted snapshot; rebuilding it delayed the
           // UI reply and the foreground load queued behind this handler.
-          const transport = ['pause', 'resume', 'next', 'previous', 'requestTrack', 'stopForToday'].includes(message.command?.type);
+          const transport = ['pause', 'resume', 'next', 'previous', 'seek', 'requestTrack', 'stopForToday'].includes(message.command?.type);
           const acceptedSnapshot = transport ? snapshot : core.snapshot();
           const coreAcceptedAt = Date.now();
           if (traceId) onLog({ type: 'playback-timing', phase: 'core-accepted', traceId, at: coreAcceptedAt,
@@ -841,6 +850,7 @@ export function createCoreHost({
     clearInterval(loopTimer);
     if (maintenance) clearInterval(maintenance);
     platformsFacade?.closeDiscovery();
+    lyrics.close();
     core?._invalidate();
     try { await disposePlayback(); } catch (error) { onLog({ type: 'playback-dispose-failed', message: error.message }); }
     try { await core?.waitForIdle(); } catch { /* late tasks cannot publish after invalidation */ }
@@ -960,7 +970,7 @@ export function createCoreHost({
     // long account/import work so a slow media request cannot hold up pause.
     handle: (message) => {
       const inputVersion = inputEpoch;
-      return ['command','snapshot','platforms','library','account','environment','insights','expression-style','feedback-list','feedback-clear','persona','recommendation-route','persona-budget','persona-output','persona-automatic','persona-reserve','persona-start','persona-finish','sessions','discovery','discovery-filter-status','shutdown','wait','autonomous','session-event','setQueue'].includes(message.type)
+      return ['lyrics','command','snapshot','platforms','library','account','environment','insights','expression-style','feedback-list','feedback-clear','persona','recommendation-route','persona-budget','persona-output','persona-automatic','persona-reserve','persona-start','persona-finish','sessions','discovery','discovery-filter-status','shutdown','wait','autonomous','session-event','setQueue'].includes(message.type)
         ? handle(message, inputVersion) : enqueue(() => handle(message, inputVersion));
     },
     close,

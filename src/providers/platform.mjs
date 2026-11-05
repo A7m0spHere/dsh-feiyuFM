@@ -110,7 +110,7 @@ export function createPlatformProvider({
       // A platform answer of "not authorised" means the stored sign-in is no
       // longer usable. Saying so once is better than continuing to report
       // `authorized` until some later explicit restore() notices.
-      if (mapped.code === 'login_required' && role !== (parse.loginQrRole ?? 'loginQr')
+      if (mapped.code === 'login_required' && role !== 'lyrics' && role !== (parse.loginQrRole ?? 'loginQr')
         && role !== (parse.loginPollRole ?? 'loginPoll') && store?.setCredentialReference && authorized()) {
         lastError = 'the platform rejected the stored sign-in';
         store.setCredentialReference({
@@ -171,6 +171,21 @@ export function createPlatformProvider({
 
   const provider = {
     name: providerName,
+    supportsLyrics() { return typeof parse.lyrics === 'function'; },
+
+    lyricsContext() {
+      const reference = store?.getCredentialReference?.(providerName);
+      return `${loginVersion}:${reference?.state ?? 'none'}:${reference?.account_id ?? ''}`;
+    },
+
+    async lyrics(track, { signal = null } = {}) {
+      if (!parse.lyrics) throw new MusicError('lyrics_unsupported', '此平台暂不支持歌词。');
+      if (track?.provider !== providerName || !/^\d{1,20}$/.test(track?.providerTrackId ?? '')) throw new MusicError('invalid_track', '歌词需要有效的平台歌曲。');
+      const version = loginVersion;
+      const body = await call('lyrics', { id: track.providerTrackId }, { signal });
+      if (signal?.aborted || version !== loginVersion) throw new MusicError('cancelled', '歌词请求已取消。');
+      return parse.lyrics(body, track);
+    },
 
     getAccount() {
       if (pendingLogin) return { status: 'login_required', pending: true, hint: 'scan the QR code to continue' };
@@ -212,6 +227,7 @@ export function createPlatformProvider({
           : needsLogin(phrase.import),
         search: signedIn ? capability('available') : needsLogin(phrase.search),
         resolve: signedIn ? capability('available') : needsLogin(phrase.play),
+        lyrics: parse.lyrics ? capability('available') : unavailable('此平台暂不支持歌词。'),
         recommendation: noted.recommendation
           ?? (signedIn ? unavailable('the recommendation surface is not implemented yet') : needsLogin(phrase.recommend)),
       };

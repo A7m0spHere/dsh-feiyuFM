@@ -1,0 +1,40 @@
+{
+  "date": "2026-11-05",
+  "scope": "isolated-dsh-empty-profile-lyrics-and-seek-routes",
+  "checks": [
+    {
+      "name": "installed client renders empty lyric area",
+      "passed": true
+    },
+    {
+      "name": "translation and romanization default off",
+      "passed": true
+    },
+    {
+      "name": "missing auxiliary lyrics cannot be enabled",
+      "passed": true
+    },
+    {
+      "name": "authenticated lyrics route reaches Core current-track validation",
+      "passed": true
+    },
+    {
+      "name": "authenticated seek route reaches Core instance validation",
+      "passed": true
+    },
+    {
+      "name": "seek rejects invalid positions",
+      "passed": true
+    }
+  ],
+  "minimalRpc": {
+    "http": 200,
+    "ms": 39,
+    "ok": true,
+    "snapshot": true,
+    "neteaseInstalled": true
+  },
+  "clientMatchesInstalled": true,
+  "gracefulShutdown": true,
+  "realSongPlayback": "not_executed"
+}

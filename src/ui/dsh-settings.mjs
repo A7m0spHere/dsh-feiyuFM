@@ -9,12 +9,13 @@ import { OUTPUT_RANGE } from '../persona.mjs';
 import {validateExpressionInput} from '../expression.mjs';
 import {validateFeedbackQuery,validateFeedbackClear} from '../feedback.mjs';
 
-const ALLOWED = new Set(['pause', 'resume', 'next', 'previous', 'setListening', 'setHumanPlayback',
+const ALLOWED = new Set(['pause', 'resume', 'next', 'previous', 'seek', 'setListening', 'setHumanPlayback',
   'setDiscovery', 'setDiscoveryRate', 'setMode', 'stopForToday', 'chooseSelf', 'requestTrack', 'setTrackFeedback', 'resetTaste', 'resetLibrary', 'undoTasteReset','setRecommendationMode']);
 const QUICK_LOGIN_PROVIDER = 'netease';
 const STATE_ENDPOINT = 'fishfm/state';
 const PROFILE_ENDPOINT = 'fishfm/profile';
 const LIBRARY_ENDPOINT = 'fishfm/library';
+const LYRICS_ENDPOINT = 'fishfm/lyrics';
 const EXPRESSION_ENDPOINT = 'fishfm/expression-style';
 const FEEDBACK_ENDPOINTS = new Set(['fishfm/feedback-list','fishfm/feedback-clear']);
 const PERSONA_ENDPOINTS=new Set(['fishfm/persona-summary','fishfm/persona-recommendations','fishfm/persona-budget','fishfm/persona-output','fishfm/persona-automatic']);
@@ -118,8 +119,14 @@ async function initializationStage(bridge, phase, operation) {
 export function createSettingsHandler(bridge,summaryService={current:null}) {
   return async (endpoint, payload, signal) => {
     try {
-      if (endpoint !== STATE_ENDPOINT && endpoint !== PROFILE_ENDPOINT && endpoint !== LIBRARY_ENDPOINT && endpoint !== EXPRESSION_ENDPOINT && !FEEDBACK_ENDPOINTS.has(endpoint) && endpoint !== 'fishfm/command' && !PLATFORM_ENDPOINTS.has(endpoint)&&!PERSONA_ENDPOINTS.has(endpoint)) {
+      if (endpoint !== LYRICS_ENDPOINT && endpoint !== STATE_ENDPOINT && endpoint !== PROFILE_ENDPOINT && endpoint !== LIBRARY_ENDPOINT && endpoint !== EXPRESSION_ENDPOINT && !FEEDBACK_ENDPOINTS.has(endpoint) && endpoint !== 'fishfm/command' && !PLATFORM_ENDPOINTS.has(endpoint)&&!PERSONA_ENDPOINTS.has(endpoint)) {
         throw Object.assign(new Error('Unknown FeiyuFM endpoint'), { code: 'not_found' });
+      }
+      if (endpoint === LYRICS_ENDPOINT) {
+        const track = normalizeTrack({ provider: payload?.track?.provider, providerTrackId: payload?.track?.providerTrackId });
+        await bridge.start();
+        const value = await bridge.request({ type: 'lyrics', track }, { signal, abortable: true, timeoutMs: 16_000 });
+        return { ok: true, value: { lyrics: value.lyrics } };
       }
       if (endpoint === STATE_ENDPOINT && payload?.playbackOnly === true) {
         await bridge.start();
@@ -253,7 +260,8 @@ export function createSettingsHandler(bridge,summaryService={current:null}) {
         }
         command = { type: payload.type, value: payload.value, commandId: randomUUID() };
         if (typeof payload.traceId === 'string' && /^[\w:.-]{1,100}$/.test(payload.traceId)
-          && ['pause','resume','next','previous','requestTrack','stopForToday'].includes(command.type)) command.traceId = payload.traceId;
+          && ['pause','resume','next','previous','seek','requestTrack','stopForToday'].includes(command.type)) command.traceId = payload.traceId;
+        if (command.type === 'seek') { command.positionMs = payload.positionMs; command.playInstanceId = payload.playInstanceId; }
         if (command.type === 'requestTrack') {
           try { const t=payload.track; command.track = normalizeTrack({provider:t?.provider,providerTrackId:t?.providerTrackId,
             title:t?.title,artist:t?.artist,durationMs:t?.durationMs}); }
@@ -299,7 +307,7 @@ export function registerSettingsApi(ctx, bridge,summaryService) {
   // both the Electron renderer and a Web profile.
   if (typeof ctx.connection.fetch?.register === 'function') {
     ctx.effect(() => {
-      const disposers = [STATE_ENDPOINT, PROFILE_ENDPOINT, LIBRARY_ENDPOINT, EXPRESSION_ENDPOINT, ...FEEDBACK_ENDPOINTS, 'fishfm/command', ...PLATFORM_ENDPOINTS,...PERSONA_ENDPOINTS].map(endpoint =>
+      const disposers = [STATE_ENDPOINT, PROFILE_ENDPOINT, LIBRARY_ENDPOINT, LYRICS_ENDPOINT, EXPRESSION_ENDPOINT, ...FEEDBACK_ENDPOINTS, 'fishfm/command', ...PLATFORM_ENDPOINTS,...PERSONA_ENDPOINTS].map(endpoint =>
         ctx.connection.fetch.register({
           path: `/api/${endpoint}`, methods: ['POST'], requestBody: 'buffered',
           async fetch(request) {
@@ -319,6 +327,6 @@ export function registerSettingsApi(ctx, bridge,summaryService) {
     }, 'fishfm: authenticated settings routes');
   } else {
     ctx.effect(() => ctx.connection.rpc.intercept('/api',
-      endpoint => endpoint === STATE_ENDPOINT || endpoint === PROFILE_ENDPOINT || endpoint === LIBRARY_ENDPOINT || endpoint === EXPRESSION_ENDPOINT || FEEDBACK_ENDPOINTS.has(endpoint) || endpoint === 'fishfm/command' || PLATFORM_ENDPOINTS.has(endpoint)||PERSONA_ENDPOINTS.has(endpoint), handler));
+      endpoint => endpoint === LYRICS_ENDPOINT || endpoint === STATE_ENDPOINT || endpoint === PROFILE_ENDPOINT || endpoint === LIBRARY_ENDPOINT || endpoint === EXPRESSION_ENDPOINT || FEEDBACK_ENDPOINTS.has(endpoint) || endpoint === 'fishfm/command' || PLATFORM_ENDPOINTS.has(endpoint)||PERSONA_ENDPOINTS.has(endpoint), handler));
   }
 }

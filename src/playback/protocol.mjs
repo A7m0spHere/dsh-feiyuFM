@@ -5,7 +5,7 @@ import { MusicError } from '../contracts.mjs';
 /** Bump when any message shape below changes in a way an older peer cannot read. */
 export const PROTOCOL_VERSION = 1;
 
-export const HOST_COMMANDS = Object.freeze(['load', 'play', 'pause', 'stop', 'setMuted', 'snapshot', 'ping', 'shutdown']);
+export const HOST_COMMANDS = Object.freeze(['load', 'play', 'pause', 'seek', 'stop', 'setMuted', 'snapshot', 'ping', 'shutdown']);
 
 /**
  * Optional load fields. A host that advertises `capabilities.autoplay` applies

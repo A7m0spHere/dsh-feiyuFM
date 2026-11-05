@@ -72,6 +72,14 @@ export class FakePlayback {
   supportsAutoplay() { return this.autoplaySupported === true; }
   supportsReuseSwitch() { return this.reuseSwitchSupported === true; }
   supportsPreload() { return this.preloadSupported === true; }
+  canSeek({ playInstanceId } = {}) { return this.supportsSeek && Boolean(this.loaded) && (!playInstanceId || this.loaded.playInstanceId === playInstanceId); }
+  async seek({ playInstanceId, positionMs, version }) {
+    this.calls.push({ type: 'seek', playInstanceId, positionMs, version });
+    this._fail('seek');
+    if (!this.canSeek({ playInstanceId }) || !this._accept(version)) throw new MusicError('seek_unsupported', 'Seek unavailable');
+    this.loaded.positionMs = positionMs;
+    return { positionMs };
+  }
   canResume({ playInstanceId } = {}) {
     return this.playing === false && Boolean(this.loaded)
       && (!playInstanceId || this.loaded.playInstanceId === playInstanceId);

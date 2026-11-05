@@ -1,6 +1,6 @@
 # 内部控制契约
 
-更新：2026-11-03。本文只维护内部字段、命令与边界，DSH 外部接口经 Adapter 映射；职责见 [架构](ARCHITECTURE.md)，用户行为见 [MVP](MVP.md)，实现／部署／验收状态只看 [开发状态](PROJECT_PLAN.md)。历史理由查 [决策摘要](DECISIONS.md) 与 [实验记录](spikes/README.md)。
+更新：2026-11-05。本文只维护内部字段、命令与边界，DSH 外部接口经 Adapter 映射；职责见 [架构](ARCHITECTURE.md)，用户行为见 [MVP](MVP.md)，实现／部署／验收状态只看 [开发状态](PROJECT_PLAN.md)。历史理由查 [决策摘要](DECISIONS.md) 与 [实验记录](spikes/README.md)。
 
 ## 1. 曲目、账号与资源
 
@@ -20,11 +20,18 @@ Provider 暴露账号和能力状态，`resolve(track, {signal, version})` 返�
 
 ## 2. 用户命令
 
+歌词由 Provider 的 `lyrics(track,{signal})` 独立读取。网易云通过固定接口包的 `lyric` 模块匿名请求，既不读取／发送用户会话，也不保存响应 Set-Cookie；歌词权限失败不使播放账号过期。`supportsLyrics()` 与能力投影如实标明支持情况，QQ 暂不支持。
+
+`lyrics={track,source,format,status,lines,text}`，状态为 `synced/unsynced/unavailable/instrumental/unsupported`；同步行含 `id/startMs/endMs/text/translation/romanization`，时间统一毫秒，未知结束时间为 null。普通 LRC 经 lrc-kit 解析，按时间排序／合并同时间行、应用 offset，副行只匹配相差不超过 250ms 的最近原文时间；不按行号拼接，不补造翻译或时间。每个原始文本上限 256000 字符、5000 行，展示行文本最多 2000 字符；这是解析后的限额，不覆盖接口包内部 HTTP 流。
+
+Core 独立歌词服务最多缓存 100 首，按曲目及账号状态／登录代次隔离，成功保留 24 小时，无词／纯音乐保留 10 分钟；失败不缓存。最多四个不同取词请求并发，同键共享等待，12 秒截止，关闭时取消。歌词全文不进入 SQLite、播放快照、模型输入或日志。客户端仅在「正在听」可见且已连接时取当前曲目，超时、隐藏或换曲取消本地等待并拒绝迟到响应。
+
 命令带非空 `commandId`，可带 `expectedRevision`。重复命令返回当前快照，旧 revision 返回 `stale_revision`；接受后递增 `decisionVersion`，影响播放时递增 `commandVersion` 并取消旧解析。播放控制可附安全格式 `traceId`，只用于关联 UI/RPC 的计时，不替代 `commandId` 或改变幂等语义；带 traceId 的应答附 `timing={traceId,coreReceivedAt,coreAcceptedAt}`。客户端 `getPlaybackTrace()` 保留最多 200 条内存时间戳，按播放实例关联 UI 投影，自动续播不冒用上次点击的 traceId，不增加轮询或控制请求。
 
 | 命令 | 参数 | 约定 |
 |---|---|---|
 | `pause/resume` | 无 | 暂停优先；恢复保持自主/声音设置，宿主仍持有暂停曲时直接恢复，否则重新解析并尝试恢复位置；确认恢复后重建后台预取 |
+| `seek` | `playInstanceId/positionMs` | 目标为非负安全整数且小于已知时长；仅作用于当前已就绪实例和支持原地定位的宿主。保持暂停意图与实例，递增命令版本去旧；异步失败写独立 `seekError`，不触发自动换曲 |
 | `next` | 无 | 历史回退后优先沿固定游标前进，回到最新位置后才走队列/推荐选择器；历史前进绕过自动防重复窗口，仍跳过禁播/不可播；后续历史全部被阻止时返回 `no_next_history` 且游标不动；暂停期间换曲仍暂停 |
 | `previous` | 无 | 返回实际播放历史中的上一首；用户显式操作可绕过最近 50 首自动防重复窗口，但仍跳过禁播/不可播；连续返回用固定历史游标，不因新播放记录来回跳；无更早可播返回 `no_previous`；暂停期间换曲仍暂停 |
 | `requestTrack` | `track` | 明确点播并解除暂停，不自动改声音或自主开关；禁播返回 `constraint_conflict` |
@@ -37,6 +44,8 @@ Provider 暴露账号和能力状态，`resolve(track, {signal, version})` 返�
 | `resetTaste/resetLibrary` | `value: {clearFeedback: boolean}` | 保存可撤销恢复点，与去重记录同事务；模型预留/运行中返回 `summary_busy` |
 | `undoTasteReset` | 无 | 恢复最近恢复点，缺备份返回 `no_reset_backup`，重置后新增反馈优先 |
 | `setRecommendationMode` | `value: filtered/llm/platform` | filtered 默认平台召回后筛选；后两项保留内部兼容，界面不提供旧来源切换 |
+
+快照附 `playbackCapabilities.seek`（当前宿主／实例是否可原地定位）、`seekPending={playInstanceId,positionMs}|null` 和 `seekError={code,message}|null`。接受跳转时保留真实旧位置，宿主确认后允许位置前移或后退并重新锚定；失败查询实际宿主位置，不伪造已到达。新暂停／换曲取代旧定位，快速连点以最后有效版本为准；重启清空等待和跳转错误。客户端在等待时复用 500ms 的轻量控制刷新，逐行滚动本身不增加 RPC。该位置变动不累计收听、不登记 started，不修改推荐或最近 50 次记录。
 
 `resetTaste` 保留输入曲库；`resetLibrary` 还清空输入/来源及队列。两者保留账号、历史、约束与模型账本，不改变当前播放。重置边界前的成长不能重新写回旧偏好。
 
@@ -94,6 +103,7 @@ UI 经宿主认证 `/api` 调用；完整白名单见 [dsh-settings.mjs](../src/
 | `fishfm/profile` | 按需返回 `insights/persona/summaryModels/features`；面板切到画像相关标签页时请求一次，播放实例变化或断线重连后刷新一次，不进入 2.2s 轮询 |
 | `fishfm/library` | 全库搜索与分页，只返回 `library`，不覆盖播放状态 |
 | `fishfm/command` | 白名单用户命令与更新状态 |
+| `fishfm/lyrics` | `{track:{provider,providerTrackId}}`，只允许当前曲目；独立只读请求返回 `lyrics`，不返回或改写播放快照 |
 | `fishfm/login-start/login-poll/logout` | 网易云扫码、账号确认、退出 |
 | `fishfm/import/playlists` | 来源导入与账号歌单，保留数量/尝试轨迹 |
 | `fishfm/discovery-refresh` | 后台刷新状态，可补跑一次有预算的筛选 |
@@ -185,8 +195,10 @@ U24 为 filtered 状态投影的 `playbackPool` 可选增加 `tracks`：最多 1
 |---|---|
 | `load` | `{resource, playInstanceId, startPositionMs, version, signal}`；媒体就绪返回实际 `{positionMs}`，无法 seek 返回 0 |
 | `play/pause/stop/setMuted` | 携带版本，拒绝旧命令；暂停/停止可取消 pending open |
+| `seek` | `{playInstanceId,positionMs,version,signal}`；需 hello 的 `seekInPlace:true`（旧 `seek` 仅表示加载起点能力），返回宿主实际 `{positionMs}`；不重新 Open／Play、不改变暂停或静音 |
 | `started` | 当前时间线确实推进后才发，系统 Play 返回不算证据 |
 | `progress` | 实例、版本、`positionMs/effectiveDeltaMs/progressSource`；只向前报，连续观测限定有效增量 |
+| `positioned` | PlaybackService 确认定位或暂停快照后向 Core 发出的位置更新，可向后；不累计有效时间，不登记播放开始 |
 | `ended/error` | 当前实例/版本，结束带最终位置，错误保留分类 |
 
 断线主动要新快照，不用 supervisor 缓存判断资源是否还在；匹配实例/版本的 `ended/error` 补发一次，不补计失联时间。每实例/版本共享恢复任务，最多三轮连接/快照尝试；await 后检查实例和版本，旧恢复不能清掉新曲目。超时/写入异常拒绝所有等待者；宿主退出、所有者消失及 `dispose` 都停止音频。

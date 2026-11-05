@@ -552,6 +552,61 @@ window.__ModuleLoader__.load({
           .fishfm[data-view=main] .fm-companion-hero .fm-reply details{margin-top:7px}
         }
       }
+      .fm-now-layout { display:grid;grid-template-columns:minmax(0,1.1fr) minmax(340px,1fr);gap:32px;align-items:center;margin:8px 0 28px; }
+      .fishfm .fm-now-layout .fm-companion-hero { grid-template-columns:160px minmax(0,1fr);gap:22px;padding:10px 0 20px;margin:0; }
+      .fishfm .fm-now-layout .fm-companion-hero .fm-art { min-height:200px; }
+      .fishfm .fm-now-layout .fm-companion-hero .fm-art img { width:160px;height:190px; }
+      .fishfm .fm-now-layout .fm-companion-hero .fm-track { font-size:28px;overflow-wrap:anywhere; }
+      .fm-lyrics { min-width:0;border-left:1px solid var(--fm-line);padding-left:28px; }
+      .fm-lyrics-heading { display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:36px;font-size:12px;color:var(--fm-muted); }
+      .fm-lyric-options { display:flex;gap:6px; }
+      .fm-lyric-option,.fm-lyric-return { border:0;background:transparent;color:var(--fm-muted);font:inherit;cursor:pointer;border-radius:6px;padding:5px 8px; }
+      .fm-lyric-option[aria-pressed=true] { color:var(--fm-accent);background:color-mix(in srgb,var(--fm-accent) 9%,transparent); }
+      .fm-lyric-option:disabled { opacity:.4;cursor:default; }
+      .fm-lyrics-scroll { position:relative;height:292px;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin;padding:20px 8px 72px 0;box-sizing:border-box; }
+      .fm-lyric-line { display:block;width:100%;padding:10px 0;border:0;text-align:left;background:transparent;color:var(--fm-muted);font:inherit;line-height:1.55;cursor:pointer;overflow-wrap:anywhere;border-radius:6px; }
+      .fm-lyric-line:disabled { cursor:default;opacity:1; }
+      .fm-lyric-original { display:block;font-size:22px;font-weight:500;white-space:pre-wrap;transition:color 160ms ease; }
+      .fm-lyric-line[data-active=true] .fm-lyric-original { color:var(--fm-accent);font-weight:650; }
+      .fm-lyric-line:hover:not(:disabled) .fm-lyric-original { color:var(--fm-accent); }
+      .fm-lyric-secondary { display:block;font-size:13px;line-height:1.7;margin-top:4px;white-space:pre-wrap;font-weight:400; }
+      .fm-lyric-line[data-active=true] .fm-lyric-secondary { color:var(--fm-ink); }
+      .fm-lyric-interlude { letter-spacing:5px;font-size:24px; }
+      .fm-lyrics-empty { display:flex;min-height:200px;align-items:center;justify-content:center;flex-direction:column;gap:10px;text-align:center;color:var(--fm-muted);font-size:13px; }
+      .fm-lyrics-plain { white-space:pre-wrap;line-height:2;color:var(--fm-muted);font-size:16px; }
+      .fm-lyrics-footer { min-height:30px;display:flex;align-items:center;flex-wrap:wrap;gap:8px;padding-top:4px; }
+      .fm-lyric-hint { color:var(--fm-muted);font-size:11px; }
+      .fm-lyric-return { color:var(--fm-accent);font-size:12px;padding-left:0; }
+      .fm-lyric-error { font-size:12px;color:var(--fm-muted); }
+      .fm-lyrics :is(button,[tabindex]):focus-visible { outline:2px solid var(--fm-accent);outline-offset:2px; }
+      @container fishfm (max-width:960px) {
+        .fm-now-layout { grid-template-columns:minmax(0,1fr) minmax(280px,1.15fr);gap:22px; }
+        .fishfm .fm-now-layout .fm-companion-hero { grid-template-columns:1fr;gap:8px; }
+        .fishfm .fm-now-layout .fm-companion-hero .fm-art { grid-column:1;grid-row:1;min-height:130px; }
+        .fishfm .fm-now-layout .fm-companion-hero .fm-art img { width:110px;height:125px; }
+        .fishfm .fm-now-layout .fm-companion-hero .fm-hero-copy { grid-column:1;grid-row:2; }
+        .fishfm .fm-now-layout .fm-companion-hero .fm-track { font-size:24px; }
+        .fm-lyrics { padding-left:20px; }
+      }
+      @container fishfm (max-width:640px) {
+        .fm-now-layout { grid-template-columns:minmax(0,1fr);gap:8px;margin-bottom:20px; }
+        .fishfm .fm-now-layout .fm-companion-hero { grid-template-columns:100px minmax(0,1fr);gap:16px;text-align:left;padding:0 0 12px; }
+        .fishfm .fm-now-layout .fm-companion-hero .fm-art { min-height:130px; }
+        .fishfm .fm-now-layout .fm-companion-hero .fm-art img { width:100px;height:120px; }
+        .fishfm .fm-now-layout .fm-companion-hero .fm-hero-copy { grid-column:2;grid-row:1; }
+        .fishfm .fm-now-layout .fm-companion-hero :is(.fm-live,.fm-feedback-actions) { justify-content:flex-start; }
+        .fishfm .fm-now-layout .fm-companion-hero .fm-reply { margin-inline:0; }
+        .fm-lyrics { border-left:0;border-top:1px solid var(--fm-line);padding:12px 0 0; }
+        .fm-lyrics-scroll { height:250px;padding-top:10px; }
+        .fm-lyric-original { font-size:20px; }
+      }
+      @container fishfm (max-width:340px) {
+        .fishfm .fm-now-layout .fm-companion-hero { grid-template-columns:70px minmax(0,1fr);gap:10px; }
+        .fishfm .fm-now-layout .fm-companion-hero .fm-art img { width:70px;height:90px; }
+        .fm-lyric-original { font-size:18px; }
+      }
+      @media (max-height:700px) { .fm-lyrics-scroll { height:220px; } }
+      @media (prefers-reduced-motion:reduce) { .fm-lyric-original { transition:none; } }
     `;
 
     // src/ui/client/shared.mjs
@@ -613,7 +668,7 @@ window.__ModuleLoader__.load({
       const snapshot = state.snapshot, pending = state.transportPending;
       const current = snapshot?.current;
       const preparing = !snapshot?.paused && ['resolving', 'selecting'].includes(snapshot?.status);
-      const canPause = (pending && !['pause', 'stopForToday'].includes(pending))
+      const canPause = (pending && !['pause', 'stopForToday'].includes(pending) && !(pending === 'seek' && snapshot?.paused))
         || (current && !snapshot.paused) || preparing;
       const hasMusic = current || state.library?.total || snapshot?.queue?.length
         || state.persona?.recommendationPipeline?.playbackPool?.available
@@ -626,12 +681,12 @@ window.__ModuleLoader__.load({
         playDisabled: !state.connected || pending === 'pause' || pending === 'stopForToday'
           || (!canPause && (state.busy || !hasMusic)),
         // 没有更早的可播记录时由 Core 的 navigation.previous 明确告知，按钮据此禁用。
-        previousDisabled: !state.connected || state.busy || Boolean(pending) || !snapshot?.navigation?.previous,
+        previousDisabled: !state.connected || (state.busy && pending !== 'seek') || (Boolean(pending) && pending !== 'seek') || !snapshot?.navigation?.previous,
         previousLabel: pending === 'previous' ? '返回中…' : '上一首',
-        nextDisabled: !state.connected || state.busy || Boolean(pending) || !hasMusic,
+        nextDisabled: !state.connected || (state.busy && pending !== 'seek') || (Boolean(pending) && pending !== 'seek') || !hasMusic,
         nextLabel: pending === 'next' ? '切换中…' : '下一首',
         message: ({ pause: '正在暂停…', resume: '正在继续播放…', next: '正在切换下一首…', previous: '正在返回上一首…',
-          requestTrack: '正在准备歌曲…', stopForToday: '正在停止…' })[pending] ?? '',
+          seek: '正在跳转…', requestTrack: '正在准备歌曲…', stopForToday: '正在停止…' })[pending] ?? '',
       };
     }
 
@@ -778,7 +833,7 @@ window.__ModuleLoader__.load({
       };
       let epoch = 0, playbackEpoch = 0, libraryEpoch = 0, platformEpoch = 0, timer, playbackTimer, read, transportWrite, settingsWrite, platformWrite, libraryRead,summaryWrite,expressionWrite, disposed = false;
       const writes = new Set();
-      const transportCommands = new Set(['pause', 'resume', 'next', 'previous', 'requestTrack', 'stopForToday']);
+      const transportCommands = new Set(['pause', 'resume', 'next', 'previous', 'seek', 'requestTrack', 'stopForToday']);
       let libraryOptions = { query: '', offset: 0, limit: 12 };
       let feedbackOptions = { query: '', filter: 'all', offset: 0, limit: 12 };
       let feedbackOpen = false, feedbackEpoch = 0, feedbackRead, feedbackWrite, feedbackRetry;
@@ -936,7 +991,7 @@ window.__ModuleLoader__.load({
       function followPlayback() {
         clearTimeout(playbackTimer);
         if (!disposed && listeners.size && !document.hidden && state.connected
-          && (state.transportPending || ['resolving', 'selecting'].includes(state.snapshot?.status))) {
+          && (state.transportPending || state.snapshot?.seekPending || ['resolving', 'selecting'].includes(state.snapshot?.status))) {
           playbackTimer = setTimeout(() => { void refresh(); }, 500);
         }
       }
@@ -1005,7 +1060,7 @@ window.__ModuleLoader__.load({
           }, 18000);
         });
         try {
-          const playbackOnly = Boolean(state.transportPending || ['resolving', 'selecting'].includes(state.snapshot?.status));
+          const playbackOnly = Boolean(state.transportPending || state.snapshot?.seekPending || ['resolving', 'selecting'].includes(state.snapshot?.status));
           // Every poll stays light: snapshot/platforms/library only. Profile data is
           // loaded on demand by ensureProfile and refreshed by invalidation events.
           const result = await Promise.race([connection.rpc.call('/api', 'fishfm/state',
@@ -1038,6 +1093,20 @@ window.__ModuleLoader__.load({
         }
       }
       const controllerApi = {
+        async readLyrics(track, signal) {
+          if (disposed) throw { code: 'cancelled', message: '歌词读取已取消。' };
+          let interrupted;
+          const cancelled = new Promise((_, reject) => {
+            interrupted = () => reject({ code: 'lyrics_cancelled', message: '歌词读取未完成，请重试。' });
+            signal?.addEventListener('abort', interrupted, { once: true });
+            if (signal?.aborted) interrupted();
+          });
+          try {
+            const result = await Promise.race([connection.rpc.call('/api', 'fishfm/lyrics', { track }, signal), cancelled]);
+            if (!result.ok) throw result.error;
+            return result.value.lyrics;
+          } finally { signal?.removeEventListener('abort', interrupted); }
+        },
         getSnapshot: () => state,
         getPlaybackTrace: () => playbackTrace.map(entry => ({ ...entry })),
         getInitializationTrace: () => initializationTrace.map(entry => ({ ...entry })),
@@ -1171,7 +1240,8 @@ window.__ModuleLoader__.load({
           if (disposed || !state.connected || (!transport && (state.busy || state.transportPending))) return;
           // Pause must reach Core even when a preceding play/skip request is slow.
           // Other duplicate transport clicks are coalesced until acknowledged.
-          if (transport && state.transportPending && (type !== 'pause' || state.transportPending === 'pause')) return;
+          if (transport && state.transportPending && (type !== 'pause' || state.transportPending === 'pause')
+            && !(state.transportPending === 'seek' && ['seek', 'next', 'previous', 'requestTrack', 'resume'].includes(type))) return;
           if (state.platformBusy && ['resetTaste', 'resetLibrary', 'undoTasteReset'].includes(type)) return;
           const traceId = transport ? `${traceSession}-${++traceSerial}` : null;
           if (transport) trace('ui-click', { traceId, kind: type });
@@ -1191,7 +1261,7 @@ window.__ModuleLoader__.load({
           followPlayback();
           const timeout = setTimeout(() => request.abort(), 25000);
           try {
-            const payload = type === 'requestTrack' ? {type,track:value} : type === 'setTrackFeedback' ? {type,...value} : {type,value};
+            const payload = type === 'requestTrack' ? {type,track:value} : ['setTrackFeedback', 'seek'].includes(type) ? {type,...value} : {type,value};
             if (traceId) { payload.traceId = traceId; trace('rpc-sent', { traceId, kind: type }); }
             const result = await connection.rpc.call('/api', 'fishfm/command',
               ['setTrackFeedback','resetTaste','resetLibrary','undoTasteReset','setRecommendationMode'].includes(type) ? { ...payload, library: libraryOptions } : payload, request.signal);
@@ -1460,6 +1530,90 @@ window.__ModuleLoader__.load({
       return h('button', { type: 'button', className: 'fm-handle', 'aria-label': '向下滑动或按下收起快捷控制', title: '向下滑动收起',
         onPointerDown: down, onPointerMove: move, onPointerUp: end, onPointerCancel: end,
         onClick: (e) => { if (e.detail === 0) onClose(); } }, h('span', { className: 'fm-handle-bar' }));
+    }
+
+    // src/ui/client/lyrics.mjs
+    function lyricLineIndex(lines, positionMs) {
+      let low = 0, high = lines.length;
+      while (low < high) { const mid = (low + high) >>> 1; if (lines[mid].startMs <= positionMs) low = mid + 1; else high = mid; }
+      return low - 1;
+    }
+
+    function Lyrics({ controller, snapshot, connected, visible, positionMs, motion, transportPending, accountContext = '' }) {
+      const track = snapshot?.current?.track;
+      const key = track ? `${track.provider}:${track.providerTrackId}|${accountContext}` : '';
+      const [loaded, setLoaded] = React.useState(null);
+      const [retry, setRetry] = React.useState(0);
+      const [translation, setTranslation] = React.useState(false);
+      const [romanization, setRomanization] = React.useState(false);
+      const [following, setFollowing] = React.useState(true);
+      const [pageVisible, setPageVisible] = React.useState(!document.hidden);
+      const viewport = React.useRef(null);
+      React.useEffect(() => {
+        const change = () => setPageVisible(!document.hidden);
+        document.addEventListener?.('visibilitychange', change);
+        return () => document.removeEventListener?.('visibilitychange', change);
+      }, []);
+      React.useEffect(() => { setFollowing(true); }, [key, snapshot?.current?.playInstanceId]);
+      React.useEffect(() => {
+        if (!key || !visible || !pageVisible || !connected) return undefined;
+        let cancelled = false;
+        const request = new AbortController();
+        const timeout = setTimeout(() => request.abort(), 17_000);
+        setLoaded(value => value?.key === key && value.data ? value : { key, status: 'loading' });
+        controller.readLyrics(track, request.signal).then(data => {
+          if (!cancelled && !request.signal.aborted) setLoaded({ key, data });
+        }).catch(error => {
+          if (!cancelled) setLoaded({ key, status: 'error', message: error?.message || '歌词读取失败，请重试。' });
+        }).finally(() => clearTimeout(timeout));
+        return () => { cancelled = true; clearTimeout(timeout); request.abort(); };
+      }, [key, connected, visible, pageVisible, retry, controller]);
+      const value = loaded?.key === key ? loaded : null;
+      const data = value?.data;
+      const lines = data?.lines ?? [];
+      const index = lyricLineIndex(lines, positionMs);
+      React.useEffect(() => {
+        if (!following || !visible || !pageVisible || index < 0) return;
+        const root = viewport.current;
+        const row = root?.querySelector(`[data-lyric-index="${index}"]`);
+        if (!row) return;
+        const reduced = motion === 'off' || motion === 'reduced' || window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+        root.scrollTo?.({ top: Math.max(0, row.offsetTop - root.clientHeight * .34), behavior: reduced ? 'instant' : 'smooth' });
+      }, [index, following, visible, pageVisible, translation, romanization, data, motion]);
+      const canSeek = connected && snapshot?.playbackCapabilities?.seek && track?.durationMs > 0
+        && (!transportPending || transportPending === 'seek');
+      const option = (label, enabled, active, change) => h('button', { type: 'button', className: 'fm-lyric-option',
+        disabled: !enabled, 'aria-pressed': active, onClick: () => change(!active) }, label);
+      let content;
+      if (!key) content = h('p', { className: 'fm-lyrics-empty' }, '播放歌曲后，歌词会显示在这里');
+      else if (!connected && !data) content = h('p', { className: 'fm-lyrics-empty' }, '连接恢复后读取歌词');
+      else if (!value || value.status === 'loading') content = h('p', { className: 'fm-lyrics-empty' }, '正在读取歌词…');
+      else if (value.status === 'error') content = h('div', { className: 'fm-lyrics-empty' }, h('p', null, value.message),
+        h('button', { type: 'button', className: 'fm-button', disabled: !connected, onClick: () => setRetry(count => count + 1) }, '重试'));
+      else if (data?.status === 'synced') content = lines.map((line, i) => h('button', {
+        type: 'button', key: line.id, className: 'fm-lyric-line', 'data-lyric-index': i,
+        'data-active': i === index, 'aria-current': i === index ? 'true' : undefined,
+        disabled: !canSeek || line.startMs >= track.durationMs || !line.text,
+        'aria-label': line.text ? `跳转到 ${minutes(line.startMs)} ${line.text}` : '间奏',
+        onClick: () => { setFollowing(true); void controller.command('seek', { positionMs: line.startMs, playInstanceId: snapshot.current.playInstanceId }); },
+      }, h('span', { className: line.text ? 'fm-lyric-original' : 'fm-lyric-interlude' }, line.text || '···'),
+      translation && line.translation && h('span', { className: 'fm-lyric-secondary' }, line.translation),
+      romanization && line.romanization && h('span', { className: 'fm-lyric-secondary' }, line.romanization)));
+      else if (data?.status === 'unsynced') content = h('div', { className: 'fm-lyrics-plain' },
+        h('p', { className: 'fm-lyric-hint' }, '此歌词暂无时间信息'), h('p', null, data.text));
+      else content = h('p', { className: 'fm-lyrics-empty' }, ({ instrumental: '纯音乐，请欣赏', unsupported: '此平台暂不支持歌词' })[data?.status] || '暂时没有这首歌的歌词');
+      return h('section', { className: 'fm-lyrics', 'aria-label': '当前歌曲歌词' },
+        h('div', { className: 'fm-lyrics-heading' }, h('span', null, '歌词'), h('div', { className: 'fm-lyric-options' },
+          option('翻译', lines.some(line => line.translation), translation, setTranslation),
+          option('音译', lines.some(line => line.romanization), romanization, setRomanization))),
+        h('div', { className: 'fm-lyrics-scroll', ref: viewport, tabIndex: 0, 'aria-label': '歌词内容',
+          onWheel: () => setFollowing(false), onTouchStart: () => setFollowing(false),
+          onPointerDown: event => { if (event.target === viewport.current) setFollowing(false); },
+          onKeyDown: event => { if (['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End'].includes(event.key)) setFollowing(false); } }, content),
+        h('div', { className: 'fm-lyrics-footer' }, !following && lines.length > 0
+          ? h('button', { type: 'button', className: 'fm-lyric-return', onClick: () => setFollowing(true) }, '回到当前句')
+          : h('span', { className: 'fm-lyric-hint' }, snapshot?.seekPending ? '正在跳转…' : data?.status === 'synced' && canSeek ? '点击歌词，跳到这一句' : ''),
+        snapshot?.seekError && h('span', { className: 'fm-lyric-error', role: 'status' }, snapshot.seekError.message)));
     }
 
     // src/ui/client/doll-world.mjs
@@ -1920,7 +2074,7 @@ window.__ModuleLoader__.load({
       const playing = snapshot?.status === 'playing';
       const presentation = playbackPresentation(snapshot, state.connected);
       const transport = playbackControls(state);
-      const positionMs = useSmoothProgress(current, presentation.active);
+      const positionMs = useSmoothProgress(current, presentation.active && !snapshot?.seekPending);
       const insights=state.insights;
       const art = presentation.art;
       const accountHint = state.platformError ? '连接状态读取失败' : !state.connected ? '连接中断' : ({authorized:'网易云已登录',expired:'登录已过期',signed_out:'未登录',login_required:'等待登录'}[state.platforms?.netease?.account?.status] || '查看连接');
@@ -2135,6 +2289,10 @@ window.__ModuleLoader__.load({
               h('p', null, `来源：${({ llm_recommendation: '大肥鱼推荐歌单', netease_similar: '与你常听的歌相似', netease_daily: '网易云每日推荐', netease_personal_fm: '网易云私人 FM', platform_recommendation: '平台推荐' })[current.origin?.source] ?? (current.selectedBy === 'user' ? '你点播' : '常听歌曲')}`),
               current.selectedBy === 'agent' && snapshot?.lastSelection?.detail && h('p', null, `排序得分 ${snapshot.lastSelection.score?.toFixed(3)}；近期已播 ${snapshot.lastSelection.detail.repeatPlays ?? 0} 次。`),
               h('p', null, '喜欢 / 少推荐只影响本机推荐；逐曲说明由已记录的决策生成，不新增模型请求。')))));
+      const heroWithLyrics = h('div', { className: 'fm-now-layout' }, hero,
+        h(Lyrics, { controller, snapshot, connected: state.connected, visible: view === 'listen', positionMs,
+          motion: state.motion, transportPending: state.transportPending,
+          accountContext: `${state.platforms?.[current?.track?.provider]?.account?.status ?? ''}:${state.platforms?.[current?.track?.provider]?.account?.accountId ?? ''}` }));
       return h('div', { className: 'fishfm', 'data-view': 'main', 'data-motion': state.motion || 'full' },
         h(DollLayer, { active: presentation.active && state.playbackEffects && state.features?.artwork?.gif, motion: state.motion, names: state.features?.artwork?.dolls }),
         h('div', { className: 'fm-wrap' },
@@ -2155,7 +2313,7 @@ window.__ModuleLoader__.load({
           snapshot?.blockUntil > Date.now() && h('div', { className: 'fm-notice' }, '今天已停止自主听歌。到期后保持暂停，直到你主动恢复。',
             h('button', { className: 'fm-button', type: 'button', disabled: state.busy || !state.connected, onClick: () => controller.command('chooseSelf') }, '恢复自主听歌')),
           mountedViews.has('listen') && h('div', { className: 'fm-listen-page', id: `${rateId}-listen`, hidden: view !== 'listen' },
-            h(UsageGuide, { state, onStep: guideStep, onClose: controller.closeGuide, rootRef: guideRef, titleId: `${rateId}-guide` }), hero,
+            h(UsageGuide, { state, onStep: guideStep, onClose: controller.closeGuide, rootRef: guideRef, titleId: `${rateId}-guide` }), heroWithLyrics,
             h(Persona, { key: 'pool', state, controller, selectedModel, onSelectModel: setSelectedModel })),
           mountedViews.has('discover') && h('div', { className: 'fm-discover-page', id: `${rateId}-discover`, hidden: view !== 'discover' }, h(Discoveries, { state, expanded: true })),
           mountedViews.has('taste') && h('div', { ref: feedbackRef, className: 'fm-taste-page', id: `${rateId}-taste`, hidden: view !== 'taste' }, preferencesColumn),
@@ -2191,7 +2349,7 @@ window.__ModuleLoader__.load({
       const mode = !settings.listening ? (settings.humanPlayback ? 'manual' : 'off') : !settings.humanPlayback ? 'silent' : settings.strategy === 'focus' ? 'focus' : 'normal';
       const presentation = playbackPresentation(snapshot, state.connected);
       const transport = playbackControls(state);
-      const positionMs = useSmoothProgress(current, presentation.active);
+      const positionMs = useSmoothProgress(current, presentation.active && !snapshot?.seekPending);
       const image = presentation.art;
       const blocked = !state.connected || state.busy;
       function openDrawer() { priorFocus.current = document.activeElement; setMenuOpen(false); setExpanded(true); }
@@ -2370,7 +2528,7 @@ window.__ModuleLoader__.load({
     // src/ui/client/spectrum-bars.mjs
     // 对话区左缘 ASCII 频谱背景带：本地动画时钟驱动的模拟频谱，不是 WPF 音频
     // 的测量值，也不是歌词或节拍识别。音频由原生宿主进程播放，媒体句柄不进 UI
-    // （见 ARCHITECTURE），网页端拿不到真实 FFT，也没有歌词数据流；观感借鉴
+    // （见 ARCHITECTURE），网页端拿不到真实 FFT；独立歌词显示不驱动此频谱。观感借鉴
     // audioMotion-analyzer 的峰值保持与重力下落、快起慢落包络，以及
     // soundscape 静默时的"呼吸"待机，全部离线生成。柱体字符按亮度映射到经典
     // ASCII 字符集（参考 ASCIIText 的 asciify 思路，不引入 Three.js 或第三方

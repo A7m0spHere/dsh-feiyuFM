@@ -29,7 +29,7 @@ export function FloatingPlayer({ controller, layout, usePanelInfo }) {
   const mode = !settings.listening ? (settings.humanPlayback ? 'manual' : 'off') : !settings.humanPlayback ? 'silent' : settings.strategy === 'focus' ? 'focus' : 'normal';
   const presentation = playbackPresentation(snapshot, state.connected);
   const transport = playbackControls(state);
-  const positionMs = useSmoothProgress(current, presentation.active);
+  const positionMs = useSmoothProgress(current, presentation.active && !snapshot?.seekPending);
   const image = presentation.art;
   const blocked = !state.connected || state.busy;
   function openDrawer() { priorFocus.current = document.activeElement; setMenuOpen(false); setExpanded(true); }

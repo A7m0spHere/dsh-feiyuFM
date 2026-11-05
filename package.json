@@ -101,6 +101,7 @@
   },
   "dependencies": {
     "@neteasecloudmusicapienhanced/api": "4.40.1",
+    "lrc-kit": "1.2.1",
     "qrcode": "^1.5.4"
   },
   "overrides": {

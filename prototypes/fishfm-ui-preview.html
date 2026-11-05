@@ -108,10 +108,17 @@ function libraryPage(options={}) {
  return {total:all.length,matched:found.length,query,limit,offset,tracks:found.slice(offset,offset+limit),firstTrack:all[0]??null};
 }
 window.__previewRpcCalls=[];
+const sampleLyricText=['把这一刻留给音乐','让熟悉的旋律轻轻经过','窗外的光，落在桌面上','手边的事情，慢慢来','这一句随播放进度亮起','下一句在安静地等待','翻过这一页，再听一会儿','我们在旋律里短暂停留','把没说完的话留到明天','让这一刻慢一点'];
 const connection={rpc:{async call(_channel,endpoint,payload){
  window.__previewRpcCalls.push(endpoint);
  await new Promise(r=>setTimeout(r,80));
  if(!connected)return {ok:false,error:{code:'core_unavailable',message:'预览连接中断'}};
+ if(endpoint==='fishfm/lyrics'){
+  const status=new URLSearchParams(location.search).get('lyrics')||'synced';
+  if(status==='error')return{ok:false,error:{code:'lyrics_timeout',message:'歌词读取超时，请重试。'}};
+  return{ok:true,value:{lyrics:{track:payload.track,status,source:'preview-fixture',text:status==='unsynced'?'没有时间戳的歌词显示示例':'',
+   lines:status==='synced'?Array.from({length:24},(_,i)=>({id:`sample-${i}`,startMs:i*8000,endMs:(i+1)*8000,text:sampleLyricText[i%sampleLyricText.length],translation:`Sample translation ${i+1}`,romanization:`shi li yin yi ${i+1}`})):[]}}};
+ }
  if(endpoint==='fishfm/library')return {ok:true,value:{library:libraryPage(payload)}};
  if(endpoint==='fishfm/feedback-list')return{ok:true,value:{feedbackPage:feedbackPage(payload)}};
  if(endpoint==='fishfm/feedback-clear'){
@@ -151,6 +158,7 @@ const connection={rpc:{async call(_channel,endpoint,payload){
  }
  if(endpoint==='fishfm/command'){
   const type=payload.type;
+  if(type==='seek'&&snapshot.current?.playInstanceId===payload.playInstanceId)snapshot.current.positionMs=payload.positionMs;
   if(type==='setTrackFeedback'){votes.set(payload.track.providerTrackId,payload.value);feedbackTimes.set(payload.track.providerTrackId,Date.now());feedbackRevision++;}
   if(['resetTaste','resetLibrary','undoTasteReset'].includes(type))feedbackRevision++;
   if(type==='setRecommendationMode')insights.recommendationMode=payload.value;
@@ -175,6 +183,7 @@ const connection={rpc:{async call(_channel,endpoint,payload){
  syncJournalPreview();
  syncExpressionPreview();
  syncFeedbackPreview();
+ snapshot.playbackCapabilities={seek:true};
  return {ok:true,value:{snapshot:structuredClone(snapshot),persona:structuredClone(persona),insights:structuredClone(insights),summaryModels,features:{personaSummary:true,discoveryRefresh:true,importSources:true,artwork},platforms:{netease:{installed:true,account:{status:'authorized'}},qq:{installed:false}},library:libraryPage(payload?.library),playlists:[{id:'preview-list',title:'示例输入歌单'}]}};
 }}};
 const layout={selectPanel(id){active=id;changeActive?.(id)}};

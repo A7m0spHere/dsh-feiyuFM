@@ -30,6 +30,7 @@
 | 同一预览服务的 `/guide` | 首次引导隔离预览；可选新用户、已有曲库、模拟已授权、P0 失败、曲库未知、存储不可用场景。仅使用模拟 RPC，全部图片复用生产资源路由 |
 | `node scripts/probes/first-use-guide-ui.mjs --url http://127.0.0.1:4179/guide --out <全新目录>` | 真实 React／生产 bundle／Chrome 的焦点、Tab／Enter、跨重载状态、窄屏及减少动态效果验证，不读取真实账号 |
 | `node scripts/probes/initial-state-install.mjs --package <源码目录> --out <全新目录> --guide` | 官方隔离 DSH、默认真实 Core／空库的引导与真实进程重启验证；源码目录模式拒绝依赖故障注入和旧数据复制。`--guide` 只导航／聚焦，不发起扫码、导入、播放或模型流 |
+| `node scripts/probes/initial-state-install.mjs --package <源码目录> --out <全新目录> --lyrics` | 官方隔离 DSH 的生产歌词区域、默认原文、认证歌词／seek 路由及输入拒绝验证；空库，不登录或播放，不替代真实歌曲同步证据 |
 | `npm run verify:package` | 核对统一版权声明、随包许可与 npm dry-run 白名单；测试版要求 beta 标签，正式版本要求 latest；不发布 |
 | `npm run pack:release -- --pack-destination <目录>` | 构建／检查后在临时发行树加入 bundle 标记，生成自带依赖的 tgz；源码 manifest 不宣称已打包依赖。发布前另跑 `npm test` 和 `npm run verify:package`，只发布已检查的 tgz，不直接发布源码目录 |
 | `node scripts/probes/release-rehearsal.mjs --out <全新目录>` | 只在临时源码副本设为 0.1.1，重复构建、比对 tgz、核对锁定依赖并以空缓存正常离线安装；仅对本机只读模拟 registry 做 publish `--dry-run`，验证文件／目录生命周期差异，不发布也不修改仓库版本 |
