@@ -1,11 +1,12 @@
 # 肥鱼电台 FeiyuFM — 开发状态与下一步
 
-更新：2026-11-04。本文是源码、发布、日常 Desktop、验收缺口和接续任务的唯一状态入口。产品规则见 [MVP](MVP.md)，接口见 [控制契约](CORE_CONTRACT.md)，操作命令见 [贡献指南](../CONTRIBUTING.md) 和 [脚本索引](../scripts/README.md)。
+更新：2026-11-05。本文是源码、发布、日常 Desktop、验收缺口和接续任务的唯一状态入口。产品规则见 [MVP](MVP.md)，接口见 [控制契约](CORE_CONTRACT.md)，操作命令见 [贡献指南](../CONTRIBUTING.md) 和 [脚本索引](../scripts/README.md)。
 
 ## 当前基线
 
 | 状态面 | 已确认内容与边界 |
 |---|---|
+| 控制台歌词规划（feat/console-lyrics） | 2026-11-05：按用户要求从最新 main 新建分支，仅形成[布局与开源选型提案](design/FEAT_CONSOLE_LYRICS.md)。已核对现有进度、不可交互的进度条、无 seek 命令、客户端构建约束及已安装网易云包的歌词模块；比较 AMLL、lrc-kit、lrc-file-parser、Liricle。逐行／逐字、翻译默认和点击跳转三项已询问，待用户选择；未改产品代码、安装候选依赖、请求真实歌词、操作日常 Desktop 或发布。现阶段建议只取当前曲、独立只读数据流，优先验证轻量逐行方案；不计为已实现或通过验收 |
 | 0.1.1 正式版 | 2026-11-04：用户授权发布 npm。候选包已生成，版本与说明已更新；本地完整测试 749/749、包白名单与许可通过。隔离 DSH 引导 9/9、二维码生成及空缓存消费者安装通过。用户完成 npm 二次验证及发布；公开 registry 已显示 0.1.1，`latest` 为 0.1.1；GitHub Release / annotated tag 已公开并设为最新，标签指向 `c6d4a80`，两处公开下载 SHA-256 均与候选包一致；registry 全新空缓存消费者安装及入口／资源／Core／WPF 空宿主检查通过；用户人工验收状态见 [发行记录](releases/0.1.1.md)。 |
 | main：P0／P1 已合并，待人工验收 | 2026-11-04：用户授权后，[P0 #16](https://github.com/A7m0spHere/dsh-feiyuFM/pull/16) 与 [P1 #17](https://github.com/A7m0spHere/dsh-feiyuFM/pull/17) 均在 PR CI 成功后合并，功能合并提交 `b5231c7`。 合并后 main CI 成功；全新官方 DSH 隔离 profile 直接以仓库 GitHub URL 安装，锁定该提交，网易云／二维码依赖可解析，安装客户端与审查 bundle 按 LF 内容一致，默认真实 Core minimal 在 4791 ms 返回 snapshot／平台、账号 `login_required`，曲库独立读取，Core 正常停止。本轮未再挂载渲染器、未请求二维码或账号／播放／模型操作；此前 UI 证据保持原边界。用户后续通过 [GitHub main](https://github.com/A7m0spHere/dsh-feiyuFM) 安装人工验收，入口与记录要求见 [交付说明](DELIVERY.md#安装) 和 [人工卡](spikes/P0-07-desktop-checklist.md)。P0 `a4757cc` 已修复旧曲库回包覆盖写入及平台分项错误丢失，独立平台代次拒绝旧授权。新增 **11 项先败后过**；P0 **117/117**、182 模块及远端 CI 通过。P1 已同步，相关 **129/129**、浏览器模拟 **23/23**、官方隔离 DSH Web **9/9**，完整 **749/749、0 跳过**；185 模块、构建／debug smoke、120 文档零断链通过。4873 文件包白名单／许可通过，P0 与 P1 实现版本 CI 均成功；结果见 [P0-08](spikes/P0-08-client-state-ordering.md)。无新 RPC、依赖、schema 或后端变更；代码阻塞已修复，人工账号／日常原生验收仍单列，0.1.1 已上架 npm，日常数据及凭据未动 |
 | P1 首次轻量引导初轮基线（已合并 #17） | 2026-11-04：从 P0 `ce463a1` 派生，正在听三步卡片复用登录／导入／播放入口，仅导航、展开和聚焦；版本化客户端记录，旧用户静默、未完成可继续、跳过／完成保留、设置可重开，不新增 RPC／依赖／schema 或自动账号／导入／播放／模型操作。新增 **12/12**，Chrome 模拟 UI **21/21**，官方隔离 DSH Web 源码链接与真实进程重启 **9/9**。完整 **737/738、0 跳过**，未改诊断模块的 droppedEvents 断言首跑失败、单项复跑通过；首跑保留。截图、复现与日常未验边界见 [U25](spikes/U25-first-use-guide.md)。npm 未发布，后续人工验收由用户完成；日常数据／凭据及旧临时副本未动 |
