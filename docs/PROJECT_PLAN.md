@@ -59,18 +59,18 @@
 | [#9 偏好信号](https://github.com/A7m0spHere/dsh-feiyuFM/issues/9) | [语义与对照](research/PREFERENCE_SIGNALS.md)：16 项固定输入对照；候选逐曲 `liked/reduced` 进入筛选事实，撤销移除；4 项新增回归 | 传递缺口已修，不改权重／迁移／模型调用；质量与新算法收益待 #7/#11 |
 | [#10 可控探索](https://github.com/A7m0spHere/dsh-feiyuFM/issues/10) | [设计与离线工具](research/EXPLORATION.md)：熟悉／相邻／未知证据、0/20/70/100 对照及三种排名假设；9 项回归 | 保留产品 `filtered` 策略，不把未知包装成跨风格发现；无真实收益证据，Issue 打开 |
 | [#4 近期发现](https://github.com/A7m0spHere/dsh-feiyuFM/issues/4) | [U19](spikes/U19-recent-discoveries-prototype.md)：当前有效批次的只读来源与收听状态；12 项新增回归、隔离浏览器通过，提交 `23c542a` | 用户指定按原型交付关闭 Issue；真实反馈待收集，不扩展跨批次永久历史 |
-| [#5 表达预设](https://github.com/A7m0spHere/dsh-feiyuFM/issues/5) | [U20](spikes/U20-expression-style-prototype.md)：`current/concise/lively` 独立保存、草稿／冲突保护／恢复默认；11 项新增回归及跨进程重开通过 | 真实反馈待收集；自由编辑、导入导出和分享频次不扩大，Issue 打开 |
+| [#5 表达预设](https://github.com/A7m0spHere/dsh-feiyuFM/issues/5) | [U20](spikes/U20-expression-style-prototype.md)：`current/concise/lively` 独立保存、草稿／冲突保护／恢复默认；2026-11-07补跑后端9项、客户端2项和跨进程保存重启1项，**12/12通过** | 用户授权符合条件即关闭；已按少量表达预设原型／配置隔离范围以completed结项，并在Issue正文补验收证据。真实体验收益仍待反馈，不扩大自由编辑、导入导出和分享频次，不提升A01–A10 |
 
 研究工具只回放已保存名单，不是完整 Core 决策重演、真实音频或模型重新推理。6 候选演示的前三首艺人多样性从 2/3 变为 1 仅证明指标与重排可运行，不证明质量提升。本地曲库／反馈／Agent 偏好沿用数据目录范围，未改为按平台账号分表。
 
 ### 0.1.2 发布后的 Issue 关闭评估（2026-11-07）
 
-已核对当前5个打开Issue及其最新评论。本轮仅评估，没有关闭Issue、改写其验收范围或发布评论；发布包和Release不替代缺失的反馈／研究证据。
+初核时有5个打开Issue；随后用户授权满足条件即关闭#5，经原型范围复核及12项定向回归通过后，已以completed关闭并补正文证据。其余#8／#10／#11／#19保持打开；#19升级复验回复只起草、未发送。发布包和Release不替代缺失的反馈／研究证据。
 
 | Issue | 建议 | 证据与关闭条件 |
 |---|---|---|
 | [#19 播放失败](https://github.com/A7m0spHere/dsh-feiyuFM/issues/19) | 暂不关闭，工程修复已交付 | 0.1.2已发布且原错误路径对照通过，但[最新用户回复](https://github.com/A7m0spHere/dsh-feiyuFM/issues/19#issuecomment-6673421109)仍是0.1.1取证，没有升级成功反馈。建议用户在原Windows／网易云环境完整退出重启后，确认原失败曲能开始播放、有实际进度与声音，暂停／恢复及下一首不再触发同类错误，再关闭播放主问题。无需两小时观察、QQ或macOS补验；library取消日志单独跟踪，不据此否定或确认播放修复 |
-| [#5 表达预设](https://github.com/A7m0spHere/dsh-feiyuFM/issues/5) | 有条件可按预设原型交付结项 | [U20](spikes/U20-expression-style-prototype.md)已有用户明确选择少量预设的需求记录、三类状态所有权、独立保存、冲突／重启／输入边界及无逐曲模型请求证据，覆盖现有原型范围的工程条件。若维护者确认以该范围结项，可关闭；不包含自由编辑、导入导出、分享频次或真实体验收益。若仍以真实使用反馈为该Issue收尾条件，则继续保留，不由本次发行自动改变 |
+| [#5 表达预设](https://github.com/A7m0spHere/dsh-feiyuFM/issues/5) | 已按预设原型范围关闭（completed） | [U20](spikes/U20-expression-style-prototype.md)的用户需求记录及六项验收建议已核对；12项定向回归通过，用户授权范围内结项。只关闭表达预设原型／配置隔离工作，不声称自由编辑、导入导出、分享频次或真实使用收益已完成；真实反馈继续保留 |
 | [#10 可控探索](https://github.com/A7m0spHere/dsh-feiyuFM/issues/10) | 保留 | 有设计和离线工具，缺少真实收益／发现质量与成本的量化证据；保持原filtered策略不等于完成该研究验收 |
 | [#11 真实试用](https://github.com/A7m0spHere/dsh-feiyuFM/issues/11) | 保留 | 任务卡与工具已完成，按研究流程的真实样本仍为0人／0有效评价；故障反馈与发行测试不能替代连续真实试用 |
 | [#8 路线Epic](https://github.com/A7m0spHere/dsh-feiyuFM/issues/8) | 保留 | 尚有真实试用、收益依据及后续产品方向未收束，不能因0.1.2发布关闭整体路线 |
