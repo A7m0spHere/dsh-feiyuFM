@@ -1,4 +1,5 @@
 # FeiyuFM audio host: a hidden STA PowerShell process driving WPF MediaPlayer.
+# PlaybackService stages remote media in Node; this host does not compile a downloader.
 #
 # It owns sound only. It never decides what to play, never selects the next
 # track, and never touches the database. The music core talks to it over a
@@ -44,145 +45,6 @@ $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName PresentationCore
 Add-Type -AssemblyName WindowsBase
 Add-Type -AssemblyName System.Windows.Forms
-
-# WPF's Internet-zone HTTP(S) gate rejects public audio on serviced runtimes
-# (issue #19). Fetch anonymously ourselves; only local files enter MediaPlayer.
-# The C# task never invokes PowerShell from a worker thread. The command pump
-# polls it, so pause/stop/superseding loads remain responsive during download.
-function Initialize-MediaDownload {
-  Add-Type -AssemblyName System.Net.Http
-  $references = @('System.Net.Http')
-  if ($PSVersionTable.PSEdition -eq 'Core') { $references += 'System.Net.Primitives' }
-  Add-Type -ReferencedAssemblies $references -TypeDefinition @'
-using System;
-using System.IO;
-using System.Net.Http;
-using System.Threading;
-using System.Threading.Tasks;
-
-public sealed class FishFmMediaDownload : IDisposable
-{
-    public readonly string FilePath;
-    public readonly Task Task;
-    public bool Disposed { get; private set; }
-    private readonly CancellationTokenSource cancel;
-    private bool cleaned;
-
-    public FishFmMediaDownload(Uri source, string path, int timeoutMs)
-    {
-        FilePath = path;
-        cancel = new CancellationTokenSource(timeoutMs);
-        Task = Download(source);
-    }
-
-    private async Task Download(Uri source)
-    {
-        const long maxBytes = 64L * 1024 * 1024;
-        var token = cancel.Token;
-        try
-        {
-            using (var handler = new HttpClientHandler())
-            {
-                handler.UseDefaultCredentials = false;
-                handler.Credentials = null;
-                handler.UseCookies = false;
-                handler.AllowAutoRedirect = false;
-                // No OS/proxy authentication or ambient credentials.
-                handler.UseProxy = false;
-                using (var client = new HttpClient(handler))
-                {
-                    client.Timeout = Timeout.InfiniteTimeSpan;
-                    for (int hop = 0; ; hop++)
-                    {
-                        if ((source.Scheme != "http" && source.Scheme != "https") || source.UserInfo.Length != 0)
-                            throw new InvalidOperationException("media_download_redirect");
-                        using (var response = await client.GetAsync(source, HttpCompletionOption.ResponseHeadersRead, token).ConfigureAwait(false))
-                        {
-                            int status = (int)response.StatusCode;
-                            if (status == 301 || status == 302 || status == 303 || status == 307 || status == 308)
-                            {
-                                if (hop >= 5 || response.Headers.Location == null)
-                                    throw new InvalidOperationException("media_download_redirect");
-                                var next = new Uri(source, response.Headers.Location);
-                                if (source.Scheme == "https" && next.Scheme != "https")
-                                    throw new InvalidOperationException("media_download_redirect");
-                                source = next;
-                                continue;
-                            }
-                            if (status != 200 || response.Content.Headers.ContentLength > maxBytes)
-                                throw new InvalidOperationException("media_download_response");
-                            // Disposing a stalled response also cancels body reads on Framework.
-                            using (token.Register(() => response.Dispose()))
-                            using (var input = await response.Content.ReadAsStreamAsync().ConfigureAwait(false))
-                            using (var output = new FileStream(FilePath, FileMode.CreateNew, FileAccess.Write, FileShare.None, 65536, true))
-                            {
-                                var buffer = new byte[65536];
-                                long total = 0;
-                                int read;
-                                while ((read = await input.ReadAsync(buffer, 0, buffer.Length, token).ConfigureAwait(false)) != 0)
-                                {
-                                    total += read;
-                                    if (total > maxBytes) throw new InvalidOperationException("media_download_size");
-                                    await output.WriteAsync(buffer, 0, read, token).ConfigureAwait(false);
-                                }
-                                token.ThrowIfCancellationRequested();
-                                if (total == 0 || (response.Content.Headers.ContentLength.HasValue && total != response.Content.Headers.ContentLength.Value))
-                                    throw new InvalidOperationException("media_download_incomplete");
-                            }
-                            return;
-                        }
-                    }
-                }
-            }
-        }
-        catch
-        {
-            try { File.Delete(FilePath); } catch { }
-            // Never expose URI, headers, path or the underlying exception.
-            throw new InvalidOperationException("Anonymous media download failed");
-        }
-    }
-
-    public void Dispose()
-    {
-        if (Disposed) return;
-        Disposed = true;
-        cancel.Cancel();
-    }
-
-    public bool Cleanup()
-    {
-        if (!Disposed || !Task.IsCompleted) return false;
-        if (cleaned) return true;
-        var observed = Task.Exception;
-        try { File.Delete(FilePath); } catch { return false; }
-        cancel.Dispose();
-        cleaned = true;
-        return true;
-    }
-}
-'@
-}
-Initialize-MediaDownload
-$script:mediaDirectory = Join-Path ([System.IO.Path]::GetTempPath()) ("fishfm-media-$PID-" + [guid]::NewGuid().ToString('N'))
-$script:mediaDownloads = @()
-$script:playerDownload = $null
-$script:preloadDownload = $null
-
-function Start-MediaDownload($uri, [int]$timeoutMs) {
-  if ($uri.Scheme -notin @('http', 'https')) { return $null }
-  $null = [System.IO.Directory]::CreateDirectory($script:mediaDirectory)
-  $extension = [System.IO.Path]::GetExtension($uri.AbsolutePath).ToLowerInvariant()
-  if ($extension -notin @('.mp3', '.wav', '.flac', '.m4a', '.aac', '.ogg', '.wma', '.mp4')) { $extension = '.mp3' }
-  $path = Join-Path $script:mediaDirectory ([guid]::NewGuid().ToString('N') + $extension)
-  $download = [FishFmMediaDownload]::new($uri, $path, [Math]::Max(1, $timeoutMs))
-  $script:mediaDownloads += $download
-  return $download
-}
-
-function Step-MediaCleanup {
-  $script:mediaDownloads = @($script:mediaDownloads | Where-Object { -not $_.Cleanup() })
-}
 
 $script:protocol = 1
 $script:tickMs = 200
@@ -528,7 +390,6 @@ function Stop-Playback {
   }
   try { $script:player.Stop() } catch { }
   try { $script:player.Close() } catch { }
-  if ($null -ne $script:playerDownload) { $script:playerDownload.Dispose(); $script:playerDownload = $null }
   Reset-PlaybackState
 }
 
@@ -537,24 +398,10 @@ function Stop-Playback {
 function Step-MediaOpen {
   $pending = $script:pendingOpen
   if ($null -eq $pending) { return }
-  if ($null -ne $pending.download -and $null -eq $script:failed) {
-    if ($pending.download.Task.IsCompleted) {
-      if ($pending.download.Task.IsFaulted -or $pending.download.Task.IsCanceled) {
-        $script:failed = 'media_download_failed'
-        $script:failedMessage = 'Anonymous media download failed'
-      } else {
-        $download = $pending.download
-        $pending.download = $null
-        $script:opened = $false
-        try { $script:player.Open([System.Uri]::new($download.FilePath)) }
-        catch { $script:failed = 'media_failed'; $script:failedMessage = 'Open() rejected the resource' }
-      }
-    }
-  }
   if ($null -ne $script:failed -or (Get-Date) -ge $pending.deadline) {
     $code = 'media_open_timeout'
     $message = "Media did not open within $($pending.timeoutMs) ms"
-    if ($null -ne $script:failed) { $code = $script:failed; $message = $script:failedMessage }
+    if ($null -ne $script:failed) { $code = 'media_failed'; $message = $script:failedMessage }
     $script:pendingOpen = $null
     # Report this command's own wait, not the most recent command's.
     $script:commandWatch = $pending.watch
@@ -569,7 +416,7 @@ function Step-MediaOpen {
     Send-ResultError $pending.id $code $message $true $progress
     return
   }
-  if ($null -ne $pending.download -or -not $script:opened) { return }
+  if (-not $script:opened) { return }
   $script:pendingOpen = $null
   try {
     $script:player.IsMuted = $script:muted
@@ -610,7 +457,6 @@ function Attach-PlayerEvents($player) {
     if ($sender -eq $script:player) {
       # A late open from a superseded load must not mark the new state opened.
       if ($script:status -ne 'loading') { return }
-      if ($null -ne $script:pendingOpen.download) { return }
       $script:opened = $true
       $script:failed = $null
       try {
@@ -620,7 +466,6 @@ function Attach-PlayerEvents($player) {
       return
     }
     if ($null -ne $script:preload -and $sender -eq $script:preloadPlayer) {
-      if ($null -ne $script:preload.download) { return }
       $script:preload.opened = $true
       try {
         $natural = $script:preloadPlayer.NaturalDuration
@@ -631,7 +476,6 @@ function Attach-PlayerEvents($player) {
   $player.add_MediaFailed({
     param($sender, $eventArgs)
     if ($sender -eq $script:player) {
-      if ($null -ne $script:pendingOpen.download) { return }
       $script:failed = 'media_failed'
       $script:failedMessage = 'Media playback failed'
       try {
@@ -640,7 +484,6 @@ function Attach-PlayerEvents($player) {
       return
     }
     if ($null -ne $script:preload -and $sender -eq $script:preloadPlayer) {
-      if ($null -ne $script:preload.download) { return }
       $script:preload.failed = $true
       try {
         if ($null -ne $eventArgs.ErrorException) { $script:preload.failedMessage = $eventArgs.ErrorException.Message }
@@ -670,7 +513,6 @@ function Stop-Preload {
   }
   try { $script:preloadPlayer.Stop() } catch { }
   try { $script:preloadPlayer.Close() } catch { }
-  if ($null -ne $script:preloadDownload) { $script:preloadDownload.Dispose(); $script:preloadDownload = $null }
 }
 
 # The standby open is asynchronous like a real load: the loop keeps serving
@@ -678,22 +520,8 @@ function Stop-Preload {
 function Step-Preload {
   $pending = $script:preload
   if ($null -eq $pending) { return }
-  if ($null -ne $pending.download -and -not $pending.failed -and $pending.download.Task.IsCompleted) {
-    if ($pending.download.Task.IsFaulted -or $pending.download.Task.IsCanceled) {
-      $pending.failed = $true
-      $pending.failureCode = 'media_download_failed'
-      $pending.failedMessage = 'Anonymous media download failed'
-    } else {
-      $download = $pending.download
-      $pending.download = $null
-      $pending.opened = $false
-      try { $script:preloadPlayer.Open([System.Uri]::new($download.FilePath)) }
-      catch { $pending.failed = $true; $pending.failedMessage = 'Open() rejected the preload resource' }
-    }
-  }
   if ($pending.failed -or (Get-Date) -ge $pending.deadline) {
     $code = if ($pending.failed) { 'media_failed' } else { 'media_open_timeout' }
-    if ($pending.failureCode) { $code = $pending.failureCode }
     $message = if ($pending.failed) { $pending.failedMessage } else { "Preload did not open within $($pending.timeoutMs) ms" }
     $script:preload = $null
     Stop-Preload
@@ -701,7 +529,7 @@ function Step-Preload {
     Send-ResultError $pending.id $code $message $true
     return
   }
-  if ($null -ne $pending.download -or -not $pending.opened) { return }
+  if (-not $pending.opened) { return }
   $script:preload = $null
   # Keep the opened standby media for the next load; only the request is done.
   $script:preloadReady = @{ resource = $pending.resource; durationMs = $pending.durationMs }
@@ -794,14 +622,12 @@ function Invoke-Command($command) {
         try { $retired.Pause() } catch { }
         $script:player = $script:preloadPlayer
         $script:preloadPlayer = $retired
-        $retiredDownload = $script:playerDownload
-        $script:playerDownload = $script:preloadDownload
-        $script:preloadDownload = $retiredDownload
+        # Production resources are local. Close the retired source so its owner
+        # can delete the released staging file after this load is acknowledged.
+        try { $retired.Close() } catch { }
         $script:player.Volume = $script:volume
         $script:preloadReady = $null
-        # The old player becomes the standby. It is paused (not closed): a
-        # Close() on a network stream can block the command loop for seconds,
-        # and the next preload replaces its source anyway.
+        # The old player is now an empty standby for the next preload.
         Write-Marker 'PRELOAD_SWAP'
         Reset-PlaybackState
         $script:status = 'loading'
@@ -846,12 +672,7 @@ function Invoke-Command($command) {
         return
       }
       try {
-        # The old source must stop immediately, including during an async fetch.
-        $script:player.Close()
-        if ($null -ne $script:playerDownload) { $script:playerDownload.Dispose(); $script:playerDownload = $null }
-        $download = Start-MediaDownload $uri $openTimeoutMs
-        $script:playerDownload = $download
-        if ($null -eq $download) { $script:player.Open($uri) }
+        $script:player.Open($uri)
       } catch {
         # A rejected open must not leave the previous source playing under an
         # "error" status: with the reuse-player path nothing else stopped it.
@@ -860,7 +681,7 @@ function Invoke-Command($command) {
         Send-ResultError $id 'media_failed' 'Open() rejected the resource'
         return
       }
-      $script:pendingOpen = @{ id = $id; download = $download; startMs = $startMs; timeoutMs = $openTimeoutMs; deadline = (Get-Date).AddMilliseconds($openTimeoutMs); autoplay = $autoplay; hostStartedAt = $hostStartedAt; watch = [System.Diagnostics.Stopwatch]::StartNew() }
+      $script:pendingOpen = @{ id = $id; startMs = $startMs; timeoutMs = $openTimeoutMs; deadline = (Get-Date).AddMilliseconds($openTimeoutMs); autoplay = $autoplay; hostStartedAt = $hostStartedAt; watch = [System.Diagnostics.Stopwatch]::StartNew() }
       # Warming starts only once a real load is in flight, so the first track of a
       # session is served exactly as before (cold) and the pool fills during the
       # playback that follows. Step-Warm never runs while an open is pending.
@@ -878,16 +699,8 @@ function Invoke-Command($command) {
       try { $script:preloadPlayer.IsMuted = $true } catch { }
       try { $uri = Resolve-Resource $resource } catch { Send-ResultError $id 'unsupported_resource' 'Resource is not a readable local file or URL'; return }
       $script:preload = @{ id = $id; resource = $resource; opened = $false; failed = $false; failedMessage = 'Media preload failed'; durationMs = $null; timeoutMs = $timeoutMs; deadline = (Get-Date).AddMilliseconds($timeoutMs); watch = [System.Diagnostics.Stopwatch]::StartNew() }
-      try {
-        $script:preloadPlayer.Close()
-        if ($null -ne $script:preloadDownload) { $script:preloadDownload.Dispose(); $script:preloadDownload = $null }
-        $download = Start-MediaDownload $uri $timeoutMs
-        $script:preloadDownload = $download
-        $script:preload.download = $download
-        if ($null -eq $download) { $script:preloadPlayer.Open($uri) }
-      } catch {
+      try { $script:preloadPlayer.Open($uri) } catch {
         $script:preload = $null
-        Stop-Preload
         Send-ResultError $id 'media_failed' 'Open() rejected the preload resource'
         return
       }
@@ -996,7 +809,6 @@ function Fail-Playback([string]$code, [string]$message) {
   $script:progressWatch.Reset()
   try { $script:player.Stop() } catch { }
   try { $script:player.Close() } catch { }
-  if ($null -ne $script:playerDownload) { $script:playerDownload.Dispose(); $script:playerDownload = $null }
   Send-Event 'error' @{ code = $code; message = $message; retryable = $true }
   Write-Marker "MEDIA_ERROR code=$code"
 }
@@ -1083,7 +895,6 @@ try {
     Step-Warm
     Step-Playback
     Step-Watchdog
-    Step-MediaCleanup
     Start-Sleep -Milliseconds $script:tickMs
   }
 } finally {
@@ -1091,13 +902,6 @@ try {
   Stop-Preload
   try { $script:player.Stop() } catch { }
   try { $script:player.Close() } catch { }
-  foreach ($download in $script:mediaDownloads) { $download.Dispose() }
-  $cleanupDeadline = (Get-Date).AddMilliseconds(1500)
-  while ($script:mediaDownloads.Count -gt 0 -and (Get-Date) -lt $cleanupDeadline) {
-    Step-MediaCleanup
-    if ($script:mediaDownloads.Count -gt 0) { Start-Sleep -Milliseconds 25 }
-  }
-  try { Remove-Item -LiteralPath $script:mediaDirectory -Recurse -Force -ErrorAction Stop } catch { }
   if ($null -ne $script:server) { $script:server.Dispose() }
   Write-Marker 'EXIT'
 }

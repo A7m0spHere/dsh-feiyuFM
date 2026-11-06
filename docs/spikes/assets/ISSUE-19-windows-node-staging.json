@@ -1,0 +1,13 @@
+{
+  "schema": 1,
+  "date": "2026-11-06",
+  "scope": "Windows isolated PlaybackService and real WPF, muted; no platform account or daily Desktop",
+  "environment": { "windows": "10.0.22631", "node": "24.22.1" },
+  "resource": "same public HTTPS MP3 used in the original-host contrast; no media URL retained",
+  "initialBlocker": { "component": "PowerShell embedded C# downloader", "rule": "Trojan/PS.PsLoader.A", "source": "matching local Huorong behavior and quarantine records", "protectionSettingsChanged": false },
+  "results": [
+    { "shell": "Windows PowerShell 5.1", "opened": true, "durationMs": 5068, "started": true, "progressMs": 422, "muted": true, "totalMs": 7465, "directoryRemoved": true, "exited": true, "sourcePresent": true },
+    { "shell": "portable pwsh 7.6.5 / .NET 10.0.11", "opened": true, "durationMs": 5068, "started": true, "progressMs": 405, "muted": true, "totalMs": 4930, "directoryRemoved": true, "exited": true, "sourcePresent": true }
+  ],
+  "unknown": [ "reporter device acceptance", "real NetEase account and CDN", "audible listening", "daily Desktop reload", "npm release" ]
+}

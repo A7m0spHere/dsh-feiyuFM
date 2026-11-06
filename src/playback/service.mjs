@@ -4,6 +4,7 @@
 // let late or stale host answers overwrite a newer user command.
 import { MusicError } from '../contracts.mjs';
 import { playbackError } from './protocol.mjs';
+import { MediaDownloads, isRemoteMedia } from './media-download.mjs';
 
 function raceAbort(promise, signal) {
   if (!signal) return promise;
@@ -28,6 +29,7 @@ export class PlaybackService {
     progressIntervalMs = 400,
     maxRecoveries = 3,
     onLog = () => {},
+    mediaDownloads = undefined,
   } = {}) {
     if (!supervisor) throw new Error('supervisor is required');
     this.supervisor = supervisor;
@@ -37,6 +39,11 @@ export class PlaybackService {
     this.progressIntervalMs = progressIntervalMs;
     this.maxRecoveries = maxRecoveries;
     this.onLog = onLog;
+    this.mediaDownloads = mediaDownloads === undefined
+      ? (supervisor.platform === 'win32' && supervisor.backend?.name === 'wpf-mediaplayer' ? new MediaDownloads({ onLog }) : null)
+      : mediaDownloads;
+    this._mediaLoad = null;
+    this._mediaActive = null;
 
     this.sink = null;
     this.active = null;
@@ -189,9 +196,18 @@ export class PlaybackService {
         if (this._preload !== entry || entry.controller.signal.aborted) {
           throw new MusicError('cancelled', 'Preload was superseded');
         }
+        const began = performance.now();
+        const budget = Math.min(this.openTimeoutMs, timeoutMs);
+        if (this.mediaDownloads && isRemoteMedia(resource.handle)) {
+          entry.media = await this.mediaDownloads.stage(resource.handle, { signal: entry.controller.signal, timeoutMs: budget });
+        }
+        if (this._preload !== entry || entry.controller.signal.aborted) throw new MusicError('cancelled', 'Preload was superseded');
+        const elapsed = performance.now() - began;
+        const remaining = budget - elapsed;
+        if (remaining <= 0) throw playbackError('media_open_timeout', 'Media preparation timed out');
         const answer = await raceAbort(this._send('preload', {
-          resource: resource.handle, playInstanceId, version, openTimeoutMs: this.openTimeoutMs,
-        }, { timeoutMs }), entry.controller.signal);
+          resource: entry.media?.handle ?? resource.handle, playInstanceId, version, openTimeoutMs: Math.ceil(remaining),
+        }, { timeoutMs: Math.min(timeoutMs - elapsed, remaining + this.commandTimeoutMs) }), entry.controller.signal);
         if (this._preload !== entry || entry.controller.signal.aborted) {
           throw new MusicError('cancelled', 'Preload was superseded');
         }
@@ -205,6 +221,8 @@ export class PlaybackService {
         throw error;
       } finally {
         signal?.removeEventListener('abort', onAbort);
+        if (!entry.ready) await entry.media?.release();
+        await this.mediaDownloads?.cleanup();
       }
     })();
     return entry.promise;
@@ -221,6 +239,7 @@ export class PlaybackService {
     const entry = this._preload;
     this._preload = null;
     entry?.controller.abort();
+    if (entry?.media) void entry.media.release();
   }
 
   async cancelPreload() {
@@ -233,6 +252,7 @@ export class PlaybackService {
     }).catch(() => {});
     this._preloadCancellation = cancellation;
     await cancellation;
+    await this.mediaDownloads?.cleanup();
     if (this._preloadCancellation === cancellation) this._preloadCancellation = null;
   }
 
@@ -244,42 +264,72 @@ export class PlaybackService {
     if (!resource || typeof resource.handle !== 'string' || !resource.handle) {
       throw playbackError('resource_missing', 'Playback needs a resolved resource handle');
     }
-    const startMs = Number.isFinite(startPositionMs) && startPositionMs > 0 ? Math.round(startPositionMs) : 0;
+    const standby = usePreload && this.isPreloaded(resource) ? this._preload : null;
+    let media = standby?.media ?? null;
+    if (media) standby.media = null; // Transfer the lease before invalidating standby state.
     this._forgetPreload();
-    this.active = null;
-    this.lastForwardedMs = 0;
-    const answer = await raceAbort(this._send('load', {
-      resource: resource.handle,
-      playInstanceId,
-      startPositionMs: startMs,
-      version,
-      openTimeoutMs: this.openTimeoutMs,
-      ...(muted === null ? {} : { muted: Boolean(muted) }),
-      ...(autoplay ? { autoplay: true } : {}),
-      ...(usePreload ? { usePreload: true } : {}),
-    }, { timeoutMs: this.openTimeoutMs + this.commandTimeoutMs }), signal);
-    if (signal?.aborted || version < this.acceptedVersion || this.closing) throw new MusicError('cancelled', 'Playback load was superseded');
-    const positionMs = Number(answer.positionMs);
-    if (!Number.isFinite(positionMs) || positionMs < 0) {
-      throw playbackError('invalid_playback_position', 'Audio host reported an invalid loaded position');
+    this._mediaLoad?.abort();
+    const controller = this.mediaDownloads ? new AbortController() : null;
+    this._mediaLoad = controller;
+    if (controller && muted !== null) this.muted = Boolean(muted);
+    const loadSignal = controller ? (signal ? AbortSignal.any([signal, controller.signal]) : controller.signal) : signal;
+    const current = () => !loadSignal?.aborted && !this.closing
+      && (!Number.isFinite(version) || version >= this.acceptedVersion) && (!controller || this._mediaLoad === controller);
+    const startMs = Number.isFinite(startPositionMs) && startPositionMs > 0 ? Math.round(startPositionMs) : 0;
+    let committed = false;
+    try {
+      let remaining = this.openTimeoutMs;
+      if (this.mediaDownloads && isRemoteMedia(resource.handle) && !media) {
+        // Stop the old source before asynchronous preparation; controls remain independent.
+        await this._send('stop', { version });
+        if (!current()) throw new MusicError('cancelled', 'Playback load was superseded');
+        await this._mediaActive?.release(); this._mediaActive = null;
+        await this.mediaDownloads.cleanup();
+        const began = performance.now();
+        media = await this.mediaDownloads.stage(resource.handle, { signal: loadSignal, timeoutMs: remaining });
+        remaining -= performance.now() - began;
+        usePreload = false;
+      }
+      if (!current()) throw new MusicError('cancelled', 'Playback load was superseded');
+      if (remaining <= 0) throw playbackError('media_open_timeout', 'Media preparation timed out');
+      this.active = null;
+      this.lastForwardedMs = 0;
+      const answer = await raceAbort(this._send('load', {
+        resource: media?.handle ?? resource.handle,
+        playInstanceId,
+        startPositionMs: startMs,
+        version,
+        openTimeoutMs: Math.ceil(remaining),
+        ...(muted === null ? {} : { muted: controller ? this.muted : Boolean(muted) }),
+        ...(autoplay ? { autoplay: true } : {}),
+        ...(usePreload ? { usePreload: true } : {}),
+      }, { timeoutMs: remaining + this.commandTimeoutMs }), loadSignal);
+      if (!current()) throw new MusicError('cancelled', 'Playback load was superseded');
+      const positionMs = Number(answer.positionMs);
+      if (!Number.isFinite(positionMs) || positionMs < 0) {
+        throw playbackError('invalid_playback_position', 'Audio host reported an invalid loaded position');
+      }
+      this.active = { playInstanceId, version, started: false, finished: false, positionMs: Math.round(positionMs) };
+      const loadedPosition = this.active.positionMs;
+      this.lastForwardedMs = loadedPosition;
+      this.lastProgressAt = 0;
+      if (answer.seek === false) this.capabilities.seek = false;
+      else if (startMs > 0) this.capabilities.seek = true;
+      if (typeof answer.muted === 'boolean') this.muted = answer.muted;
+      else if (muted !== null) this.muted = Boolean(muted);
+      const playing = answer.playing === true;
+      const preloaded = answer.preloaded === true;
+      const previousMedia = this._mediaActive;
+      this._mediaActive = media;
+      committed = true;
+      await previousMedia?.release();
+      this.onLog({ type: 'loaded', at: Date.now(), playInstanceId, version, positionMs: loadedPosition, seek: answer.seek !== false, playing, preloaded });
+      return { positionMs: loadedPosition, playing, preloaded };
+    } finally {
+      if (!committed) await media?.release();
+      if (this._mediaLoad === controller) this._mediaLoad = null;
+      await this.mediaDownloads?.cleanup();
     }
-    this.active = {
-      playInstanceId,
-      version,
-      started: false,
-      finished: false,
-      positionMs: Math.round(positionMs),
-    };
-    this.lastForwardedMs = this.active.positionMs;
-    this.lastProgressAt = 0;
-    if (answer.seek === false) this.capabilities.seek = false;
-    else if (startMs > 0) this.capabilities.seek = true;
-    if (typeof answer.muted === 'boolean') this.muted = answer.muted;
-    else if (muted !== null) this.muted = Boolean(muted);
-    const playing = answer.playing === true;
-    const preloaded = answer.preloaded === true;
-    this.onLog({ type: 'loaded', at: Date.now(), playInstanceId, version, positionMs: this.active.positionMs, seek: answer.seek !== false, playing, preloaded });
-    return { positionMs: this.active.positionMs, playing, preloaded };
   }
 
   async play({ playInstanceId, version } = {}) {
@@ -301,11 +351,13 @@ export class PlaybackService {
   async pause({ version } = {}) {
     if (this.closing) return;
     if (!this._acceptVersion(version)) return;
+    this._mediaLoad?.abort();
     this._forgetPreload();
     const active = this.active;
     const pendingSeek = this.seeking;
     const commandVersion = version ?? this.acceptedVersion;
     const answer = await this._send('pause', { version: commandVersion });
+    await this.mediaDownloads?.cleanup();
     const positionMs = answer.positionMs ?? answer.state?.positionMs;
     // Resume can briefly expose 0 on WPF. Only a real pending seek permits
     // adopting a position behind the last confirmed audio timeline.
@@ -317,8 +369,15 @@ export class PlaybackService {
     this.lastForwardedMs = 0;
     if (this.closing) return;
     if (version !== undefined && !this._acceptVersion(version)) return;
+    this._mediaLoad?.abort();
     this._forgetPreload();
-    await this._send('stop', { version: version ?? this.acceptedVersion });
+    const media = this._mediaActive;
+    this._mediaActive = null;
+    try { await this._send('stop', { version: version ?? this.acceptedVersion }); }
+    finally {
+      await media?.release();
+      await this.mediaDownloads?.cleanup();
+    }
   }
 
   async setMuted({ muted, version } = {}) {
@@ -348,9 +407,14 @@ export class PlaybackService {
 
   async close(options = {}) {
     this.closing = true;
+    this._mediaLoad?.abort();
     this._forgetPreload();
     this.active = null;
-    await this.supervisor.dispose(options);
+    try { await this.supervisor.dispose(options); }
+    finally {
+      await this._mediaActive?.release(); this._mediaActive = null;
+      await this.mediaDownloads?.close();
+    }
   }
 
   async _send(type, payload = {}, { timeoutMs = this.commandTimeoutMs, invalidateOnTimeout = true } = {}) {
@@ -382,6 +446,7 @@ export class PlaybackService {
   _acceptVersion(version) {
     if (!Number.isFinite(version)) return true;
     if (version < this.acceptedVersion) return false;
+    if (version > this.acceptedVersion) this._mediaLoad?.abort();
     this.acceptedVersion = version;
     if (this.active) this.active.version = version;
     return true;

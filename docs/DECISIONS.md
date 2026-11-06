@@ -107,3 +107,5 @@
 ## 2026-11-06：WPF 公网音频使用匿名临时文件
 
 [#19 最新回复](https://github.com/A7m0spHere/dsh-feiyuFM/issues/19#issuecomment-6673421109) 给出中文固定错误、同机两种宿主公网失败／本地成功对照；Microsoft WPF `MediaPlayerState.OpenMedia` 的区域策略分支与之吻合。取代 Windows 将公网 URL 直接交给 WPF 的路径，选择匿名、可取消、有界下载后打开本地文件，保留原生后台播放与预加载。接受完整下载增加首播等待的代价；不设置关闭区域检查的 AppContext 开关、不回退安全更新或盲换 PowerShell。沿用 P1/N21/R3 的用户控制、恢复预算与实例身份；具体实现、来源及验证边界见 [#19 报告](spikes/ISSUE-19-wpf-public-media.md)。
+
+同日 Windows 续修：首轮把 C# 下载器嵌入 PowerShell 并在启动时编译；本机火绒行为日志与隔离记录证实该宿主及测试脚本被处理，5.1 在握手前退出。下载改由既有 Node Playback 服务承担，WPF 恢复本地媒体职责，不使用排除项、混淆或关闭防护。文件租约随预加载消费转移，版本／取消和共享截止仍在 Playback 层约束；公开 HTTPS 的两种宿主静音解码与实际进度已经复验。修订的是下载执行位置，不撤销匿名本地播放的决策，也不改变推荐、宿主优先级或 library 取消问题的范围。

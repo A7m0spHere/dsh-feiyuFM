@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { PlaybackSupervisor } from '../src/playback/supervisor.mjs';
@@ -14,6 +14,43 @@ import { wpfBackend, powerShellCandidates, WPF_HOST_SCRIPT } from '../src/playba
 // Real WPF media decoding needs a usable Windows audio environment. Hosted CI
 // runs the pipe/fake-backend checks; real media regressions remain enabled locally.
 const skipRealAudio = process.platform !== 'win32' || process.env.FISHFM_TEST_REAL_AUDIO === '0';
+
+test('real WPF local staging preserves pause, resume, preload swaps and file cleanup in both shells', { skip: skipRealAudio, timeout: 60000 }, async () => {
+  const wav = silentWav(15);
+  const server = createServer((_request, response) => { response.writeHead(200, { 'content-type': 'audio/wav', 'content-length': wav.length }); response.end(wav); });
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  const origin = `http://127.0.0.1:${server.address().port}`;
+  try {
+    for (const candidate of powerShellCandidates().filter(c => c.source !== 'override')) {
+      const supervisor = new PlaybackSupervisor({ backend: wpfBackend({ candidates: [candidate], volume: 0, warmHolders: 0, adaptiveWarm: false }) });
+      const service = new PlaybackService({ supervisor, progressIntervalMs: 0 }), events = [];
+      service.onEvent(e => events.push(e)); let directory;
+      try {
+        const a = { handle: `${origin}/a.wav` }, b = { handle: `${origin}/b.wav` };
+        await service.load({ resource: a, playInstanceId: 'stage-a', version: 1, muted: true, autoplay: true });
+        await waitFor(() => events.some(e => e.type === 'progress' && e.positionMs > 100), 5000, 'real staged progress');
+        const activeFile = service._mediaActive.handle;
+        await service.preload({ resource: b, version: 1 });
+        const cancelledFile = service._preload.media.handle;
+        await service.pause({ version: 2 });
+        const paused = await service.hostSnapshot(); await new Promise(resolve => setTimeout(resolve, 350));
+        assert.equal((await service.hostSnapshot()).positionMs, paused.positionMs);
+        assert.equal(service.state().preloadStatus, 'idle');
+        assert.equal(existsSync(cancelledFile), false);
+        await service.play({ playInstanceId: 'stage-a', version: 3 });
+        await service.preload({ resource: b, version: 3 });
+        const nextFile = service._preload.media.handle;
+        const loaded = await service.load({ resource: b, playInstanceId: 'stage-b', version: 4, muted: true, autoplay: true, usePreload: true });
+        assert.equal(loaded.preloaded, true);
+        assert.equal(existsSync(activeFile), false, 'swapped-out player must release its previous local source');
+        assert.equal(existsSync(nextFile), true);
+        await service.stop({ version: 5 }); assert.equal(existsSync(nextFile), false);
+        directory = await service.mediaDownloads.directory;
+      } finally { await service.close(); }
+      assert.equal(existsSync(directory), false);
+    }
+  } finally { server.closeAllConnections(); await new Promise(resolve => server.close(resolve)); }
+});
 
 function silentWav(seconds = 2, sampleRate = 8000) {
   const frames = Math.max(1, Math.round(seconds * sampleRate));

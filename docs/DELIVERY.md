@@ -90,7 +90,7 @@ DSH `0.2.0-rc.2` 的插件页暂不支持自动更新。先在插件管理器卸
 
 默认关闭额外媒体预热持有者，避免与实际歌曲打开竞争。可用 `FISHFM_PLAYBACK_WARM_HOLDERS=0..8` 指定固定数量，0 关闭；播放地址预取和下一首媒体预加载仍按各自规则运行，实际延迟受平台和系统环境影响。
 
-Windows 公网音频的 WPF pack URI 失败（[#19](https://github.com/A7m0spHere/dsh-feiyuFM/issues/19)）在 main 源码改为匿名完整下载临时文件后播放，保留下载期间的暂停／取消及下一首预加载；不会切换系统运行时或关闭区域保护。此修复尚未包含在 npm 0.1.1 中，Windows 真实音频需复验。下载与打开共用默认 12 秒，最多 64 MiB，使用直接匿名连接；可能增加首播等待。依据与测试边界见 [修复报告](spikes/ISSUE-19-wpf-public-media.md)。
+Windows 公网音频的 WPF pack URI 失败（[#19](https://github.com/A7m0spHere/dsh-feiyuFM/issues/19)）在 main 源码改为 Node Playback 服务匿名完整下载临时文件后播放，保留暂停／取消及下一首预加载；WPF 不再动态编译下载器，不切换系统运行时或关闭区域保护。PowerShell 5.1 与隔离 pwsh／.NET 10.0.11 的公开 HTTPS 静音解码及实际进度已通过；反馈设备、真实平台歌曲与实际听音仍待复验。此修复尚未包含在 npm 0.1.1 中。下载与打开共用默认 12 秒，最多 64 MiB，使用直接匿名连接；可能增加首播等待。依据与测试边界见 [修复报告](spikes/ISSUE-19-wpf-public-media.md)。
 
 需要只读提取旧错误时，使用 Node 24.14+ 运行 `node scripts/read-last-error.mjs <实际 music.sqlite 路径>`，仅回复其脱敏 JSON；缺失的故障进程运行时继续保留 unknown，无需上传数据库、完整日志或媒体 URL。
 
