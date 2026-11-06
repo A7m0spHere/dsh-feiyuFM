@@ -213,6 +213,11 @@ U24 为 filtered 状态投影的 `playbackPool` 可选增加 `tracks`：最多 1
 
 Provider 解析最多 3 次；自主不可播替换有有限预算，明确资源不可用排除 30 分钟，媒体打开超时/失败排除 5 分钟。账号/网络失败不写负面偏好，已知过期资源最多重新解析一次。见 [N1](spikes/N1-autonomous-accounting.md)、[N13](spikes/N13-crash-recovery-and-verification-bound.md)。
 
+### Windows 匿名媒体暂存（2026-11-06，#19）
+
+修订上文 Windows 打开路径：`load/preload` 的 HTTP(S) handle 由 WPF 宿主内的异步匿名 HttpClient 下载，完整落盘后仅将本地文件 URI 交给 MediaPlayer。关闭旧本地源后替换，避免旧音频在下载时继续播放；已完成的预加载连同临时文件所有权交换，精确 handle 和宿主代次规则保持。禁止默认／代理认证、Cookie、URL 用户信息、非 HTTP(S) 跳转和 HTTPS 降级；最多 5 次跳转、64 MiB，同时检查声明与实际字节、空文件和截断。下载与媒体打开共用 `openTimeoutMs`（默认 12000ms），取消／超时不会等待网络完成。失败代码 `media_download_failed`，按候选失败退避 5 分钟，不生成收听／成长；本机解码仍为 `media_failed`。临时文件只由宿主持有，替换／取消／失败／正常退出后清理，不进入存储、UI、模型或日志；异常强杀可能留下系统临时文件。IPC v1 形状保持，macOS 不受影响。见 [#19 修复依据](spikes/ISSUE-19-wpf-public-media.md)。
+
+
 ## 7. 存储与恢复
 
 仓库 schema v11，高于支持版本时拒绝打开。主要数据域：

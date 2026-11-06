@@ -344,11 +344,11 @@ export class MusicCore {
         ...(Number.isFinite(error.openElapsedMs) ? { openElapsedMs: error.openElapsedMs } : {}),
         ...(Number.isFinite(expiry?.expiresAt) ? { expiresAt: expiry.expiresAt } : {}),
         ...(Number.isFinite(expiry?.resolvedAt) ? { resourceAgeMs: this.clock.now() - expiry.resolvedAt } : {}) });
-      const candidateFailure = ['media_unavailable', 'resource_unavailable', 'media_open_timeout', 'media_failed'].includes(error.code);
+      const candidateFailure = ['media_unavailable', 'resource_unavailable', 'media_open_timeout', 'media_failed', 'media_download_failed'].includes(error.code);
       // One network stall must not mark a track unplayable for long: a timeout
       // backs off for a minute while a platform-declared unavailable keeps 30.
       if (failed && candidateFailure) this.store.markUnavailable(failed.track, error.code, this.clock.now()
-        + (error.code === 'media_open_timeout' ? 1 : ['media_failed'].includes(error.code) ? 5 : 30) * 60_000);
+        + (error.code === 'media_open_timeout' ? 1 : ['media_failed', 'media_download_failed'].includes(error.code) ? 5 : 30) * 60_000);
       if (this.state.current) {
         // A failed recovery still belongs to the listen that already happened.
         // Only a never-started load is discarded without a history row.

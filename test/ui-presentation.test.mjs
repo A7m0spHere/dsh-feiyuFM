@@ -1,6 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { filterLibrary, playbackPresentation, playbackControls, popupPlacement, discoveryPresentation } from '../src/ui/client/presentation.mjs';
+import { filterLibrary, playbackPresentation, playbackControls, popupPlacement, discoveryPresentation, playbackNotice } from '../src/ui/client/presentation.mjs';
+
+test('media open and download failures have specific playback notices', () => {
+  assert.match(playbackNotice({ lastError: { code: 'media_failed' } }), /本机播放器/);
+  assert.match(playbackNotice({ lastError: { code: 'media_download_failed' } }), /音频下载/);
+  assert.equal(playbackNotice({ lastError: null }), null);
+});
 import {interpolatedPosition,recommendationActionState,recommendationFeedback} from '../src/ui/client/presentation.mjs';
 
 test('a model gate expires at the server deadline while constraints remain separate from actual failures',()=>{

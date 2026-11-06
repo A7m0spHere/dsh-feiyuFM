@@ -179,6 +179,7 @@ test('core failures are explained with the real remedy, or none rather than a ma
   const cases = [
     ['login_required', 'sign-in'],
     ['media_failed', 'retry-track'],
+    ['media_download_failed', 'retry-track'],
     ['media_stalled', 'retry-track'],
     ['playback_host_lost', 'retry-track'],
     ['no_candidates', 'import'],

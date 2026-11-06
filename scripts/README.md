@@ -65,3 +65,5 @@
 `make-tone.mjs`、`client-bundle.mjs` 和 `fixtures/` 是脚本复用模块/替身。早期 P0 探针放在根 [spikes/](../spikes/README.md)，当前流程以本索引和生产源码为准。
 
 `scripts/probes/` 是**审计探针**，不是测试：`test/` 下的一切都会被 `node --test` 执行，因此探针放在这里以免混进套件、虚增测试数。它们只打印观测 JSON 供报告引用。
+
+`node scripts/read-last-error.mjs <实际 music.sqlite 路径>` 是 #19 的独立只读取证助手，兼容 npm 0.1.1；仅输出固定消息白名单（含中文 WPF pack URI 报错）、安全错误码和 HRESULT，不导出自由文本或凭据，不把重现宿主版本当作故障进程事实。详见 [#19](../docs/spikes/ISSUE-19-wpf-public-media.md)。

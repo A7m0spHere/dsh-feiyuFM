@@ -18,6 +18,8 @@ beta.3 的模型协议／最终回答与日常原生 Desktop 重启补验见 [N2
 
 [U27 陪伴区 A 方案](U27-companion-horizontal-layout.md) 记录用户选择的左人物／右文本布局，修正中等宽度上下排列造成的留白，并核对宽窄、浅深色和低高度容器。
 
+[#19 Windows 公网音频](ISSUE-19-wpf-public-media.md) 记录最新中文错误反馈、WPF 上游源码依据、匿名临时文件播放及其取消／清理验证；Windows 真实解码与听音另列待验。
+
 [N24 后台隔离 DSH 验收](N24-dsh-background-acceptance.md) 记录真实会话并发、启停请求／上下文对照、静音 WPF 成长与进程清理；平台替身、原生 Desktop 和默认 filtered 未验范围单列。
 
 [N25 最近播放窗口与多批待播池](N25-recent-playback-and-approved-pool.md) 记录短周期重复的实测线索、50 次播放窗口、100 首入选池和缺歌降级，以及隔离 DSH 的验证边界。

@@ -165,7 +165,7 @@ test('a recovered write clears the failure note instead of leaving a stale warni
     rmSync(join(directory, 'core.json'), { force: true });
     mkdirSync(join(directory, 'core.json'));
     evidence.flush();
-    assert.equal(readRuntimeEvidence(directory, now).writeFailures.core?.lastError, 'EPERM');
+    assert.equal(readRuntimeEvidence(directory, now).writeFailures.core?.lastError, process.platform === 'win32' ? 'EPERM' : 'EISDIR');
 
     rmSync(join(directory, 'core.json'), { recursive: true, force: true });
     evidence.flush();
@@ -186,7 +186,8 @@ test('a live process hears about a write failure without waiting for a later wri
     rmSync(join(directory, 'core.json'), { force: true });
     mkdirSync(join(directory, 'core.json'));
     for (let i = 0; i < 4; i++) evidence.flush();
-    assert.deepEqual(seen, ['EPERM'], 'one notice per cause, not one per failed attempt');
+    const blockedRenameCode = process.platform === 'win32' ? 'EPERM' : 'EISDIR';
+    assert.deepEqual(seen, [blockedRenameCode], 'one notice per cause, not one per failed attempt');
     assert.equal(evidence.writeHealth().failures, 4, 'but every failed attempt is still counted');
 
     // Once writing works again the notice is armed for the next real cause.
@@ -196,7 +197,7 @@ test('a live process hears about a write failure without waiting for a later wri
     rmSync(join(directory, 'core.json'), { force: true });
     mkdirSync(join(directory, 'core.json'));
     evidence.flush();
-    assert.deepEqual(seen, ['EPERM', 'EPERM'], 'a failure after recovery is reported again');
+    assert.deepEqual(seen, [blockedRenameCode, blockedRenameCode], 'a failure after recovery is reported again');
   } finally { evidence.close(); rmSync(directory, { recursive: true, force: true }); }
 });
 
@@ -237,7 +238,7 @@ test('a note left by a crashed run does not outlive it', () => {
     rmSync(join(directory, 'core.json'), { force: true });
     mkdirSync(join(directory, 'core.json'));
     broken.flush();
-    assert.equal(readRuntimeEvidence(directory, now).writeFailures.core?.lastError, 'EPERM');
+    assert.equal(readRuntimeEvidence(directory, now).writeFailures.core?.lastError, process.platform === 'win32' ? 'EPERM' : 'EISDIR');
 
     // The obstruction is cleared, but the broken run never called close().
     rmSync(join(directory, 'core.json'), { recursive: true, force: true });

@@ -244,6 +244,7 @@ const EXPLANATIONS = Object.freeze({
   login_required: { title: '登录已失效', detail: '需要重新登录平台才能继续播放。', actionId: 'sign-in' },
   media_unavailable: { title: '这首歌暂时无法播放', detail: '平台没有给出可播放的地址，可能需要会员或受地区限制。', actionId: null },
   media_failed: { title: '播放中断了', detail: '音频无法继续，可能已失效。', actionId: 'retry-track' },
+  media_download_failed: { title: '歌曲音频下载未成功', detail: '可以重新点播或换一首。', actionId: 'retry-track' },
   media_stalled: { title: '播放卡住了', detail: '音频长时间没有继续，自动恢复未成功，可以重试这首歌。', actionId: 'retry-track' },
   playback_host_lost: { title: '播放服务中断了', detail: '自动恢复未成功，可以重试这首歌。', actionId: 'retry-track' },
   resource_expired: { title: '播放地址已过期，正在重新获取', detail: '这类地址有时效，正在自动重试。', actionId: null },

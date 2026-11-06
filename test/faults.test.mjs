@@ -103,6 +103,22 @@ test('an expired platform handle is resolved again instead of failing the track'
   }
 });
 
+test('a failed audio download backs off the candidate without inventing a listen or growth', async () => {
+  const h = harness();
+  try {
+    h.playback.load = async () => { throw new MusicError('media_download_failed', 'Anonymous media download failed'); };
+    h.send('requestTrack', { track });
+    await h.core.waitForIdle();
+    assert.equal(h.core.snapshot().lastError.code, 'media_download_failed');
+    assert.equal(h.core.snapshot().current, null);
+    assert.equal(h.core.snapshot().paused, true);
+    assert.equal(h.store.isTrackAvailable(track, h.clock.now()), false);
+    assert.equal(h.store.isTrackAvailable(track, h.clock.now() + 5 * MIN), true);
+    assert.equal(h.store.db.prepare('SELECT count(*) AS n FROM listen_history').get().n, 0);
+    assert.equal(h.store.db.prepare('SELECT count(*) AS n FROM growth_jobs').get().n, 0);
+  } finally { h.store.close(); }
+});
+
 test('a media failure that is not about expiry is reported without a pointless retry', async () => {
   const h = harness({ expiresAt: null });
   try {
