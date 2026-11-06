@@ -1,8 +1,8 @@
 # 交付与使用说明
 
-更新：2026-11-04，发行基线为 **0.1.1**，首发范围为 Windows／网易云。包含陪伴界面、四个标签页、ASCII 频谱、持续补歌与播放延迟优化。macOS 适配随包提供，真机验收未完成；QQ 暂缓。版本范围与摘要见 [0.1.1 发布记录](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/releases/0.1.1.md)，完整产品验收及长期体验缺口仍在 [开发状态](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/PROJECT_PLAN.md) 保留。
+更新：2026-11-06，版本 **0.1.2**，范围为 Windows／网易云。包含公网播放修复、逐行歌词与跳转、陪伴界面和持续补歌。macOS 适配随包提供，真机验收未完成；QQ 暂缓。发布状态与范围见 [0.1.2 记录](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/releases/0.1.2.md)，完整产品验收及长期体验缺口仍在 [开发状态](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/PROJECT_PLAN.md) 保留。
 
-2026-11-05 main 更新：Windows／网易云新增逐行歌词、翻译／音译独立开关及点击歌词原地跳转，默认只显示原文，暂停时定位仍保持暂停。该功能已合并源码，**尚未发布到 npm，正式版 0.1.1 不包含歌词**；提前体验可按下方 GitHub 源码方式安装并完整重启。日常候选和审查修订的实测边界见 [U26](spikes/U26-console-lyrics.md)，macOS 保持实验性。
+0.1.2新增逐行歌词、翻译／音译独立开关及点击歌词原地跳转，默认只显示原文，暂停时定位仍保持暂停。升级须完整退出并重开DSH；日常候选和审查修订的实测边界见 [U26](spikes/U26-console-lyrics.md)，macOS 保持实验性。
 
 ## 支持范围
 
@@ -18,11 +18,11 @@
 
 ## 安装
 
-FeiyuFM 以 npm 包分发，通过 DSH 安装到当前 profile。在侧栏「插件 → 添加插件」的「包名或地址」中输入 `dsh-feiyufm@0.1.1`，安装完成后点击「立即启用」；跟随正式版更新用 `dsh-feiyufm@latest`。下载失败可切换「安装源 → npm 官方源」。DSH 会安装 bundle、读取 patch 并登记插件，无需手改 profile；单独 `npm install` 不会完成这一步。机制见 [DSH 官方安装说明](https://deepseek-harness.github.io/deepseek-harness/en/develop/basic/publish)。
+FeiyuFM 以 npm 包分发，通过 DSH 安装到当前 profile。在侧栏「插件 → 添加插件」的「包名或地址」中输入 `dsh-feiyufm@0.1.2`，安装完成后点击「立即启用」；跟随正式版更新用 `dsh-feiyufm@latest`。下载失败可切换「安装源 → npm 官方源」。DSH 会安装 bundle、读取 patch 并登记插件，无需手改 profile；单独 `npm install` 不会完成这一步。机制见 [DSH 官方安装说明](https://deepseek-harness.github.io/deepseek-harness/en/develop/basic/publish)。
 
-已安装 DSH CLI 的用户可通过 `dsh plugin --profile web add dsh-feiyufm@0.1.1 --registry https://registry.npmjs.org/` 安装到 Web profile；`web` 要对应实际启动的 profile，安装后重启该实例。桌面版使用上述应用内入口。
+已安装 DSH CLI 的用户可通过 `dsh plugin --profile web add dsh-feiyufm@0.1.2 --registry https://registry.npmjs.org/` 安装到 Web profile；`web` 要对应实际启动的 profile，安装后重启该实例。桌面版使用上述应用内入口。
 
-也可通过 GitHub 源码安装：在「包名或地址」输入 `https://github.com/A7m0spHere/dsh-feiyuFM`，从 `main` 安装；需要固定验收代码时可使用 `github:A7m0spHere/dsh-feiyuFM#<完整提交号>`。记录 profile 锁文件实际解析的提交号。GitHub 源码安装会解析普通运行依赖；npm `0.1.1` 包含登录修复与首次引导。安装后从托盘完整退出并重开，按 [人工验收卡](spikes/P0-07-desktop-checklist.md) 验证，保留现有数据与凭据。
+也可通过 GitHub 源码安装：在「包名或地址」输入 `https://github.com/A7m0spHere/dsh-feiyuFM`，从 `main` 安装；需要固定验收代码时可使用 `github:A7m0spHere/dsh-feiyuFM#<完整提交号>`。记录 profile 锁文件实际解析的提交号。GitHub 源码安装会解析普通运行依赖；npm `0.1.2` 包含登录修复、首次引导、歌词与公网播放修复。安装后从托盘完整退出并重开，按 [人工验收卡](spikes/P0-07-desktop-checklist.md) 验证，保留现有数据与凭据。
 
 Windows 的隔离宿主验证使用 DSH `0.2.1-rc.5`；桌面宿主自带兼容 Node 24 时无需单独安装 Node。macOS 实验性适配要求 Xcode Command Line Tools 提供 `/usr/bin/swiftc`，首次启动原生后端时会编译 Helper 到 DSH 私有数据目录。这不代表 macOS 真机验收完成。
 
@@ -38,7 +38,7 @@ dsh plugin --profile desktop add /absolute/path/to/dsh-feiyuFM
 
 已有 workspace 安装请经插件管理器更换来源，不在同一 profile 同时启用两份 FeiyuFM。仓库开发步骤在 [贡献指南](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/CONTRIBUTING.md)。npm 发行包包含运行依赖树、源码与各自许可，安装不需重新解析这些依赖。
 
-从旧测试包 `dsh-feiyufm-core` 升级时，先在插件管理器移除旧来源，再添加 `dsh-feiyufm@0.1.1`。内部 RPC 标识和 `$DSH_HOME/fishfm/` 数据目录保持兼容，已有曲库、偏好与凭据引用继续使用；不要同时启用两个包来源。
+从旧测试包 `dsh-feiyufm-core` 升级时，先在插件管理器移除旧来源，再添加 `dsh-feiyufm@0.1.2`。内部 RPC 标识和 `$DSH_HOME/fishfm/` 数据目录保持兼容，已有曲库、偏好与凭据引用继续使用；不要同时启用两个包来源。
 
 ## 首次听歌
 
@@ -78,7 +78,7 @@ DSH `0.2.0-rc.2` 的插件页暂不支持自动更新。先在插件管理器卸
 - **已保存会话却不能导入：** 会话可能过期，查看错误阶段并重新登录；加密文件存在不代表账号有效。
 - **有歌名却不能播放：** 歌名来自网易云候选，但播放仍可能受会员、版权或地址失效限制；以实际错误为准。
 - **没有声音：** 先查看声音开关、静听模式和暂停状态，再检查系统音量及输出设备。日常 / 专注模式会恢复声音。
-- **网易云连接一直“读取中”或提示运行依赖缺失：** 0.1.0 的 GitHub 源码安装可能缺少网易云运行依赖。通过 DSH 插件管理器将同一 profile 的来源更换为 npm `dsh-feiyufm@0.1.1`，确保只启用一份，再从托盘完整退出并重开 DSH；保留 `$DSH_HOME/fishfm` 下的数据与凭据，不要清库。0.1.1 会显示读取失败及重试入口；已发布的 0.1.0 不包含该提示修复。
+- **网易云连接一直“读取中”或提示运行依赖缺失：** 0.1.0 的 GitHub 源码安装可能缺少网易云运行依赖。通过 DSH 插件管理器将同一 profile 的来源更换为 npm `dsh-feiyufm@0.1.2`，确保只启用一份，再从托盘完整退出并重开 DSH；保留 `$DSH_HOME/fishfm` 下的数据与凭据，不要清库。0.1.1 会显示读取失败及重试入口；已发布的 0.1.0 不包含该提示修复。
 - **没有候选：** 检查输入曲库、歌单核对结果与探索池状态，必要时补充歌单或点播曲库歌曲；当前源码在最近 50 次窗口内没有窗口外可播歌曲时会等待补批。
 - **不能补充歌单：** 当前任务、预算或平台节流可能限制请求；余量不足时后台也会自动补充，等待期间仍可点播、暂停或换曲。
 - **源码改动没有生效：** UI 修改后运行 `npm run build:client` 或 `npm run build`，再刷新界面。官方桌面版会缓存后端模块；后端或资源路由更新需从托盘完整退出 DSH 再启动，只关窗口、刷新页面或停用再启用插件不足以清除缓存。已发布 npm 安装不会自动取得尚未发布的源码改动。
@@ -90,7 +90,7 @@ DSH `0.2.0-rc.2` 的插件页暂不支持自动更新。先在插件管理器卸
 
 默认关闭额外媒体预热持有者，避免与实际歌曲打开竞争。可用 `FISHFM_PLAYBACK_WARM_HOLDERS=0..8` 指定固定数量，0 关闭；播放地址预取和下一首媒体预加载仍按各自规则运行，实际延迟受平台和系统环境影响。
 
-Windows 公网音频的 WPF pack URI 失败（[#19](https://github.com/A7m0spHere/dsh-feiyuFM/issues/19)）在 main 源码改为 Node Playback 服务匿名完整下载临时文件后播放，保留暂停／取消及下一首预加载；WPF 不再动态编译下载器，不切换系统运行时或关闭区域保护。PowerShell 5.1 与隔离 pwsh／.NET 10.0.11 的公开 HTTPS 静音解码及实际进度已通过；反馈设备、真实平台歌曲与实际听音仍待复验。此修复尚未包含在 npm 0.1.1 中。下载与打开共用默认 12 秒，最多 64 MiB，使用直接匿名连接；可能增加首播等待。依据与测试边界见 [修复报告](spikes/ISSUE-19-wpf-public-media.md)。
+Windows 公网音频的 WPF pack URI 失败（[#19](https://github.com/A7m0spHere/dsh-feiyuFM/issues/19)）在 main 源码改为 Node Playback 服务匿名完整下载临时文件后播放，保留暂停／取消及下一首预加载；WPF 不再动态编译下载器，不切换系统运行时或关闭区域保护。PowerShell 5.1 与隔离 pwsh／.NET 10.0.11 的公开 HTTPS 静音解码及实际进度已通过；反馈设备、真实平台歌曲与实际听音仍待复验。此修复包含在0.1.2，旧0.1.1不会自动取得更新。下载与打开共用默认 12 秒，最多 64 MiB，使用直接匿名连接；可能增加首播等待。依据与测试边界见 [修复报告](spikes/ISSUE-19-wpf-public-media.md)。
 
 需要只读提取旧错误时，使用 Node 24.14+ 运行 `node scripts/read-last-error.mjs <实际 music.sqlite 路径>`，仅回复其脱敏 JSON；缺失的故障进程运行时继续保留 unknown，无需上传数据库、完整日志或媒体 URL。
 

@@ -6,9 +6,9 @@
 
 导入常听的歌曲，让网易云找来候选，再由模型挑出一批。大肥鱼陪你听歌；点播、暂停、换曲和静音，随时由你决定。
 
-**Windows · 网易云 · 0.1.1**　[开始使用](#开始使用) · [下载发行包](https://github.com/A7m0spHere/dsh-feiyuFM/releases/tag/v0.1.1) · [使用说明](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/DELIVERY.md) · [更新记录](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/CHANGELOG.md)
+**Windows · 网易云 · 0.1.2**　[开始使用](#开始使用) · [下载发行包](https://registry.npmjs.org/dsh-feiyufm/-/dsh-feiyufm-0.1.2.tgz) · [使用说明](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/DELIVERY.md) · [更新记录](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/CHANGELOG.md)
 
-**main 已新增逐行歌词和点击跳转，尚未发布到 npm。** 正式版 `0.1.1` 不包含歌词功能；提前体验请按下方说明从 main 源码安装。本轮按 Windows／网易云范围合并，macOS 继续保持实验性。
+**0.1.2 包含 Windows 公网播放修复、逐行歌词和点击跳转。** 升级后请完整退出并重开 DSH，让新播放服务生效；保留原有音乐数据库与登录状态。macOS 继续保持实验性，发行状态与验证边界见 [0.1.2 记录](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/releases/0.1.2.md)。
 
 ## 电台长什么样
 
@@ -19,14 +19,14 @@
   <img src="https://raw.githubusercontent.com/A7m0spHere/dsh-feiyuFM/main/assets/readme/panel.png?v=20261105" width="100%" alt="main 源码的肥鱼电台：紧凑人物与歌曲信息、右侧逐行歌词，下方是可选歌曲池和播放控制；窄窗口上下排列。">
 </picture>
 
-截图取自 2026-11-05 的 main 客户端预览，展示尚未发布的歌词界面；歌曲、歌词、账号状态与模型结果均为示例数据。实际安装与试用边界见 [U26 记录](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/spikes/U26-console-lyrics.md)。
+截图取自 2026-11-05 的客户端预览，展示0.1.2包含的歌词界面；歌曲、歌词、账号状态与模型结果均为示例数据。实际安装与试用边界见 [U26 记录](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/spikes/U26-console-lyrics.md)。
 
 ## 开始使用
 
 在 DSH「插件 → 添加插件」的「包名或地址」中输入：
 
 ```text
-dsh-feiyufm@0.1.1
+dsh-feiyufm@0.1.2
 ```
 
 安装后点击「立即启用」，然后：
@@ -38,7 +38,7 @@ dsh-feiyufm@0.1.1
 首次使用时，「正在听」会显示三步引导。跳过或完成后，也可以在「电台设置 → 使用指南」重新打开。
 
 <details>
-<summary>提前体验 main 的歌词功能（尚未发布）</summary>
+<summary>从 main 源码安装</summary>
 
 在「插件 → 添加插件」的「包名或地址」中使用：
 
@@ -60,7 +60,7 @@ https://github.com/A7m0spHere/dsh-feiyuFM
 以 Web profile 为例，将 `web` 换成实际使用的 profile：
 
 ```sh
-dsh plugin --profile web add dsh-feiyufm@0.1.1 --registry https://registry.npmjs.org/
+dsh plugin --profile web add dsh-feiyufm@0.1.2 --registry https://registry.npmjs.org/
 ```
 
 安装后重启该实例。单独运行 `npm install` 不会完成 DSH 插件注册和启用。
@@ -96,7 +96,7 @@ dsh plugin --profile web add dsh-feiyufm@0.1.1 --registry https://registry.npmjs
 ## 听歌时可以做什么
 
 - **控制播放：** 点播、暂停、上一首或下一首；自动事件不会撤销你主动暂停的状态。
-- **查看歌词（main）：** 当前句高亮并自动跟随，翻译／音译按需开启，点击歌词跳转；无词、纯音乐和没有时间信息的歌词分别显示，读取失败可重试。
+- **查看歌词：** 当前句高亮并自动跟随，翻译／音译按需开启，点击歌词跳转；无词、纯音乐和没有时间信息的歌词分别显示，读取失败可重试。
 - **调整偏好：** 用「喜欢／少推荐」影响后续挑歌，也可以撤销；不会修改网易云收藏。
 - **切换页面：** 正在听、发现记录、偏好与反馈、电台设置共用音乐服务；切页或隐藏悬浮条后继续播放。
 - **选择听歌方式：** 日常、专注、静听和关闭四种模式；静听关闭电脑声音，仍记录有效经历。「今天停止」可随时手动恢复。
@@ -107,7 +107,7 @@ dsh plugin --profile web add dsh-feiyufm@0.1.1 --registry https://registry.npmjs
 
 - **没有声音：** 检查声音开关、静听模式、暂停状态，以及系统音量和输出设备。首次播放可能等待数秒。
 - **不能补充歌单：** 当前任务、预算或平台节流可能限制请求；等待期间仍可点播、暂停或换曲。
-- **网易云连接读取失败：** 按提示重试连接；如果提示运行依赖缺失，重新安装 `dsh-feiyufm@0.1.1` 并完整重启 DSH。
+- **网易云连接读取失败：** 按提示重试连接；如果提示运行依赖缺失，重新安装 `dsh-feiyufm@0.1.2` 并完整重启 DSH。
 - **升级后没有变化：** 从托盘完整退出 DSH 再启动；升级不需要删除音乐数据库。
 
 更多排查方法见 [使用说明](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/DELIVERY.md#常见问题)。
@@ -118,8 +118,7 @@ dsh plugin --profile web add dsh-feiyufm@0.1.1 --registry https://registry.npmjs
 
 | 项目 | 当前范围 |
 | --- | --- |
-| Windows + 网易云正式版 | npm `0.1.1`；发布范围见 [发行记录](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/releases/0.1.1.md)，歌词尚未包含 |
-| Windows + 网易云 main | 新增逐行歌词与原地跳转，审查回归通过；日常试用的代码版本、已验范围与缺口见 [开发状态](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/PROJECT_PLAN.md) |
+| Windows + 网易云 | `0.1.2` 包含公网播放修复、歌词与原地跳转；发布状态见 [发行记录](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/releases/0.1.2.md)，用户设备／真实平台验收缺口见 [开发状态](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/PROJECT_PLAN.md) |
 | DSH / Node.js | 本机隔离验证 DSH `0.2.1-rc.5`；Node `>=24.14.0 <25`，桌面宿主自带兼容版本时无需另装 |
 | macOS | 实验性适配随包提供；真实登录、音频与退出生命周期待真机验收 |
 | QQ 音乐 | 接入暂缓，当前没有可用登录与播放链路 |
