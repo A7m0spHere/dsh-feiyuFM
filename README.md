@@ -8,7 +8,7 @@
 
 **Windows · 网易云 · 0.1.2**　[开始使用](#开始使用) · [下载发行包](https://registry.npmjs.org/dsh-feiyufm/-/dsh-feiyufm-0.1.2.tgz) · [使用说明](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/DELIVERY.md) · [更新记录](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/CHANGELOG.md)
 
-**0.1.2 包含 Windows 公网播放修复、逐行歌词和点击跳转。** 升级后请完整退出并重开 DSH，让新播放服务生效；保留原有音乐数据库与登录状态。macOS 继续保持实验性，发行状态与验证边界见 [0.1.2 记录](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/releases/0.1.2.md)。
+**0.1.2 已发布到 npm，`latest` 指向此版本。** 本次包含 Windows 公网播放修复、逐行歌词与点击跳转，以及人物与文本并排的陪伴区。升级后须完整退出并重开 DSH，让新播放服务生效；保留原有音乐数据库与登录状态。发布确认与验证范围见 [0.1.2 记录](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/releases/0.1.2.md)。
 
 ## 电台长什么样
 
@@ -16,10 +16,10 @@
   <source media="(prefers-color-scheme: dark) and (max-width: 600px)" srcset="https://raw.githubusercontent.com/A7m0spHere/dsh-feiyuFM/main/assets/readme/panel-narrow-dark.png?v=20261105">
   <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/A7m0spHere/dsh-feiyuFM/main/assets/readme/panel-dark.png?v=20261105">
   <source media="(max-width: 600px)" srcset="https://raw.githubusercontent.com/A7m0spHere/dsh-feiyuFM/main/assets/readme/panel-narrow.png?v=20261105">
-  <img src="https://raw.githubusercontent.com/A7m0spHere/dsh-feiyuFM/main/assets/readme/panel.png?v=20261105" width="100%" alt="main 源码的肥鱼电台：紧凑人物与歌曲信息、右侧逐行歌词，下方是可选歌曲池和播放控制；窄窗口上下排列。">
+  <img src="https://raw.githubusercontent.com/A7m0spHere/dsh-feiyuFM/main/assets/readme/panel.png?v=20261105" width="100%" alt="肥鱼电台界面预览：人物与歌曲信息、逐行歌词、可选歌曲池和播放控制。">
 </picture>
 
-截图取自 2026-11-05 的客户端预览，展示0.1.2包含的歌词界面；歌曲、歌词、账号状态与模型结果均为示例数据。实际安装与试用边界见 [U26 记录](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/spikes/U26-console-lyrics.md)。
+截图取自 2026-11-05 的客户端预览，展示歌词与布局示例；歌曲、歌词、账号状态与模型结果均为示例数据。界面以实际版本为准，试用范围见 [U26 记录](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/spikes/U26-console-lyrics.md)。
 
 ## 开始使用
 
@@ -29,7 +29,7 @@
 dsh-feiyufm@0.1.2
 ```
 
-安装后点击「立即启用」，然后：
+新安装完成后点击「立即启用」，然后：
 
 1. 打开侧栏「肥鱼电台」，在「电台设置」里用网易云 App 扫码登录。
 2. 导入近期播放、喜欢的歌曲或指定歌单，作为参考歌曲。
@@ -38,17 +38,15 @@ dsh-feiyufm@0.1.2
 首次使用时，「正在听」会显示三步引导。跳过或完成后，也可以在「电台设置 → 使用指南」重新打开。
 
 <details>
-<summary>从 main 源码安装</summary>
+<summary>从 main 源码安装（开发与验证）</summary>
 
-在「插件 → 添加插件」的「包名或地址」中使用：
+日常使用可选择上方的 npm 正式包；需要验证 main 上的改动时，在「插件 → 添加插件」的「包名或地址」中使用：
 
 ```text
 https://github.com/A7m0spHere/dsh-feiyuFM
 ```
 
 已有安装先通过插件管理器更换来源，同一 profile 只启用一份肥鱼电台。保留现有音乐数据库与登录状态，安装启用后从应用菜单或托盘完整退出 DSH，再重新启动，才能载入新的播放后端。
-
-打开「正在听」即可查看当前句高亮的逐行歌词。默认只显示原文；词源有翻译或音译时，可分别开启。点击某句歌词或用键盘 Enter／Space 跳到该句，暂停时跳转仍保持暂停；手动浏览后可点「回到当前句」恢复跟随。
 
 源码安装、固定提交和本地打包方式见 [使用说明](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/DELIVERY.md#安装) 与 [贡献指南](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/CONTRIBUTING.md#打包与发行)。
 
@@ -70,9 +68,9 @@ dsh plugin --profile web add dsh-feiyufm@0.1.2 --registry https://registry.npmjs
 <details>
 <summary>从旧版本升级</summary>
 
-跟随正式版可安装 `dsh-feiyufm@latest`。如果安装过旧测试包 `dsh-feiyufm-core`，先在插件管理器移除旧来源，再添加新包；同一 profile 只启用一份肥鱼电台。
+从 0.1.1 或此前源码试用版升级时，在同一 profile 的插件管理器中更换为 `dsh-feiyufm@0.1.2`；跟随正式版更新可用 `dsh-feiyufm@latest`。如果安装过旧测试包 `dsh-feiyufm-core`，先移除旧来源，再添加新包；同一 profile 只启用一份肥鱼电台。
 
-升级时保留同一 profile 的音乐数据库。后端更新后，从托盘完整退出 DSH，再重新启动。
+升级时保留音乐数据库与凭据，不需要清库。安装启用后，从应用菜单或托盘完整退出 DSH，再重新启动；只关闭窗口或刷新页面不会更新已加载的播放服务。
 
 </details>
 
@@ -96,7 +94,7 @@ dsh plugin --profile web add dsh-feiyufm@0.1.2 --registry https://registry.npmjs
 ## 听歌时可以做什么
 
 - **控制播放：** 点播、暂停、上一首或下一首；自动事件不会撤销你主动暂停的状态。
-- **查看歌词：** 当前句高亮并自动跟随，翻译／音译按需开启，点击歌词跳转；无词、纯音乐和没有时间信息的歌词分别显示，读取失败可重试。
+- **查看歌词：** 当前句高亮并自动跟随，默认原文，翻译／音译按词源开启。点击某句或用 Enter／Space 原地跳转，暂停时仍保持暂停；手动浏览后可点「回到当前句」。无词、纯音乐和没有时间信息的歌词分别显示，读取失败可重试。
 - **调整偏好：** 用「喜欢／少推荐」影响后续挑歌，也可以撤销；不会修改网易云收藏。
 - **切换页面：** 正在听、发现记录、偏好与反馈、电台设置共用音乐服务；切页或隐藏悬浮条后继续播放。
 - **选择听歌方式：** 日常、专注、静听和关闭四种模式；静听关闭电脑声音，仍记录有效经历。「今天停止」可随时手动恢复。
@@ -106,6 +104,8 @@ dsh plugin --profile web add dsh-feiyufm@0.1.2 --registry https://registry.npmjs
 <summary>没有声音，或暂时不能补充歌单？</summary>
 
 - **没有声音：** 检查声音开关、静听模式、暂停状态，以及系统音量和输出设备。首次播放可能等待数秒。
+- **旧版出现 Windows 公网播放失败：** 先升级到 `0.1.2` 并完整重启 DSH；该版本修复了已复现的 WPF 公网媒体打开路径。平台账号权限、网络和本机媒体环境仍会影响播放。
+- **提示下载失败或本机打开失败：** 两者是不同阶段；按提示重试或换一首，持续失败时参考 [#19 说明](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/spikes/ISSUE-19-wpf-public-media.md) 提供脱敏信息，不需要上传数据库、Cookie或完整媒体地址。
 - **不能补充歌单：** 当前任务、预算或平台节流可能限制请求；等待期间仍可点播、暂停或换曲。
 - **网易云连接读取失败：** 按提示重试连接；如果提示运行依赖缺失，重新安装 `dsh-feiyufm@0.1.2` 并完整重启 DSH。
 - **升级后没有变化：** 从托盘完整退出 DSH 再启动；升级不需要删除音乐数据库。
@@ -118,8 +118,8 @@ dsh plugin --profile web add dsh-feiyufm@0.1.2 --registry https://registry.npmjs
 
 | 项目 | 当前范围 |
 | --- | --- |
-| Windows + 网易云 | `0.1.2` 包含公网播放修复、歌词与原地跳转；发布状态见 [发行记录](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/releases/0.1.2.md)，用户设备／真实平台验收缺口见 [开发状态](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/PROJECT_PLAN.md) |
-| DSH / Node.js | 本机隔离验证 DSH `0.2.1-rc.5`；Node `>=24.14.0 <25`，桌面宿主自带兼容版本时无需另装 |
+| Windows + 网易云 | npm `0.1.2` 已发布；公开 HTTPS 静音播放、暂停／预加载换曲及公开包安装通过，反馈设备与真实账号歌曲仍需复验。见 [发行记录](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/releases/0.1.2.md) |
+| DSH / Node.js | 发行包在 DSH `0.2.2-rc.1`／内置 Node `24.21.0` 隔离安装与初始化通过；要求 Node `>=24.14.0 <25`，桌面宿主自带兼容版本时无需另装 |
 | macOS | 实验性适配随包提供；真实登录、音频与退出生命周期待真机验收 |
 | QQ 音乐 | 接入暂缓，当前没有可用登录与播放链路 |
 
