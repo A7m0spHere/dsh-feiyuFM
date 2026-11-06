@@ -6,7 +6,7 @@
 
 导入常听的歌曲，让网易云找来候选，再由模型挑出一批。大肥鱼陪你听歌；点播、暂停、换曲和静音，随时由你决定。
 
-**Windows · 网易云 · 0.1.2**　[开始使用](#开始使用) · [下载发行包](https://registry.npmjs.org/dsh-feiyufm/-/dsh-feiyufm-0.1.2.tgz) · [使用说明](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/DELIVERY.md) · [更新记录](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/CHANGELOG.md)
+**Windows · 网易云 · 0.1.2**　[开始使用](#开始使用) · [下载发行包](https://github.com/A7m0spHere/dsh-feiyuFM/releases/tag/v0.1.2) · [使用说明](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/DELIVERY.md) · [更新记录](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/CHANGELOG.md)
 
 **0.1.2 已发布到 npm，`latest` 指向此版本。** 本次包含 Windows 公网播放修复、逐行歌词与点击跳转，以及人物与文本并排的陪伴区。升级后须完整退出并重开 DSH，让新播放服务生效；保留原有音乐数据库与登录状态。发布确认与验证范围见 [0.1.2 记录](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/releases/0.1.2.md)。
 
