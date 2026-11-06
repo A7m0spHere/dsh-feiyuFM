@@ -23,6 +23,10 @@ Microsoft [WPF OpenMedia 源码](https://github.com/dotnet/wpf/blob/main/src/Mic
 
 `test/playback-download.test.mjs` 从生产脚本提取实际函数，使用不解码、不发声的播放器替身及本机 HTTP 服务，验证完整下载、本地 URI、预加载交换、认证挑战不带凭据、Cookie 不回传、跳转环／非法协议、声明／分块超限、截断／空响应、体流停滞、暂停／取消／换曲与迟到打开标记、临时文件清理。Windows 上同一测试默认覆盖所有已安装的 pwsh／PowerShell 5.1；macOS 通过 `FISHFM_TEST_PWSH` 显式选择便携宿主。另有 Core 的下载失败不成长与候选退避回归、只读取证回归及 UI 错误分类回归。结果统一维护在 PROJECT_PLAN。
 
+## Windows CI 补验
+
+修复提交 `666a183` 的 [Windows CI](https://github.com/A7m0spHere/dsh-feiyuFM/actions/runs/42220544443) 全部成功：Windows Server 2025、Node 24.22.2；787 项中 782 通过、0 失败、5 项真实媒体跳过。实际生产下载类型／命令函数的匿名下载、失败、取消、预加载交换和清理测试在已安装的 pwsh 与 Windows PowerShell 5.1 均通过；真实 WPF 的停滞打开／备用加载取消控制亦通过。195 模块检查、完整构建／debug smoke、125 文档零坏链、288 份依赖声明与 4898 文件实包白名单均通过。CI 没有音频设备验收，不代表反馈设备上的真实公开 HTTPS／平台歌曲已成功解码或发声。
+
 ## 剩余边界
 
 - 本轮本机没有 Windows WPF，替身不能证明解码或听音。需在反馈设备以修复后的完整插件验证公开 HTTPS 与真实平台歌曲、两种 PowerShell、本地媒体、暂停／下一首／预加载／正常退出；同时核对无凭据泄露及临时文件清理。
