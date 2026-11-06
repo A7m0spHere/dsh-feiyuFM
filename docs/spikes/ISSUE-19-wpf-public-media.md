@@ -1,6 +1,6 @@
 # #19：Windows WPF 公网音频打开失败
 
-日期：2026-11-06。源码修复与验证边界见 [PROJECT_PLAN](../PROJECT_PLAN.md)，产品与接口分别见 [MVP](../MVP.md)、[CORE_CONTRACT](../CORE_CONTRACT.md)。本报告不代表 npm 0.1.1 已更新或日常 Desktop 已加载。
+日期：2026-11-06。源码修复与验证边界见 [PROJECT_PLAN](../PROJECT_PLAN.md)，产品与接口分别见 [MVP](../MVP.md)、[CORE_CONTRACT](../CORE_CONTRACT.md)。本报告不代表旧 npm 0.1.1 已更新或日常 Desktop 已加载；后续已发布的修复版本见 [0.1.2发行确认](../releases/0.1.2.md)。
 
 ## 反馈与根因依据
 
