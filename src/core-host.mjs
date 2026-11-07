@@ -22,6 +22,7 @@ import { importSeedTracks, describeEnvironment, describeEnvironmentProfile } fro
 import { applyListenGrowth, decayPreferences, describeGrowth } from './growth.mjs';
 import { createSessionRegistry, mayStartPlayback } from './sessions.mjs';
 import { createHttpTransport } from './providers/transport.mjs';
+import { createNetworkClient, networkProxyView, saveNetworkProxy } from './network.mjs';
 import { NETEASE_ORIGIN } from './providers/endpoints/netease.mjs';
 import { createNetEaseProvider } from './providers/netease.mjs';
 import { createQQProvider } from './providers/qq.mjs';
@@ -189,7 +190,8 @@ export function buildSelector({ store, now = () => Date.now(), rng = null, listD
  * no transport or endpoints is deliberately left uninstalled, so the host reports
  * "not installed" instead of pretending to have the platform.
  */
-export function buildProviderRegistry({ adapters = {}, credentials = null, store = null, now = () => Date.now(), onLog = () => {} } = {}) {
+export function buildProviderRegistry({ adapters = {}, credentials = null, store = null, now = () => Date.now(), onLog = () => {}, network = null } = {}) {
+  network ??= createNetworkClient({ getSettings: () => networkProxyView(store) });
   const providers = {};
   for (const [name, config] of Object.entries(adapters)) {
     // A caller may supply a ready transport (a custom client, or a test double)
@@ -202,7 +204,7 @@ export function buildProviderRegistry({ adapters = {}, credentials = null, store
           trustedOrigin: name === 'netease' ? NETEASE_ORIGIN : config.trustedOrigin,
           maxResponseBytes: config.maxResponseBytes,
           maxCookieBytes: config.maxCookieBytes,
-          fetchImpl: config.fetchImpl,
+          fetchImpl: config.fetchImpl ?? network.fetch,
           timeoutMs: config.timeoutMs,
           onLog,
         })
@@ -211,7 +213,7 @@ export function buildProviderRegistry({ adapters = {}, credentials = null, store
       onLog({ type: 'provider', provider: name, installed: false, reason: 'no transport or endpoints configured' });
       continue;
     }
-    const options = { transport, credentials, store, now, onLog, ...(config.options ?? {}) };
+    const options = { transport, credentials, store, now, onLog, network, ...(config.options ?? {}) };
     providers[name] = name === 'qq' ? createQQProvider(options) : createNetEaseProvider(options);
     onLog({
       type: 'provider', provider: name, installed: true,
@@ -315,7 +317,7 @@ export function createProviderFacade({ registry, store = null, now = () => Date.
   };
 }
 
-export function createPlayback({ mode = 'real', onLog = () => {} }) {
+export function createPlayback({ mode = 'real', onLog = () => {}, network = createNetworkClient() }) {
   if (mode === 'fake') {
     const playback = new FakePlayback();
     return {
@@ -328,9 +330,10 @@ export function createPlayback({ mode = 'real', onLog = () => {} }) {
   // Imported lazily so the fake mode never loads the supervisor machinery.
   return import('./playback/supervisor.mjs').then(async ({ PlaybackSupervisor }) => {
     const { PlaybackService } = await import('./playback/service.mjs');
+    const { MediaDownloads } = await import('./playback/media-download.mjs');
     const { backendForPlatform } = await import('./playback/backends.mjs');
     const supervisor = new PlaybackSupervisor({ backend: backendForPlatform(), onLog });
-    const playback = new PlaybackService({ supervisor, onLog });
+    const playback = new PlaybackService({ supervisor, onLog, mediaDownloads: new MediaDownloads({ network, onLog }) });
     return { playback, dispose: () => playback.close() };
   });
 }
@@ -376,6 +379,7 @@ export function createCoreHost({
 // references from the same store the host writes them to, and a caller that
 // already owns a store should not end up with two.
   const store = givenStore ?? new MusicStore(dbPath);
+  const network = createNetworkClient({ getSettings: () => networkProxyView(store) });
   if(playbackMode==='real'&&store.getSetting('recommendation_pipeline_v1',null)!==1){
     store.setSetting('recommendation_mode_v1','filtered');
     store.setSetting('recommendation_pipeline_v1',1);
@@ -619,6 +623,13 @@ export function createCoreHost({
         case 'expression-style': {
           const expression=setExpressionStyle(store,message.style,message.expectedRevision);
           send({type:'result',id,ok:true,expression});return;
+        }
+        case 'network-proxy': {
+          const networkProxy = Object.hasOwn(message, 'value')
+            ? saveNetworkProxy(store, message.value, message.expectedRevision)
+            : networkProxyView(store);
+          send({ type: 'result', id, ok: true, networkProxy });
+          return;
         }
         case 'persona':{
           const cachedProfile=profileInputs();
@@ -871,7 +882,7 @@ export function createCoreHost({
 
   return {
     async start() {
-      const created = await createPlayback({ mode: playbackMode, onLog });
+      const created = await createPlayback({ mode: playbackMode, onLog, network });
       playback = created.playback;
       disposePlayback = created.dispose;
       // Maintenance: preferences decay toward neutral as time passes. Growth is
@@ -970,7 +981,7 @@ export function createCoreHost({
     // long account/import work so a slow media request cannot hold up pause.
     handle: (message) => {
       const inputVersion = inputEpoch;
-      return ['lyrics','command','snapshot','platforms','library','account','environment','insights','expression-style','feedback-list','feedback-clear','persona','recommendation-route','persona-budget','persona-output','persona-automatic','persona-reserve','persona-start','persona-finish','sessions','discovery','discovery-filter-status','shutdown','wait','autonomous','session-event','setQueue'].includes(message.type)
+      return ['lyrics','command','snapshot','platforms','library','account','environment','insights','expression-style','network-proxy','feedback-list','feedback-clear','persona','recommendation-route','persona-budget','persona-output','persona-automatic','persona-reserve','persona-start','persona-finish','sessions','discovery','discovery-filter-status','shutdown','wait','autonomous','session-event','setQueue'].includes(message.type)
         ? handle(message, inputVersion) : enqueue(() => handle(message, inputVersion));
     },
     close,

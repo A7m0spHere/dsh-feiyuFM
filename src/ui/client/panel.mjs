@@ -7,6 +7,7 @@ import {Persona} from './persona.mjs';
 import {FeedbackSettings} from './feedback.mjs';
 import {Discoveries} from './discoveries.mjs';
 import {ExpressionSettings} from './expression.mjs';
+import { NetworkProxySettings } from './network.mjs';
 import { DollLayer } from './dolls.mjs';
 import { UsageGuide, guideReady } from './guide.mjs';
 import { Lyrics } from './lyrics.mjs';
@@ -177,6 +178,7 @@ export function Panel({ controller, back }) {
               h('button', { type: 'button', className: 'fm-button', disabled: disabled || !settings.discovery || rate === Math.round(settings.discoveryRate * 100),
                 onClick: () => controller.command('setDiscoveryRate', rate / 100) }, '保存'))))));
   const management = h('div', {className:'fm-management','aria-label':'曲库与界面设置'},
+        h(NetworkProxySettings, { state, controller }),
         h('section', null, h('h2', null, '输入与连接',h('small',null,'LIBRARY')),
           h('details',{className:'fm-input-library'},h('summary',null,`输入曲库 · ${state.library?.total??0} 首（展开查看）`),h(Library,{state,controller})),
           h('details',{className:'fm-platform-details fm-input-library',ref:platformDetailsRef,open:platformExpanded,

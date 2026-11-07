@@ -18,7 +18,7 @@ assert.equal(manifest.publishConfig.tag, beta ? 'beta' : 'latest');
 assert.deepEqual(manifest.os, ['darwin', 'win32']);
 for (const path of [
   'package.json', 'index.js', 'cordis.patch.yml', 'bin/fishfm-core.mjs',
-  'src/ui/dsh-client.js', 'src/playback/media-download.mjs', 'src/playback/host/macos-host-launcher.mjs',
+  'src/ui/dsh-client.js', 'src/network.mjs', 'src/playback/media-download.mjs', 'src/playback/host/macos-host-launcher.mjs',
   'src/playback/host/fishfm-macos-host.swift', 'src/playback/host/wpf-media-host.ps1',
   'src/providers/dpapi-helper.ps1',
   'src/ui/assets/whale-idle.png', 'src/ui/assets/whale-listening.png', 'src/ui/assets/whale-dj.png',

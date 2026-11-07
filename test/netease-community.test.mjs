@@ -2,12 +2,45 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { resolve } from 'node:path';
+import { createServer } from 'node:http';
+import { createRequire } from 'node:module';
 import { MusicStore } from '../src/storage.mjs';
 import { createMemoryCredentials } from '../src/providers/credentials-dpapi.mjs';
 import { createNetEaseProvider } from '../src/providers/netease.mjs';
+import { createNetworkClient } from '../src/network.mjs';
 
 const SECRET = 'MUSIC_U=private-session-value; __csrf=private-csrf-value';
 const song = (id, name = `Song ${id}`) => ({ id, name, ar: [{ name: 'Artist' }], dt: 181_000 });
+
+test('community requests honor each provider proxy while concurrent direct calls stay direct', async t => {
+  const requests = { direct: 0, proxy: 0 };
+  const body = JSON.stringify({ code: 200, lrc: { lyric: '[00:00.00]Fixture' } });
+  async function server(kind) {
+    const instance = createServer((request, response) => {
+      requests[kind]++;
+      if (kind === 'proxy') assert.match(request.url, /^http:\/\/127\.0\.0\.1:/);
+      response.writeHead(200, { 'content-type': 'application/json' }); response.end(body);
+    });
+    await new Promise(resolve => instance.listen(0, '127.0.0.1', resolve));
+    t.after(async () => { instance.closeAllConnections(); await new Promise(resolve => instance.close(resolve)); });
+    return `http://127.0.0.1:${instance.address().port}`;
+  }
+  const origin = await server('direct'), proxy = await server('proxy');
+  const transport = { async request() {}, useSecret() {} };
+  createNetEaseProvider({ transport }); // Install the real SDK's scoped routing interceptor.
+  const require = createRequire(import.meta.url);
+  const sdkRequire = createRequire(require.resolve('@neteasecloudmusicapienhanced/api'));
+  const axios = sdkRequire('axios').default;
+  const communityApi = { async lyric() {
+    const response = await axios.get(origin + '/lyric', { proxy: false });
+    return { status: response.status, body: response.data };
+  } };
+  const direct = createNetEaseProvider({ transport, communityApi, network: createNetworkClient() });
+  const proxied = createNetEaseProvider({ transport, communityApi,
+    network: createNetworkClient({ getSettings: () => ({ mode: 'proxy', url: proxy }) }) });
+  await Promise.all([direct.lyrics({ provider: 'netease', providerTrackId: '1' }), proxied.lyrics({ provider: 'netease', providerTrackId: '2' })]);
+  assert.deepEqual(requests, { direct: 1, proxy: 1 });
+});
 
 function fixture(api, { accountId = null } = {}) {
   const store = new MusicStore();

@@ -41,6 +41,7 @@ export function createController(connection, { onPlaybackTrace = null } = {}) {
     libraryBusy: false, libraryError: '', libraryQuery: '', libraryReady: false,
     guideStatus: storedGuideStatus(readPreference(GUIDE_KEY, null)), guideVisible: false, guideStage: null,
     expression: null, expressionBusy: false, expressionError: '', expressionNotice: '',
+    networkProxy: null, networkProxyBusy: false, networkProxyError: '', networkProxyNotice: '',
     feedbackPage: null, feedbackListBusy: false, feedbackClearBusy: false, feedbackError: '', feedbackNotice: '',
     login: null, imported: null, importAttempts: [], library: { total: 0, tracks: [] },
     profileState: 'idle', profileError: '',
@@ -51,6 +52,7 @@ export function createController(connection, { onPlaybackTrace = null } = {}) {
     motion: ['full', 'reduced', 'off'].includes(readPreference(MOTION_KEY, 'full')) ? readPreference(MOTION_KEY, 'full') : 'full',
   };
   let epoch = 0, playbackEpoch = 0, libraryEpoch = 0, platformEpoch = 0, timer, playbackTimer, read, transportWrite, settingsWrite, platformWrite, libraryRead,summaryWrite,expressionWrite, disposed = false;
+  let networkProxyEpoch = 0, networkProxyRead = null, networkProxyWrite = null;
   const writes = new Set();
   const transportCommands = new Set(['pause', 'resume', 'next', 'previous', 'seek', 'requestTrack', 'stopForToday']);
   let libraryOptions = { query: '', offset: 0, limit: 12 };
@@ -311,7 +313,55 @@ export function createController(connection, { onPlaybackTrace = null } = {}) {
       followPlayback();
     }
   }
+  async function requestNetworkProxy(payload = null) {
+    const saving = payload !== null;
+    if (disposed || !state.connected || networkProxyWrite || (!saving && networkProxyRead)
+      || (saving && !state.networkProxy)) return { ok: false };
+    if (saving) { networkProxyRead?.abort(); networkProxyRead = null; }
+    const version = ++networkProxyEpoch;
+    const request = new AbortController();
+    if (saving) networkProxyWrite = request; else networkProxyRead = request;
+    const timeout = setTimeout(() => request.abort(), 15000);
+    let onAbort;
+    const cancelled = new Promise((_, reject) => {
+      onAbort = () => reject({ code: 'rpc_timeout', message: '网络设置请求未完成，请重试。' });
+      request.signal.addEventListener('abort', onAbort, { once: true });
+    });
+    emit({ networkProxyBusy: true, networkProxyError: '', networkProxyErrorCode: null, networkProxyNotice: '' });
+    try {
+      const result = await Promise.race([
+        connection.rpc.call('/api', 'fishfm/network-proxy', payload ?? {}, request.signal), cancelled,
+      ]);
+      if (version !== networkProxyEpoch || disposed) return { ok: false };
+      if (!result.ok) throw result.error;
+      const incoming = result.value?.networkProxy;
+      if (incoming?.version !== 1 || !Number.isSafeInteger(incoming.revision) || incoming.revision < 0
+        || !['direct', 'proxy'].includes(incoming.mode) || typeof incoming.url !== 'string'
+        || (saving && state.networkProxy && incoming.revision < state.networkProxy.revision)) {
+        throw { code: 'invalid_network_proxy', message: '网络设置应答未就绪，请重新读取核对。' };
+      }
+      const networkProxy = state.networkProxy && incoming.revision < state.networkProxy.revision ? state.networkProxy : incoming;
+      emit({ networkProxy, networkProxyNotice: saving
+        ? (networkProxy.mode === 'direct' ? '网络设置已保存，新的音乐请求使用直连。' : '网络设置已保存，新的音乐请求使用自定义代理。') : '' });
+      return { ok: true, networkProxy };
+    } catch (error) {
+      if (version === networkProxyEpoch && !disposed) emit({ networkProxyError: error?.message || '网络设置读取或保存失败，请重试。',
+        networkProxyErrorCode: error?.code ?? null, ...(saving ? {} : { networkProxy: null }) });
+      return { ok: false };
+    } finally {
+      clearTimeout(timeout);
+      request.signal.removeEventListener('abort', onAbort);
+      if (networkProxyRead === request) networkProxyRead = null;
+      if (networkProxyWrite === request) networkProxyWrite = null;
+      if (version === networkProxyEpoch) emit({ networkProxyBusy: Boolean(networkProxyRead || networkProxyWrite) });
+    }
+  }
   const controllerApi = {
+    loadNetworkProxy() { return requestNetworkProxy(); },
+    saveNetworkProxy(value, expectedRevision) {
+      return requestNetworkProxy({ mode: value.mode, url: value.url, expectedRevision });
+    },
+    clearNetworkProxyFeedback() { emit({ networkProxyError: '', networkProxyErrorCode: null, networkProxyNotice: '' }); },
     async readLyrics(track, signal) {
       if (disposed) throw { code: 'cancelled', message: '歌词读取已取消。' };
       let interrupted;
@@ -634,7 +684,7 @@ export function createController(connection, { onPlaybackTrace = null } = {}) {
       }
       finally{clearTimeout(timeout);summaryWrite=null;emit({summaryBusy:false});}
     },
-    dispose() { disposed = true; ++epoch; ++libraryEpoch; ++feedbackEpoch; ++profileEpoch; profileRead?.abort(); profileRead = null; clearTimeout(profileTimer); profileTimer = null; profileRefreshQueued = false; profileDirty = false; feedbackRead?.abort(); feedbackWrite?.abort(); clearInterval(timer); clearTimeout(playbackTimer); read?.abort(); writes.forEach(request => request.abort()); platformWrite?.abort(); libraryRead?.abort();summaryWrite?.abort();expressionWrite?.abort(); listeners.clear();
+    dispose() { disposed = true; ++epoch; ++libraryEpoch; ++feedbackEpoch; ++profileEpoch; ++networkProxyEpoch; networkProxyRead?.abort(); networkProxyWrite?.abort(); profileRead?.abort(); profileRead = null; clearTimeout(profileTimer); profileTimer = null; profileRefreshQueued = false; profileDirty = false; feedbackRead?.abort(); feedbackWrite?.abort(); clearInterval(timer); clearTimeout(playbackTimer); read?.abort(); writes.forEach(request => request.abort()); platformWrite?.abort(); libraryRead?.abort();summaryWrite?.abort();expressionWrite?.abort(); listeners.clear();
       window.removeEventListener?.('storage', syncPlaybackEffects);
       window.removeEventListener?.('storage', syncGuidePreference);
       document.removeEventListener?.('visibilitychange', syncVisibility); },

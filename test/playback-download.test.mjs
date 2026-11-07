@@ -5,6 +5,7 @@ import { Readable } from 'node:stream';
 import { readFile, access } from 'node:fs/promises';
 import { MediaDownloads } from '../src/playback/media-download.mjs';
 import { PlaybackService } from '../src/playback/service.mjs';
+import { createNetworkClient } from '../src/network.mjs';
 
 const fixture = Buffer.from('synthetic fixture; no decoder or audio device');
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
@@ -34,6 +35,41 @@ async function serverFor(t) {
 }
 const absent = async path => { await assert.rejects(access(path)); };
 async function until(predicate) { const end = Date.now() + 4000; while (!predicate()) { if (Date.now() > end) throw new Error('condition timed out'); await delay(10); } }
+
+test('media staging follows current explicit proxy settings and still cancels proxy downloads', async t => {
+  const target = await serverFor(t), logs = [];
+  let proxyCalls = 0;
+  const proxy = createServer((request, response) => {
+    proxyCalls++;
+    response.writeHead(200, { 'content-length': fixture.length });
+    if (request.url.endsWith('/stall')) { response.write(fixture.subarray(0, 1)); return; }
+    response.end(fixture);
+  });
+  await new Promise(resolve => proxy.listen(0, '127.0.0.1', resolve));
+  t.after(async () => { proxy.closeAllConnections(); await new Promise(resolve => proxy.close(resolve)); });
+  const proxyUrl = `http://127.0.0.1:${proxy.address().port}`;
+  let settings = { mode: 'proxy', url: proxyUrl };
+  const network = createNetworkClient({ getSettings: () => settings });
+  const media = new MediaDownloads({ network, onLog: entry => logs.push(entry) });
+  t.after(() => media.close());
+  const proxied = await media.stage(`${target.origin}/ok.mp3`, { timeoutMs: 4000 });
+  assert.deepEqual(await readFile(proxied.handle), fixture);
+  await proxied.release();
+  assert.equal(proxyCalls, 1);
+  assert.equal(target.requests.length, 0);
+  settings = { mode: 'direct', url: proxyUrl };
+  const direct = await media.stage(`${target.origin}/ok.mp3`, { timeoutMs: 4000 });
+  await direct.release();
+  assert.equal(target.requests.length, 1);
+  assert.equal(proxyCalls, 1);
+  settings = { mode: 'proxy', url: proxyUrl };
+  const controller = new AbortController();
+  const pending = media.stage(`${target.origin}/stall`, { signal: controller.signal, timeoutMs: 4000 });
+  const cancelled = assert.rejects(pending, { code: 'cancelled' });
+  await until(() => proxyCalls === 2); controller.abort(); await cancelled;
+  assert.equal(media.entries.size, 0);
+  assert.equal(JSON.stringify(logs).includes(proxyUrl), false);
+});
 
 test('anonymous staging enforces HTTP, redirects, credentials, size and complete-body bounds', async t => {
   const s = await serverFor(t), media = new MediaDownloads(); t.after(() => media.close());

@@ -1,0 +1,128 @@
+{
+  "schema": 1,
+  "feature": "application-level-direct-and-custom-proxy",
+  "tunPolicy": "externally-managed-by-user",
+  "candidate": {
+    "filename": "dsh-feiyufm-0.1.2.tgz",
+    "localUnreleased": true,
+    "bytes": 35037801,
+    "sha256": "06dbdc2a91ee4a8207e074cbebfa91dae661967f7d806c1ecc8cd35f49321234",
+    "emptyCacheInstall": "offline-normal-lifecycle",
+    "registry": "loopback-unavailable",
+    "dependencyTreeProblems": []
+  },
+  "installedPackage": {
+    "measuredAt": "2026-11-07T15:36:51.547Z",
+    "scope": "installed-candidate-dsh-node-core-rpc-local-proxy-muted-wpf",
+    "node": "24.21.0",
+    "realAccount": false,
+    "nativeDesktopReloaded": false,
+    "macOSTested": false,
+    "media": [
+      {
+        "mode": "direct",
+        "started": true,
+        "progress": true,
+        "proxyRequests": 0
+      },
+      {
+        "mode": "proxy",
+        "started": true,
+        "progress": true,
+        "preloaded": true,
+        "swapRedownloads": 0
+      }
+    ],
+    "sdkProbeRejection": "provider_failure",
+    "communitySdkUsesConfiguredProxy": true,
+    "coreRpc": {
+      "defaultDirect": true,
+      "save": true,
+      "restartPersistence": true,
+      "staleWriteRejected": true,
+      "restoreDirect": true
+    },
+    "status": "passed",
+    "cleanup": {
+      "audioHostExited": true,
+      "stagingRemoved": true
+    },
+    "counts": {
+      "origin": 3,
+      "proxy": 2,
+      "sdkConnect": 1
+    },
+    "sourceHashes": {
+      "src/network.mjs": "450d581b94a93e44e985638d0dcda512b744b4d59e1c3ba199515c42dfab1c9f",
+      "src/core-host.mjs": "0d2b7f8ceef8e16ebf9a3372c6b5e1e2144e9b35ad9e2fd9d929f7a702e4b5f0",
+      "src/ui/dsh-settings.mjs": "b5f20c93be506aecabc367505022a8116774dcc3ddae36fa3595828d1380cd48",
+      "src/providers/netease.mjs": "6388a9b068ed732f3142b78309d4a77ca95005749692750f64703fd52769498f",
+      "src/playback/media-download.mjs": "0f9c13c67b7de0cf3b16313e1e710d075c04f4ed65f561b989ce2d274301d665",
+      "src/ui/dsh-client.js": "b9a57ce42c1914684eaba2ffa7b79e313e951b41ca141df20845fda5c3c47dc7"
+    },
+    "sdkProbeExplanation": "Real SDK login initialization was expected to fail at the local proxy CONNECT rejection; the captured CONNECT proves configured routing without account authorization."
+  },
+  "ui": {
+    "schema": 1,
+    "measuredAt": "2026-11-07T15:26:20.842Z",
+    "scope": "production-bundle-edge-preview-memory-network-rpc",
+    "reactSource": "existing-react18-umd-temp-runtime",
+    "cases": [
+      {
+        "viewportWidth": 1440,
+        "pluginWidth": "wide",
+        "cardWidth": 512.6,
+        "inputWidth": 483,
+        "pageOverflow": false,
+        "cardOverflow": false,
+        "theme": "light"
+      },
+      {
+        "viewportWidth": 670,
+        "pluginWidth": 390.4,
+        "cardWidth": 327.2,
+        "inputWidth": 297.6,
+        "pageOverflow": false,
+        "cardOverflow": false,
+        "theme": "light"
+      },
+      {
+        "viewportWidth": 600,
+        "pluginWidth": 320,
+        "cardWidth": 276.8,
+        "inputWidth": 247.2,
+        "pageOverflow": false,
+        "cardOverflow": false,
+        "theme": "dark"
+      }
+    ],
+    "checks": {
+      "defaultDirect": true,
+      "proxyAddressInitiallyDisabled": true,
+      "proxyEditing": true,
+      "saveConfirmation": true,
+      "invalidAddressErrorPreservesDraft": true,
+      "crossTabDraftPreserved": true,
+      "restoreDefaultDirect": true,
+      "restoredAddressEmptyAndDisabled": true,
+      "distinctReloadLabel": true,
+      "consoleWarnings": 0,
+      "consoleErrors": 0
+    },
+    "screenshots": "captured-in-computer-use-tool-record",
+    "sourceHashes": {
+      "src/ui/dsh-client.js": "b9a57ce42c1914684eaba2ffa7b79e313e951b41ca141df20845fda5c3c47dc7",
+      "src/ui/client/network.mjs": "de35e0059039ff48a071419969b7251cf87868282f536c0ecd30919e3a151afe",
+      "src/ui/client/styles.mjs": "1ccc1d04f495f6223eb0db902c8f3f234ce798d395028ab20d7eecd97b23a392"
+    },
+    "cleanup": {
+      "browserViewportReset": true,
+      "ephemeralTabClosed": true,
+      "temporaryResourcesDownloaded": false,
+      "realDesktopOperated": false
+    }
+  },
+  "probeNotes": [
+    "Initial smoke probe used lyrics without a current track and was rejected by the existing track guard. The corrected probe uses login initialization to observe SDK proxy routing."
+  ]
+}

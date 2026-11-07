@@ -12,6 +12,7 @@
 | `src/providers/`、`src/discovery.mjs`、`src/persona*.mjs` | 平台导入/候选、缓存、模型筛选和预算；现行流程见 MVP/契约 |
 | `src/lyrics.mjs`、`src/ui/client/lyrics.mjs` | 独立歌词解析／缓存和控制台逐行显示；取词经 Provider，跳转经 Core／Playback，不由页面拥有音频 |
 | `src/playback/`、`src/runtime/` | 独立音频服务与运行证据采集 |
+| `src/network.mjs`、`src/ui/client/network.mjs` | 应用层代理配置、HTTP(S) 请求和电台设置表单；TUN 分流由外部管理 |
 | `src/ui/client/` | 主面板（含电台设置标签页）、悬浮条与工作区频谱的可编辑源码；`spectrum-bars/whale/canvas/backdrop` 分别维护场、彩蛋、绘制与挂载 |
 | `src/ui/assets/` | 运行图片的唯一文件位置；来源、hash 与许可见第三方声明及 U12 记录 |
 | [bin/](../bin/fishfm-core.mjs) | Core 子进程与调试命令入口 |

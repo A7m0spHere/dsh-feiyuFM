@@ -70,3 +70,13 @@ Node 暂存器通过既有日志通道记录下载头、完成、错误和取消
 独立于磁盘暂存和 WPF 的内存顺序对照中，原生 HTTPS 下载与携带应用 User-Agent 的下载曾完整成功，随后 `fetch` 与 Range 请求也出现低速超时。顺序请求及不同 CDN 路由存在混杂，当前证据只能确认传输仍有波动，不能归因到某一请求头或下载实现。由此修订早先“切换 HTTPS 即可解决”的判断，本轮 HTTPS 处理是部分改善，连续真实播放和预加载消费验收未通过。后续下载策略或网络路径调整需要独立对照证据。
 
 本轮范围属于候选包组件与真实 WPF 的隔离静音验证，日常原生 Desktop 加载和实际听音仍待验。脱敏原始结果、保留的失败轮次、候选摘要和源码摘要见 [HTTPS 续修证据](assets/ISSUE-19-netease-https.json)，测试基线与本地交付状态统一见 [PROJECT_PLAN](../PROJECT_PLAN.md)。
+
+## 2026-11-07 应用层代理设置
+
+用户随后在日常实例重装上述候选，下载证据仍有 HTTPS 响应体超时。读取运行中的 Mihomo API，并将测试下载的 source port 与连接记录配对，确认音频请求经 `Tun → Match → PROXY`。当时生效规则只有 `MATCH,PROXY`，连接域名为空且嗅探关闭。物理网卡绑定探针返回 `NetworkUnreachable`，该轮未完成有效的直连速度对照。用户要求插件默认直连且设置可调，并明确 TUN 分流由其外部管理。
+
+实现采用 Node 内置的每请求代理 Agent，应用层默认直连，可配置 HTTP／HTTPS 无认证代理。平台 HTTP transport、社区 SDK 与音频暂存共用保存的设置，新请求读取最新值，在途请求沿原路由完成。社区 SDK 的原加密／协议逻辑继续执行，出站 Agent 通过其现有 Axios 的公开请求拦截器在 AsyncLocalStorage 调用上下文内指定。配置、revision 与接口字段仅在 [控制契约](../CORE_CONTRACT.md) 维护。Node 对自定义 Agent 的 proxyEnv 支持见 [官方说明](https://nodejs.org/docs/latest-v24.x/api/http.html#built-in-proxy-support)。
+
+验证分为本地真实 HTTP／HTTPS／CONNECT 代理、生产 bundle 的隔离 Edge 预览、以及空缓存离线安装后的候选组件。预览通过内存 RPC 替身验证新表单，复用已存在的 React 18 预览资源。安装包在 DSH 自带 Node 下使用真实 Core 子进程核对保存、重启保持、冲突与恢复默认；默认直连音频请求未经过测试代理，自定义代理音频产生真实 WPF 进度，预加载交换复用已下载文件。社区 SDK 的登录初始化请求在本机代理 CONNECT 阶段被测试端预期拒绝，捕获的 CONNECT 证明其采用已保存代理，未进行账号授权。初轮探针曾使用没有当前歌曲的歌词入口而被既有守卫拒绝，修正探针入口后验证完成。
+
+各轮测试的宿主退出和暂存清理通过，临时预览服务与浏览器标签已关闭。脱敏指标与安装包／源码摘要见 [代理设置证据](assets/NETWORK-proxy-settings.json)，测试数量和当前交付状态见 [PROJECT_PLAN](../PROJECT_PLAN.md)。本轮范围为应用层策略、可控代理流量及 Windows 静音解码，真实网易云连续播放和日常加载／听音仍待验；实验性 macOS 的 Node 暂存路径已接入策略，真机代理播放仍待验。

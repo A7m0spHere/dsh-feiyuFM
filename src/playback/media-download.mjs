@@ -1,24 +1,22 @@
 // Playback-owned anonymous staging. The WPF host only receives completed local media.
-import { request as httpRequest, Agent as HttpAgent } from 'node:http';
-import { request as httpsRequest, Agent as HttpsAgent } from 'node:https';
 import { mkdtemp, open, rm, rmdir } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { extname, join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { MusicError } from '../contracts.mjs';
+import { createNetworkClient } from '../network.mjs';
 
 const MAX_BYTES = 64 * 1024 * 1024;
 const EXTENSIONS = new Set(['.mp3', '.wav', '.flac', '.m4a', '.aac', '.ogg', '.wma', '.mp4']);
 export const isRemoteMedia = handle => typeof handle === 'string' && /^https?:\/\//i.test(handle);
 
 export class MediaDownloads {
-  constructor({ onLog = () => {} } = {}) {
+  constructor({ onLog = () => {}, network = createNetworkClient() } = {}) {
     this.onLog = onLog;
+    this.network = network;
     this.entries = new Set();
     this.directory = null;
     this.closed = false;
-    // Explicit direct agents do not consult proxy credentials or share platform sessions.
-    this.agents = { 'http:': new HttpAgent(), 'https:': new HttpsAgent() };
   }
 
   async stage(handle, { signal, timeoutMs = 12000 } = {}) {
@@ -66,13 +64,7 @@ export class MediaDownloads {
   }
 
   _request(url, signal) {
-    return new Promise((resolve, reject) => {
-      const request = (url.protocol === 'https:' ? httpsRequest : httpRequest)(url, {
-        signal, agent: this.agents[url.protocol], headers: { accept: '*/*' },
-      }, response => { response.on('error', () => {}); resolve(response); });
-      request.once('error', reject);
-      request.end();
-    });
+    return this.network.request(url, { signal, headers: { accept: '*/*' } });
   }
 
   async _download(entry, handle) {
@@ -136,7 +128,6 @@ export class MediaDownloads {
     for (const entry of this.entries) { entry.released = true; entry.controller.abort(); }
     await Promise.allSettled([...this.entries].map(entry => entry.done));
     await this.cleanup();
-    for (const agent of Object.values(this.agents)) agent.destroy();
     if (this.directory) {
       try { await rmdir(await this.directory); }
       catch (error) { if (error.code !== 'ENOENT') { try { this.onLog({ type: 'media-cleanup-failed', count: this.entries.size }); } catch {} } }

@@ -284,6 +284,9 @@ window.__ModuleLoader__.load({
       .fm-attempt { display:flex; align-items:center; justify-content:space-between; padding:7px 0; border-top:1px solid var(--fm-line); }
       .fm-attempt-note { margin-left:8px; color:var(--fm-faint); }
       .fm-motion-row { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:8px; padding:8px 0; }
+      .fm-network-address { display:grid; gap:6px; padding:8px 0; min-width:0; }
+      .fm-network-address label { font-size:12px; }
+      .fm-network-address input { width:100%; min-width:0; max-width:100%; min-height:34px; padding:6px 8px; color:var(--fm-ink); background:var(--fm-surface); border:1px solid var(--fm-line); border-radius:7px; }
       .fm-motion-row select { padding:5px 8px; border:1px solid var(--fm-line); border-radius:6px;
         color:var(--fm-ink); background:var(--fm-surface); font-size:11px; }
       .fm-widget-note { display:flex; gap:8px; align-items:center; padding:8px 0; color:var(--fm-muted); font-size:11px; }
@@ -831,6 +834,7 @@ window.__ModuleLoader__.load({
         libraryBusy: false, libraryError: '', libraryQuery: '', libraryReady: false,
         guideStatus: storedGuideStatus(readPreference(GUIDE_KEY, null)), guideVisible: false, guideStage: null,
         expression: null, expressionBusy: false, expressionError: '', expressionNotice: '',
+        networkProxy: null, networkProxyBusy: false, networkProxyError: '', networkProxyNotice: '',
         feedbackPage: null, feedbackListBusy: false, feedbackClearBusy: false, feedbackError: '', feedbackNotice: '',
         login: null, imported: null, importAttempts: [], library: { total: 0, tracks: [] },
         profileState: 'idle', profileError: '',
@@ -841,6 +845,7 @@ window.__ModuleLoader__.load({
         motion: ['full', 'reduced', 'off'].includes(readPreference(MOTION_KEY, 'full')) ? readPreference(MOTION_KEY, 'full') : 'full',
       };
       let epoch = 0, playbackEpoch = 0, libraryEpoch = 0, platformEpoch = 0, timer, playbackTimer, read, transportWrite, settingsWrite, platformWrite, libraryRead,summaryWrite,expressionWrite, disposed = false;
+      let networkProxyEpoch = 0, networkProxyRead = null, networkProxyWrite = null;
       const writes = new Set();
       const transportCommands = new Set(['pause', 'resume', 'next', 'previous', 'seek', 'requestTrack', 'stopForToday']);
       let libraryOptions = { query: '', offset: 0, limit: 12 };
@@ -1101,7 +1106,55 @@ window.__ModuleLoader__.load({
           followPlayback();
         }
       }
+      async function requestNetworkProxy(payload = null) {
+        const saving = payload !== null;
+        if (disposed || !state.connected || networkProxyWrite || (!saving && networkProxyRead)
+          || (saving && !state.networkProxy)) return { ok: false };
+        if (saving) { networkProxyRead?.abort(); networkProxyRead = null; }
+        const version = ++networkProxyEpoch;
+        const request = new AbortController();
+        if (saving) networkProxyWrite = request; else networkProxyRead = request;
+        const timeout = setTimeout(() => request.abort(), 15000);
+        let onAbort;
+        const cancelled = new Promise((_, reject) => {
+          onAbort = () => reject({ code: 'rpc_timeout', message: '网络设置请求未完成，请重试。' });
+          request.signal.addEventListener('abort', onAbort, { once: true });
+        });
+        emit({ networkProxyBusy: true, networkProxyError: '', networkProxyErrorCode: null, networkProxyNotice: '' });
+        try {
+          const result = await Promise.race([
+            connection.rpc.call('/api', 'fishfm/network-proxy', payload ?? {}, request.signal), cancelled,
+          ]);
+          if (version !== networkProxyEpoch || disposed) return { ok: false };
+          if (!result.ok) throw result.error;
+          const incoming = result.value?.networkProxy;
+          if (incoming?.version !== 1 || !Number.isSafeInteger(incoming.revision) || incoming.revision < 0
+            || !['direct', 'proxy'].includes(incoming.mode) || typeof incoming.url !== 'string'
+            || (saving && state.networkProxy && incoming.revision < state.networkProxy.revision)) {
+            throw { code: 'invalid_network_proxy', message: '网络设置应答未就绪，请重新读取核对。' };
+          }
+          const networkProxy = state.networkProxy && incoming.revision < state.networkProxy.revision ? state.networkProxy : incoming;
+          emit({ networkProxy, networkProxyNotice: saving
+            ? (networkProxy.mode === 'direct' ? '网络设置已保存，新的音乐请求使用直连。' : '网络设置已保存，新的音乐请求使用自定义代理。') : '' });
+          return { ok: true, networkProxy };
+        } catch (error) {
+          if (version === networkProxyEpoch && !disposed) emit({ networkProxyError: error?.message || '网络设置读取或保存失败，请重试。',
+            networkProxyErrorCode: error?.code ?? null, ...(saving ? {} : { networkProxy: null }) });
+          return { ok: false };
+        } finally {
+          clearTimeout(timeout);
+          request.signal.removeEventListener('abort', onAbort);
+          if (networkProxyRead === request) networkProxyRead = null;
+          if (networkProxyWrite === request) networkProxyWrite = null;
+          if (version === networkProxyEpoch) emit({ networkProxyBusy: Boolean(networkProxyRead || networkProxyWrite) });
+        }
+      }
       const controllerApi = {
+        loadNetworkProxy() { return requestNetworkProxy(); },
+        saveNetworkProxy(value, expectedRevision) {
+          return requestNetworkProxy({ mode: value.mode, url: value.url, expectedRevision });
+        },
+        clearNetworkProxyFeedback() { emit({ networkProxyError: '', networkProxyErrorCode: null, networkProxyNotice: '' }); },
         async readLyrics(track, signal) {
           if (disposed) throw { code: 'cancelled', message: '歌词读取已取消。' };
           let interrupted;
@@ -1424,7 +1477,7 @@ window.__ModuleLoader__.load({
           }
           finally{clearTimeout(timeout);summaryWrite=null;emit({summaryBusy:false});}
         },
-        dispose() { disposed = true; ++epoch; ++libraryEpoch; ++feedbackEpoch; ++profileEpoch; profileRead?.abort(); profileRead = null; clearTimeout(profileTimer); profileTimer = null; profileRefreshQueued = false; profileDirty = false; feedbackRead?.abort(); feedbackWrite?.abort(); clearInterval(timer); clearTimeout(playbackTimer); read?.abort(); writes.forEach(request => request.abort()); platformWrite?.abort(); libraryRead?.abort();summaryWrite?.abort();expressionWrite?.abort(); listeners.clear();
+        dispose() { disposed = true; ++epoch; ++libraryEpoch; ++feedbackEpoch; ++profileEpoch; ++networkProxyEpoch; networkProxyRead?.abort(); networkProxyWrite?.abort(); profileRead?.abort(); profileRead = null; clearTimeout(profileTimer); profileTimer = null; profileRefreshQueued = false; profileDirty = false; feedbackRead?.abort(); feedbackWrite?.abort(); clearInterval(timer); clearTimeout(playbackTimer); read?.abort(); writes.forEach(request => request.abort()); platformWrite?.abort(); libraryRead?.abort();summaryWrite?.abort();expressionWrite?.abort(); listeners.clear();
           window.removeEventListener?.('storage', syncPlaybackEffects);
           window.removeEventListener?.('storage', syncGuidePreference);
           document.removeEventListener?.('visibilitychange', syncVisibility); },
@@ -2037,6 +2090,82 @@ window.__ModuleLoader__.load({
         !dirty&&state.expressionNotice&&h('p',{className:'fm-note',role:'status'},state.expressionNotice));
     }
 
+    // src/ui/client/network.mjs
+    function NetworkProxySettings({ state, controller }) {
+      const view = state.networkProxy;
+      const [draft, setDraft] = React.useState(() => ({ mode: view?.mode ?? 'direct', url: view?.url ?? '' }));
+      const [dirty, setDirty] = React.useState(false);
+      const [baseRevision, setBaseRevision] = React.useState(view?.revision ?? 0);
+      const editVersion = React.useRef(0);
+      const readAfterConnection = React.useRef(true);
+      const id = React.useId();
+      React.useEffect(() => {
+        if (!state.connected) { readAfterConnection.current = true; return; }
+        if (readAfterConnection.current && !state.networkProxyBusy) {
+          readAfterConnection.current = false;
+          void controller.loadNetworkProxy();
+        }
+      }, [controller, state.connected, state.networkProxyBusy]);
+      React.useEffect(() => {
+        if (!dirty && view) { setDraft({ mode: view.mode, url: view.url }); setBaseRevision(view.revision); }
+      }, [view?.mode, view?.url, view?.revision, dirty]);
+      const conflict = (dirty && view && view.revision !== baseRevision) || state.networkProxyErrorCode === 'network_proxy_conflict';
+      const unavailable = view?.version !== 1;
+      const disabled = !state.connected || state.networkProxyBusy || unavailable;
+      function change(field, value) {
+        editVersion.current++;
+        if (!dirty) setBaseRevision(view.revision);
+        setDraft(previous => ({ ...previous, [field]: value }));
+        setDirty(true);
+        if (state.networkProxyErrorCode !== 'network_proxy_conflict') controller.clearNetworkProxyFeedback?.();
+      }
+      async function save(value = draft) {
+        const version = editVersion.current;
+        const result = await controller.saveNetworkProxy(value, dirty ? baseRevision : view.revision);
+        if (result?.ok) {
+          setBaseRevision(result.networkProxy.revision);
+          if (version === editVersion.current) {
+            setDraft({ mode: result.networkProxy.mode, url: result.networkProxy.url }); setDirty(false);
+          }
+        }
+      }
+      async function reload() {
+        const version = editVersion.current;
+        const result = await controller.loadNetworkProxy();
+        if (result?.ok && version === editVersion.current) {
+          setDraft({ mode: result.networkProxy.mode, url: result.networkProxy.url });
+          setBaseRevision(result.networkProxy.revision); setDirty(false);
+          controller.clearNetworkProxyFeedback?.();
+        }
+      }
+      return h('section', { className: 'fm-network-section' },
+        h('h2', null, '网络连接', h('small', null, 'NETWORK')),
+        h('div', { className: 'fm-card fm-network-proxy' },
+          h('div', { className: 'fm-motion-row' }, h('label', { htmlFor: `${id}-mode` }, '连接方式'),
+            h('select', { id: `${id}-mode`, 'aria-label': '连接方式', value: draft.mode, disabled,
+              onChange: event => change('mode', event.target.value) },
+            h('option', { value: 'direct' }, '直连（默认）'), h('option', { value: 'proxy' }, '自定义代理'))),
+          h('div', { className: 'fm-network-address' }, h('label', { htmlFor: `${id}-url` }, '代理地址'),
+            h('input', { id: `${id}-url`, type: 'url', 'aria-label': '代理地址', 'aria-describedby': `${id}-format`,
+              placeholder: 'http://127.0.0.1:7897', value: draft.url, disabled: disabled || draft.mode !== 'proxy',
+              onChange: event => change('url', event.target.value), autoComplete: 'off', spellCheck: false })),
+          h('p', { className: 'fm-note', id: `${id}-format` }, '支持 HTTP／HTTPS 无认证代理，地址使用主机和端口。'),
+          h('p', { className: 'fm-note' }, 'TUN／VPN 的分流由外部管理。保存后对新发起的音乐平台请求和音频下载生效。'),
+          unavailable && h('p', { className: 'fm-note', role: 'status' }, state.networkProxyBusy ? '正在读取网络设置…' : '网络设置尚未读取，请重新读取。'),
+          conflict
+            && h('p', { className: 'fm-note', role: 'status' }, '已保存设置发生变化，当前输入已保留，请先读取新设置。'),
+          h('div', { className: 'fm-feedback-actions' },
+            h('button', { type: 'button', className: 'fm-button', disabled: disabled || !dirty || conflict,
+              onClick: () => save() }, state.networkProxyBusy ? '处理中…' : '保存网络设置'),
+            h('button', { type: 'button', className: 'fm-button fm-subtle', disabled: disabled || conflict || (!dirty && view?.mode === 'direct' && !view?.url),
+              onClick: () => save({ mode: 'direct', url: '' }) }, '恢复默认直连'),
+            h('button', { type: 'button', className: 'fm-button fm-subtle', disabled: !state.connected || state.networkProxyBusy,
+              onClick: reload }, '重新读取网络设置')),
+          state.networkProxyError && h('p', { className: 'fm-note fm-expression-error', role: 'alert' }, state.networkProxyError),
+          dirty && h('p', { className: 'fm-note', role: 'status' }, '当前输入尚未保存。'),
+          !dirty && state.networkProxyNotice && h('p', { className: 'fm-note', role: 'status', 'aria-live': 'polite' }, state.networkProxyNotice)));
+    }
+
     // src/ui/client/panel.mjs
     function Panel({ controller, back }) {
       const state = React.useSyncExternalStore(controller.subscribe, controller.getSnapshot);
@@ -2205,6 +2334,7 @@ window.__ModuleLoader__.load({
                   h('button', { type: 'button', className: 'fm-button', disabled: disabled || !settings.discovery || rate === Math.round(settings.discoveryRate * 100),
                     onClick: () => controller.command('setDiscoveryRate', rate / 100) }, '保存'))))));
       const management = h('div', {className:'fm-management','aria-label':'曲库与界面设置'},
+            h(NetworkProxySettings, { state, controller }),
             h('section', null, h('h2', null, '输入与连接',h('small',null,'LIBRARY')),
               h('details',{className:'fm-input-library'},h('summary',null,`输入曲库 · ${state.library?.total??0} 首（展开查看）`),h(Library,{state,controller})),
               h('details',{className:'fm-platform-details fm-input-library',ref:platformDetailsRef,open:platformExpanded,

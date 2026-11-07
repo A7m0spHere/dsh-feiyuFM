@@ -278,6 +278,9 @@ export const css = `
   .fm-attempt { display:flex; align-items:center; justify-content:space-between; padding:7px 0; border-top:1px solid var(--fm-line); }
   .fm-attempt-note { margin-left:8px; color:var(--fm-faint); }
   .fm-motion-row { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:8px; padding:8px 0; }
+  .fm-network-address { display:grid; gap:6px; padding:8px 0; min-width:0; }
+  .fm-network-address label { font-size:12px; }
+  .fm-network-address input { width:100%; min-width:0; max-width:100%; min-height:34px; padding:6px 8px; color:var(--fm-ink); background:var(--fm-surface); border:1px solid var(--fm-line); border-radius:7px; }
   .fm-motion-row select { padding:5px 8px; border:1px solid var(--fm-line); border-radius:6px;
     color:var(--fm-ink); background:var(--fm-surface); font-size:11px; }
   .fm-widget-note { display:flex; gap:8px; align-items:center; padding:8px 0; color:var(--fm-muted); font-size:11px; }

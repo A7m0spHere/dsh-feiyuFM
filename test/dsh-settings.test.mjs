@@ -7,6 +7,27 @@ import { join, resolve } from 'node:path';
 import { CoreBridge } from '../src/dsh-adapter.mjs';
 import { createSettingsHandler, registerSettingsApi } from '../src/ui/dsh-settings.mjs';
 
+test('network proxy settings use an independent authenticated read and validated revisioned write', async () => {
+  const calls = [];
+  const current = { version: 1, revision: 2, mode: 'proxy', url: 'http://127.0.0.1:7897' };
+  const api = createSettingsHandler({ async start() {}, async request(message) {
+    calls.push(message); return { networkProxy: current };
+  } });
+  const read = await api('fishfm/network-proxy', {});
+  assert.equal(read.ok, true);
+  assert.deepEqual(read.value.networkProxy, current);
+  assert.deepEqual(calls[0], { type: 'network-proxy' });
+  const saved = await api('fishfm/network-proxy', { mode: 'proxy', url: current.url, expectedRevision: 1, extra: 'discarded' });
+  assert.equal(saved.ok, true);
+  assert.deepEqual(calls[1], { type: 'network-proxy', value: { mode: 'proxy', url: current.url }, expectedRevision: 1 });
+  const before = calls.length;
+  const invalid = await api('fishfm/network-proxy', { mode: 'proxy', url: 'http://private:secret@localhost:7897', expectedRevision: 1 });
+  assert.equal(invalid.ok, false);
+  assert.equal(invalid.error.code, 'invalid_network_proxy');
+  assert.equal(calls.length, before);
+  assert.equal(JSON.stringify(invalid).includes('secret'), false);
+});
+
 for (const minimal of [true, false]) test(`a hanging library cannot delay usable login state (minimal=${minimal})`, async () => {
   let completed = false, librarySignal;
   const api = createSettingsHandler({ async start() {}, async request(message, options) {
@@ -232,8 +253,9 @@ test('desktop exact routes coexist with the Gateway and validate RPC envelopes b
       } },
     },
   }, bridge);
-  assert.equal(routes.size, 19);
+  assert.equal(routes.size, 20);
   assert.equal(routes.has('/api/fishfm/lyrics'), true);
+  assert.equal(routes.has('/api/fishfm/network-proxy'), true);
   assert.equal(routes.has('/api/session/create'), false);
   const path = '/api/fishfm/command';
   const request = body => new Request(`http://localhost${path}`, {

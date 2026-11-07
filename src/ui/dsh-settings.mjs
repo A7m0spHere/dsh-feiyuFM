@@ -8,6 +8,7 @@ import { prepareRecommendations } from '../persona-scheduler.mjs';
 import { OUTPUT_RANGE } from '../persona.mjs';
 import {validateExpressionInput} from '../expression.mjs';
 import {validateFeedbackQuery,validateFeedbackClear} from '../feedback.mjs';
+import { validateNetworkProxy } from '../network.mjs';
 
 const ALLOWED = new Set(['pause', 'resume', 'next', 'previous', 'seek', 'setListening', 'setHumanPlayback',
   'setDiscovery', 'setDiscoveryRate', 'setMode', 'stopForToday', 'chooseSelf', 'requestTrack', 'setTrackFeedback', 'resetTaste', 'resetLibrary', 'undoTasteReset','setRecommendationMode']);
@@ -17,6 +18,7 @@ const PROFILE_ENDPOINT = 'fishfm/profile';
 const LIBRARY_ENDPOINT = 'fishfm/library';
 const LYRICS_ENDPOINT = 'fishfm/lyrics';
 const EXPRESSION_ENDPOINT = 'fishfm/expression-style';
+const NETWORK_PROXY_ENDPOINT = 'fishfm/network-proxy';
 const FEEDBACK_ENDPOINTS = new Set(['fishfm/feedback-list','fishfm/feedback-clear']);
 const PERSONA_ENDPOINTS=new Set(['fishfm/persona-summary','fishfm/persona-recommendations','fishfm/persona-budget','fishfm/persona-output','fishfm/persona-automatic']);
 const PLATFORM_ENDPOINTS = new Set(['fishfm/login-start', 'fishfm/login-poll', 'fishfm/import', 'fishfm/logout', 'fishfm/discovery-refresh','fishfm/playlists']);
@@ -119,7 +121,7 @@ async function initializationStage(bridge, phase, operation) {
 export function createSettingsHandler(bridge,summaryService={current:null}) {
   return async (endpoint, payload, signal) => {
     try {
-      if (endpoint !== LYRICS_ENDPOINT && endpoint !== STATE_ENDPOINT && endpoint !== PROFILE_ENDPOINT && endpoint !== LIBRARY_ENDPOINT && endpoint !== EXPRESSION_ENDPOINT && !FEEDBACK_ENDPOINTS.has(endpoint) && endpoint !== 'fishfm/command' && !PLATFORM_ENDPOINTS.has(endpoint)&&!PERSONA_ENDPOINTS.has(endpoint)) {
+      if (endpoint !== LYRICS_ENDPOINT && endpoint !== STATE_ENDPOINT && endpoint !== PROFILE_ENDPOINT && endpoint !== LIBRARY_ENDPOINT && endpoint !== EXPRESSION_ENDPOINT && endpoint !== NETWORK_PROXY_ENDPOINT && !FEEDBACK_ENDPOINTS.has(endpoint) && endpoint !== 'fishfm/command' && !PLATFORM_ENDPOINTS.has(endpoint)&&!PERSONA_ENDPOINTS.has(endpoint)) {
         throw Object.assign(new Error('Unknown FeiyuFM endpoint'), { code: 'not_found' });
       }
       if (endpoint === LYRICS_ENDPOINT) {
@@ -171,6 +173,19 @@ export function createSettingsHandler(bridge,summaryService={current:null}) {
         await bridge.start();
         const result=await bridge.request({type:'expression-style',style:payload.style,expectedRevision:payload.expectedRevision});
         return {ok:true,value:{expression:result.expression}};
+      }
+      if (endpoint === NETWORK_PROXY_ENDPOINT) {
+        const message = { type: 'network-proxy' };
+        if (['mode', 'url', 'expectedRevision'].some(key => Object.hasOwn(payload ?? {}, key))) {
+          message.value = validateNetworkProxy(payload);
+          if (!Number.isSafeInteger(payload.expectedRevision) || payload.expectedRevision < 0) {
+            throw Object.assign(new Error('请先读取已保存的网络设置。'), { code: 'invalid_network_proxy' });
+          }
+          message.expectedRevision = payload.expectedRevision;
+        }
+        await bridge.start();
+        const result = await bridge.request(message, Object.hasOwn(message, 'value') ? {} : { signal, abortable: true });
+        return { ok: true, value: { networkProxy: result.networkProxy } };
       }
       if (endpoint === LIBRARY_ENDPOINT) {
         await bridge.start();
@@ -307,7 +322,7 @@ export function registerSettingsApi(ctx, bridge,summaryService) {
   // both the Electron renderer and a Web profile.
   if (typeof ctx.connection.fetch?.register === 'function') {
     ctx.effect(() => {
-      const disposers = [STATE_ENDPOINT, PROFILE_ENDPOINT, LIBRARY_ENDPOINT, LYRICS_ENDPOINT, EXPRESSION_ENDPOINT, ...FEEDBACK_ENDPOINTS, 'fishfm/command', ...PLATFORM_ENDPOINTS,...PERSONA_ENDPOINTS].map(endpoint =>
+      const disposers = [STATE_ENDPOINT, PROFILE_ENDPOINT, LIBRARY_ENDPOINT, LYRICS_ENDPOINT, EXPRESSION_ENDPOINT, NETWORK_PROXY_ENDPOINT, ...FEEDBACK_ENDPOINTS, 'fishfm/command', ...PLATFORM_ENDPOINTS,...PERSONA_ENDPOINTS].map(endpoint =>
         ctx.connection.fetch.register({
           path: `/api/${endpoint}`, methods: ['POST'], requestBody: 'buffered',
           async fetch(request) {
@@ -327,6 +342,6 @@ export function registerSettingsApi(ctx, bridge,summaryService) {
     }, 'fishfm: authenticated settings routes');
   } else {
     ctx.effect(() => ctx.connection.rpc.intercept('/api',
-      endpoint => endpoint === LYRICS_ENDPOINT || endpoint === STATE_ENDPOINT || endpoint === PROFILE_ENDPOINT || endpoint === LIBRARY_ENDPOINT || endpoint === EXPRESSION_ENDPOINT || FEEDBACK_ENDPOINTS.has(endpoint) || endpoint === 'fishfm/command' || PLATFORM_ENDPOINTS.has(endpoint)||PERSONA_ENDPOINTS.has(endpoint), handler));
+      endpoint => endpoint === LYRICS_ENDPOINT || endpoint === STATE_ENDPOINT || endpoint === PROFILE_ENDPOINT || endpoint === LIBRARY_ENDPOINT || endpoint === EXPRESSION_ENDPOINT || endpoint === NETWORK_PROXY_ENDPOINT || FEEDBACK_ENDPOINTS.has(endpoint) || endpoint === 'fishfm/command' || PLATFORM_ENDPOINTS.has(endpoint)||PERSONA_ENDPOINTS.has(endpoint), handler));
   }
 }

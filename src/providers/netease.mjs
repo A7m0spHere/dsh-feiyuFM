@@ -21,11 +21,13 @@ import { createCookieJar } from './transport.mjs';
 import { NETEASE_QR_LOGIN_URL } from './endpoints/netease.mjs';
 import { setTimeout as delay } from 'node:timers/promises';
 import { normalizeNetEaseLyrics } from '../lyrics.mjs';
+import { createNetworkClient } from '../network.mjs';
 
 const require = createRequire(import.meta.url);
 const communityCallContext = new AsyncLocalStorage();
 let defaultCommunityApi = null;
 let communityConsoleGuardInstalled = false;
+let communityNetworkGuardInstalled = false;
 
 // The pinned QR checker references an out-of-scope `result` in its catch.
 // Retain the request's actual rejection instead of losing it to ReferenceError.
@@ -45,10 +47,26 @@ function installCommunityConsoleGuard() {
   for (const method of ['log', 'info', 'warn', 'error', 'debug']) {
     const original = console[method].bind(console);
     console[method] = (...args) => {
-      if (communityCallContext.getStore() === true) return;
+      if (communityCallContext.getStore()) return;
       return original(...args);
     };
   }
+}
+
+function installCommunityNetworkRouting() {
+  if (communityNetworkGuardInstalled) return;
+  const apiRequire = createRequire(require.resolve('@neteasecloudmusicapienhanced/api'));
+  const axios = apiRequire('axios').default;
+  axios.interceptors.request.use(config => {
+    const network = communityCallContext.getStore()?.network;
+    if (network) {
+      config.httpAgent = network.createAgent('http:');
+      config.httpsAgent = network.createAgent('https:');
+      config.proxy = false;
+    }
+    return config;
+  });
+  communityNetworkGuardInstalled = true;
 }
 
 function loadCommunityApi() {
@@ -68,6 +86,7 @@ function loadCommunityApi() {
   process.env.DOTENV_KEY = '';
   try {
     installCommunityConsoleGuard();
+    installCommunityNetworkRouting();
     defaultCommunityApi = communityCallContext.run(true, () => {
       const api = require('@neteasecloudmusicapienhanced/api');
       const check = require('@neteasecloudmusicapienhanced/api/module/login_qr_check.js');
@@ -147,7 +166,7 @@ function communityFailure(stage, { response = null, error = null } = {}) {
   });
 }
 
-function createCommunityTransport(transport, { api, credentials, accountRef, communityLogin, onLog = () => {} }) {
+function createCommunityTransport(transport, { api, credentials, accountRef, communityLogin, network, onLog = () => {} }) {
   let currentSession = null;
   const cookieJar = createCookieJar();
   return {
@@ -180,7 +199,7 @@ function createCommunityTransport(transport, { api, credentials, accountRef, com
       for (let attempt = 0; attempt < 2; attempt++) {
         try {
           onLog({ type: 'platform-request', role: config.method, provider: NETEASE });
-          response = await communityCallContext.run(true, () => method({ ...request.params, cookie: config.qr || config.public ? {} : session, timeout: config.qr ? 10_000 : 15_000 }));
+          response = await communityCallContext.run({ network }, () => method({ ...request.params, cookie: config.qr || config.public ? {} : session, timeout: config.qr ? 10_000 : 15_000 }));
           if (request.role === 'loginPoll' && (response?.status >= 500 || response?.body?.code === 502)) throw response;
           break;
         } catch (error) {
@@ -310,6 +329,7 @@ export function createNetEaseProvider(options = {}) {
     credentials: options.credentials,
     accountRef,
     communityLogin: options.communityLogin !== false,
+    network: options.network ?? createNetworkClient(),
     onLog: options.onLog,
   });
   const uid = () => store?.getCredentialReference?.(NETEASE)?.account_id ?? null;

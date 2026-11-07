@@ -99,6 +99,12 @@ CoreHost 周期发布先检查 Core revision，未变化时不计算完整快照
 
 Node 暂存器通过既有 `onLog` 输出 `type='media-download'`，`phase` 为 `headers/complete/error/cancelled`，字段为单次下载共用的随机 `traceId`、`protocol`（仅 `http/https`）、可用时的 `httpStatus/declaredBytes`、`receivedBytes/durationMs` 和失败安全 `code`。前台与预加载交错时按 `traceId` 配对，日志回调异常不能中断下载或清理。下载阶段错误使用原错误码并附 `details:{stage:'download'}`，Core 仅复制这一个已知阶段到 `lastError`，旧记录没有该字段时显示通用音频准备超时。既有 `media_open_timeout` 退避与 12 秒下载／本机打开共同预算继续适用。实测和修订关系见 [#19 报告](spikes/ISSUE-19-wpf-public-media.md)。
 
+应用层代理设置通过认证 `fishfm/network-proxy` RPC 读取／保存。空 payload 只读取；写入需 `{mode:'direct'|'proxy',url,expectedRevision}`，返回 `{networkProxy:{version:1,revision,mode,url}}`。`network_proxy_v1` 保存在既有 settings 表，缺失或损坏记录采用 `{version:1,revision:0,mode:'direct',url:''}`。URL 校验接受 HTTP／HTTPS 主机与有效端口，拒绝认证信息、非根路径、查询、fragment 和控制字符；代理模式要求有效地址。保存事务核对 `expectedRevision`，冲突为 `network_proxy_conflict`，无效输入为 `invalid_network_proxy`，错误消息为固定文本。同值保存保持 revision，实际变化推进 revision。
+
+`src/network.mjs` 使用 Node 24 内置 `Agent({proxyEnv})`，每次请求读取最新保存设置并持有独立 Agent。直连模式显式清空应用层 HTTP(S) 代理并采用 `NO_PROXY='*'`；自定义模式仅采用所保存代理。既有平台 HTTP transport 使用同一网络客户端的 fetch 适配，网易云社区 SDK 在其 AsyncLocalStorage 调用上下文中用 Axios 请求拦截器设置对应 Agent，音频由 Node 暂存器按同一策略下载后交给 WPF／实验性 AVFoundation 本地打开。设置生效边界是随后发起的请求，在途响应与原取消／超时规则继续完成。UI 仅在网络卡首次挂载或重连时读取，保存与读取有独立代次，迟到旧响应不能覆盖新设置或未保存输入。
+
+上述直连范围为应用代理。用户指定 TUN／VPN 分流由外部管理；客户端和网络层如实说明该范围。宿主模型请求仍使用其既有路线。每请求 Agent 的退出、失败、取消与响应关闭均须释放，接口的手动重定向、Cookie origin 约束、解压后大小限制和音频匿名／64 MiB／12 秒预算按原契约执行。
+
 UI 经宿主认证 `/api` 调用；完整白名单见 [dsh-settings.mjs](../src/ui/dsh-settings.mjs)，不能把全部 Core 命令自动暴露给浏览器。
 
 | RPC | 返回/用途 |

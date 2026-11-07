@@ -1,6 +1,6 @@
 # 技术架构
 
-更新：2026-11-03。本文维护进程、模块职责和数据流；字段、数值门控与恢复细节见 [控制契约](CORE_CONTRACT.md)，部署及验收状态只看 [开发状态](PROJECT_PLAN.md)。
+更新：2026-11-07。本文维护进程、模块职责和数据流；字段、数值门控与恢复细节见 [控制契约](CORE_CONTRACT.md)，部署及验收状态只看 [开发状态](PROJECT_PLAN.md)。
 
 ## 运行结构
 
@@ -27,6 +27,7 @@ DSH 插件宿主（index.js）
 | Core Host | RPC、Provider／Playback 协调、维护和画像缓存 | `src/core-host.mjs` |
 | Music Core | 队列、用户优先、命令版本、收听完成 | `src/core.mjs` |
 | Provider | 账号／来源／候选／搜索及短期资源；不选曲 | `src/providers/` |
+| Network | 应用层直连／自定义代理配置、版本和每请求独立 Agent；Provider 与媒体暂存共用 | `src/network.mjs` |
 | 推荐 | 输入画像、种子、发现缓存、相似图、评分、旧歌单核对 | `environment`、`recommendation`、`discovery`、`track-graph`、`selection`、`model-recommendations` 模块 |
 | 模型 | 事实包、路线、预算预留、筛选、usage 与调度 | `src/persona*.mjs` |
 | Playback | 独立音频进程、IPC、版本守卫和真实时间线；不选曲／写库／读凭据 | `src/playback/` |

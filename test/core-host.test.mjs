@@ -71,6 +71,28 @@ function collector() {
   };
 }
 
+test('network proxy settings default to direct, survive host restart and reject stale writes', async () => {
+  const store = new MusicStore();
+  const out = collector();
+  let host = createCoreHost({ output: out.stream, playbackMode: 'fake', store });
+  try {
+    await host.start();
+    await host.handle({ id: 'network-read', type: 'network-proxy' });
+    assert.deepEqual(out.messages.at(-1).networkProxy, { version: 1, revision: 0, mode: 'direct', url: '' });
+    await host.handle({ id: 'network-write', type: 'network-proxy', value: { mode: 'proxy', url: 'http://127.0.0.1:7897' }, expectedRevision: 0 });
+    assert.equal(out.messages.at(-1).networkProxy.revision, 1);
+    await host.close();
+    host = createCoreHost({ output: out.stream, playbackMode: 'fake', store });
+    await host.start();
+    await host.handle({ id: 'network-restart', type: 'network-proxy' });
+    assert.deepEqual(out.messages.at(-1).networkProxy, { version: 1, revision: 1, mode: 'proxy', url: 'http://127.0.0.1:7897' });
+    await host.handle({ id: 'network-stale', type: 'network-proxy', value: { mode: 'direct', url: '' }, expectedRevision: 0 });
+    assert.equal(out.messages.at(-1).error.code, 'network_proxy_conflict');
+    await host.handle({ id: 'network-final', type: 'network-proxy' });
+    assert.equal(out.messages.at(-1).networkProxy.mode, 'proxy');
+  } finally { await host.close(); store.close(); }
+});
+
 test('greets with a snapshot and answers commands in order', async () => {
   const out = collector();
   const host = createCoreHost({ output: out.stream, playbackMode: 'fake', dbPath: ':memory:' });
