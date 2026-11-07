@@ -90,6 +90,13 @@ function loadCommunityApi() {
 
 export const NETEASE = 'netease';
 
+function secureMediaUrl(url) {
+  if (typeof url !== 'string') return url;
+  // These numbered music CDN hosts serve the same signed resource over HTTPS.
+  // Preserve every path/query byte when changing the scheme and default port.
+  return url.replace(/^http:\/\/(m\d+\.music\.126\.net)(?::80)?(?=[/?#]|$)/i, 'https://$1');
+}
+
 const COMMUNITY_CALLS = Object.freeze({
   lyrics: { method: 'lyric', stage: 'lyric', public: true },
   loginQr: { method: 'login_qr_key', stage: 'login_qr_key', qr: true },
@@ -379,7 +386,7 @@ export function createNetEaseProvider(options = {}) {
       playUrl: (body) => {
         const entry = Array.isArray(body?.data) ? body.data[0] : (body?.data ?? body);
         return {
-          url: entry?.url ?? null,
+          url: secureMediaUrl(entry?.url ?? null),
           reason: entry?.reason ?? null,
           expiresInSeconds: Number.isSafeInteger(entry?.expi) ? entry.expi : null,
           expiresAt: Number.isSafeInteger(entry?.expiresAt) ? entry.expiresAt : null,

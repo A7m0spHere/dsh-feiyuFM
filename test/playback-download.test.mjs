@@ -82,6 +82,86 @@ test('body and header stalls can be cancelled, bounded or closed without leaving
   assert.equal(media.entries.size, 0); await absent(await media.directory);
 });
 
+test('download diagnostics distinguish headers, completion and timeout without resource details', async t => {
+  const s = await serverFor(t), logs = [];
+  const media = new MediaDownloads({ onLog: entry => logs.push(entry) });
+  t.after(() => media.close());
+  const item = await media.stage(`${s.origin}/ok.mp3?token=private-token`, { timeoutMs: 4000 });
+  await item.release();
+  assert.deepEqual(logs.map(entry => entry.phase), ['headers', 'complete']);
+  assert.equal(logs[0].receivedBytes, 0);
+  assert.equal(logs[1].receivedBytes, fixture.length);
+  assert.equal(logs[1].declaredBytes, fixture.length);
+  assert.equal(logs[1].httpStatus, 200);
+  assert.equal(logs[1].protocol, 'http');
+  assert.ok(logs[1].durationMs >= 0);
+
+  logs.length = 0;
+  await assert.rejects(media.stage(`${s.origin}/stall?token=private-token`, { timeoutMs: 100 }), error => {
+    assert.equal(error.code, 'media_open_timeout');
+    assert.deepEqual(error.details, { stage: 'download' });
+    return true;
+  });
+  assert.deepEqual(logs.map(entry => entry.phase), ['headers', 'error']);
+  assert.equal(logs[1].code, 'media_open_timeout');
+  assert.equal(logs[1].receivedBytes, fixture.length);
+  assert.equal(logs[1].httpStatus, 200);
+  assert.equal(logs[1].declaredBytes, undefined);
+  assert.equal(JSON.stringify(logs).includes('private'), false);
+  assert.equal(JSON.stringify(logs).includes(s.origin), false);
+
+  logs.length = 0;
+  await assert.rejects(media.stage(`${s.origin}/headers`, { timeoutMs: 100 }), { code: 'media_open_timeout' });
+  assert.equal(logs.length, 1);
+  assert.equal(logs[0].phase, 'error');
+  assert.equal(logs[0].receivedBytes, 0);
+  assert.equal(logs[0].httpStatus, undefined);
+  assert.equal(logs[0].declaredBytes, undefined);
+});
+
+test('download failure and cancellation keep safe stages even when diagnostics throw', async t => {
+  const s = await serverFor(t);
+  const media = new MediaDownloads({ onLog: () => { throw new Error('diagnostics unavailable'); } });
+  t.after(() => media.close());
+  const item = await media.stage(`${s.origin}/ok.mp3`, { timeoutMs: 4000 });
+  await item.release();
+  await assert.rejects(media.stage(`${s.origin}/auth`, { timeoutMs: 4000 }), error => {
+    assert.equal(error.code, 'media_download_failed');
+    assert.deepEqual(error.details, { stage: 'download' });
+    return true;
+  });
+  const logs = [];
+  media.onLog = entry => logs.push(entry);
+  const controller = new AbortController(), before = s.requests.length;
+  const loading = media.stage(`${s.origin}/headers`, { timeoutMs: 4000, signal: controller.signal });
+  const cancelled = assert.rejects(loading, { code: 'cancelled' });
+  await until(() => s.requests.length > before);
+  controller.abort(); await cancelled;
+  assert.equal(logs.at(-1).phase, 'cancelled');
+  assert.equal(logs.at(-1).code, 'cancelled');
+  assert.equal(media.entries.size, 0);
+});
+
+test('interleaved downloads retain distinct trace IDs through completion and cancellation', async t => {
+  const s = await serverFor(t), logs = [];
+  const media = new MediaDownloads({ onLog: entry => logs.push(entry) });
+  t.after(() => media.close());
+  const controller = new AbortController();
+  const pending = media.stage(`${s.origin}/stall`, { timeoutMs: 4000, signal: controller.signal });
+  const cancelled = assert.rejects(pending, { code: 'cancelled' });
+  await until(() => logs.some(entry => entry.phase === 'headers'));
+  const completed = await media.stage(`${s.origin}/ok.mp3`, { timeoutMs: 4000 });
+  await completed.release();
+  controller.abort(); await cancelled;
+  assert.deepEqual(logs.map(entry => entry.phase), ['headers', 'headers', 'complete', 'cancelled']);
+  const [first, second, complete, cancellation] = logs;
+  assert.match(first.traceId, /^[0-9a-f-]{36}$/);
+  assert.match(second.traceId, /^[0-9a-f-]{36}$/);
+  assert.notEqual(first.traceId, second.traceId);
+  assert.equal(complete.traceId, second.traceId);
+  assert.equal(cancellation.traceId, first.traceId);
+});
+
 function serviceFor(t, mediaDownloads = new MediaDownloads()) {
   const calls = [], logs = [];
   const supervisor = { connected: true, generation: 1,

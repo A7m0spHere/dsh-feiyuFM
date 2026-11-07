@@ -3,14 +3,16 @@ import { mkdirSync, writeFileSync, renameSync, readFileSync, rmSync } from 'node
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 const TEXT = new Set(['type', 'kind', 'role', 'event', 'phase', 'code', 'endReason', 'pool', 'provider', 'playInstanceId', 'decisionId', 'trackKey', 'selectedBy', 'progressSource', 'name', 'status', 'source', 'traceId', 'op']);
-const NUMBERS = new Set(['positionMs', 'effectiveMs', 'effectiveDeltaMs', 'agentEffectiveMs', 'audibleMs', 'count', 'delta', 'before', 'after', 'version', 'discoveryRate', 'familiar', 'discovery', 'offered', 'durationMs', 'hostMs', 'hostStartedAt', 'hostEventAt', 'delayMs', 'tickMs', 'publishMs', 'discoveryMs', 'cloneMs', 'flushMs', 'stderrMs', 'downloadProgress', 'bufferingProgress', 'openElapsedMs', 'expiresAt', 'resourceAgeMs']);
+const NUMBERS = new Set(['positionMs', 'effectiveMs', 'effectiveDeltaMs', 'agentEffectiveMs', 'audibleMs', 'count', 'delta', 'before', 'after', 'version', 'discoveryRate', 'familiar', 'discovery', 'offered', 'durationMs', 'hostMs', 'hostStartedAt', 'hostEventAt', 'delayMs', 'tickMs', 'publishMs', 'discoveryMs', 'cloneMs', 'flushMs', 'stderrMs', 'downloadProgress', 'bufferingProgress', 'openElapsedMs', 'expiresAt', 'resourceAgeMs', 'httpStatus', 'receivedBytes', 'declaredBytes']);
 const FLAGS = new Set(['accepted', 'updated', 'fellBack', 'paused', 'audible', 'agentListening', 'background', 'standbyReady', 'usePreload', 'preloaded', 'ready']);
 /** Same shape rule as text fields: a recorded error is a code, not a message. */
 const SAFE_CODE = /^[\w:.-]{1,100}$/;
 export function safeEvidenceEvent(entry) {
   const result = {};
   for (const [key, value] of Object.entries(entry ?? {})) {
-    if (TEXT.has(key) && typeof value === 'string' && /^[\w:.-]{1,100}$/.test(value)) result[key] = value;
+    if (key === 'protocol') {
+      if (value === 'http' || value === 'https') result[key] = value;
+    } else if (TEXT.has(key) && typeof value === 'string' && /^[\w:.-]{1,100}$/.test(value)) result[key] = value;
     else if (NUMBERS.has(key) && Number.isFinite(value)) result[key] = value;
     else if (FLAGS.has(key) && typeof value === 'boolean') result[key] = value;
   }

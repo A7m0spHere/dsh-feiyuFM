@@ -15,6 +15,24 @@ test('playback stage timings retain duration without credentials or media URLs',
     assert.equal(JSON.stringify(event).includes('secret'), false);
   } finally { evidence.close(); }
 });
+
+test('download evidence retains bounded metadata and only the known protocol names', () => {
+  const evidence = createRuntimeEvidence();
+  try {
+    evidence.event({ type: 'media-download', phase: 'error', protocol: 'https', httpStatus: 200,
+      receivedBytes: 1024, declaredBytes: 2048, durationMs: 12000, code: 'media_open_timeout',
+      url: 'https://private.example/?token=secret', path: 'private.mp3', message: 'secret' });
+    const event = evidence.report().events[0];
+    assert.equal(event.protocol, 'https');
+    assert.equal(event.httpStatus, 200);
+    assert.equal(event.receivedBytes, 1024);
+    assert.equal(event.declaredBytes, 2048);
+    assert.equal(JSON.stringify(event).includes('secret'), false);
+    assert.equal(JSON.stringify(event).includes('private'), false);
+    evidence.event({ type: 'media-download', protocol: 'private-token' });
+    assert.equal(evidence.report().events[1].protocol, undefined);
+  } finally { evidence.close(); }
+});
 test('high frequency progress retains exact counts without evicting the useful playback milestones', () => {
   const evidence = createRuntimeEvidence({ now: () => 1000, limit: 10 });
   try {

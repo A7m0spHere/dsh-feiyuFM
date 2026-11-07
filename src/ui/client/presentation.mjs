@@ -72,6 +72,11 @@ export function playbackNotice(snapshot) {
   }
   if (snapshot.lastError.code === 'media_stalled') return '播放长时间卡住，自动恢复未成功。可以重新点播或换一首。';
   if (snapshot.lastError.code === 'playback_host_lost') return '播放服务中断，自动恢复未成功。可以重新点播。';
+  if (snapshot.lastError.code === 'media_open_timeout') {
+    return snapshot.lastError.details?.stage === 'download'
+      ? '歌曲音频下载超时，可以重新点播或换一首。'
+      : '音频准备超时，可以重新点播或换一首。';
+  }
   if (snapshot.lastError.code === 'media_download_failed') return '歌曲音频下载未成功，可以重新点播或换一首。';
   if (snapshot.lastError.code === 'media_failed') return '音频未能在本机播放器中打开，可以重新点播或换一首。';
   return '播放尚未成功，请核对平台连接和曲目权限。';

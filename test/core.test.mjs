@@ -228,6 +228,28 @@ test('playback load failure is visible without a fabricated listen', async () =>
   h.store.close();
 });
 
+test('download failures persist only the known download stage for the playback notice', async () => {
+  const h = harness();
+  try {
+    h.playback.load = async () => { throw Object.assign(new Error('Media preparation timed out'), {
+      code: 'media_open_timeout', retryable: true,
+      details: { stage: 'download', url: 'https://private.example/?token=secret', bytes: 123 },
+    }); };
+    h.send('requestTrack', { track: a });
+    await h.core.waitForIdle();
+    assert.deepEqual(h.core.snapshot().lastError.details, { stage: 'download' });
+    assert.deepEqual(h.store.getCoreState().lastError.details, { stage: 'download' });
+    assert.equal(JSON.stringify(h.store.getCoreState()).includes('secret'), false);
+
+    h.playback.load = async () => { throw Object.assign(new Error('Playback failed'), {
+      code: 'media_failed', details: { stage: 'private-token' },
+    }); };
+    h.send('requestTrack', { track: c });
+    await h.core.waitForIdle();
+    assert.equal(h.core.snapshot().lastError.details, undefined);
+  } finally { h.store.close(); }
+});
+
 test('mode and switch combinations preserve explicit mute and pause', async () => {
   const h = harness();
   h.send('setMode', { value: 'off' });

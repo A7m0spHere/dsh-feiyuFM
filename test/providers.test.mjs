@@ -275,6 +275,33 @@ test('resolve returns a handle with an expiry and never persists it', async () =
   }
 });
 
+test('NetEase resolve upgrades numbered music CDN URLs before callers cache or preload them', async () => {
+  const signedPath = '/signed%2Fpath/audio.mp3?token=a%2Fb%2B+c&expires=123&token=second#part';
+  const cases = [
+    ['http://m804.music.126.net' + signedPath, 'https://m804.music.126.net' + signedPath],
+    ['http://m7.music.126.net:80' + signedPath, 'https://m7.music.126.net' + signedPath],
+    ['HTTP://M801.MUSIC.126.NET/audio.mp3', 'https://M801.MUSIC.126.NET/audio.mp3'],
+    ['http://m804.music.126.net?token=a%2Fb', 'https://m804.music.126.net?token=a%2Fb'],
+    ['https://m804.music.126.net' + signedPath, 'https://m804.music.126.net' + signedPath],
+    ['http://example.invalid/audio.mp3', 'http://example.invalid/audio.mp3'],
+    ['http://music.126.net/audio.mp3', 'http://music.126.net/audio.mp3'],
+    ['http://m804.music.126.net.example.invalid/audio.mp3', 'http://m804.music.126.net.example.invalid/audio.mp3'],
+    ['http://m804.music.126.net:8080/audio.mp3', 'http://m804.music.126.net:8080/audio.mp3'],
+    ['http://user:password@m804.music.126.net/audio.mp3', 'http://user:password@m804.music.126.net/audio.mp3'],
+    ['http://m804.music.126.net@other.invalid/audio.mp3', 'http://m804.music.126.net@other.invalid/audio.mp3'],
+  ];
+  for (const [url, expected] of cases) {
+    const context = setup({ signedIn: true, table: { resolve: { data: [{ url, expi: 3600 }] } } });
+    try {
+      const resource = await context.provider.resolve({ provider: 'netease', providerTrackId: '5' }, { version: 9 });
+      assert.equal(resource.handle, expected);
+      assert.equal(resource.expiresAt, 1_700_000_000_000 + 3_600_000);
+      assert.equal(resource.version, 9);
+      assert.equal(context.store.getCoreState(), null);
+    } finally { context.close(); }
+  }
+});
+
 test('a track with no playable URL is media_unavailable, not a network failure', async () => {
   const context = setup({ signedIn: true, table: { resolve: { data: [{ url: null, reason: 'VIP only' }] } } });
   try {

@@ -7,6 +7,13 @@ test('media open and download failures have specific playback notices', () => {
   assert.match(playbackNotice({ lastError: { code: 'media_download_failed' } }), /音频下载/);
   assert.equal(playbackNotice({ lastError: null }), null);
 });
+
+test('download timeouts and legacy preparation timeouts have accurate notices', () => {
+  assert.equal(playbackNotice({ lastError: { code: 'media_open_timeout', details: { stage: 'download' } } }),
+    '歌曲音频下载超时，可以重新点播或换一首。');
+  assert.equal(playbackNotice({ lastError: { code: 'media_open_timeout' } }),
+    '音频准备超时，可以重新点播或换一首。');
+});
 import {interpolatedPosition,recommendationActionState,recommendationFeedback} from '../src/ui/client/presentation.mjs';
 
 test('a model gate expires at the server deadline while constraints remain separate from actual failures',()=>{

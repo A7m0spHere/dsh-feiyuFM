@@ -1,0 +1,233 @@
+{
+  "schema": 1,
+  "scope": "installed-local-candidate-provider-playback-dsh-node-wpf-muted",
+  "status": "partial-network-validation",
+  "candidate": {
+    "filename": "dsh-feiyufm-0.1.2.tgz",
+    "localUnreleased": true,
+    "bytes": 35032784,
+    "sha256": "bb1a400e557c6006d36d7658bf2691d91b18b8aeb306df8d38a90e5f79fe168b",
+    "emptyCacheInstall": "passed-offline-normal-lifecycle",
+    "registry": "loopback-unavailable"
+  },
+  "trials": [
+    {
+      "measuredAt": "2026-11-07T14:10:20.150Z",
+      "scope": "installed-local-candidate-provider-playback-dsh-node-wpf-muted",
+      "node": "24.21.0",
+      "packageVersion": "0.1.2",
+      "sharedOpenTimeoutMs": 12000,
+      "muted": true,
+      "nativeDesktopReloaded": false,
+      "cases": [
+        {
+          "index": 0,
+          "resourceProtocol": "https:",
+          "cdnHostname": "m804.music.126.net",
+          "elapsedMs": 7346,
+          "started": true,
+          "progressMs": 422,
+          "preloaded": false,
+          "downloads": 1,
+          "pauseResume": true,
+          "resumedProgressMs": 1098
+        }
+      ],
+      "sourceHashes": {
+        "src/providers/netease.mjs": "0f380a8ca2595b0265755466459e547b79f8680fc3d97183244ea6af4fd61a88",
+        "src/playback/media-download.mjs": "3659b221d7e58b6510a80f909c87f26bdfa0b196b67695b2c68b86611ec01381",
+        "src/playback/service.mjs": "a01dec1bf1e77545512bdaed8ab266424b3a6475cd7167848c73859a97dbe34d",
+        "src/core.mjs": "1b05db98543bd0a991fa735d18383bc4f3f4898def48470c83a50d674b11bb40",
+        "src/runtime/evidence.mjs": "fd621bd48aa9b6bbc6279c08253a6f8fea33c318c3215fdb086a4abac206a099",
+        "src/ui/dsh-client.js": "88673310582685e176ddba8c2f3db4406a35b478a5a5f1b05559333d60f0e2cf"
+      },
+      "status": "failed",
+      "errorCode": "media_open_timeout",
+      "cleanup": {
+        "isolatedHostExited": true,
+        "stagingRemoved": true
+      },
+      "downloadEvents": [
+        {
+          "type": "media-download",
+          "phase": "headers",
+          "traceId": "1734128c-03ce-4216-8673-a9849dc50ea1",
+          "protocol": "https",
+          "httpStatus": 200,
+          "declaredBytes": 7212974,
+          "receivedBytes": 0,
+          "durationMs": 842
+        },
+        {
+          "type": "media-download",
+          "phase": "complete",
+          "traceId": "1734128c-03ce-4216-8673-a9849dc50ea1",
+          "protocol": "https",
+          "httpStatus": 200,
+          "declaredBytes": 7212974,
+          "receivedBytes": 7212974,
+          "durationMs": 2492
+        },
+        {
+          "type": "media-download",
+          "phase": "headers",
+          "traceId": "b9f032f7-8f7c-4962-b247-e767f0044154",
+          "protocol": "https",
+          "httpStatus": 200,
+          "declaredBytes": 8549399,
+          "receivedBytes": 0,
+          "durationMs": 692
+        },
+        {
+          "type": "media-download",
+          "phase": "error",
+          "traceId": "b9f032f7-8f7c-4962-b247-e767f0044154",
+          "protocol": "https",
+          "httpStatus": 200,
+          "declaredBytes": 8549399,
+          "receivedBytes": 518632,
+          "durationMs": 12003,
+          "code": "media_open_timeout"
+        }
+      ],
+      "downloadErrorCount": 1
+    },
+    {
+      "measuredAt": "2026-11-07T14:12:06.389Z",
+      "scope": "installed-local-candidate-provider-playback-dsh-node-wpf-muted",
+      "node": "24.21.0",
+      "packageVersion": "0.1.2",
+      "sharedOpenTimeoutMs": 12000,
+      "muted": true,
+      "nativeDesktopReloaded": false,
+      "cases": [],
+      "sourceHashes": {
+        "src/providers/netease.mjs": "0f380a8ca2595b0265755466459e547b79f8680fc3d97183244ea6af4fd61a88",
+        "src/playback/media-download.mjs": "3659b221d7e58b6510a80f909c87f26bdfa0b196b67695b2c68b86611ec01381",
+        "src/playback/service.mjs": "a01dec1bf1e77545512bdaed8ab266424b3a6475cd7167848c73859a97dbe34d",
+        "src/core.mjs": "1b05db98543bd0a991fa735d18383bc4f3f4898def48470c83a50d674b11bb40",
+        "src/runtime/evidence.mjs": "fd621bd48aa9b6bbc6279c08253a6f8fea33c318c3215fdb086a4abac206a099",
+        "src/ui/dsh-client.js": "88673310582685e176ddba8c2f3db4406a35b478a5a5f1b05559333d60f0e2cf"
+      },
+      "status": "failed",
+      "errorCode": "media_open_timeout",
+      "cleanup": {
+        "isolatedHostExited": true,
+        "stagingRemoved": true
+      },
+      "downloadEvents": [
+        {
+          "type": "media-download",
+          "phase": "headers",
+          "traceId": "712bf020-fa27-4364-9945-f9a57c94ddc2",
+          "protocol": "https",
+          "httpStatus": 200,
+          "declaredBytes": 7212974,
+          "receivedBytes": 0,
+          "durationMs": 2743
+        },
+        {
+          "type": "media-download",
+          "phase": "error",
+          "traceId": "712bf020-fa27-4364-9945-f9a57c94ddc2",
+          "protocol": "https",
+          "httpStatus": 200,
+          "declaredBytes": 7212974,
+          "receivedBytes": 606565,
+          "durationMs": 12011,
+          "code": "media_open_timeout"
+        }
+      ],
+      "downloadErrorCount": 1
+    },
+    {
+      "measuredAt": "2026-11-07T14:16:53.027Z",
+      "scope": "installed-local-candidate-provider-playback-dsh-node-wpf-muted",
+      "node": "24.21.0",
+      "packageVersion": "0.1.2",
+      "sharedOpenTimeoutMs": 12000,
+      "muted": true,
+      "nativeDesktopReloaded": false,
+      "cases": [],
+      "sourceHashes": {
+        "src/providers/netease.mjs": "0f380a8ca2595b0265755466459e547b79f8680fc3d97183244ea6af4fd61a88",
+        "src/playback/media-download.mjs": "3659b221d7e58b6510a80f909c87f26bdfa0b196b67695b2c68b86611ec01381",
+        "src/playback/service.mjs": "a01dec1bf1e77545512bdaed8ab266424b3a6475cd7167848c73859a97dbe34d",
+        "src/core.mjs": "1b05db98543bd0a991fa735d18383bc4f3f4898def48470c83a50d674b11bb40",
+        "src/runtime/evidence.mjs": "fd621bd48aa9b6bbc6279c08253a6f8fea33c318c3215fdb086a4abac206a099",
+        "src/ui/dsh-client.js": "88673310582685e176ddba8c2f3db4406a35b478a5a5f1b05559333d60f0e2cf"
+      },
+      "status": "failed",
+      "errorCode": "media_open_timeout",
+      "cleanup": {
+        "isolatedHostExited": true,
+        "stagingRemoved": true
+      },
+      "downloadEvents": [
+        {
+          "type": "media-download",
+          "phase": "headers",
+          "traceId": "259b9bd9-7bea-43a1-996b-001948dd7992",
+          "protocol": "https",
+          "httpStatus": 200,
+          "declaredBytes": 7212974,
+          "receivedBytes": 0,
+          "durationMs": 849
+        },
+        {
+          "type": "media-download",
+          "phase": "error",
+          "traceId": "259b9bd9-7bea-43a1-996b-001948dd7992",
+          "protocol": "https",
+          "httpStatus": 200,
+          "declaredBytes": 7212974,
+          "receivedBytes": 564356,
+          "durationMs": 12008,
+          "code": "media_open_timeout"
+        }
+      ],
+      "downloadErrorCount": 1
+    }
+  ],
+  "transportComparison": {
+    "scope": "same-https-resource-sequential-memory-comparison",
+    "cdnHostname": "m704.music.126.net",
+    "declaredBytes": 7212974,
+    "budgetMs": 12000,
+    "results": [
+      {
+        "name": "native-unchanged",
+        "httpStatus": 200,
+        "headersMs": 799,
+        "receivedBytes": 7212974,
+        "complete": true,
+        "durationMs": 2623
+      },
+      {
+        "name": "native-app-user-agent",
+        "httpStatus": 200,
+        "headersMs": 1140,
+        "receivedBytes": 7212974,
+        "complete": true,
+        "durationMs": 3289
+      },
+      {
+        "name": "fetch-default",
+        "httpStatus": 200,
+        "headersMs": 946,
+        "receivedBytes": 505479,
+        "complete": false,
+        "durationMs": 12014
+      },
+      {
+        "name": "native-range-1MiB",
+        "httpStatus": 206,
+        "headersMs": 649,
+        "receivedBytes": 899930,
+        "complete": false,
+        "durationMs": 12005
+      }
+    ],
+    "interpretation": "sequential-and-route-confounding-no-request-header-or-transport-causality-established"
+  }
+}

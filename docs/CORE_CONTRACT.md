@@ -95,6 +95,10 @@ CoreHost 周期发布先检查 Core revision，未变化时不计算完整快照
 
 状态、发现、环境、选择与批准池投影使用批量查询（`unavailableKeys/environmentKeys/effectiveListenKeys/feedbackScores` 等），投影内容不变；逐曲 SQLite prepare 曾让一次快照占 100–360ms 并阻塞事件循环。媒体打开失败按 code 分类并在 `playback-error` 记录 `downloadProgress/bufferingProgress/openElapsedMs/expiresAt/resourceAgeMs`（不记录 URL）；`media_open_timeout` 的不可播退避为 1 分钟，`media_unavailable` 保持 30 分钟，`media_failed` 5 分钟。WPF `MediaOpened` 只在 `status='loading'` 时生效，超时后迟到的打开事件不能标记新状态。见 [R4](spikes/R4-playback-delivery-and-reliability.md)。
 
+网易云 `resolve()` 在资源进入 Core 缓存前，将 `http://m<数字>.music.126.net`（默认端口或显式 `:80`）升级为 HTTPS 默认端口，原始路径、查询与 fragment 逐字节保留，`expiresAt/version` 沿用解析结果。规则限于该编号域名结构；凭据形式、非标准端口及其他来源使用原解析结果。前台、恢复和预加载共用 Provider 结果。
+
+Node 暂存器通过既有 `onLog` 输出 `type='media-download'`，`phase` 为 `headers/complete/error/cancelled`，字段为单次下载共用的随机 `traceId`、`protocol`（仅 `http/https`）、可用时的 `httpStatus/declaredBytes`、`receivedBytes/durationMs` 和失败安全 `code`。前台与预加载交错时按 `traceId` 配对，日志回调异常不能中断下载或清理。下载阶段错误使用原错误码并附 `details:{stage:'download'}`，Core 仅复制这一个已知阶段到 `lastError`，旧记录没有该字段时显示通用音频准备超时。既有 `media_open_timeout` 退避与 12 秒下载／本机打开共同预算继续适用。实测和修订关系见 [#19 报告](spikes/ISSUE-19-wpf-public-media.md)。
+
 UI 经宿主认证 `/api` 调用；完整白名单见 [dsh-settings.mjs](../src/ui/dsh-settings.mjs)，不能把全部 Core 命令自动暴露给浏览器。
 
 | RPC | 返回/用途 |

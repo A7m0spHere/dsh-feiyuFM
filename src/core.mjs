@@ -329,6 +329,7 @@ export class MusicCore {
         // Whether trying again could help is part of the reason, and a caller
         // cannot tell "do not retry" from "unknown" without it.
         retryable: error.retryable === true,
+        ...(error.details?.stage === 'download' ? { details: { stage: 'download' } } : {}),
       };
       // Release the track that could not be started. Leaving it as `current`
       // would block every later selection, so one unplayable track would stop
