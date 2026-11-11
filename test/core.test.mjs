@@ -125,6 +125,40 @@ test('a failed volume update preserves the current track and a later retry clear
   } finally { h.store.close(); }
 });
 
+for (const initiallyAudible of [true, false]) {
+  test(`a non-autoplay load keeps the latest volume mute state (initiallyAudible=${initiallyAudible})`, async () => {
+    const h = harness();
+    let finishLoad;
+    try {
+      h.send('setHumanPlayback', { value: initiallyAudible });
+      await h.core.waitForIdle();
+      const load = h.playback.load.bind(h.playback);
+      h.playback.load = async options => {
+        const result = await load(options);
+        return new Promise(resolve => { finishLoad = () => resolve(result); });
+      };
+      h.send('requestTrack', { track: a });
+      await new Promise(resolve => setImmediate(resolve));
+      assert.equal(typeof finishLoad, 'function');
+      const before = h.core.snapshot();
+      h.send('setVolume', { value: initiallyAudible ? 0 : 0.61 });
+      await new Promise(resolve => setImmediate(resolve));
+      assert.equal(h.playback.muted, initiallyAudible);
+      finishLoad();
+      await h.core.waitForIdle();
+      assert.equal(h.playback.muted, initiallyAudible);
+      assert.equal(h.core.snapshot().settings.humanPlayback, !initiallyAudible);
+      assert.equal(h.core.snapshot().commandVersion, before.commandVersion);
+      assert.equal(h.core.snapshot().current.playInstanceId, before.current.playInstanceId);
+      assert.equal(h.playback.playing, true);
+    } finally {
+      finishLoad?.();
+      await h.core.waitForIdle();
+      h.store.close();
+    }
+  });
+}
+
 test('next uses the imported library with an empty queue, excludes the current song and preserves pause', async () => {
   const h = harness();
   h.core.selector = createSelector({ store: h.store, listFamiliar: () => [a, b], now: () => h.clock.now() });

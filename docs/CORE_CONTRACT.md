@@ -215,7 +215,7 @@ U24 为 filtered 状态投影的 `playbackPool` 可选增加 `tracks`：最多 1
 | `positioned` | PlaybackService 确认定位或暂停快照后向 Core 发出的位置更新，可向后；不累计有效时间，不登记播放开始 |
 | `ended/error` | 当前实例/版本，结束带最终位置，错误保留分类 |
 
-下载准备期间采用最新输出状态，预加载交换将保存的音量应用到新播放器，恢复／重新加载沿用 Core 设置。WPF 显式诊断 `volume` 参数或 `FISHFM_PLAYBACK_VOLUME` 保留覆盖优先级。协议继续使用 v1，增加 `setVolume` 命令及可选 `load.volume` 字段。
+下载准备期间采用最新输出状态，预加载交换将保存的音量应用到新播放器，恢复／重新加载沿用 Core 设置。非自动起播宿主在 load 完成后重新读取当前声音开关，再发送 setMuted，加载期间的静音／恢复优先于加载开始时的值。WPF 显式诊断 `volume` 参数或 `FISHFM_PLAYBACK_VOLUME` 保留覆盖优先级。协议继续使用 v1，增加 `setVolume` 命令及可选 `load.volume` 字段。
 
 断线主动要新快照，不用 supervisor 缓存判断资源是否还在；匹配实例/版本的 `ended/error` 补发一次，不补计失联时间。每实例/版本共享恢复任务，最多三轮连接/快照尝试；await 后检查实例和版本，旧恢复不能清掉新曲目。超时/写入异常拒绝所有等待者；宿主退出、所有者消失及 `dispose` 都停止音频。
 

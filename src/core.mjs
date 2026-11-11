@@ -664,7 +664,7 @@ export class MusicCore {
       this._commit();
     }
     if (!autoplay) {
-      await stage('mute', () => this.playback.setMuted({ muted, version }));
+      await stage('mute', () => this.playback.setMuted({ muted: !this.state.settings.humanPlayback, version }));
       if (!this._isCurrent(version, controller.signal)) return;
       await stage('play', () => this.playback.play({ playInstanceId: current.playInstanceId, version }));
     }
