@@ -1,7 +1,7 @@
 import { playbackPresentation, playbackControls, discoveryPresentation, playbackNotice } from './presentation.mjs';
 import React from 'react';
 import { h, minutes, progressPercent, modes, sourceNames, stageNames } from './shared.mjs';
-import { Svg, StatusMark, PlaybackArtwork, useSmoothProgress } from './components.mjs';
+import { Svg, StatusMark, PlaybackArtwork, VolumeControl, useSmoothProgress } from './components.mjs';
 import { Library } from './library.mjs';
 import {Persona} from './persona.mjs';
 import {FeedbackSettings} from './feedback.mjs';
@@ -234,10 +234,7 @@ export function Panel({ controller, back }) {
       current && h('div', { className: 'fm-dock-timeline' }, h('span', null, minutes(positionMs)),
         h('div', { className: 'fm-progress', 'aria-label': '播放进度' }, h('span', { style: { width: `${progressPercent({ ...current, positionMs })}%` } })),
         h('span', null, current.track.durationMs ? minutes(current.track.durationMs) : '--:--'))),
-    h('button', { type: 'button', className: 'fm-button fm-sound-action', disabled,
-      'aria-label': settings.humanPlayback ? '关闭电脑声音' : '开启电脑声音', 'aria-pressed': Boolean(settings.humanPlayback),
-      onClick: () => controller.command('setHumanPlayback', !settings.humanPlayback) },
-      h(Svg, { type: settings.humanPlayback ? 'sound' : 'muted' }), h('span', null, settings.humanPlayback ? '声音开启' : '已静音')));
+    h(VolumeControl, { controller, state }));
 
 
   const hero = h('section', { className: 'fm-hero fm-companion-hero', 'aria-label': '当前播放' },

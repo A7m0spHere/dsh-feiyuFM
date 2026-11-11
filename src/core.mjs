@@ -50,6 +50,7 @@ function withTimeout(promise, timeoutMs, signal) {
 const DEFAULT_SETTINGS = Object.freeze({
   listening: true,
   humanPlayback: true,
+  volume: 0.35,
   discovery: true,
   discoveryRate: 0.2,
   strategy: 'normal',
@@ -111,6 +112,12 @@ export class MusicCore {
       queue: [], current: null, paused: true, status: 'idle', blockUntil: null,
       lastError: null,
     };
+    this.state.settings = { ...DEFAULT_SETTINGS, ...this.state.settings };
+    if (!Number.isFinite(this.state.settings.volume) || this.state.settings.volume <= 0 || this.state.settings.volume > 1) {
+      this.state.settings.volume = DEFAULT_SETTINGS.volume;
+    }
+    this.volumeRevision = 0;
+    this.state.volumeError = null;
     this.state.commandVersion += 1;
     this.state.seekPending = null;
     this.state.seekError = null;
@@ -424,6 +431,21 @@ export class MusicCore {
     }, version);
   }
 
+  _syncVolume() {
+    const revision = ++this.volumeRevision;
+    this.state.volumeError = null;
+    const task = Promise.resolve().then(() => {
+      if (revision !== this.volumeRevision) return;
+      return this.playback.setVolume({ volume: this.state.settings.volume, muted: !this.state.settings.humanPlayback });
+    }).catch(error => {
+      if (revision !== this.volumeRevision) return;
+      this.state.volumeError = { code: error.code ?? 'volume_failed', message: '音量未能同步到播放器，请重试。' };
+      this._commit();
+    });
+    this.tasks.add(task);
+    task.finally(() => this.tasks.delete(task));
+  }
+
   /** Resume a paused player directly when the host still holds the track. */
   _resumeCurrent() {
     this._invalidate();
@@ -619,7 +641,7 @@ export class MusicCore {
     this.onLog({ type: 'load-start', version, playInstanceId: current.playInstanceId, at: this.clock.now(), standbyReady, usePreload });
     this.preloadedTrackKey = null;
     const loaded = await stage('load', () => this.playback.load({ resource, playInstanceId: current.playInstanceId,
-      startPositionMs: current.positionMs, version, signal: controller.signal, muted, autoplay, usePreload }));
+      startPositionMs: current.positionMs, version, signal: controller.signal, muted, volume: this.state.settings.volume, autoplay, usePreload }));
     if (!this._isCurrent(version, controller.signal)) return;
     // A platform handle is time limited. Remembering when it expires is what
     // lets the core recover instead of failing the track when it goes stale.
@@ -642,7 +664,7 @@ export class MusicCore {
       this._commit();
     }
     if (!autoplay) {
-      await stage('mute', () => this.playback.setMuted({ muted, version }));
+      await stage('mute', () => this.playback.setMuted({ muted: !this.state.settings.humanPlayback, version }));
       if (!this._isCurrent(version, controller.signal)) return;
       await stage('play', () => this.playback.play({ playInstanceId: current.playInstanceId, version }));
     }
@@ -724,6 +746,12 @@ export class MusicCore {
           if (this.state.current && !this.state.paused) this._invalidate();
           this._control('setMuted', { muted: !command.value, version: this.state.commandVersion }, !command.value);
         }
+        break;
+      case 'setVolume':
+        if (command.value > 0) this.state.settings.volume = command.value;
+        else if (command.previousVolume !== undefined) this.state.settings.volume = command.previousVolume;
+        this.state.settings.humanPlayback = command.value > 0;
+        this._syncVolume();
         break;
       case 'setDiscovery': this.state.settings.discovery = command.value; break;
       case 'setDiscoveryRate': this.state.settings.discoveryRate = command.value; break;

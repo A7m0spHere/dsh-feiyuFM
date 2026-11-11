@@ -275,3 +275,24 @@ test('a mute command during staging is not undone by the captured load options',
   assert.equal(commandMuted, true);
   assert.equal(service.muted, true);
 });
+
+test('volume changes during staging reach the load without cancelling it or overwriting the latest mute', async t => {
+  let finish;
+  const commands = [];
+  const staging = { stage: () => new Promise(resolve => { finish = () => resolve({ handle: 'local-volume', release: async () => {} }); }), cleanup: async () => {}, close: async () => {} };
+  const supervisor = { async request(command) {
+    commands.push(command);
+    return { positionMs: 0, muted: command.muted };
+  }, async dispose() {} };
+  const service = new PlaybackService({ supervisor, mediaDownloads: staging });
+  t.after(() => service.close());
+  const loading = service.load({ resource: { handle: 'https://example.invalid/media' }, playInstanceId: 'volume', version: 1, volume: 0.35, muted: false });
+  await until(() => finish);
+  await service.setVolume({ volume: 0.74, muted: true });
+  assert.equal(service.acceptedVersion, 1);
+  finish();
+  await loading;
+  assert.equal(commands.find(command => command.type === 'load').volume, 0.74);
+  assert.equal(commands.find(command => command.type === 'load').muted, true);
+  assert.equal(service.muted, true);
+});

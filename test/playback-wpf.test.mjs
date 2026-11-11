@@ -15,6 +15,37 @@ import { wpfBackend, powerShellCandidates, WPF_HOST_SCRIPT } from '../src/playba
 // runs the pipe/fake-backend checks; real media regressions remain enabled locally.
 const skipRealAudio = process.platform !== 'win32' || process.env.FISHFM_TEST_REAL_AUDIO === '0';
 
+test('real WPF volume survives preload swaps and changing it preserves pause in both shells', { skip: skipRealAudio, timeout: 60000 }, async () => {
+  const directory = mkdtempSync(join(tmpdir(), 'fishfm-volume-'));
+  const media = join(directory, 'silent.wav');
+  writeFileSync(media, silentWav(15));
+  try {
+    for (const candidate of powerShellCandidates().filter(candidate => candidate.source !== 'override')) {
+      const supervisor = new PlaybackSupervisor({ backend: wpfBackend({ candidates: [candidate], warmHolders: 0, adaptiveWarm: false }) });
+      const service = new PlaybackService({ supervisor, progressIntervalMs: 0 });
+      try {
+        await service.load({ resource: { handle: media }, playInstanceId: 'volume-a', version: 1, volume: 0.23, muted: true, autoplay: true });
+        assert.equal((await service.hostSnapshot()).volume, 0.23);
+        await service.setVolume({ volume: 0.67, muted: true });
+        assert.equal((await service.hostSnapshot()).volume, 0.67);
+        await service.preload({ resource: { handle: media }, version: 1 });
+        const swapped = await service.load({ resource: { handle: media }, playInstanceId: 'volume-b', version: 2, volume: 0.67, muted: true, autoplay: true, usePreload: true });
+        assert.equal(swapped.preloaded, true);
+        assert.equal((await service.hostSnapshot()).volume, 0.67);
+        await service.pause({ version: 3 });
+        const before = await service.hostSnapshot();
+        await service.setVolume({ volume: 0.81, muted: false });
+        const after = await service.hostSnapshot();
+        assert.equal(after.volume, 0.81);
+        assert.equal(after.muted, false);
+        assert.equal(after.status, 'paused');
+        assert.equal(after.version, before.version);
+        assert.equal(after.positionMs, before.positionMs);
+      } finally { await service.close(); }
+    }
+  } finally { rmSync(directory, { recursive: true, force: true }); }
+});
+
 test('real WPF local staging preserves pause, resume, preload swaps and file cleanup in both shells', { skip: skipRealAudio, timeout: 60000 }, async () => {
   const wav = silentWav(15);
   const server = createServer((_request, response) => { response.writeHead(200, { 'content-type': 'audio/wav', 'content-length': wav.length }); response.end(wav); });

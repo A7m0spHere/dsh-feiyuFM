@@ -42,6 +42,7 @@ export function createController(connection, { onPlaybackTrace = null } = {}) {
     guideStatus: storedGuideStatus(readPreference(GUIDE_KEY, null)), guideVisible: false, guideStage: null,
     expression: null, expressionBusy: false, expressionError: '', expressionNotice: '',
     networkProxy: null, networkProxyBusy: false, networkProxyError: '', networkProxyNotice: '',
+    volumePending: null, volumeError: '',
     feedbackPage: null, feedbackListBusy: false, feedbackClearBusy: false, feedbackError: '', feedbackNotice: '',
     login: null, imported: null, importAttempts: [], library: { total: 0, tracks: [] },
     profileState: 'idle', profileError: '',
@@ -53,6 +54,7 @@ export function createController(connection, { onPlaybackTrace = null } = {}) {
   };
   let epoch = 0, playbackEpoch = 0, libraryEpoch = 0, platformEpoch = 0, timer, playbackTimer, read, transportWrite, settingsWrite, platformWrite, libraryRead,summaryWrite,expressionWrite, disposed = false;
   let networkProxyEpoch = 0, networkProxyRead = null, networkProxyWrite = null;
+  let volumeWrite = null, volumeQueued = null, volumeRemembered = 0.35;
   const writes = new Set();
   const transportCommands = new Set(['pause', 'resume', 'next', 'previous', 'seek', 'requestTrack', 'stopForToday']);
   let libraryOptions = { query: '', offset: 0, limit: 12 };
@@ -504,7 +506,42 @@ export function createController(connection, { onPlaybackTrace = null } = {}) {
       writePreference(WIDGET_POSITION_KEY, next);
       emit({ widgetPosition: next });
     },
+    async setVolume(value) {
+      if (disposed || !state.connected || !Number.isFinite(value) || value < 0 || value > 1) return;
+      if (!volumeWrite) volumeRemembered = state.snapshot?.settings?.volume ?? 0.35;
+      if (value > 0) volumeRemembered = value;
+      volumeQueued = value;
+      emit({ volumePending: value, volumeError: '' });
+      if (volumeWrite) return;
+      // One write at a time, retaining the latest drag position while it is in flight.
+      while (volumeQueued !== null && !disposed && state.connected) {
+        const requestedVolume = volumeQueued;
+        volumeQueued = null;
+        const request = new AbortController();
+        volumeWrite = request;
+        writes.add(request);
+        const playbackVersion = ++playbackEpoch;
+        const timeout = setTimeout(() => request.abort(), 25000);
+        try {
+          const payload = { type: 'setVolume', value: requestedVolume,
+            ...(requestedVolume === 0 ? { previousVolume: volumeRemembered } : {}) };
+          const result = await connection.rpc.call('/api', 'fishfm/command', payload, request.signal);
+          if (disposed) return;
+          if (!result.ok) throw result.error;
+          emit(project(result.value, libraryEpoch, playbackVersion));
+        } catch (error) {
+          if (!disposed && volumeQueued === null) emit({ volumeError: failure(error), ...(unreachable(error) ? { connected: false } : {}) });
+        } finally {
+          clearTimeout(timeout);
+          writes.delete(request);
+          volumeWrite = null;
+        }
+      }
+      volumeQueued = null;
+      if (!disposed) emit({ volumePending: null });
+    },
     async command(type, value) {
+      if (type === 'setVolume') return this.setVolume(value);
       const transport = transportCommands.has(type);
       if (disposed || !state.connected || (!transport && (state.busy || state.transportPending))) return;
       // Pause must reach Core even when a preceding play/skip request is slow.

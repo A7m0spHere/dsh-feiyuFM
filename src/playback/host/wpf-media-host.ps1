@@ -136,6 +136,7 @@ function Get-State {
     positionMs = (Get-Position)
     durationMs = $script:durationMs
     muted = $script:muted
+    volume = $script:volume
     seek = $script:seekSupported
     resource = $script:resource
     errorCode = $script:failed
@@ -605,6 +606,10 @@ function Invoke-Command($command) {
       $openTimeoutMs = 12000
       if ($null -ne $command.openTimeoutMs) { $openTimeoutMs = [int]$command.openTimeoutMs }
       if ($null -ne $command.muted) { $script:muted = [bool]$command.muted }
+      if ($null -ne $command.volume) {
+        $script:volume = [Math]::Max(0.0, [Math]::Min(1.0, [double]$command.volume))
+        $script:player.Volume = $script:volume
+      }
       $autoplay = $false
       if ($null -ne $command.autoplay) { $autoplay = [bool]$command.autoplay }
 
@@ -741,6 +746,17 @@ function Invoke-Command($command) {
       $script:muted = [bool]$command.muted
       try { $script:player.IsMuted = $script:muted } catch { }
       Send-Result $id @{ muted = $script:muted; positionMs = (Get-Position) }
+    }
+    'setVolume' {
+      $level = [double]$command.volume
+      if ($null -eq $command.volume -or [double]::IsNaN($level) -or [double]::IsInfinity($level) -or $level -lt 0 -or $level -gt 1) {
+        Send-ResultError $id 'invalid_command' 'Volume must be between 0 and 1'; return
+      }
+      $script:volume = $level
+      if ($null -ne $command.muted) { $script:muted = [bool]$command.muted }
+      $script:player.Volume = $script:volume
+      $script:player.IsMuted = $script:muted
+      Send-Result $id @{ volume = $script:volume; muted = $script:muted; positionMs = (Get-Position) }
     }
     'snapshot' { Send-Result $id $null }
     'ping' { Send-Result $id $null }

@@ -188,10 +188,11 @@ test('settings RPC persists changes through Core restart and preserves pause', a
     const modeResult = await api('fishfm/command', { type: 'setMode', value: 'focus' });
     assert.equal(modeResult.ok, false);
     assert.equal(modeResult.error.code, 'no_candidates');
-    for (const [type, value] of [['setHumanPlayback', false], ['setDiscoveryRate', .37]]) {
+    for (const [type, value] of [['setVolume', .63], ['setHumanPlayback', false], ['setDiscoveryRate', .37]]) {
       const result = await api('fishfm/command', { type, value });
       assert.equal(result.ok, true);
     }
+    assert.equal((await api('fishfm/command', { type: 'setVolume', value: 0, previousVolume: .71 })).ok, true);
     // Pause remains a separate user action.
     assert.equal((await api('fishfm/command', { type: 'pause' })).value.snapshot.paused, true);
     const expression=await api('fishfm/expression-style',{style:'concise',expectedRevision:0});
@@ -201,6 +202,7 @@ test('settings RPC persists changes through Core restart and preserves pause', a
     const restored = await createSettingsHandler(bridge)('fishfm/state');
     assert.equal(restored.value.snapshot.settings.discoveryRate, .37);
     assert.equal(restored.value.snapshot.settings.humanPlayback, false);
+    assert.equal(restored.value.snapshot.settings.volume, .71);
     assert.equal(restored.value.snapshot.settings.strategy, 'focus');
     assert.equal(restored.value.snapshot.paused, true);
     assert.equal(restored.value.insights.expression.style,'concise');

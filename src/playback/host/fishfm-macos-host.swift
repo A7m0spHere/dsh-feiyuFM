@@ -350,6 +350,16 @@ private final class AudioHost {
             muted = (command["muted"] as? Bool) ?? false
             player.isMuted = muted
             sendResult(id, extra: ["muted": muted, "positionMs": position()])
+        case "setVolume":
+            guard let level = (command["volume"] as? NSNumber)?.doubleValue,
+                  level.isFinite, level >= 0, level <= 1 else {
+                sendResultError(id, code: "invalid_command", message: "Volume must be between 0 and 1")
+                return
+            }
+            player.volume = Float(level)
+            if let outputMuted = command["muted"] as? Bool { muted = outputMuted }
+            player.isMuted = muted
+            sendResult(id, extra: ["volume": player.volume, "muted": muted, "positionMs": position()])
         case "snapshot", "ping": sendResult(id)
         case "shutdown":
             stopPlayback()
@@ -371,6 +381,9 @@ private final class AudioHost {
         player.pause()
         player.replaceCurrentItem(with: nil)
         status = "loading"
+        if let level = (command["volume"] as? NSNumber)?.doubleValue, level.isFinite {
+            player.volume = Float(max(0, min(1, level)))
+        }
         playInstanceID = command["playInstanceId"] as? String
         version = (command["version"] as? NSNumber)?.intValue
         resource = value
@@ -543,6 +556,7 @@ private final class AudioHost {
             "positionMs": position(),
             "durationMs": durationMs.map { $0 as Any } ?? NSNull(),
             "muted": muted,
+            "volume": player.volume,
             "seek": true,
             "resource": resource.map { $0 as Any } ?? NSNull(),
             "errorCode": errorCode.map { $0 as Any } ?? NSNull(),

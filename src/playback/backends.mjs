@@ -100,6 +100,7 @@ export function wpfBackend({
   const adaptive = adaptiveWarm ?? !explicitPool;
   return {
     name: 'wpf-mediaplayer',
+    volumeOverride: volume ?? (env.FISHFM_PLAYBACK_VOLUME === undefined || env.FISHFM_PLAYBACK_VOLUME === '' ? null : effectiveVolume),
     script: WPF_HOST_SCRIPT,
     candidates: candidates ?? powerShellCandidates({ env, exists }),
     extraArgs: (context) => [

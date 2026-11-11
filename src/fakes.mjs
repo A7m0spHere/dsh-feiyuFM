@@ -61,6 +61,7 @@ export class FakeProvider {
 export class FakePlayback {
   constructor() {
     this.version = -1; this.calls = []; this.loaded = null; this.muted = false;
+    this.volume = 0.35;
     this.playing = false; this.eventSink = null; this.loadFailure = null; this.supportsSeek = true;
     this.controlFailures = new Map(); this.stopGate = null;
     // Opt-in: tests that exercise the one-command load+start path set this.
@@ -126,13 +127,14 @@ export class FakePlayback {
     this._fail('pause');
     if (this._accept(version)) this.playing = false;
   }
-  async load({ resource, playInstanceId, startPositionMs, version, muted = null, autoplay = false, usePreload = false }) {
+  async load({ resource, playInstanceId, startPositionMs, version, muted = null, volume = null, autoplay = false, usePreload = false }) {
     this.calls.push({ type: 'load', playInstanceId, version, muted, autoplay, usePreload });
     if (this.loadFailure) { const error = this.loadFailure; this.loadFailure = null; throw error; }
     const positionMs = this.supportsSeek ? startPositionMs : 0;
     if (this._accept(version)) {
       this.loaded = { resource, playInstanceId, positionMs };
       if (muted !== null) this.muted = Boolean(muted);
+      if (volume !== null) this.volume = volume;
       if (autoplay) {
         this.playing = true;
         this.emit({ type: 'started', playInstanceId, version });
@@ -144,6 +146,12 @@ export class FakePlayback {
     this.calls.push({ type: 'setMuted', muted, version });
     this._fail('setMuted');
     if (this._accept(version)) this.muted = muted;
+  }
+  async setVolume({ volume, muted }) {
+    this.calls.push({ type: 'setVolume', volume, muted });
+    this._fail('setVolume');
+    this.volume = volume;
+    this.muted = muted;
   }
   async play({ playInstanceId, version }) {
     this.calls.push({ type: 'play', playInstanceId, version });

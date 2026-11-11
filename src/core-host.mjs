@@ -503,15 +503,17 @@ export function createCoreHost({
           const dispatchMs = performance.now() - dispatchStarted;
           if (dispatchMs >= 50) onLog({ type: 'slow-op', op: 'dispatch', durationMs: Math.round(dispatchMs), kind: message.command?.type });
           if (snapshot.revision !== revision && ['resetLibrary', 'resetTaste', 'undoTasteReset'].includes(message.command?.type)) ++inputEpoch;
-          invalidateProfile();
-          if(['resetLibrary','resetTaste','undoTasteReset','setRecommendationMode'].includes(message.command?.type))platformsFacade?.clearDiscovery();
-          platformsFacade?.setDiscoveryEnabled(snapshot.settings.discovery && snapshot.settings.discoveryRate > 0);
-          platformsFacade?.tickDiscovery();
+          if (message.command?.type !== 'setVolume') {
+            invalidateProfile();
+            if(['resetLibrary','resetTaste','undoTasteReset','setRecommendationMode'].includes(message.command?.type))platformsFacade?.clearDiscovery();
+            platformsFacade?.setDiscoveryEnabled(snapshot.settings.discovery && snapshot.settings.discoveryRate > 0);
+            platformsFacade?.tickDiscovery();
+          }
           // Transport commands do not change discovery settings. Dispatch has
           // already produced the accepted snapshot; rebuilding it delayed the
           // UI reply and the foreground load queued behind this handler.
           const transport = ['pause', 'resume', 'next', 'previous', 'seek', 'requestTrack', 'stopForToday'].includes(message.command?.type);
-          const acceptedSnapshot = transport ? snapshot : core.snapshot();
+          const acceptedSnapshot = transport || message.command?.type === 'setVolume' ? snapshot : core.snapshot();
           const coreAcceptedAt = Date.now();
           if (traceId) onLog({ type: 'playback-timing', phase: 'core-accepted', traceId, at: coreAcceptedAt,
             version: acceptedSnapshot.commandVersion, playInstanceId: acceptedSnapshot.current?.playInstanceId });

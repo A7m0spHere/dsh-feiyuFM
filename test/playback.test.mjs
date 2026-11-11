@@ -65,6 +65,40 @@ function controlledService() {
   return { supervisor, service, events };
 }
 
+test('volume controls preserve pending opens, preload swaps, transport version and paused position', async () => {
+  const h = harness({ openDelayMs: 160, durationMs: 10000 });
+  try {
+    await h.supervisor.ensureHost();
+    const loading = h.service.load({ resource: { handle: 'fake:volume-a' }, playInstanceId: 'volume-a', version: 1, volume: 0.2, muted: true, autoplay: true });
+    await delay(40);
+    await h.service.setVolume({ volume: 0.73, muted: true });
+    await loading;
+    assert.equal((await h.service.hostSnapshot()).volume, 0.73);
+    await h.service.preload({ resource: { handle: 'fake:volume-b' }, version: 1 });
+    const swapped = await h.service.load({ resource: { handle: 'fake:volume-b' }, playInstanceId: 'volume-b', version: 2, volume: 0.73, muted: true, autoplay: true, usePreload: true });
+    assert.equal(swapped.preloaded, true);
+    await h.service.pause({ version: 3 });
+    const paused = await h.service.hostSnapshot();
+    await h.service.setVolume({ volume: 0.41, muted: false });
+    const changed = await h.service.hostSnapshot();
+    assert.equal(changed.volume, 0.41);
+    assert.equal(changed.muted, false);
+    assert.equal(changed.version, 3);
+    assert.equal(changed.status, 'paused');
+    assert.equal(changed.positionMs, paused.positionMs);
+  } finally { await shutdown(h.service); }
+});
+
+test('an explicit silent diagnostic backend retains its volume override', async () => {
+  const commands = [];
+  const supervisor = { backend: wpfBackend({ volume: 0 }), async request(command) { commands.push(command); return { positionMs: 0 }; } };
+  const service = new PlaybackService({ supervisor, mediaDownloads: null });
+  await service.setVolume({ volume: 0.9, muted: false });
+  await service.load({ resource: { handle: 'fake:override' }, playInstanceId: 'override', version: 1, volume: 0.9 });
+  assert.equal(commands.find(command => command.type === 'setVolume').volume, 0);
+  assert.equal(commands.find(command => command.type === 'load').volume, 0);
+});
+
 for (const status of ['ended', 'error']) {
   test(`a reconnect snapshot adopts a missed ${status} once without crediting disconnected time`, async () => {
     const h = controlledService();
