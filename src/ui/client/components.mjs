@@ -23,6 +23,33 @@ export function StatusMark({ active }) {
     : h('i', { className: 'fm-dot', 'data-off': true, 'aria-hidden': true });
 }
 
+export function VolumeControl({ controller, state }) {
+  const settings = state.snapshot?.settings ?? {};
+  const savedVolume = Number.isFinite(settings.volume) && settings.volume > 0 && settings.volume <= 1 ? settings.volume : 0.35;
+  const level = state.volumePending ?? (settings.humanPlayback ? savedVolume : 0);
+  const percentage = Math.round(level * 100);
+  const previousVolume = React.useRef(savedVolume);
+  const volumeId = React.useId();
+  React.useEffect(() => {
+    if (state.volumePending == null) previousVolume.current = savedVolume;
+  }, [savedVolume, state.volumePending]);
+  const update = value => {
+    if (value > 0) previousVolume.current = value;
+    void controller.command('setVolume', value);
+  };
+  const disabled = !state.connected || !state.snapshot;
+  const error = state.volumeError || state.snapshot?.volumeError?.message;
+  return h('div', { className: 'fm-volume', role: 'group', 'aria-label': '音量控制' },
+    h('button', { type: 'button', className: 'fm-button fm-volume-mute', disabled,
+      'aria-label': level === 0 ? '恢复音量' : '静音', 'aria-pressed': level === 0,
+      onClick: () => update(level === 0 ? previousVolume.current : 0) }, h(Svg, { type: level === 0 ? 'muted' : 'sound' })),
+    h('input', { id: volumeId, type: 'range', className: 'fm-volume-slider', min: 0, max: 100, step: 1,
+      value: percentage, disabled, 'aria-label': '音量', 'aria-valuetext': level === 0 ? '已静音' : `${percentage}%`,
+      style: { '--fm-volume-level': `${percentage}%` }, onChange: event => update(Number(event.target.value) / 100) }),
+    h('output', { htmlFor: volumeId, className: 'fm-volume-value', 'aria-live': 'off' }, `${percentage}%`),
+    error && h('span', { className: 'fm-volume-error', role: 'status' }, error));
+}
+
 export function PlaybackArtwork({ art, active, motion, effects, available, alt = '' }) {
   const base = '/fishfm/assets/';
   const dancing = effects && available && active;

@@ -5,15 +5,14 @@ import { MusicError } from '../contracts.mjs';
 /** Bump when any message shape below changes in a way an older peer cannot read. */
 export const PROTOCOL_VERSION = 1;
 
-export const HOST_COMMANDS = Object.freeze(['load', 'play', 'pause', 'seek', 'stop', 'setMuted', 'snapshot', 'ping', 'shutdown']);
+export const HOST_COMMANDS = Object.freeze(['load', 'play', 'pause', 'seek', 'stop', 'setMuted', 'setVolume', 'snapshot', 'ping', 'shutdown']);
 
 /**
- * Optional load fields. A host that advertises `capabilities.autoplay` applies
- * them inside the same command, so a track switch is one round trip instead of
- * three (load + setMuted + play). Older hosts ignore the fields; the service
- * only sends them when the greeting advertised support.
+ * Optional load fields. Volume is applied before playback starts. A host that
+ * advertises `capabilities.autoplay` can also mute + start inside load, reducing
+ * a track switch to one round trip. Autoplay stays gated on that greeting.
  */
-export const LOAD_OPTIONS = Object.freeze(['muted', 'autoplay']);
+export const LOAD_OPTIONS = Object.freeze(['muted', 'volume', 'autoplay']);
 
 export const HOST_EVENTS = Object.freeze(['started', 'progress', 'ended', 'error', 'exiting']);
 

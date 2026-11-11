@@ -491,7 +491,7 @@ export const css = `
   .fm-taste-page .fm-main-column { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:24px; }
   .fm-taste-page h2 { margin-top:0; }
   .fm-player-dock { position:sticky; bottom:0; z-index:7; display:grid;
-    grid-template-columns:minmax(100px,1fr) minmax(230px,1.5fr) minmax(80px,1fr); gap:20px; align-items:center;
+    grid-template-columns:minmax(100px,1fr) minmax(230px,1.5fr) minmax(180px,1fr); gap:20px; align-items:center;
     margin: auto -24px 0; padding:16px 24px; background:var(--fm-surface); border-top:1px solid var(--fm-line); }
   .fm-dock-track { display:grid; gap:3px; min-width:0; }
   .fm-dock-track strong { font-size:13px; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
@@ -502,7 +502,18 @@ export const css = `
   .fm-dock-timeline { display:flex; align-items:center; gap:9px; color:var(--fm-muted); font-size:11px;
     font-variant-numeric:tabular-nums; margin-top:10px; }
   .fm-dock-timeline .fm-progress { flex:1; height:3px; margin:0; }
-  .fm-sound-action { justify-self:end; background:transparent; border:0; font-size:12px; color:var(--fm-muted); white-space:nowrap; }
+  .fm-volume { justify-self:end; display:grid; grid-template-columns:auto minmax(70px,112px) 34px; align-items:center; gap:8px; min-width:0; }
+  .fm-volume .fm-volume-mute { padding:8px; min-width:34px; background:transparent; border:0; color:var(--fm-muted); }
+  .fm-volume-value { color:var(--fm-muted); font-size:12px; text-align:right; font-variant-numeric:tabular-nums; }
+  .fm-volume-slider { appearance:none; -webkit-appearance:none; width:100%; height:28px; margin:0; padding:0; background:transparent; border:0; cursor:pointer; }
+  .fm-volume-slider::-webkit-slider-runnable-track { height:4px; border-radius:999px; background:linear-gradient(to right,var(--fm-accent) var(--fm-volume-level),var(--fm-line-strong) var(--fm-volume-level)); }
+  .fm-volume-slider::-webkit-slider-thumb { appearance:none; -webkit-appearance:none; width:12px; height:12px; margin-top:-4px; border:2px solid var(--fm-accent); border-radius:50%; background:var(--fm-surface); }
+  .fm-volume-slider::-moz-range-track { height:4px; border-radius:999px; background:var(--fm-line-strong); }
+  .fm-volume-slider::-moz-range-progress { height:4px; border-radius:999px; background:var(--fm-accent); }
+  .fm-volume-slider::-moz-range-thumb { width:9px; height:9px; border:2px solid var(--fm-accent); border-radius:50%; background:var(--fm-surface); }
+  .fm-volume-slider:focus-visible { outline:2px solid var(--fm-accent); outline-offset:3px; border-radius:4px; }
+  .fm-volume-slider:disabled { opacity:.5; cursor:default; }
+  .fm-volume-error { grid-column:1/-1; max-width:190px; color:var(--fm-danger); font-size:11px; overflow-wrap:anywhere; }
   .fm-settings-body { display:grid; grid-template-columns:minmax(0,1fr); gap:22px; padding:20px 0; }
   .fm-settings-page .fm-settings-body { grid-template-columns:minmax(0,.9fr) minmax(0,1.1fr); align-items:start; gap:28px; padding:0; }
   .fm-settings-body>* { min-width:0; }
@@ -520,7 +531,7 @@ export const css = `
     .fm-companion-hero{grid-template-columns:minmax(140px,.8fr) minmax(0,1fr);gap:24px;padding:12px 8px 24px}
     .fm-companion-hero .fm-art{min-height:220px}.fm-companion-hero .fm-art img{width:190px;height:215px}
     .fm-companion-hero .fm-track{font-size:28px}.fm-picks{gap:16px}
-    .fm-player-dock{grid-template-columns:minmax(0,1fr) auto;gap:10px}.fm-dock-track{display:none}.fm-sound-action span{display:none}
+    .fm-player-dock{grid-template-columns:minmax(0,1fr) auto;gap:10px}.fm-dock-track{display:none}
     .fm-taste-page .fm-main-column{grid-template-columns:1fr}
     .fm-settings-page .fm-settings-body{grid-template-columns:minmax(0,1fr);gap:22px}
   }
@@ -534,7 +545,16 @@ export const css = `
     .fm-persona-card{padding:19px 18px 14px}.fm-pick-reason{-webkit-line-clamp:2}.fm-pool-heading{gap:8px}
     .fm-pool-footer{gap:6px}.fm-page-nav{gap:0 22px}.fm-page-nav button{font-size:13px}
     .fm-player-dock .fm-controls .fm-button{font-size:12px;min-height:36px;padding:6px 9px}
-    .fm-player-dock .fm-sound-action{padding:6px}.fm-dock-timeline{gap:6px}
+    .fm-dock-timeline{gap:6px}
+  }
+  @container fishfm (max-width:440px) {
+    .fm-player-dock { grid-template-columns:minmax(0,1fr);gap:8px; }
+    .fm-volume { justify-self:center; }
+  }
+  @media(pointer:coarse) {
+    .fm-volume { grid-template-columns:auto minmax(60px,100px) 34px; }
+    .fm-volume .fm-volume-mute { min-width:44px;min-height:44px; }
+    .fm-volume-slider { height:44px; }
   }
   @media(max-width:600px) { .fishfm{padding:18px 14px 0}.fm-player-dock{margin-inline:-14px;padding-inline:14px} }
   @container fishfm (min-width:561px) {

@@ -25,6 +25,106 @@ function harness(store = new MusicStore()) {
   return { store, provider, playback, clock, core, send };
 }
 
+test('volume validates input, remembers the last audible level and restores it after restart', async () => {
+  const h = harness();
+  try {
+    assert.equal(h.core.snapshot().settings.volume, 0.35);
+    for (const value of [NaN, Infinity, -0.1, 1.1, '0.5', null]) {
+      assert.throws(() => h.send('setVolume', { value }), { code: 'invalid_command' });
+    }
+    for (const previousVolume of [NaN, Infinity, 0, -0.1, 1.1, '0.5', null]) {
+      assert.throws(() => h.send('setVolume', { value: 0, previousVolume }), { code: 'invalid_command' });
+    }
+    h.send('setVolume', { value: 0.62 });
+    await h.core.waitForIdle();
+    h.send('setVolume', { value: 0 });
+    await h.core.waitForIdle();
+    assert.equal(h.core.snapshot().settings.volume, 0.62);
+    assert.equal(h.core.snapshot().settings.humanPlayback, false);
+    const restored = harness(h.store);
+    assert.equal(restored.core.snapshot().settings.volume, 0.62);
+    assert.equal(restored.core.snapshot().settings.humanPlayback, false);
+    restored.send('setHumanPlayback', { value: true, commandId: 'restore-sound' });
+    await restored.core.waitForIdle();
+    restored.send('requestTrack', { track: a, commandId: 'restored-play' });
+    await restored.core.waitForIdle();
+    assert.equal(restored.playback.volume, 0.62);
+    assert.equal(restored.playback.muted, false);
+  } finally { h.store.close(); }
+});
+
+test('a coalesced zero volume atomically remembers the latest unconfirmed nonzero level', async () => {
+  const h = harness();
+  try {
+    h.send('setVolume', { value: 0.2 });
+    h.send('setVolume', { value: 0, previousVolume: 0.87 });
+    await h.core.waitForIdle();
+    assert.equal(h.core.snapshot().settings.volume, 0.87);
+    assert.equal(h.core.snapshot().settings.humanPlayback, false);
+    assert.equal(h.playback.volume, 0.87);
+    assert.equal(h.playback.muted, true);
+    assert.equal(h.playback.calls.filter(call => call.type === 'setVolume').length, 1);
+  } finally { h.store.close(); }
+});
+
+test('legacy settings gain the existing 35 percent default without changing mute', () => {
+  const store = new MusicStore();
+  const h = harness(store);
+  const saved = h.core.snapshot();
+  delete saved.settings.volume;
+  saved.settings.humanPlayback = false;
+  store.setCoreState(saved);
+  try {
+    const restored = harness(store);
+    assert.equal(restored.core.snapshot().settings.volume, 0.35);
+    assert.equal(restored.core.snapshot().settings.humanPlayback, false);
+  } finally { store.close(); }
+});
+
+test('volume changes preserve an in-flight resolve and cannot undo pause or replace the play instance', async () => {
+  const h = harness();
+  try {
+    h.provider.defer(a);
+    h.send('requestTrack', { track: a });
+    await new Promise(resolve => setImmediate(resolve));
+    const before = h.core.snapshot();
+    h.send('setVolume', { value: 0.7 });
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(h.core.snapshot().commandVersion, before.commandVersion);
+    assert.equal(h.provider.calls.length, 1);
+    assert.equal(h.provider.calls[0].signal.aborted, false);
+    h.provider.release(a);
+    await h.core.waitForIdle();
+    assert.equal(h.playback.volume, 0.7);
+    h.send('pause');
+    h.send('setVolume', { value: 0.2 });
+    await h.core.waitForIdle();
+    assert.equal(h.playback.playing, false);
+    assert.equal(h.core.snapshot().paused, true);
+    assert.equal(h.core.snapshot().current.playInstanceId, before.current.playInstanceId);
+    assert.equal(h.playback.volume, 0.2);
+  } finally { h.store.close(); }
+});
+
+test('a failed volume update preserves the current track and a later retry clears its error', async () => {
+  const h = harness();
+  try {
+    h.send('requestTrack', { track: a });
+    await h.core.waitForIdle();
+    const current = h.core.snapshot().current.playInstanceId;
+    h.playback.failNextControl('setVolume');
+    h.send('setVolume', { value: 0.8 });
+    await h.core.waitForIdle();
+    assert.equal(h.core.snapshot().status, 'playing');
+    assert.equal(h.core.snapshot().current.playInstanceId, current);
+    assert.equal(h.core.snapshot().volumeError.code, 'playback_control_failure');
+    h.send('setVolume', { value: 0.8 });
+    await h.core.waitForIdle();
+    assert.equal(h.core.snapshot().volumeError, null);
+    assert.equal(h.playback.volume, 0.8);
+  } finally { h.store.close(); }
+});
+
 test('next uses the imported library with an empty queue, excludes the current song and preserves pause', async () => {
   const h = harness();
   h.core.selector = createSelector({ store: h.store, listFamiliar: () => [a, b], now: () => h.clock.now() });

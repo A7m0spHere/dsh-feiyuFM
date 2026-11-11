@@ -77,6 +77,101 @@ const snapshot = (revision, humanPlayback = true) => ({ revision, settings: {
 const state = value => ({ ok: true, value: { snapshot: value, platforms: {} } });
 const tick = () => new Promise(resolve => setImmediate(resolve));
 
+test('volume writes retain the last drag position while allowing pause and rejecting stale replies', async () => {
+  const writes = [];
+  const initial = { ...snapshot(1), paused: false, status: 'playing' };
+  const f = fixture(async (_channel, endpoint, payload) => {
+    if (endpoint === 'fishfm/command' && payload.type === 'setVolume') {
+      return new Promise(resolve => writes.push({ value: payload.value, resolve }));
+    }
+    if (endpoint === 'fishfm/command' && payload.type === 'pause') return state({ ...snapshot(3), commandVersion: 2 });
+    return state(initial);
+  });
+  try {
+    await f.controller.refresh();
+    const first = f.controller.command('setVolume', 0.2);
+    await f.controller.command('setVolume', 0.4);
+    await f.controller.command('setVolume', 0.8);
+    assert.equal(writes.length, 1);
+    assert.equal(f.controller.getSnapshot().volumePending, 0.8);
+    assert.equal(all(f.render()).find(node => node.props['aria-label'] === '音量').props.disabled, false);
+    await f.controller.command('pause');
+    writes[0].resolve(state({ ...initial, revision: 2, settings: { ...initial.settings, volume: 0.2 } }));
+    await tick();
+    assert.equal(writes.length, 2);
+    assert.equal(writes[1].value, 0.8);
+    writes[1].resolve(state({ ...snapshot(4), commandVersion: 2, settings: { ...snapshot(4).settings, volume: 0.8 } }));
+    await first;
+    assert.equal(f.controller.getSnapshot().volumePending, null);
+    assert.equal(f.controller.getSnapshot().snapshot.paused, true);
+    assert.equal(all(f.render()).find(node => node.props['aria-label'] === '音量').props.value, 80);
+  } finally { f.dispose(); }
+});
+
+test('the inline volume control supports legacy snapshots, zero mute and restoring the last level', async () => {
+  let value = snapshot(1);
+  const f = fixture(async (_channel, endpoint, payload) => {
+    if (endpoint === 'fishfm/command') {
+      assert.equal(payload.type, 'setVolume');
+      value = { ...value, revision: value.revision + 1, settings: { ...value.settings,
+        volume: payload.value > 0 ? payload.value : value.settings.volume, humanPlayback: payload.value > 0 } };
+    }
+    return state(value);
+  });
+  try {
+    await f.controller.refresh();
+    let slider = all(f.render()).find(node => node.props['aria-label'] === '音量');
+    assert.equal(slider.props.value, 35);
+    slider.props.onChange({ target: { value: '58' } });
+    await tick();
+    all(f.render()).find(node => node.props['aria-label'] === '静音').props.onClick();
+    await tick();
+    assert.equal(all(f.render()).find(node => node.props['aria-label'] === '音量').props.value, 0);
+    all(f.render()).find(node => node.props['aria-label'] === '恢复音量').props.onClick();
+    await tick();
+    slider = all(f.render()).find(node => node.props['aria-label'] === '音量');
+    assert.equal(slider.props.value, 58);
+    assert.equal(value.settings.humanPlayback, true);
+  } finally { f.dispose(); }
+});
+
+test('dragging through a queued positive level to zero retains that level in the mute command', async () => {
+  const requests = [];
+  const f = fixture(async (_channel, endpoint, payload) => endpoint === 'fishfm/command'
+    ? new Promise(resolve => requests.push({ payload, resolve })) : state(snapshot(1)));
+  try {
+    await f.controller.refresh();
+    const writing = f.controller.command('setVolume', 0.2);
+    await f.controller.command('setVolume', 0.87);
+    await f.controller.command('setVolume', 0);
+    requests[0].resolve(state({ ...snapshot(2), settings: { ...snapshot(2).settings, volume: 0.2 } }));
+    await tick();
+    assert.equal(requests[1].payload.value, 0);
+    assert.equal(requests[1].payload.previousVolume, 0.87);
+    requests[1].resolve(state({ ...snapshot(3, false), settings: { ...snapshot(3, false).settings, volume: 0.87 } }));
+    await writing;
+    assert.equal(f.controller.getSnapshot().snapshot.settings.volume, 0.87);
+    assert.equal(f.controller.getSnapshot().snapshot.settings.humanPlayback, false);
+  } finally { f.dispose(); }
+});
+
+test('failed volume RPC restores the confirmed value and leaves the control available for retry', async () => {
+  let fail = true;
+  const f = fixture(async (_channel, endpoint) => endpoint === 'fishfm/command' && fail
+    ? { ok: false, error: { code: 'invalid_command', message: '音量未保存' } } : state(snapshot(2)));
+  try {
+    await f.controller.refresh();
+    await f.controller.command('setVolume', 0.9);
+    assert.equal(f.controller.getSnapshot().volumePending, null);
+    assert.equal(f.controller.getSnapshot().connected, true);
+    assert.equal(all(f.render()).find(node => node.props['aria-label'] === '音量').props.value, 35);
+    assert.match(f.controller.getSnapshot().volumeError, /音量未保存/);
+    fail = false;
+    await f.controller.command('setVolume', 0.35);
+    assert.equal(f.controller.getSnapshot().volumeError, '');
+  } finally { f.dispose(); }
+});
+
 test('lyrics reads abort even when RPC ignores the signal and seek passes instance/position without blocking pause', async () => {
   let release;
   const calls = [];

@@ -10,7 +10,7 @@ import {validateExpressionInput} from '../expression.mjs';
 import {validateFeedbackQuery,validateFeedbackClear} from '../feedback.mjs';
 import { validateNetworkProxy } from '../network.mjs';
 
-const ALLOWED = new Set(['pause', 'resume', 'next', 'previous', 'seek', 'setListening', 'setHumanPlayback',
+const ALLOWED = new Set(['pause', 'resume', 'next', 'previous', 'seek', 'setListening', 'setHumanPlayback', 'setVolume',
   'setDiscovery', 'setDiscoveryRate', 'setMode', 'stopForToday', 'chooseSelf', 'requestTrack', 'setTrackFeedback', 'resetTaste', 'resetLibrary', 'undoTasteReset','setRecommendationMode']);
 const QUICK_LOGIN_PROVIDER = 'netease';
 const STATE_ENDPOINT = 'fishfm/state';
@@ -274,6 +274,7 @@ export function createSettingsHandler(bridge,summaryService={current:null}) {
           throw Object.assign(new Error('Unsupported settings command'), { code: 'invalid_command' });
         }
         command = { type: payload.type, value: payload.value, commandId: randomUUID() };
+        if (command.type === 'setVolume' && payload.previousVolume !== undefined) command.previousVolume = payload.previousVolume;
         if (typeof payload.traceId === 'string' && /^[\w:.-]{1,100}$/.test(payload.traceId)
           && ['pause','resume','next','previous','seek','requestTrack','stopForToday'].includes(command.type)) command.traceId = payload.traceId;
         if (command.type === 'seek') { command.positionMs = payload.positionMs; command.playInstanceId = payload.playInstanceId; }

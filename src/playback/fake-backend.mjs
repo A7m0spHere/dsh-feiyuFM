@@ -43,6 +43,7 @@ let version = null;
 let acceptedVersion = -1;
 let resource = null;
 let muted = false;
+let volume = 0.35;
 let positionMs = 0;
 let startedSent = false;
 let endedSent = false;
@@ -75,6 +76,7 @@ const state = () => ({
   positionMs: Math.round(currentPosition()),
   durationMs,
   muted,
+  volume,
   seek: supportsSeek,
   resource,
 });
@@ -141,6 +143,7 @@ function handle(command, id) {
         endedSent = false;
         transientZeroPending = false;
         if (typeof command.muted === 'boolean') muted = command.muted;
+        if (Number.isFinite(command.volume)) volume = command.volume;
         status = command.autoplay === true ? 'playing' : 'ready';
         if (command.autoplay === true) playingSince = Date.now();
         sendResult(id, { positionMs: 0, seek: true, muted, playing: command.autoplay === true, preloaded: true });
@@ -159,6 +162,7 @@ function handle(command, id) {
       endedSent = false;
       transientZeroPending = false;
       if (typeof command.muted === 'boolean') muted = command.muted;
+      if (Number.isFinite(command.volume)) volume = command.volume;
       const autoplay = command.autoplay === true;
       if (crashOn === 'load') return void setTimeout(crash, crashDelayMs);
       const pending = { id, timer: null };
@@ -263,6 +267,14 @@ function handle(command, id) {
       muted = command.muted === true;
       return void sendResult(id, { muted, positionMs: Math.round(currentPosition()) });
     }
+    case 'setVolume': {
+      if (!Number.isFinite(command.volume) || command.volume < 0 || command.volume > 1) {
+        return void sendError(id, 'invalid_command', 'Volume must be between 0 and 1');
+      }
+      volume = command.volume;
+      if (typeof command.muted === 'boolean') muted = command.muted;
+      return void sendResult(id, { volume, muted, positionMs: Math.round(currentPosition()) });
+    }
     case 'snapshot':
     case 'ping':
       return void sendResult(id);
@@ -334,7 +346,7 @@ function accept() {
       pid: process.pid,
       backend: 'fake-backend',
       ownerPid: OWNER_PID,
-      capabilities: { seek: supportsSeek, seekInPlace: supportsSeek, mute: true, autoplay: true, reuseSwitch: true, preload: true },
+      capabilities: { seek: supportsSeek, seekInPlace: supportsSeek, mute: true, volume: true, autoplay: true, reuseSwitch: true, preload: true },
     });
     send({ type: 'state', ...state() });
     socket.on('data', (chunk) => {

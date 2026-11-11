@@ -49,6 +49,8 @@ export class PlaybackService {
     this.active = null;
     this.acceptedVersion = -1;
     this.muted = false;
+    this.volume = null;
+    this.outputRevision = 0;
     this.closing = false;
     this.hostExiting = false;
     this.lastForwardedMs = 0;
@@ -75,6 +77,7 @@ export class PlaybackService {
       hostStatus: host?.status ?? null,
       hostBusy: this.supervisor.connected,
       muted: this.muted,
+      volume: this.volume,
       acceptedVersion: this.acceptedVersion,
       playInstanceId: this.active?.playInstanceId ?? null,
       positionMs: this.active?.positionMs ?? 0,
@@ -256,7 +259,7 @@ export class PlaybackService {
     if (this._preloadCancellation === cancellation) this._preloadCancellation = null;
   }
 
-  async load({ resource, playInstanceId, startPositionMs = 0, version, signal, muted = null, autoplay = false, usePreload = false }) {
+  async load({ resource, playInstanceId, startPositionMs = 0, version, signal, muted = null, volume = null, autoplay = false, usePreload = false }) {
     if (this.closing) throw playbackError('playback_closed', 'Playback service is closing');
     if (!this._acceptVersion(version)) {
       throw playbackError('stale_version', 'Ignored a load for an older command version');
@@ -271,7 +274,9 @@ export class PlaybackService {
     this._mediaLoad?.abort();
     const controller = this.mediaDownloads ? new AbortController() : null;
     this._mediaLoad = controller;
-    if (controller && muted !== null) this.muted = Boolean(muted);
+    if (muted !== null) this.muted = Boolean(muted);
+    if (volume !== null) this.volume = volume;
+    const outputRevision = this.outputRevision;
     const loadSignal = controller ? (signal ? AbortSignal.any([signal, controller.signal]) : controller.signal) : signal;
     const current = () => !loadSignal?.aborted && !this.closing
       && (!Number.isFinite(version) || version >= this.acceptedVersion) && (!controller || this._mediaLoad === controller);
@@ -300,7 +305,8 @@ export class PlaybackService {
         startPositionMs: startMs,
         version,
         openTimeoutMs: Math.ceil(remaining),
-        ...(muted === null ? {} : { muted: controller ? this.muted : Boolean(muted) }),
+        ...(muted === null ? {} : { muted: this.muted }),
+        ...(this.volume === null ? {} : { volume: this.supervisor.backend?.volumeOverride ?? this.volume }),
         ...(autoplay ? { autoplay: true } : {}),
         ...(usePreload ? { usePreload: true } : {}),
       }, { timeoutMs: remaining + this.commandTimeoutMs }), loadSignal);
@@ -315,8 +321,7 @@ export class PlaybackService {
       this.lastProgressAt = 0;
       if (answer.seek === false) this.capabilities.seek = false;
       else if (startMs > 0) this.capabilities.seek = true;
-      if (typeof answer.muted === 'boolean') this.muted = answer.muted;
-      else if (muted !== null) this.muted = Boolean(muted);
+      if (outputRevision === this.outputRevision && typeof answer.muted === 'boolean') this.muted = answer.muted;
       const playing = answer.playing === true;
       const preloaded = answer.preloaded === true;
       const previousMedia = this._mediaActive;
@@ -387,11 +392,22 @@ export class PlaybackService {
     const pendingSeek = this.seeking;
     const commandVersion = version ?? this.acceptedVersion;
     this.muted = Boolean(muted);
+    this.outputRevision += 1;
     const answer = await this._send('setMuted', { muted: this.muted, version: commandVersion });
     if (active && pendingSeek?.active === active && pendingSeek.version < commandVersion) {
       this._position(active, answer.positionMs ?? answer.state?.positionMs, commandVersion);
       if (answer.state) this._adoptState(answer.state);
     }
+  }
+
+  async setVolume({ volume, muted = this.muted } = {}) {
+    if (this.closing) return;
+    if (!Number.isFinite(volume) || volume < 0 || volume > 1) throw playbackError('invalid_command', 'Invalid output volume');
+    this.volume = volume;
+    this.muted = Boolean(muted);
+    this.outputRevision += 1;
+    // Output changes keep the transport version, pending open and seek intact.
+    await this._send('setVolume', { volume: this.supervisor.backend?.volumeOverride ?? volume, muted: this.muted });
   }
 
   /**

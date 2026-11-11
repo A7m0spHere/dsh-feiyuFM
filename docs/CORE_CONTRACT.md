@@ -1,6 +1,6 @@
 # 内部控制契约
 
-更新：2026-11-05。本文只维护内部字段、命令与边界，DSH 外部接口经 Adapter 映射；职责见 [架构](ARCHITECTURE.md)，用户行为见 [MVP](MVP.md)，实现／部署／验收状态只看 [开发状态](PROJECT_PLAN.md)。历史理由查 [决策摘要](DECISIONS.md) 与 [实验记录](spikes/README.md)。
+更新：2026-11-11。本文只维护内部字段、命令与边界，DSH 外部接口经 Adapter 映射；职责见 [架构](ARCHITECTURE.md)，用户行为见 [MVP](MVP.md)，实现／部署／验收状态只看 [开发状态](PROJECT_PLAN.md)。历史理由查 [决策摘要](DECISIONS.md) 与 [实验记录](spikes/README.md)。
 
 ## 1. 曲目、账号与资源
 
@@ -36,6 +36,7 @@ Core 独立歌词服务最多缓存 100 首，按曲目及账号状态／登录�
 | `previous` | 无 | 返回实际播放历史中的上一首；用户显式操作可绕过最近 50 首自动防重复窗口，但仍跳过禁播/不可播；连续返回用固定历史游标，不因新播放记录来回跳；无更早可播返回 `no_previous`；暂停期间换曲仍暂停 |
 | `requestTrack` | `track` | 明确点播并解除暂停，不自动改声音或自主开关；禁播返回 `constraint_conflict` |
 | `setListening/setHumanPlayback/setDiscovery` | `value: boolean` | 独立开关；关闭自主会暂停当前 Agent 曲目 |
+| `setVolume` | `value: number`，有限且为 `0..1`，可选 `previousVolume: 0 < number <= 1` | 正值保存音量并开启声音。0 关闭声音并保留最近一次非零音量，拖动合并时可用 `previousVolume` 原子保存刚才选中的非零值。保持播放版本、当前实例和暂停意图 |
 | `setDiscoveryRate` | `value: 0..1` | filtered 模式作筛选偏好，0 不自动播陌生曲；旧兼容模式仍作池选择概率 |
 | `setMode` | `normal/focus/silent/off` | normal/focus 启用自主并恢复声音；silent 静听；off 关闭两开关并暂停 |
 | `stopForToday/chooseSelf` | 无 | 禁止当日自主并暂停 / 解除当日限制、开启自主并尝试恢复 |
@@ -44,6 +45,8 @@ Core 独立歌词服务最多缓存 100 首，按曲目及账号状态／登录�
 | `resetTaste/resetLibrary` | `value: {clearFeedback: boolean}` | 保存可撤销恢复点，与去重记录同事务；模型预留/运行中返回 `summary_busy` |
 | `undoTasteReset` | 无 | 恢复最近恢复点，缺备份返回 `no_reset_backup`，重置后新增反馈优先 |
 | `setRecommendationMode` | `value: filtered/llm/platform` | filtered 默认平台召回后筛选；后两项保留内部兼容，界面不提供旧来源切换 |
+
+`settings.volume` 保存最近一次非零输出音量，范围 `0 < volume <= 1`，旧数据缺省为既有的 `0.35`。`humanPlayback=false` 时界面显示 0%。`setVolume` 通过现有认证 `fishfm/command` 转发，客户端采用独立串行写入并合并在途拖动的最新值，保持暂停／换曲可用。旧响应继续受快照 revision 与播放代次保护，在途非零响应不会覆盖用户刚选择的恢复音量。音量同步失败显示独立 `volumeError`，保留当前曲目，可重试。音量调节不刷新画像或平台候选。
 
 快照附 `playbackCapabilities.seek`（当前宿主／实例是否可原地定位）、`seekPending={playInstanceId,positionMs}|null` 和 `seekError={code,message}|null`。接受跳转时保留真实旧位置，宿主确认后允许位置前移或后退并重新锚定；失败查询实际宿主位置，不伪造已到达。新暂停／换曲取代旧定位，快速连点以最后有效版本为准；重启清空等待和跳转错误。客户端在等待时复用 500ms 的轻量控制刷新，逐行滚动本身不增加 RPC。该位置变动不累计收听、不登记 started，不修改推荐或最近 50 次记录。
 
@@ -203,13 +206,16 @@ U24 为 filtered 状态投影的 `playbackPool` 可选增加 `tracks`：最多 1
 
 | 方法/事件 | 字段与要求 |
 |---|---|
-| `load` | `{resource, playInstanceId, startPositionMs, version, signal}`；媒体就绪返回实际 `{positionMs}`，无法 seek 返回 0 |
+| `load` | `{resource, playInstanceId, startPositionMs, version, signal, volume?}`，媒体就绪返回实际 `{positionMs}`，无法 seek 返回 0。可选音量在起播前应用 |
 | `play/pause/stop/setMuted` | 携带版本，拒绝旧命令；暂停/停止可取消 pending open |
+| `setVolume` | `{volume,muted}`，原子更新原生输出。使用独立输出状态，不携带或递增播放版本，保持加载／跳转／暂停。宿主快照含实际 `volume` |
 | `seek` | `{playInstanceId,positionMs,version,signal}`；需 hello 的 `seekInPlace:true`（旧 `seek` 仅表示加载起点能力），返回宿主实际 `{positionMs}`；不重新 Open／Play、不改变暂停或静音 |
 | `started` | 当前时间线确实推进后才发，系统 Play 返回不算证据 |
 | `progress` | 实例、版本、`positionMs/effectiveDeltaMs/progressSource`；只向前报，连续观测限定有效增量 |
 | `positioned` | PlaybackService 确认定位或暂停快照后向 Core 发出的位置更新，可向后；不累计有效时间，不登记播放开始 |
 | `ended/error` | 当前实例/版本，结束带最终位置，错误保留分类 |
+
+下载准备期间采用最新输出状态，预加载交换将保存的音量应用到新播放器，恢复／重新加载沿用 Core 设置。WPF 显式诊断 `volume` 参数或 `FISHFM_PLAYBACK_VOLUME` 保留覆盖优先级。协议继续使用 v1，增加 `setVolume` 命令及可选 `load.volume` 字段。
 
 断线主动要新快照，不用 supervisor 缓存判断资源是否还在；匹配实例/版本的 `ended/error` 补发一次，不补计失联时间。每实例/版本共享恢复任务，最多三轮连接/快照尝试；await 后检查实例和版本，旧恢复不能清掉新曲目。超时/写入异常拒绝所有等待者；宿主退出、所有者消失及 `dispose` 都停止音频。
 
