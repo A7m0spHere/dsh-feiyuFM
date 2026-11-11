@@ -1,12 +1,16 @@
 # 推荐质量研究与真实试用
 
-关联 [#7 推荐质量基线](https://github.com/A7m0spHere/dsh-feiyuFM/issues/7) 和 [#11 真实试用](https://github.com/A7m0spHere/dsh-feiyuFM/issues/11)。状态只在 [PROJECT_PLAN](../PROJECT_PLAN.md) 维护。本目录是操作方法，不表示已有真人评价。
+关联 [#7 推荐质量基线](https://github.com/A7m0spHere/dsh-feiyuFM/issues/7) 和 [#11 真实试用](https://github.com/A7m0spHere/dsh-feiyuFM/issues/11)。状态只在 [PROJECT_PLAN](../PROJECT_PLAN.md) 维护。本目录收录研究方法与按日期保存的实验记录。
 
 #11 的任务卡、字段示例、数据边界和汇总命令见 [真实试用操作卡](TRIAL.md)。两个流程复用同一输入 hash 和四档评价；生产选择策略不变。
 
 #9 的数据所有权、信号语义表、模型反馈传递与固定候选对照见 [用户偏好信号](PREFERENCE_SIGNALS.md)。`npm run research -- signals --out <新目录>` 只跑合成合同检查，不读取真实研究材料。
 
 #10 的探索开关/强度、来源分类、排序假设与收益门槛见 [可控探索](EXPLORATION.md)。`npm run research -- exploration --input <snapshot.json> --out <新目录>` 比较同一冻结输入，不更改生产策略。
+
+## 实验记录
+
+[2026-11-11 v2 单用户配对消融实验](ABLATION_V2_20261111.md) 记录 30 个独立候选块、141 首有效评价歌曲的设计、质量修正、结果及适用范围，附图表与匿名逐块汇总。参与者为 1 人，其他用户和长期效果仍待验证。
 
 ## #7：固定输入的离线比较
 
