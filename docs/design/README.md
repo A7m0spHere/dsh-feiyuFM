@@ -11,5 +11,6 @@
 | [透明人格、选歌回复与 token 用量](FEAT_TRANSPARENT_PERSONA.md) | [N9](../spikes/N9-transparent-persona.md)；具体模型歌单由 [N11](../spikes/N11-model-playlist.md) 扩展 |
 | [平台候选与 LLM 筛选](FEAT_LLM_DISCOVERY_FILTER.md) | [N15](../spikes/N15-llm-discovery-filter.md)，状态计数修复见 [N20](../spikes/N20-review-fixes.md) |
 | [画像缓存与个人相似图](FEAT_P0_PROFILE_CACHE_TRACK_GRAPH.md) | [N16](../spikes/N16-p0-cache-track-graph.md)，歌单关系事实见 [N18](../spikes/N18-p2-progress-and-relations.md) |
+| [QQ 音乐 Provider 接入方案](FEAT_QQ_PROVIDER.md) | 提案，未实现；依据 [N8 调研](../spikes/N8-qq-integration-options.md)，含与网易云接口方案的逐项对照 |
 
 返回 [文档索引](../README.md)。

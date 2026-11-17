@@ -200,3 +200,5 @@ Core 进程
 - npm downloads API（近 30 天，2026-10-17–2026-11-15）。
 
 **未做**：安装依赖、真实账号登录、真实播放、Referer／vkey 实测、官方平台准入核实、全量回归。本报告不改变 A01–A10 任何状态。
+
+后续：模块划分、role 映射与网易云接口方案的逐项对照见 [QQ Provider 接入方案](../design/FEAT_QQ_PROVIDER.md)（提案，未实现）。
