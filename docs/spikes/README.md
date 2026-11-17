@@ -107,6 +107,7 @@ beta.3 的模型协议／最终回答与日常原生 Desktop 重启补验见 [N2
 | [P2](P2-netease.md) | P2 网易云适配器：实现与验证 |
 | [P3](P3-real-loop.md) | P3 网易云首条真实播放闭环 |
 | [P4](P4-P5-platforms.md) | P4 QQ 与 P5 双平台协调：实现与验证 |
+| [N8](N8-qq-integration-options.md) | N8：QQ 接入方案调研（未实现，未联调） |
 | [MACOS_PORT](MACOS_PORT.md) | macOS 源码移植、桌面集成和平台验收边界 |
 
 ## 环境、选择与成长
@@ -141,6 +142,6 @@ beta.3 的模型协议／最终回答与日常原生 Desktop 重启补验见 [N2
 
 ## 附件与编号
 
-[assets](assets/) 保存 U7 截图；[U10 GIF 元数据](U10-gif-metadata.json) 与 U10 的逐帧处理报告配套。N8 是 QQ 后续任务，没有独立实测报告；缺失编号不表示通过，也不创建空报告补号。
+[assets](assets/) 保存 U7 截图；[U10 GIF 元数据](U10-gif-metadata.json) 与 U10 的逐帧处理报告配套。N8 是 QQ 后续任务，2026-11-17 已补方案调研（[N8](N8-qq-integration-options.md)），但未安装依赖、未联调、未实现；缺失编号不表示通过，也不创建空报告补号。
 
 新增或重命名报告时同步此索引及引用它的规格/任务入口，保留稳定证据路径。返回 [文档索引](../README.md)。
