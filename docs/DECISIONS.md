@@ -1,6 +1,6 @@
 # 决策摘要
 
-更新：2026-11-05。这里只保留仍影响开发的选择、理由与修订关系。行为和参数定义见 [MVP](MVP.md)／[控制契约](CORE_CONTRACT.md)，部署、测试数量和验收状态只维护在 [开发状态](PROJECT_PLAN.md)。
+更新：2026-11-17。这里只保留仍影响开发的选择、理由与修订关系。行为和参数定义见 [MVP](MVP.md)／[控制契约](CORE_CONTRACT.md)，部署、测试数量和验收状态只维护在 [开发状态](PROJECT_PLAN.md)。
 
 原第 0–46 节、D01–D13、依赖调研、参数理由与历史现场记录完整保存在 [决策原文](archive/decisions-through-2026-10-18.md)。旧报告中的节号指向该归档；它们不覆盖后续修订。新增决策记录日期、触发原因、选择、取代的旧规则和证据，不复制执行流水。
 
@@ -12,6 +12,7 @@
 | 2026-09-28～29 | 产品是可隐藏的音乐控制 UI，鲸鱼图只表达音乐状态；界面落在 DSH 主面板／设置／`shell.overlay`。这取代早期桌宠、默认角色和独立 Tauri 窗口设想；原生窗与 DPI 探针保留为历史 | [U3](spikes/U3-dsh-settings.md)、[U4](spikes/U4-quick-login.md)、原文第 15–19 节 |
 | 2026-10-01～02 | 真实闭环优先官方 Desktop。复用宿主认证 RPC／Fetch registry，不修改宿主、手写 profile 或新增生产监听端口；`npm install` 仅分发，注册由 Plugin Manager／DSH CLI 完成 | [U5](spikes/U5-official-desktop.md)、[交付说明](DELIVERY.md) |
 | 2026-10-02 | 用户暂缓 QQ，优先网易云与 UI；不删除 QQ，也不把网易云专项通过算成双平台完成 | [原文第 20 节](archive/decisions-through-2026-10-18.md) |
+| 2026-11-17 | 用户要求开始规划 QQ 与双平台来源方案，接续此前暂缓项的设计工作。提案建议双账号独立登录、单一自动来源与共享队列，默认网易云。先比较同包无端口入口与 Node 入口，修正初版的 Cookie 持久化、HOST 绑定与仅改 parse 的假设。默认值与运行时选择按提案及后续验证评审，当前行为仍按现行契约 | [双平台接入提案](design/FEAT_QQ_PROVIDER.md)、[N8 后续核对](spikes/N8-qq-integration-options.md) |
 | 2026-10-02～04 | 日常直接在 `main` 开发，跨设备串行接续；提交保留英文类型前缀，标题和说明使用简体中文 | [协作规则](../AGENTS.md) |
 
 ## 进程、数据与播放
