@@ -28,7 +28,7 @@ const EVIDENCE = [
     status: 'not-passed',
     files: [
       'docs/spikes/P2-netease.md', 'docs/spikes/P4-P5-platforms.md',
-      'test/providers.test.mjs', 'test/providers-qq.test.mjs', 'test/login-flow.test.mjs',
+      'test/providers.test.mjs', 'test/providers-qq.test.mjs', 'test/qq-source.test.mjs', 'docs/spikes/N8-qq-provider-implementation.md', 'test/login-flow.test.mjs',
       'test/playback.test.mjs',
       'test/netease-qr.test.mjs', 'docs/spikes/U6-qr-login-repair.md', 'docs/spikes/P3-real-loop.md',
     ],
@@ -36,7 +36,7 @@ const EVIDENCE = [
       { file: 'test/providers.test.mjs', name: 'the NetEase adapter passes the shared provider contract' },
       { file: 'test/providers-qq.test.mjs', name: 'the QQ adapter passes the same shared contract checks as NetEase' },
     ],
-    unverified: '网易云 P3 通过；QQ 按用户要求暂缓，双平台 A01 未通过',
+    unverified: '网易云 P3 通过；QQ 隔离实包入口与来源配置已验，用户选择稍后做真实账号验证，双平台 A01 未通过',
   },
   {
     id: 'A02', claim: '可导入目标数量；数量不足、收藏/歌单降级和空结果均如实展示',

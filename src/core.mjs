@@ -1,3 +1,4 @@
+import { playbackSourceView } from './playback-source.mjs';
 import { randomUUID } from 'node:crypto';
 import { assertCommand, MusicError, normalizeTrack, PROVIDERS, trackId } from './contracts.mjs';
 import {setTrackFeedback,resetRecommendationTaste,undoRecommendationReset} from './feedback.mjs';
@@ -149,7 +150,7 @@ export class MusicCore {
     const started = performance.now();
     const discovery = this.provider.discoveryStatus ? this.provider.discoveryStatus() : null;
     const afterDiscovery = performance.now();
-    const value = structuredClone({ ...this.state, ...(discovery ? { discovery } : {}), navigation: this._navigationView(),
+    const value = structuredClone({ ...this.state, playbackSource: playbackSourceView(this.store), ...(discovery ? { discovery } : {}), navigation: this._navigationView(),
       playbackCapabilities: { seek: this.playback.canSeek?.({ playInstanceId: this.state.current?.playInstanceId }) === true } });
     const afterClone = performance.now();
     const durationMs = afterClone - started;
@@ -203,6 +204,26 @@ export class MusicCore {
     entry.controller.abort();
   }
 
+  cancelSourcePreparation() {
+    this._cancelPrefetch();
+    this.preloadedTrackKey = null;
+    void this.playback.cancelPreload?.().catch?.(() => {});
+  }
+
+  suspendProvider(provider) {
+    for (const key of this.resourceCache.keys()) if (key.startsWith(`${provider}:`)) this.resourceCache.delete(key);
+    for (const key of this.resolveInflight.keys()) if (key.startsWith(`${provider}:`)) this._discardResolve(key);
+    if (this.preloadedTrackKey?.startsWith(`${provider}:`) || this.prefetchAbort?.trackKey?.startsWith(`${provider}:`)) this.cancelSourcePreparation();
+    if (this.state.current?.track.provider !== provider) return;
+    this._finishCurrent('account_changed');
+    this._invalidate();
+    this.state.current = null;
+    this.state.paused = true;
+    this.state.status = 'idle';
+    this._control('stop', { version: this.state.commandVersion }, true);
+    this._commit();
+  }
+
   _resourceFresh(entry) {
     if (!entry || typeof entry.handle !== 'string') return false;
     if (Number.isSafeInteger(entry.expiresAt)) return entry.expiresAt - this.clock.now() > 60_000;
@@ -215,6 +236,7 @@ export class MusicCore {
       handle: resource.handle,
       expiresAt: Number.isSafeInteger(resource.expiresAt) ? resource.expiresAt : null,
       resolvedAt: this.clock.now(),
+      context: this.provider.resourceContext?.(track) ?? '',
     });
     if (this.resourceCache.size > 8) this.resourceCache.delete(this.resourceCache.keys().next().value);
   }
@@ -226,6 +248,10 @@ export class MusicCore {
    */
   _resolveResource(track, signal, version, force = false, { background = false } = {}) {
     const key = trackId(track);
+    const context = this.provider.resourceContext?.(track) ?? '';
+    const previous = this.resourceCache.get(key);
+    if (previous?.context !== undefined && previous.context !== context) this.resourceCache.delete(key);
+    if (this.resolveInflight.has(key) && this.resolveInflight.get(key).context !== context) this._discardResolve(key);
     // Recovery must not trust the handle that just failed: force starts a new
     // request even when a cached one still looks fresh.
     if (force) { this.resourceCache.delete(key); this._discardResolve(key); }
@@ -238,12 +264,13 @@ export class MusicCore {
     this.onLog({ type: 'resource-source', source: inflight ? 'inflight' : 'provider', trackKey: key, version, background, at: this.clock.now(), playInstanceId: background ? null : this.state.current?.playInstanceId });
     if (!inflight) {
       const controller = new AbortController();
-      inflight = { controller, foreground: !background, promise: null };
+      inflight = { controller, context, foreground: !background, promise: null };
       const entry = inflight;
       // The provider attempt is bounded separately from each foreground wait.
       // A timed-out foreground wait retires it before starting a fresh retry.
       entry.promise = resolveWithTimeout(this.provider, track, controller.signal, version, 15_000)
         .then((resource) => {
+          if (context !== (this.provider.resourceContext?.(track) ?? '')) throw new MusicError('cancelled', '账号状态已变化，请重新选择歌曲。');
           if (!controller.signal.aborted && this.resolveInflight.get(key) === entry) this._rememberResource(track, resource);
           return resource;
         })

@@ -33,7 +33,11 @@ export function updateDependencyNotices(root, { check = false } = {}) {
     const directory = join(root, path);
     const manifest = JSON.parse(readFileSync(join(directory, 'package.json'), 'utf8'));
     if (manifest.version !== pinned.version) throw new Error('Installed version differs from lockfile: ' + path);
-    const declared = manifest.license ?? manifest.licenses;
+    const key = manifest.name + '@' + manifest.version;
+    const embeddedLicense = key === 'only@0.0.2' ? readFileSync(join(directory, 'Readme.md'), 'utf8') : '';
+    const declared = manifest.license ?? manifest.licenses ?? (embeddedLicense.includes('(The MIT License)')
+      && embeddedLicense.includes('Copyright (c) 2012 TJ Holowaychuk')
+      && /Permission is hereby granted/i.test(embeddedLicense) ? 'MIT' : null);
     if (!declared) throw new Error('Missing upstream license: ' + path);
     const license = typeof declared === 'string' ? declared : declared.map(value => value.type).join(' OR ');
     const files = filesIn(directory);
@@ -43,12 +47,24 @@ export function updateDependencyNotices(root, { check = false } = {}) {
       const text = readFileSync(join(directory, file), 'utf8');
       return /copyright/i.test(text) && /permission (?:is hereby granted|to use, copy)/i.test(text);
     }).map(file => quote(path + '/' + file));
-    const key = manifest.name + '@' + manifest.version;
     if (key === 'saxes@6.0.0') {
       if (!original.includes('<a id="saxes-license"></a>') || !original.includes('Copyright (c) Isaac Z. Schlueter and Contributors')) {
         throw new Error('Missing saxes supplemental notice');
       }
       notices.push('[本文保留的上游许可](#saxes-license)');
+    }
+    const supplemental = {
+      'cache-content-type@1.0.1': ['cache-content-type-license', 'Copyright (c) 2018-present node-modules and the contributors.'],
+      'copy-to@2.0.1': ['copy-to-license', 'Copyright (c) 2014 dead_horse'],
+      'koa-compose@4.1.0': ['koa-compose-license', 'Copyright (c) 2013 TJ Holowaychuk'],
+      'koa-compose@3.2.1': ['koa-compose-license', 'Copyright (c) 2013 TJ Holowaychuk'],
+      'koa-static@5.0.0': ['koa-static-license', 'Copyright (c) 2019-2022 Koa Static Contributors'],
+    }[key];
+    if (supplemental) {
+      if (!original.includes(`<a id="${supplemental[0]}"></a>`) || !original.includes(supplemental[1])) {
+        throw new Error('Missing supplemental notice: ' + key);
+      }
+      notices.push(`[本文保留的上游许可](#${supplemental[0]})`);
     }
     if (!notices.length) {
       const placeholder = ['gzip@0.1.0', 'https@1.0.0'].includes(key)

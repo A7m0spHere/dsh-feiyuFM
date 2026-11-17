@@ -63,7 +63,7 @@ test('the QQ adapter passes the same shared contract checks as NetEase', async (
     signedIn: true,
     table: {
       accountInfo: { uin: 1234 },
-      recentTracks: { data: { list: [qqSong('mid-1')] } },
+      likedTracks: { data: { list: [qqSong('mid-1')] } },
       resolve: { data: { purl: 'https://example.invalid/qq.mp3', expiresIn: 600 } },
     },
   });
@@ -85,7 +85,7 @@ test('one conformance run covers both platforms, which is why they cannot drift'
     signedIn: true,
     table: {
       accountInfo: { uin: 1234 },
-      recentTracks: { data: { list: [qqSong('mid-1')] } },
+      likedTracks: { data: { list: [qqSong('mid-1')] } },
       resolve: { data: { purl: 'https://example.invalid/qq.mp3', expiresIn: 600 } },
     },
   });
@@ -136,7 +136,7 @@ test('one conformance run covers both platforms, which is why they cannot drift'
   }
 });
 
-test("QQ's recent list failing degrades the source instead of dropping QQ", async () => {
+test("QQ imports liked songs and reports recent listening as unavailable", async () => {
   const context = setup({
     signedIn: true,
     fail: { recentTracks: Object.assign(new Error('the recent endpoint moved'), { status: 404 }) },
@@ -145,15 +145,16 @@ test("QQ's recent list failing degrades the source instead of dropping QQ", asyn
   try {
     const result = await context.provider.getSeedTracks({ limit: 300 });
     assert.equal(result.source, 'liked', 'QQ still works, from a different source');
-    assert.equal(result.degraded, true);
+    assert.equal(result.degraded, false);
     assert.equal(result.imported, 2, 'the real count is reported');
     assert.equal(result.requested, 300);
-    assert.match(result.reason, /Recent listening was unavailable/);
-    assert.deepEqual(result.attempts.map((row) => row.source), ['recent', 'liked']);
+    assert.equal(result.reason, null);
+    await assert.rejects(async () => context.provider.getSeedTracks({ source: 'recent' }), { code: 'capability_unavailable' });
+    assert.deepEqual(result.attempts.map((row) => row.source), ['liked']);
     assert.equal(context.provider.getAccount().status, 'authorized', 'QQ support is not withdrawn for this');
 
     const seed = context.provider.getCapabilities().seed;
-    assert.equal(seed.status, 'degraded');
+    assert.equal(seed.status, 'available');
     assert.equal(seed.source, 'liked');
     assert.notEqual(seed.source, 'recent', 'a fallback must never be labelled as the preferred source');
   } finally {
@@ -170,16 +171,16 @@ test('QQ falls back as far as a playlist, and reports every attempt when nothing
     },
     table: {
       playlists: { data: { list: [{ dissid: 99 }] } },
-      playlistTracks: ({ params }) => ({ data: { list: params.disstid === 99 ? [qqSong('mid-99')] : [] } }),
+      playlistTracks: ({ params }) => ({ data: { list: params.tid === 99 ? [qqSong('mid-99')] : [] } }),
     },
   });
   try {
     const result = await working.provider.getSeedTracks({ limit: 50 });
     assert.equal(result.source, 'playlist');
     assert.equal(result.imported, 1);
-    assert.deepEqual(result.attempts.map((row) => row.ok), [false, false, true]);
+    assert.deepEqual(result.attempts.map((row) => row.ok), [false, true]);
     // The second step really used the id discovered by the first.
-    assert.equal(working.transport.calls.at(-1).params.disstid, 99);
+    assert.equal(working.transport.calls.at(-1).params.tid, 99);
   } finally {
     working.close();
   }
@@ -197,8 +198,8 @@ test('QQ falls back as far as a playlist, and reports every attempt when nothing
       () => broken.provider.getSeedTracks({ limit: 50 }),
       (error) => {
         assert.equal(error.code, 'provider_failure');
-        assert.equal(error.details.attempts.length, 3, 'all three sources are on the record');
-        assert.match(error.message, /No QQ Music seed source was usable/);
+        assert.equal(error.details.attempts.length, 2, 'both supported sources are on the record');
+        assert.match(error.message, /No QQ 音乐 seed source was usable/);
         return true;
       },
     );
@@ -268,8 +269,9 @@ test('a signed-out QQ adapter refuses everything and sends nothing', async () =>
 test('QQ sign-in keeps session material out of SQLite, like NetEase', async () => {
   const context = setup({
     table: {
-      loginQr: { data: { qrsig: 'qr-sig-1', qrUrl: 'https://example.invalid/qq-qr' } },
-      loginPoll: { data: { code: 0, cookie: 'uin=o1234; qqmusic_key=top-secret', uin: '1234' } },
+      loginQr: { data: { unikey: 'qr-sig-1', qrurl: 'https://example.invalid/qq-qr' } },
+      loginPoll: { code: 803, cookie: 'qqmusic_session=top-secret' },
+      accountInfo: { data: { profile: { musicid: '1234' } } },
     },
   });
   try {
@@ -279,7 +281,7 @@ test('QQ sign-in keeps session material out of SQLite, like NetEase', async () =
 
     const done = await context.provider.pollLogin();
     assert.equal(done.status, 'authorized');
-    assert.equal(context.credentials.read('fishfm/qq'), 'uin=o1234; qqmusic_key=top-secret');
+    assert.equal(context.credentials.read('fishfm/qq'), 'qqmusic_session=top-secret');
 
     const dump = JSON.stringify(context.store.db.prepare('SELECT * FROM credential_references').all());
     assert.equal(dump.includes('top-secret'), false, 'the session must stay out of SQLite');
@@ -290,7 +292,7 @@ test('QQ sign-in keeps session material out of SQLite, like NetEase', async () =
 });
 
 test('the platform configuration states its sources and unverified roles', () => {
-  assert.deepEqual([...QQ_SEED_ORDER], ['recent', 'liked', 'playlist']);
+  assert.deepEqual([...QQ_SEED_ORDER], ['liked', 'playlist']);
   // Every role the adapter calls must be declared, so nothing is hidden.
   const context = setup({ signedIn: true, table: { accountInfo: { uin: 1 }, recentTracks: { data: { list: [] } }, resolve: { data: {} } } });
   try {

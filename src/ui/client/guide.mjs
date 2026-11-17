@@ -12,7 +12,7 @@ export function guideReady(state) {
 
 export function firstUseDecision(state) {
   if (!guideReady(state)) return 'wait';
-  const account = state.platforms?.netease?.account;
+  const account = state.platforms?.[state.snapshot?.playbackSource?.provider ?? 'netease']?.account;
   const profile = state.insights?.profile;
   const feedback = state.insights?.feedback;
   if (['authorized', 'expired'].includes(account?.status) || account?.pending || account?.cleanupPending || state.login
@@ -23,17 +23,19 @@ export function firstUseDecision(state) {
   // Reuse existing reads. Unknown data is not evidence of a fresh install;
   // the explicit settings entry remains available without these extra facts.
   if (!state.libraryReady || state.libraryBusy || state.libraryError || state.profileState !== 'ready'
-    || state.busy || state.platformBusy || state.platforms?.netease?.installed !== true
+    || state.busy || state.platformBusy || state.platforms?.[state.snapshot?.playbackSource?.provider ?? 'netease']?.installed !== true
     || !['login_required', 'signed_out'].includes(account?.status)) return 'wait';
   return state.library.total === 0 ? 'new' : 'wait';
 }
 
 export function UsageGuide({ state, onStep, onClose, rootRef, titleId }) {
   if (!state.guideVisible || !guideReady(state)) return null;
-  const connected = state.platforms?.netease?.account?.status === 'authorized';
+  const provider = state.snapshot?.playbackSource?.provider ?? 'netease';
+  const title = provider === 'qq' ? 'QQ 音乐' : '网易云音乐';
+  const connected = state.platforms?.[provider]?.account?.status === 'authorized';
   const imported = state.libraryReady && state.library?.total > 0;
   const steps = [
-    ['connect', '连接网易云音乐', connected ? '网易云已连接，可继续导入参考歌曲。' : '用网易云音乐 App 扫码并确认连接。', connected ? '查看连接' : '去连接'],
+    ['connect', `连接${title}`, connected ? `${title}已连接，可继续导入参考歌曲。` : `用${provider === 'qq' ? '手机 QQ' : '网易云音乐 App'}扫码并确认连接。`, connected ? '查看连接' : '去连接'],
     ['import', '导入参考歌单', '参考歌曲帮助电台了解你常听的音乐，作为后续推荐的起点。', imported ? '查看导入' : '去导入'],
     ['listen', '开始听歌', '自行点击播放；“喜欢／少推荐”会影响本机后续推荐。', '去播放页'],
   ];

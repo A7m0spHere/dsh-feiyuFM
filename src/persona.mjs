@@ -1,3 +1,4 @@
+import {playbackSourceView} from './playback-source.mjs';
 // Core owns facts, reservations and real usage. Summary prose never changes taste.
 import {randomUUID,createHash} from 'node:crypto';
 import {describeMusicInsights} from './insights.mjs';
@@ -77,9 +78,10 @@ export function factBundle(store,snapshot,purpose='persona-summary',candidates=n
     title:String(track.title??'').slice(0,24),artist:String(track.artist??'').slice(0,20),
     ...(trackFeedback(store,track)===1?{feedback:'liked'}:trackFeedback(store,track)===-1?{feedback:'reduced'}:{}),
     from:track.discovery?.seedTitle?`相似于《${String(track.discovery.seedTitle).slice(0,14)}》`
-     :track.discovery?.source==='netease_daily'?'每日推荐':track.discovery?.source==='netease_personal_fm'?'私人FM':'平台推荐'}))};
-  if(recommendationMode(store)==='filtered')facts.references=store.listEnvironment({provider:'netease',limit:4}).map(row=>{
-    const track=store.getNormalizedTrack({provider:'netease',providerTrackId:row.track_key.slice(8)});
+     :track.discovery?.source?.endsWith('_daily')?'每日推荐':track.discovery?.source?.endsWith('_personal_fm')?'私人FM':'平台推荐'}))};
+  if(recommendationMode(store)==='filtered')facts.playbackSource=playbackSourceView(store);
+  if(recommendationMode(store)==='filtered')facts.references=store.listEnvironment({provider:playbackSourceView(store).provider,limit:4}).map(row=>{
+    const track=store.getNormalizedTrack({provider:row.provider,providerTrackId:row.track_key.slice(row.provider.length+1)});
     return [track.title.slice(0,24),track.artist.slice(0,20)];
   });
  }

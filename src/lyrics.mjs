@@ -53,6 +53,12 @@ export function normalizeNetEaseLyrics(body, track) {
   })) };
 }
 
+export function normalizeQQMusicLyrics(body, track) {
+  const data = body?.data ?? body;
+  const normalized = normalizeNetEaseLyrics({ lrc: { lyric: data?.lyric }, tlyric: { lyric: data?.trans } }, track);
+  return { ...normalized, source: 'qq' };
+}
+
 /** Bounded, account-generation-scoped cache. Failures never become missing lyrics. */
 export function createLyricsService({ providerFor, now = () => Date.now(), maxEntries = 100, timeoutMs = 12_000 }) {
   const cache = new Map(), pending = new Map();

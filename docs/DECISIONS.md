@@ -13,6 +13,7 @@
 | 2026-10-01～02 | 真实闭环优先官方 Desktop。复用宿主认证 RPC／Fetch registry，不修改宿主、手写 profile 或新增生产监听端口；`npm install` 仅分发，注册由 Plugin Manager／DSH CLI 完成 | [U5](spikes/U5-official-desktop.md)、[交付说明](DELIVERY.md) |
 | 2026-10-02 | 用户暂缓 QQ，优先网易云与 UI；不删除 QQ，也不把网易云专项通过算成双平台完成 | [原文第 20 节](archive/decisions-through-2026-10-18.md) |
 | 2026-11-17 | 用户要求开始规划 QQ 与双平台来源方案，接续此前暂缓项的设计工作。提案建议双账号独立登录、单一自动来源与共享队列，默认网易云。先比较同包无端口入口与 Node 入口，修正初版的 Cookie 持久化、HOST 绑定与仅改 parse 的假设。默认值与运行时选择按提案及后续验证评审，当前行为仍按现行契约 | [双平台接入提案](design/FEAT_QQ_PROVIDER.md)、[N8 后续核对](spikes/N8-qq-integration-options.md) |
+| 2026-11-17 | 用户进一步要求新建分支执行。当前采用固定 SDK 的无端口 Worker，首版按双账号、单一自动来源与共享队列实现，保留原来源的当前实例和暂停。旧来源／账号的异步结果通过代次拒绝，切源取消模型筛选并保留真实用量。真实账号验证由用户指定稍后进行 | [N8 实施](spikes/N8-qq-provider-implementation.md)、[控制契约](CORE_CONTRACT.md) |
 | 2026-10-02～04 | 日常直接在 `main` 开发，跨设备串行接续；提交保留英文类型前缀，标题和说明使用简体中文 | [协作规则](../AGENTS.md) |
 
 ## 进程、数据与播放

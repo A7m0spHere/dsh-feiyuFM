@@ -255,7 +255,7 @@ test('desktop exact routes coexist with the Gateway and validate RPC envelopes b
       } },
     },
   }, bridge);
-  assert.equal(routes.size, 20);
+  assert.equal(routes.size, 21);
   assert.equal(routes.has('/api/fishfm/lyrics'), true);
   assert.equal(routes.has('/api/fishfm/network-proxy'), true);
   assert.equal(routes.has('/api/session/create'), false);
@@ -369,4 +369,39 @@ test('library RPC and state polling forward only bounded-query fields through th
   calls.length = 0;
   await api('fishfm/state', { library: query });
   assert.deepEqual(calls.find(row => row.type === 'library'), { type: 'library', ...query });
+});
+
+
+test('QQ QR and source RPC use authenticated provider-scoped messages and validate inputs', async () => {
+  const calls = [];
+  const api = createSettingsHandler({ async start() {}, async request(message) {
+    calls.push(message);
+    if (message.type === 'login') return { login: { key: 'sealed-qr', qrImage: 'data:image/png;base64,AAAA' } };
+    if (message.type === 'playback-source') return { playbackSource: { version: 1, revision: 1, provider: 'qq' } };
+    return { snapshot: { revision: 1 }, platforms: { qq: { installed: true } }, insights: {}, persona: {}, library: { total: 0, tracks: [] } };
+  } });
+  const qr = await api('fishfm/login-start', { provider: 'qq' });
+  assert.equal(qr.ok, true);
+  assert.equal(qr.value.login.provider, 'qq');
+  assert.equal(calls.find(call => call.type === 'login').provider, 'qq');
+  const saved = await api('fishfm/playback-source', { provider: 'qq', expectedRevision: 0 });
+  assert.equal(saved.value.playbackSource.provider, 'qq');
+  const count = calls.length;
+  assert.equal((await api('fishfm/playback-source', { provider: 'invalid', expectedRevision: 0 })).ok, false);
+  assert.equal((await api('fishfm/login-start', { provider: 'invalid' })).ok, false);
+  assert.equal(calls.length, count);
+});
+
+
+test('stored QQ login verification retries through the existing authenticated poll endpoint', async () => {
+  const calls = [];
+  const api = createSettingsHandler({ async start() {}, async request(message) {
+    calls.push(message);
+    if (message.type === 'login') return { status: 'authorized', login: { accountId: 'a' } };
+    return { snapshot: { revision: 1 }, platforms: {}, insights: {}, persona: {}, library: { total: 0, tracks: [] } };
+  } });
+  const response = await api('fishfm/login-poll', { provider: 'qq', restore: true });
+  assert.equal(response.ok, true);
+  assert.equal(calls.find(call => call.type === 'login').step, 'restore');
+  assert.equal(response.value.login.status, 'authorized');
 });

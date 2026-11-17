@@ -312,9 +312,134 @@ MIT License, as follows:
 
 此节由 `node scripts/dependency-notices.mjs` 更新；手写的角色来源、许可原文与补充通知保留在生成区之外。许可文件名、README 许可段落及子目录通知均参与核对。
 
+## QQ 音乐接口包
+
+QQ 平台协议复用 `@yakult-green-tea/qq-music-api@3.3.7` 的公开 `/serverless` 入口，来源为 [yakult-green-tea/qq-music-api](https://github.com/yakult-green-tea/qq-music-api/tree/2b7c4d4f0d3e9bc97ac55ec28b1a3e874e0be0ca)。加载范围为发布包 `dist-esm/src/serverless/` 及其依赖闭包，FeiyuFM 自行维护 Worker、加密存储、网络适配与 Provider 映射。包声明 MIT，保留原包 LICENSE、ATTRIBUTION 与 README。上游 README 同时写有“仅供学习，不可做商业用途”，该原文随包保留。
+
+<a id="cache-content-type-license"></a>
+
+### cache-content-type 1.0.1 补充许可
+
+该 npm 包声明 MIT，发布文件缺少完整许可原文。补充保留上游 [LICENSE](https://github.com/node-modules/cache-content-type/blob/master/LICENSE)，核对日期为 2026-11-17。
+
+```text
+MIT License
+
+Copyright (c) 2018-present node-modules and the contributors.
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
+
+<a id="copy-to-license"></a>
+
+### copy-to@2.0.1 补充许可
+
+发布包声明 MIT，缺少完整许可原文。以下保留 [上游 LICENSE](https://raw.githubusercontent.com/node-modules/copy-to/master/LICENSE)，核对日期为 2026-11-17。
+
+```text
+The MIT License (MIT)
+
+Copyright (c) 2014 dead_horse
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
+
+<a id="koa-compose-license"></a>
+
+### koa-compose@4.1.0 / 3.2.1 补充许可
+
+发布包声明 MIT，缺少完整许可原文。以下保留 [上游 LICENSE](https://raw.githubusercontent.com/koajs/compose/master/LICENSE)，核对日期为 2026-11-17。
+
+```text
+
+The MIT License (MIT)
+
+Copyright (c) 2013 TJ Holowaychuk tj@apex.sh
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
+```
+
+<a id="koa-static-license"></a>
+
+### koa-static@5.0.0 补充许可
+
+发布包声明 MIT，缺少完整许可原文。以下保留 [上游 LICENSE](https://raw.githubusercontent.com/koajs/static/master/LICENSE)，核对日期为 2026-11-17。
+
+```text
+MIT License
+
+Copyright (c) 2019-2022 Koa Static Contributors
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
+
 <!-- BEGIN GENERATED DEPENDENCY NOTICES -->
 
-共 288 个锁定运行依赖条目。下列路径相对于插件安装目录。
+共 363 个锁定运行依赖条目。下列路径相对于插件安装目录。
 
 | Package | Version | Declared license | 随包原文或补充通知 |
 |---|---|---|---|
@@ -325,13 +450,16 @@ MIT License, as follows:
 | @csstools/css-color-parser | 3.1.0 | MIT | `node_modules/@csstools/css-color-parser/LICENSE.md` |
 | @csstools/css-parser-algorithms | 3.0.5 | MIT | `node_modules/@csstools/css-parser-algorithms/LICENSE.md` |
 | @csstools/css-tokenizer | 3.0.4 | MIT | `node_modules/@csstools/css-tokenizer/LICENSE.md` |
+| @hapi/bourne | 3.0.0 | BSD-3-Clause | `node_modules/@hapi/bourne/LICENSE.md` |
 | @neteasecloudmusicapienhanced/api | 4.40.1 | MIT | `node_modules/@neteasecloudmusicapienhanced/api/LICENSE` |
 | @neteasecloudmusicapienhanced/unblockmusic-utils | 0.4.4 | MIT | `node_modules/@neteasecloudmusicapienhanced/unblockmusic-utils/LICENSE` |
 | @tokenizer/inflate | 0.4.1 | MIT | `node_modules/@tokenizer/inflate/LICENSE` |
 | @tokenizer/token | 0.3.0 | MIT | `node_modules/@tokenizer/token/README.md` |
 | @tootallnate/quickjs-emscripten | 0.23.0 | MIT | `node_modules/@tootallnate/quickjs-emscripten/LICENSE` |
 | @unblockneteasemusic/server | 0.28.0 | LGPL-3.0-only | `node_modules/@unblockneteasemusic/server/COPYING`；`node_modules/@unblockneteasemusic/server/COPYING.LESSER` |
+| @yakult-green-tea/qq-music-api | 3.3.7 | MIT | `node_modules/@yakult-green-tea/qq-music-api/LICENSE` |
 | accepts | 1.3.8 | MIT | `node_modules/@neteasecloudmusicapienhanced/unblockmusic-utils/node_modules/accepts/LICENSE` |
+| accepts | 1.3.8 | MIT | `node_modules/koa/node_modules/accepts/LICENSE` |
 | accepts | 2.0.0 | MIT | `node_modules/accepts/LICENSE` |
 | agent-base | 6.0.2 | MIT | `node_modules/agent-base/README.md` |
 | agent-base | 7.1.4 | MIT | `node_modules/http-proxy-agent/node_modules/agent-base/LICENSE` |
@@ -343,6 +471,7 @@ MIT License, as follows:
 | ansi-styles | 3.2.1 | MIT | `node_modules/chalk/node_modules/ansi-styles/license` |
 | ansi-styles | 4.3.0 | MIT | `node_modules/ansi-styles/license` |
 | ansi-styles | 6.2.3 | MIT | `node_modules/@neteasecloudmusicapienhanced/api/node_modules/ansi-styles/license` |
+| any-promise | 1.3.0 | MIT | `node_modules/any-promise/LICENSE` |
 | args | 5.0.3 | MIT | `node_modules/args/LICENSE` |
 | array-flatten | 1.1.1 | MIT | `node_modules/array-flatten/LICENSE` |
 | ast-types | 0.13.4 | MIT | `node_modules/ast-types/LICENSE` |
@@ -354,6 +483,7 @@ MIT License, as follows:
 | body-parser | 2.3.0 | MIT | `node_modules/body-parser/LICENSE` |
 | busboy | 1.6.0 | MIT | `node_modules/busboy/LICENSE` |
 | bytes | 3.1.2 | MIT | `node_modules/bytes/LICENSE` |
+| cache-content-type | 1.0.1 | MIT | [本文保留的上游许可](#cache-content-type-license) |
 | call-bind-apply-helpers | 1.0.2 | MIT | `node_modules/call-bind-apply-helpers/LICENSE` |
 | call-bound | 1.0.4 | MIT | `node_modules/call-bound/LICENSE` |
 | camelcase | 5.0.0 | MIT | `node_modules/args/node_modules/camelcase/license` |
@@ -362,6 +492,8 @@ MIT License, as follows:
 | cliui | 6.0.0 | ISC | `node_modules/cliui/LICENSE.txt` |
 | cliui | 8.0.1 | ISC | `node_modules/node-windows/node_modules/cliui/LICENSE.txt` |
 | cliui | 9.0.1 | ISC | `node_modules/@neteasecloudmusicapienhanced/api/node_modules/cliui/LICENSE.txt` |
+| co | 4.6.0 | MIT | `node_modules/co/LICENSE` |
+| co-body | 6.2.0 | MIT | `node_modules/co-body/LICENSE.txt` |
 | color-convert | 1.9.3 | MIT | `node_modules/chalk/node_modules/color-convert/LICENSE` |
 | color-convert | 2.0.1 | MIT | `node_modules/color-convert/LICENSE` |
 | color-name | 1.1.3 | MIT | `node_modules/chalk/node_modules/color-name/LICENSE` |
@@ -369,6 +501,7 @@ MIT License, as follows:
 | colorette | 2.0.20 | MIT | `node_modules/colorette/LICENSE.md` |
 | combined-stream | 1.0.8 | MIT | `node_modules/combined-stream/License` |
 | content-disposition | 0.5.4 | MIT | `node_modules/@neteasecloudmusicapienhanced/unblockmusic-utils/node_modules/content-disposition/LICENSE` |
+| content-disposition | 0.5.4 | MIT | `node_modules/koa/node_modules/content-disposition/LICENSE` |
 | content-disposition | 1.1.0 | MIT | `node_modules/content-disposition/LICENSE` |
 | content-type | 1.0.5 | MIT | `node_modules/content-type/LICENSE` |
 | content-type | 2.1.0 | MIT | `node_modules/body-parser/node_modules/content-type/LICENSE` |
@@ -378,17 +511,28 @@ MIT License, as follows:
 | cookie | 0.7.2 | MIT | `node_modules/cookie/LICENSE` |
 | cookie-signature | 1.0.7 | MIT | `node_modules/@neteasecloudmusicapienhanced/unblockmusic-utils/node_modules/cookie-signature/Readme.md` |
 | cookie-signature | 1.2.2 | MIT | `node_modules/cookie-signature/LICENSE` |
+| cookies | 0.9.2 | MIT | `node_modules/cookies/LICENSE` |
+| copy-to | 2.0.1 | MIT | [本文保留的上游许可](#copy-to-license) |
 | crypto-js | 4.2.0 | MIT | `node_modules/crypto-js/LICENSE` |
 | cssstyle | 4.6.0 | MIT | `node_modules/cssstyle/LICENSE` |
 | data-uri-to-buffer | 6.0.2 | MIT | `node_modules/data-uri-to-buffer/LICENSE` |
 | data-urls | 5.0.0 | MIT | `node_modules/data-urls/LICENSE.txt` |
 | dateformat | 4.6.3 | MIT | `node_modules/dateformat/LICENSE` |
 | debug | 2.6.9 | MIT | `node_modules/@neteasecloudmusicapienhanced/unblockmusic-utils/node_modules/debug/LICENSE`；`node_modules/@neteasecloudmusicapienhanced/unblockmusic-utils/node_modules/debug/README.md` |
+| debug | 3.2.7 | MIT | `node_modules/koa-router/node_modules/debug/LICENSE`；`node_modules/koa-router/node_modules/debug/README.md` |
+| debug | 3.2.7 | MIT | `node_modules/koa-static/node_modules/debug/LICENSE`；`node_modules/koa-static/node_modules/debug/README.md` |
 | debug | 4.4.3 | MIT | `node_modules/debug/LICENSE`；`node_modules/debug/README.md` |
 | decamelize | 1.2.0 | MIT | `node_modules/decamelize/license` |
 | decimal.js | 10.6.0 | MIT | `node_modules/decimal.js/LICENCE.md` |
+| deep-equal | 1.0.1 | MIT | `node_modules/deep-equal/LICENSE` |
 | degenerator | 5.0.1 | MIT | `node_modules/degenerator/README.md` |
 | delayed-stream | 1.0.0 | MIT | `node_modules/delayed-stream/License` |
+| delegates | 1.0.0 | MIT | `node_modules/delegates/License` |
+| depd | 1.1.2 | MIT | `node_modules/http-assert/node_modules/depd/LICENSE` |
+| depd | 1.1.2 | MIT | `node_modules/koa-router/node_modules/depd/LICENSE` |
+| depd | 1.1.2 | MIT | `node_modules/koa-send/node_modules/depd/LICENSE` |
+| depd | 1.1.2 | MIT | `node_modules/koa/node_modules/http-errors/node_modules/depd/LICENSE` |
+| depd | 1.1.2 | MIT | `node_modules/resolve-path/node_modules/depd/LICENSE` |
 | depd | 2.0.0 | MIT | `node_modules/depd/LICENSE` |
 | destroy | 1.2.0 | MIT | `node_modules/destroy/LICENSE` |
 | dijkstrajs | 1.0.3 | MIT | `node_modules/dijkstrajs/LICENSE.md` |
@@ -398,6 +542,7 @@ MIT License, as follows:
 | ee-first | 1.1.1 | MIT | `node_modules/ee-first/LICENSE` |
 | emoji-regex | 10.6.0 | MIT | `node_modules/@neteasecloudmusicapienhanced/api/node_modules/emoji-regex/LICENSE-MIT.txt` |
 | emoji-regex | 8.0.0 | MIT | `node_modules/emoji-regex/LICENSE-MIT.txt` |
+| encodeurl | 1.0.4 | MIT | `node_modules/koa/node_modules/encodeurl/LICENSE` |
 | encodeurl | 2.0.0 | MIT | `node_modules/encodeurl/LICENSE` |
 | end-of-stream | 1.4.5 | MIT | `node_modules/end-of-stream/LICENSE` |
 | entities | 6.0.1 | BSD-2-Clause | `node_modules/entities/LICENSE` |
@@ -427,8 +572,10 @@ MIT License, as follows:
 | form-data | 4.0.6 | MIT | `node_modules/form-data/License` |
 | forwarded | 0.2.0 | MIT | `node_modules/forwarded/LICENSE` |
 | fresh | 0.5.2 | MIT | `node_modules/@neteasecloudmusicapienhanced/unblockmusic-utils/node_modules/fresh/LICENSE` |
+| fresh | 0.5.2 | MIT | `node_modules/koa/node_modules/fresh/LICENSE` |
 | fresh | 2.0.0 | MIT | `node_modules/fresh/LICENSE` |
 | function-bind | 1.1.2 | MIT | `node_modules/function-bind/LICENSE` |
+| generator-function | 2.0.1 | MIT | `node_modules/generator-function/LICENSE.md` |
 | get-caller-file | 2.0.5 | ISC | `node_modules/get-caller-file/LICENSE.md` |
 | get-east-asian-width | 1.7.0 | MIT | `node_modules/get-east-asian-width/license` |
 | get-intrinsic | 1.3.0 | MIT | `node_modules/get-intrinsic/LICENSE` |
@@ -441,6 +588,12 @@ MIT License, as follows:
 | has-tostringtag | 1.0.2 | MIT | `node_modules/has-tostringtag/LICENSE` |
 | hasown | 2.0.4 | MIT | `node_modules/hasown/LICENSE` |
 | html-encoding-sniffer | 4.0.0 | MIT | `node_modules/html-encoding-sniffer/LICENSE.txt` |
+| http-assert | 1.5.0 | MIT | `node_modules/http-assert/LICENSE` |
+| http-errors | 1.6.3 | MIT | `node_modules/resolve-path/node_modules/http-errors/LICENSE` |
+| http-errors | 1.8.1 | MIT | `node_modules/http-assert/node_modules/http-errors/LICENSE` |
+| http-errors | 1.8.1 | MIT | `node_modules/koa-router/node_modules/http-errors/LICENSE` |
+| http-errors | 1.8.1 | MIT | `node_modules/koa-send/node_modules/http-errors/LICENSE` |
+| http-errors | 1.8.1 | MIT | `node_modules/koa/node_modules/http-errors/LICENSE` |
 | http-errors | 2.0.1 | MIT | `node_modules/http-errors/LICENSE` |
 | http-proxy-agent | 7.0.2 | MIT | `node_modules/http-proxy-agent/LICENSE` |
 | https | 1.0.0 | ISC | 占位包，仅元数据/空文件；许可声明见 `node_modules/https/package.json` |
@@ -448,23 +601,41 @@ MIT License, as follows:
 | https-proxy-agent | 7.0.6 | MIT | `node_modules/jsdom/node_modules/https-proxy-agent/LICENSE` |
 | https-proxy-agent | 7.0.6 | MIT | `node_modules/pac-proxy-agent/node_modules/https-proxy-agent/LICENSE` |
 | iconv-lite | 0.4.24 | MIT | `node_modules/@neteasecloudmusicapienhanced/unblockmusic-utils/node_modules/iconv-lite/LICENSE` |
+| iconv-lite | 0.4.24 | MIT | `node_modules/co-body/node_modules/iconv-lite/LICENSE` |
 | iconv-lite | 0.6.3 | MIT | `node_modules/whatwg-encoding/node_modules/iconv-lite/LICENSE` |
 | iconv-lite | 0.7.3 | MIT | `node_modules/iconv-lite/LICENSE` |
 | ieee754 | 1.2.1 | BSD-3-Clause | `node_modules/ieee754/LICENSE` |
+| inflation | 2.1.0 | MIT | `node_modules/inflation/LICENSE` |
+| inherits | 2.0.3 | ISC | `node_modules/resolve-path/node_modules/inherits/LICENSE` |
 | inherits | 2.0.4 | ISC | `node_modules/inherits/LICENSE` |
 | ip-address | 10.7.2 | MIT | `node_modules/ip-address/LICENSE` |
 | ipaddr.js | 1.9.1 | MIT | `node_modules/ipaddr.js/LICENSE` |
 | is-fullwidth-code-point | 3.0.0 | MIT | `node_modules/is-fullwidth-code-point/license` |
+| is-generator-function | 1.1.2 | MIT | `node_modules/is-generator-function/LICENSE` |
 | is-potential-custom-element-name | 1.0.1 | MIT | `node_modules/is-potential-custom-element-name/LICENSE-MIT.txt` |
 | is-promise | 4.0.0 | MIT | `node_modules/is-promise/LICENSE` |
+| is-regex | 1.2.1 | MIT | `node_modules/is-regex/LICENSE` |
+| isarray | 0.0.1 | MIT | `node_modules/isarray/README.md` |
 | joycon | 3.1.1 | MIT | `node_modules/joycon/LICENSE` |
 | jsdom | 24.1.3 | MIT | `node_modules/jsdom/LICENSE.txt` |
+| keygrip | 1.1.0 | MIT | `node_modules/keygrip/LICENSE` |
+| koa | 2.16.4 | MIT | `node_modules/koa/LICENSE` |
+| koa-bodyparser | 4.4.1 | MIT | `node_modules/koa-bodyparser/LICENSE` |
+| koa-compose | 3.2.1 | MIT | [本文保留的上游许可](#koa-compose-license) |
+| koa-compose | 4.1.0 | MIT | [本文保留的上游许可](#koa-compose-license) |
+| koa-convert | 2.0.0 | MIT | `node_modules/koa-convert/LICENSE` |
+| koa-router | 7.4.0 | MIT | `node_modules/koa-router/LICENSE` |
+| koa-send | 5.0.1 | MIT | `node_modules/koa-send/LICENSE` |
+| koa-static | 5.0.0 | MIT | [本文保留的上游许可](#koa-static-license) |
 | leven | 2.1.0 | MIT | `node_modules/leven/license` |
 | locate-path | 5.0.0 | MIT | `node_modules/locate-path/license` |
 | lrc-kit | 1.2.1 | MIT | `node_modules/lrc-kit/LICENSE` |
 | lru-cache | 10.4.3 | ISC | `node_modules/lru-cache/LICENSE` |
 | math-intrinsics | 1.1.0 | MIT | `node_modules/math-intrinsics/LICENSE` |
 | media-typer | 0.3.0 | MIT | `node_modules/@neteasecloudmusicapienhanced/unblockmusic-utils/node_modules/media-typer/LICENSE` |
+| media-typer | 0.3.0 | MIT | `node_modules/co-body/node_modules/media-typer/LICENSE` |
+| media-typer | 0.3.0 | MIT | `node_modules/koa-bodyparser/node_modules/media-typer/LICENSE` |
+| media-typer | 0.3.0 | MIT | `node_modules/koa/node_modules/media-typer/LICENSE` |
 | media-typer | 1.1.1 | MIT | `node_modules/type-is/node_modules/media-typer/LICENSE` |
 | media-typer | 2.0.0 | MIT | `node_modules/media-typer/LICENSE` |
 | merge-descriptors | 1.0.3 | MIT | `node_modules/@neteasecloudmusicapienhanced/unblockmusic-utils/node_modules/merge-descriptors/LICENSE` |
@@ -472,16 +643,25 @@ MIT License, as follows:
 | methods | 1.1.2 | MIT | `node_modules/methods/LICENSE` |
 | mime | 1.6.0 | MIT | `node_modules/mime/LICENSE` |
 | mime-db | 1.52.0 | MIT | `node_modules/@neteasecloudmusicapienhanced/unblockmusic-utils/node_modules/mime-db/LICENSE` |
+| mime-db | 1.52.0 | MIT | `node_modules/cache-content-type/node_modules/mime-db/LICENSE` |
+| mime-db | 1.52.0 | MIT | `node_modules/co-body/node_modules/mime-db/LICENSE` |
 | mime-db | 1.52.0 | MIT | `node_modules/form-data/node_modules/mime-db/LICENSE` |
+| mime-db | 1.52.0 | MIT | `node_modules/koa-bodyparser/node_modules/mime-db/LICENSE` |
+| mime-db | 1.52.0 | MIT | `node_modules/koa/node_modules/mime-db/LICENSE` |
 | mime-db | 1.54.0 | MIT | `node_modules/mime-db/LICENSE` |
 | mime-types | 2.1.35 | MIT | `node_modules/@neteasecloudmusicapienhanced/unblockmusic-utils/node_modules/mime-types/LICENSE` |
+| mime-types | 2.1.35 | MIT | `node_modules/cache-content-type/node_modules/mime-types/LICENSE` |
+| mime-types | 2.1.35 | MIT | `node_modules/co-body/node_modules/mime-types/LICENSE` |
 | mime-types | 2.1.35 | MIT | `node_modules/form-data/node_modules/mime-types/LICENSE` |
+| mime-types | 2.1.35 | MIT | `node_modules/koa-bodyparser/node_modules/mime-types/LICENSE` |
+| mime-types | 2.1.35 | MIT | `node_modules/koa/node_modules/mime-types/LICENSE` |
 | mime-types | 3.0.2 | MIT | `node_modules/mime-types/LICENSE` |
 | mri | 1.1.4 | MIT | `node_modules/mri/license.md` |
 | ms | 2.0.0 | MIT | `node_modules/@neteasecloudmusicapienhanced/unblockmusic-utils/node_modules/debug/node_modules/ms/license.md` |
 | ms | 2.1.3 | MIT | `node_modules/ms/license.md` |
 | music-metadata | 11.16.1 | MIT | `node_modules/music-metadata/LICENSE.txt` |
 | negotiator | 0.6.3 | MIT | `node_modules/@neteasecloudmusicapienhanced/unblockmusic-utils/node_modules/negotiator/LICENSE` |
+| negotiator | 0.6.3 | MIT | `node_modules/koa/node_modules/negotiator/LICENSE` |
 | negotiator | 1.1.0 | MIT | `node_modules/negotiator/LICENSE` |
 | netmask | 2.1.1 | MIT | `node_modules/netmask/LICENSE.md`；`node_modules/netmask/README.md` |
 | node-forge | 1.4.0 | (BSD-3-Clause OR GPL-2.0) | `node_modules/node-forge/LICENSE` |
@@ -491,6 +671,7 @@ MIT License, as follows:
 | on-exit-leak-free | 0.2.0 | MIT | `node_modules/on-exit-leak-free/LICENSE` |
 | on-finished | 2.4.1 | MIT | `node_modules/on-finished/LICENSE` |
 | once | 1.4.0 | ISC | `node_modules/once/LICENSE` |
+| only | 0.0.2 | MIT | `node_modules/only/Readme.md` |
 | p-limit | 2.3.0 | MIT | `node_modules/p-limit/license` |
 | p-locate | 4.1.0 | MIT | `node_modules/p-locate/license` |
 | p-try | 2.2.0 | MIT | `node_modules/p-try/license` |
@@ -499,7 +680,9 @@ MIT License, as follows:
 | parse5 | 7.3.0 | MIT | `node_modules/parse5/LICENSE` |
 | parseurl | 1.3.3 | MIT | `node_modules/parseurl/LICENSE` |
 | path-exists | 4.0.0 | MIT | `node_modules/path-exists/license` |
+| path-is-absolute | 1.0.1 | MIT | `node_modules/path-is-absolute/license` |
 | path-to-regexp | 0.1.13 | MIT | `node_modules/@neteasecloudmusicapienhanced/unblockmusic-utils/node_modules/path-to-regexp/LICENSE` |
+| path-to-regexp | 1.9.0 | MIT | `node_modules/koa-router/node_modules/path-to-regexp/LICENSE` |
 | path-to-regexp | 8.4.2 | MIT | `node_modules/path-to-regexp/LICENSE` |
 | pino | 6.14.0 | MIT | `node_modules/pino/LICENSE` |
 | pino-abstract-transport | 0.5.0 | MIT | `node_modules/pino-abstract-transport/LICENSE` |
@@ -519,17 +702,20 @@ MIT License, as follows:
 | range-parser | 1.2.1 | MIT | `node_modules/@neteasecloudmusicapienhanced/unblockmusic-utils/node_modules/range-parser/LICENSE` |
 | range-parser | 1.3.0 | MIT | `node_modules/range-parser/LICENSE` |
 | raw-body | 2.5.3 | MIT | `node_modules/@neteasecloudmusicapienhanced/unblockmusic-utils/node_modules/raw-body/LICENSE` |
+| raw-body | 2.5.3 | MIT | `node_modules/co-body/node_modules/raw-body/LICENSE` |
 | raw-body | 3.0.2 | MIT | `node_modules/raw-body/LICENSE` |
 | readable-stream | 3.6.2 | MIT | `node_modules/readable-stream/LICENSE` |
 | require-directory | 2.1.1 | MIT | `node_modules/require-directory/LICENSE` |
 | require-main-filename | 2.0.0 | ISC | `node_modules/require-main-filename/LICENSE.txt` |
 | requires-port | 1.0.0 | MIT | `node_modules/requires-port/LICENSE` |
+| resolve-path | 1.4.0 | MIT | `node_modules/resolve-path/LICENSE` |
 | rfdc | 1.4.1 | MIT | `node_modules/rfdc/LICENSE` |
 | router | 2.2.0 | MIT | `node_modules/router/LICENSE` |
 | rrweb-cssom | 0.7.1 | MIT | `node_modules/rrweb-cssom/LICENSE.txt` |
 | rrweb-cssom | 0.8.0 | MIT | `node_modules/cssstyle/node_modules/rrweb-cssom/LICENSE.txt` |
 | safe-buffer | 5.2.1 | MIT | `node_modules/safe-buffer/LICENSE` |
 | safe-decode-uri-component | 1.2.1 | MIT | `node_modules/safe-decode-uri-component/LICENSE` |
+| safe-regex-test | 1.1.0 | MIT | `node_modules/safe-regex-test/LICENSE` |
 | safer-buffer | 2.1.2 | MIT | `node_modules/safer-buffer/LICENSE` |
 | sax | 1.6.1 | BlueOak-1.0.0 | `node_modules/sax/LICENSE.md` |
 | saxes | 6.0.0 | ISC | [本文保留的上游许可](#saxes-license) |
@@ -539,6 +725,7 @@ MIT License, as follows:
 | serve-static | 1.16.3 | MIT | `node_modules/@neteasecloudmusicapienhanced/unblockmusic-utils/node_modules/serve-static/LICENSE` |
 | serve-static | 2.2.1 | MIT | `node_modules/serve-static/LICENSE` |
 | set-blocking | 2.0.0 | ISC | `node_modules/set-blocking/LICENSE.txt` |
+| setprototypeof | 1.1.0 | ISC | `node_modules/resolve-path/node_modules/setprototypeof/LICENSE` |
 | setprototypeof | 1.2.0 | ISC | `node_modules/setprototypeof/LICENSE` |
 | side-channel | 1.1.1 | MIT | `node_modules/side-channel/LICENSE` |
 | side-channel-list | 1.0.1 | MIT | `node_modules/side-channel-list/LICENSE` |
@@ -551,6 +738,11 @@ MIT License, as follows:
 | sonic-boom | 2.8.0 | MIT | `node_modules/pino-pretty/node_modules/sonic-boom/LICENSE` |
 | source-map | 0.6.1 | BSD-3-Clause | `node_modules/source-map/LICENSE` |
 | split2 | 4.2.0 | ISC | `node_modules/split2/LICENSE`；`node_modules/split2/README.md` |
+| statuses | 1.5.0 | MIT | `node_modules/http-assert/node_modules/statuses/LICENSE` |
+| statuses | 1.5.0 | MIT | `node_modules/koa-router/node_modules/statuses/LICENSE` |
+| statuses | 1.5.0 | MIT | `node_modules/koa-send/node_modules/statuses/LICENSE` |
+| statuses | 1.5.0 | MIT | `node_modules/koa/node_modules/statuses/LICENSE` |
+| statuses | 1.5.0 | MIT | `node_modules/resolve-path/node_modules/statuses/LICENSE` |
 | statuses | 2.0.2 | MIT | `node_modules/statuses/LICENSE` |
 | stream-shift | 1.0.3 | MIT | `node_modules/stream-shift/LICENSE` |
 | streamsearch | 1.1.0 | MIT | `node_modules/streamsearch/LICENSE` |
@@ -570,12 +762,17 @@ MIT License, as follows:
 | tough-cookie | 4.1.4 | BSD-3-Clause | `node_modules/tough-cookie/LICENSE` |
 | tr46 | 5.1.1 | MIT | `node_modules/tr46/LICENSE.md` |
 | tslib | 2.8.1 | 0BSD | `node_modules/tslib/LICENSE.txt` |
+| tsscmp | 1.0.6 | MIT | `node_modules/tsscmp/LICENSE` |
 | tunnel | 0.0.6 | MIT | `node_modules/tunnel/LICENSE` |
 | type-is | 1.6.18 | MIT | `node_modules/@neteasecloudmusicapienhanced/unblockmusic-utils/node_modules/type-is/LICENSE` |
+| type-is | 1.6.18 | MIT | `node_modules/co-body/node_modules/type-is/LICENSE` |
+| type-is | 1.6.18 | MIT | `node_modules/koa-bodyparser/node_modules/type-is/LICENSE` |
+| type-is | 1.6.18 | MIT | `node_modules/koa/node_modules/type-is/LICENSE` |
 | type-is | 2.1.0 | MIT | `node_modules/type-is/LICENSE` |
 | uint8array-extras | 1.6.0 | MIT | `node_modules/uint8array-extras/license` |
 | universalify | 0.2.0 | MIT | `node_modules/universalify/LICENSE` |
 | unpipe | 1.0.0 | MIT | `node_modules/unpipe/LICENSE` |
+| urijs | 1.19.11 | MIT | `node_modules/urijs/LICENSE.txt` |
 | url-parse | 1.5.10 | MIT | `node_modules/url-parse/LICENSE` |
 | util-deprecate | 1.0.2 | MIT | `node_modules/util-deprecate/LICENSE`；`node_modules/util-deprecate/README.md` |
 | utils-merge | 1.0.1 | MIT | `node_modules/utils-merge/LICENSE` |
@@ -591,6 +788,7 @@ MIT License, as follows:
 | wrap-ansi | 7.0.0 | MIT | `node_modules/node-windows/node_modules/wrap-ansi/license` |
 | wrap-ansi | 9.0.2 | MIT | `node_modules/@neteasecloudmusicapienhanced/api/node_modules/wrap-ansi/license` |
 | wrappy | 1.0.2 | ISC | `node_modules/wrappy/LICENSE` |
+| ws | 7.5.14 | MIT | `node_modules/@yakult-green-tea/qq-music-api/node_modules/ws/LICENSE` |
 | ws | 8.22.0 | MIT | `node_modules/ws/LICENSE` |
 | xml | 1.0.1 | MIT | `node_modules/xml/LICENSE` |
 | xml-name-validator | 5.0.0 | Apache-2.0 | `node_modules/xml-name-validator/LICENSE.txt` |
@@ -606,6 +804,8 @@ MIT License, as follows:
 | yargs-parser | 18.1.3 | ISC | `node_modules/yargs-parser/LICENSE.txt` |
 | yargs-parser | 21.1.1 | ISC | `node_modules/node-windows/node_modules/yargs-parser/LICENSE.txt` |
 | yargs-parser | 22.0.0 | ISC | `node_modules/@neteasecloudmusicapienhanced/api/node_modules/yargs-parser/LICENSE.txt` |
+| ylru | 1.4.0 | MIT | `node_modules/ylru/LICENSE` |
+| zod | 4.6.7 | MIT | `node_modules/zod/LICENSE` |
 
 <!-- END GENERATED DEPENDENCY NOTICES -->
 

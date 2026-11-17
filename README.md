@@ -127,13 +127,13 @@ dsh plugin --profile web add dsh-feiyufm@0.1.2 --registry https://registry.npmjs
 | Windows + 网易云 | npm `0.1.2` 已发布；公开 HTTPS 静音播放、暂停／预加载换曲及公开包安装通过，反馈设备与真实账号歌曲仍需复验。见 [发行记录](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/releases/0.1.2.md) |
 | DSH / Node.js | 发行包在 DSH `0.2.2-rc.1`／内置 Node `24.21.0` 隔离安装与初始化通过；要求 Node `>=24.14.0 <25`，桌面宿主自带兼容版本时无需另装 |
 | macOS | 实验性适配随包提供；真实登录、音频与退出生命周期待真机验收 |
-| QQ 音乐 | 接入暂缓，当前没有可用登录与播放链路 |
+| QQ 音乐 | 开发分支提供独立扫码与自动来源选择，隔离实包已验证入口。真实账号导入、完整播放与恢复待验，npm `0.1.2` 沿用既有发行范围 |
 
 长期体验、平台与宿主组合的未验项见 [开发状态](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/PROJECT_PLAN.md)。
 
 ## 数据与开发
 
-曲库、偏好、反馈、收听历史和用量账本保存在本机，默认位于 `$DSH_HOME/fishfm/music.sqlite`。网易云会话由 Windows DPAPI 或 macOS Keychain 保存，数据库只保存凭据引用。模型接收有界的音乐事实，不接收 Cookie 或凭据；歌词仅用于显示，不进入模型输入。详见 [架构](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/ARCHITECTURE.md) 和 [控制契约](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/CORE_CONTRACT.md)。
+曲库、偏好、反馈、收听历史和用量账本保存在本机，默认位于 `$DSH_HOME/fishfm/music.sqlite`。平台会话由 Windows DPAPI 或 macOS Keychain 保存，数据库只保存凭据引用。模型接收有界的音乐事实，不接收 Cookie 或凭据；歌词仅用于显示，不进入模型输入。详见 [架构](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/ARCHITECTURE.md) 和 [控制契约](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/CORE_CONTRACT.md)。
 
 [参与开发与源码安装](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/CONTRIBUTING.md) · [文档索引](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/README.md) · [反馈问题](https://github.com/A7m0spHere/dsh-feiyuFM/issues)
 

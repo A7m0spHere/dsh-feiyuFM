@@ -107,7 +107,8 @@ beta.3 的模型协议／最终回答与日常原生 Desktop 重启补验见 [N2
 | [P2](P2-netease.md) | P2 网易云适配器：实现与验证 |
 | [P3](P3-real-loop.md) | P3 网易云首条真实播放闭环 |
 | [P4](P4-P5-platforms.md) | P4 QQ 与 P5 双平台协调：实现与验证 |
-| [N8](N8-qq-integration-options.md) | N8：QQ 接入方案调研（未实现，未联调） |
+| [N8](N8-qq-integration-options.md) | 初次调研与后续修订，保留当时判断 |
+| [N8 实施](N8-qq-provider-implementation.md) | QQ 无端口 Provider、双账号与单一自动来源，离线／浏览器／隔离实包证据 |
 | [MACOS_PORT](MACOS_PORT.md) | macOS 源码移植、桌面集成和平台验收边界 |
 
 ## 环境、选择与成长

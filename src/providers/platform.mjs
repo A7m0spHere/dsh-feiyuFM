@@ -54,6 +54,7 @@ export function createPlatformProvider({
   let loginVersion = 0;
   let lastError = null;
   let cachedSecret;
+  let operationController = new AbortController();
   const noted = { seedSource: null, seedReason: null, seedDegraded: false, recommendation: null, lastResolveAt: null };
 
   const readSecret = () => {
@@ -97,8 +98,10 @@ export function createPlatformProvider({
   };
 
   async function call(role, params = {}, options = {}) {
+    const signal = options.signal ? AbortSignal.any([options.signal, operationController.signal]) : operationController.signal;
     try {
-      const response = await transport.request({ role, params, signal: options.signal ?? null });
+      const response = await transport.request({ role, params, signal });
+      if (signal.aborted) throw new MusicError('cancelled', '平台请求已取消。');
       if (response?.status && response.status >= 400) {
         throw Object.assign(new Error(`transport status ${response.status}`), { status: response.status });
       }
@@ -106,6 +109,7 @@ export function createPlatformProvider({
       parse.validateResponse?.(body, role);
       return body;
     } catch (error) {
+      if (signal.aborted) throw new MusicError('cancelled', '平台请求已取消。');
       const mapped = mapTransportError(error, { provider: providerName });
       // A platform answer of "not authorised" means the stored sign-in is no
       // longer usable. Saying so once is better than continuing to report
@@ -159,7 +163,8 @@ export function createPlatformProvider({
     const tracks = [];
     for (const entry of entries) {
       // Playlist entries usually wrap the song under `track`.
-      const track = toTrack(providerName, entry?.track ?? entry);
+      const raw = entry?.track ?? entry;
+      const track = toTrack(providerName, parse.normalizeTrack ? parse.normalizeTrack(raw) : raw);
       if (!track) continue;
       const key = trackId(track);
       if (seen.has(key)) continue;
@@ -180,7 +185,8 @@ export function createPlatformProvider({
 
     async lyrics(track, { signal = null } = {}) {
       if (!parse.lyrics) throw new MusicError('lyrics_unsupported', '此平台暂不支持歌词。');
-      if (track?.provider !== providerName || !/^\d{1,20}$/.test(track?.providerTrackId ?? '')) throw new MusicError('invalid_track', '歌词需要有效的平台歌曲。');
+      const validId = parse.validTrackId ?? (id => /^\d{1,20}$/.test(id ?? ''));
+      if (track?.provider !== providerName || !validId(track?.providerTrackId)) throw new MusicError('invalid_track', '歌词需要有效的平台歌曲。');
       const version = loginVersion;
       const body = await call('lyrics', { id: track.providerTrackId }, { signal });
       if (signal?.aborted || version !== loginVersion) throw new MusicError('cancelled', '歌词请求已取消。');
@@ -299,6 +305,8 @@ export function createPlatformProvider({
 
     async logout() {
       ++loginVersion;
+      operationController.abort();
+      operationController = new AbortController();
       try {
         // Keep the reference for retry, but prevent loading the residual secret
         // in this process or after a restart, even if deletion fails.
@@ -332,16 +340,18 @@ export function createPlatformProvider({
     async getSeedTracks({ limit = 300, source = null, signal = null, playlistId = null } = {}) {
       if (!authorized()) throw new MusicError('login_required', `Sign in to ${displayName} before importing`);
 
+      const context = provider.resourceContext();
       const order = source ? [source] : seedOrder;
       const attempts = [];
       for (const candidate of order) {
         try {
           const fetched = await fetchSource(candidate, { limit, signal, playlistId });
+          if (signal?.aborted || context !== provider.resourceContext()) throw new MusicError('cancelled', '账号已变化，旧导入已取消。');
           const tracks = fetched.tracks;
           if (!tracks.length) {
             attempts.push({ source: candidate, count: 0, ok: false, code: 'empty_result',
               stage: fetched.stages.at(-1)?.stage ?? null, stages: fetched.stages,
-              reason: '网易云此来源没有返回可用曲目。' });
+              reason: `${displayName} 此来源没有返回可用曲目。` });
             continue;
           }
           attempts.push({ source: candidate, count: tracks.length, ok: true, code: null,
@@ -366,7 +376,7 @@ export function createPlatformProvider({
             stage: error.details?.stage ?? null, httpStatus: error.details?.httpStatus ?? null,
             platformCode: error.details?.platformCode ?? null, stages: error.seedStages ?? [],
             reason: error.message });
-          if (error.code === 'login_required') throw error;
+          if (['login_required', 'cancelled'].includes(error.code) || signal?.aborted) throw error;
         }
       }
 
@@ -402,7 +412,7 @@ export function createPlatformProvider({
         ? parse.resolveParams({ track })
         : { id: track.providerTrackId };
       const body = await call('resolve', params, { signal });
-      const resolved = parse.playUrl(body);
+      const resolved = parse.playUrl(body, track);
       if (!resolved?.url) {
         // A track that exists but cannot be played is a distinct, honest answer:
         // it is not a network failure and must not look like one.
@@ -417,5 +427,14 @@ export function createPlatformProvider({
     },
   };
 
+  transport.setSessionWriter?.(secret => {
+    credentials.write(accountRef, secret);
+    cachedSecret = secret;
+  });
+  provider.resourceContext = () => {
+    const reference = store?.getCredentialReference?.(providerName);
+    return `${loginVersion}:${reference?.state ?? 'none'}:${reference?.account_id ?? ''}`;
+  };
+  provider.dispose = () => { operationController.abort(); return transport.dispose?.(); };
   return provider;
 }

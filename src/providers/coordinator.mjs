@@ -47,12 +47,12 @@ export function describePlatforms(registry) {
  * user which platform is missing, instead of presenting a short list as if it
  * were the whole picture.
  */
-export async function collectDiscovery({ registry, limit = 40, signal = null, seeds=[] } = {}) {
+export async function collectDiscovery({ registry, limit = 40, signal = null, seeds=[], providers = PROVIDER_NAMES } = {}) {
   const attempts = [];
   const tracks = [];
   const seen = new Set();
 
-  for (const name of PROVIDER_NAMES) {
+  for (const name of providers) {
     if (!registry.has(name)) {
       attempts.push({ provider: name, count: 0, ok: false, code: 'provider_unavailable', reason: 'the adapter is not installed' });
       continue;

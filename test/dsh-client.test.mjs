@@ -1849,3 +1849,57 @@ test('console tabs mount on first visit and stay mounted while hidden', async ()
     assert.equal(mounted.find(node => node.props.className === 'fm-listen-page').props.hidden, false);
   } finally { off(); f.dispose(); }
 });
+
+
+test('dual-platform scans keep independent pending requests, QR images and account replies', async () => {
+  const pending = new Map();
+  const f = fixture(async (_channel, endpoint, payload) => {
+    if (endpoint === 'fishfm/login-start') return new Promise(resolve => pending.set(payload.provider, resolve));
+    return state(snapshot(1));
+  });
+  try {
+    await f.controller.refresh();
+    const netease = f.controller.platformAction('begin', 'netease');
+    const qq = f.controller.platformAction('begin', 'qq');
+    assert.equal(pending.size, 2);
+    pending.get('qq')({ ok: true, value: { snapshot: snapshot(2), login: { provider: 'qq', status: 'waiting', qrImage: 'data:image/png;base64,qq' },
+      platforms: { qq: { installed: true, account: { status: 'login_required' } }, netease: { installed: false } } } });
+    await qq;
+    assert.equal(f.controller.getSnapshot().platformBusy, true);
+    pending.get('netease')({ ok: true, value: { snapshot: snapshot(1), login: { provider: 'netease', status: 'waiting', qrImage: 'data:image/png;base64,ne' },
+      platforms: { netease: { installed: true, account: { status: 'login_required' } }, qq: { installed: false } } } });
+    await netease;
+    const value = f.controller.getSnapshot();
+    assert.equal(value.platformStates.qq.login.qrImage, 'data:image/png;base64,qq');
+    assert.equal(value.platformStates.netease.login.qrImage, 'data:image/png;base64,ne');
+    assert.equal(value.platforms.qq.installed, true);
+    assert.equal(value.platforms.netease.installed, true);
+    assert.equal(value.snapshot.revision, 2);
+    assert.equal(value.platformBusy, false);
+  } finally { f.dispose(); }
+});
+
+test('automatic source saves through its own RPC and preserves the current paused instance', async () => {
+  let source = { version: 1, revision: 0, provider: 'netease' };
+  const calls = [];
+  const current = { track: { provider: 'netease', providerTrackId: '1', title: 'Current', artist: 'Artist' }, playInstanceId: 'keep-current' };
+  const f = fixture(async (_channel, endpoint, payload) => {
+    calls.push(endpoint);
+    if (endpoint === 'fishfm/playback-source') {
+      assert.equal(payload.expectedRevision, source.revision);
+      source = { version: 1, revision: source.revision + 1, provider: payload.provider };
+      return { ok: true, value: { playbackSource: source } };
+    }
+    return state({ ...snapshot(source.revision + 1), current, playbackSource: source });
+  });
+  try {
+    await f.controller.refresh();
+    const result = await f.controller.savePlaybackSource('qq', 0);
+    assert.equal(result.ok, true);
+    const value = f.controller.getSnapshot();
+    assert.equal(value.playbackSource.provider, 'qq');
+    assert.equal(value.snapshot.current.playInstanceId, 'keep-current');
+    assert.equal(value.snapshot.paused, true);
+    assert.equal(calls.includes('fishfm/command'), false);
+  } finally { f.dispose(); }
+});

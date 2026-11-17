@@ -1,0 +1,142 @@
+{
+  "schema": 1,
+  "date": "2026-11-17",
+  "branch": "feat/qq-provider-source",
+  "baseCommit": "9b5908a",
+  "runtime": {
+    "package": "@yakult-green-tea/qq-music-api",
+    "version": "3.3.7",
+    "entry": "/serverless",
+    "mode": "local-worker-sealed"
+  },
+  "tests": {
+    "command": "FISHFM_TEST_REAL_AUDIO=0 node --test --test-concurrency=1 --test-timeout=30000 test/*.test.mjs",
+    "total": 851,
+    "passed": 844,
+    "failed": 0,
+    "skippedRealAudio": 7
+  },
+  "browser": {
+    "scope": "production-bundle-real-react-mocked-rpc",
+    "checks": [
+      {
+        "name": "source switch preserves the current paused instance",
+        "passed": true
+      },
+      {
+        "name": "two platform QR requests can be pending together",
+        "passed": true
+      },
+      {
+        "name": "reverse QR replies preserve both account panels",
+        "passed": true
+      },
+      {
+        "name": "cancelling NetEase leaves the QQ scan active",
+        "passed": true
+      },
+      {
+        "name": "source selector accepts keyboard focus",
+        "passed": true
+      },
+      {
+        "name": "440px container has no horizontal overflow",
+        "passed": true,
+        "containerWidth": 440,
+        "panelWidth": 423,
+        "contentWidth": 423
+      },
+      {
+        "name": "light and dark narrow layouts visually checked",
+        "passed": true
+      }
+    ]
+  },
+  "installed": {
+    "scope": "real-isolated-dsh-installed-qq-source-rpc",
+    "packageVersion": "0.1.2",
+    "checks": [
+      {
+        "name": "both production platform adapters are installed",
+        "passed": true
+      },
+      {
+        "name": "source defaults to NetEase in an empty installed profile",
+        "passed": true
+      },
+      {
+        "name": "authenticated source write selects QQ",
+        "passed": true
+      },
+      {
+        "name": "stale source writes are rejected",
+        "passed": true
+      },
+      {
+        "name": "installed QQ Worker returns a real QR through authenticated RPC",
+        "passed": true
+      },
+      {
+        "name": "QQ pending login can be cancelled",
+        "passed": true
+      },
+      {
+        "name": "plugin restart retains QQ source and pause",
+        "passed": true
+      },
+      {
+        "name": "source can return to NetEase after restart",
+        "passed": true
+      }
+    ],
+    "qqQr": {
+      "ok": true,
+      "status": "waiting",
+      "dataImage": true,
+      "errorCode": null
+    },
+    "gracefulShutdown": true,
+    "sourceHashesMatch": {
+      "bin/fishfm-core.mjs": "477dc85b1545aed1441f420502d47dc6aa1bdad8df3d727ee4e45592a1b9e977",
+      "src/core-host.mjs": "7862b6dae33e907ba849450f20ed8ad40624098714a415b3be71d6defa498d7f",
+      "src/core.mjs": "b681f219169e3137649af7717b30bbf00353e2b30358945c122633f2a3dc5367",
+      "src/playback-source.mjs": "6e470aa85e14f3a3c8968b21d40fa28677359a18e3bec7a4ad40a7bda672f0af",
+      "src/discovery.mjs": "7e6fae8f4db4fcee2ba9ba493250f00e59c1267234df652f97f14943936167a5",
+      "src/providers/qq.mjs": "f745678d097be0c0dfd899378cb88c0902a6ee588319dc39bb43ca094a26df74",
+      "src/providers/qq-transport.mjs": "87a072bb695425dd909efc561917f9ad816d14112565a8d7c31a2242d53b1e3f",
+      "src/providers/qq-upstream.mjs": "7f964d9d9a9570f925b862c0d43b8717b3cdd592e7031633cf12172cc6523dd9",
+      "src/providers/qq-worker.mjs": "a50c52a9b17ee32faef7d3d5f56693d2cddaae6c5c124ac5331a29bb5ba36c46",
+      "src/ui/dsh-settings.mjs": "15b715c3e746cd6f63975834d1fa73b6733a537ab19417da0cded2dcbc04dcc2",
+      "src/ui/dsh-client.js": "e8e25820894a338e86ef7abbe850fd8a408fed221b18b9fa58c854a150afa5ad"
+    }
+  },
+  "coldWorker": {
+    "scope": "one-isolated-node-empty-session-status",
+    "node": "v24.22.1",
+    "startupMs": 719,
+    "rssBefore": 45805568,
+    "rssAfter": 82190336,
+    "hasTcpListener": false,
+    "remainingMessagePortsAfterClose": 0
+  },
+  "package": {
+    "name": "dsh-feiyufm-0.1.2.tgz",
+    "bytes": 37248313,
+    "files": 6872,
+    "sha256": "ab6e6c85305f27f0bb03526f73b7ee2d473056ae032c1e9d2feb7aeef903ac49",
+    "runtimeDependenciesBefore": 288,
+    "runtimeDependenciesAfter": 363,
+    "published": false
+  },
+  "accountValidation": "deferred_by_user",
+  "realPlatformAudio": "not_executed",
+  "macOSLive": "not_executed",
+  "dailyDesktopDeployment": "not_executed",
+  "cleanup": {
+    "servicesStopped": true,
+    "scratchRemoval": "rejected_by_automatic_approval",
+    "reason": "blocked by policy",
+    "location": ".tmp/qq-*",
+    "verifiedPackageRetained": ".tmp/qq-release-final/dsh-feiyufm-0.1.2.tgz"
+  }
+}

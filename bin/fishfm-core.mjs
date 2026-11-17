@@ -16,6 +16,8 @@ import { FakeProvider } from '../src/fakes.mjs';
 import { MusicStore } from '../src/storage.mjs';
 import { createPlatformCredentials } from '../src/providers/credentials.mjs';
 import { neteaseEndpoints } from '../src/providers/endpoints/netease.mjs';
+import { createQQCommunityTransport } from '../src/providers/qq-transport.mjs';
+import { networkProxyView } from '../src/network.mjs';
 import { dirname, join, resolve } from 'node:path';
 import { createRuntimeEvidence } from '../src/runtime/evidence.mjs';
 
@@ -63,7 +65,8 @@ try {
     store = new MusicStore(dbPath);
     const credentials = createPlatformCredentials({ directory: join(dirname(resolve(dbPath)), 'credentials') });
     providerRegistry = buildProviderRegistry({
-      adapters: { netease: { endpoints: neteaseEndpoints() } },
+      adapters: { netease: { endpoints: neteaseEndpoints() },
+        qq: { transport: createQQCommunityTransport({ credentials, getNetworkSettings: () => networkProxyView(store) }) } },
       credentials, store, onLog,
     });
     platformsFacade = createProviderFacade({ registry: providerRegistry, store, onLog });

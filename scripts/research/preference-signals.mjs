@@ -103,7 +103,7 @@ export function runPreferenceSignals() {
   });
   use(({store, candidates}) => {
     let account = 'account-a';
-    const owner = 'netease:authorized:account-a', candidateOwner = createHash('sha256').update(owner).digest('hex');
+    const owner = 'source-v2:netease:0:authorized:account-a', candidateOwner = createHash('sha256').update(owner).digest('hex');
     store.setSetting('discovery_cache_v1', {owner, entries: candidates.map(t => ({...t, discovery: {...t.discovery, fetchedAt: AT, expiresAt: AT + 600000}})), candidateRevision: 'batch-a'});
     store.setSetting('discovery_filter_v1', {source: 'llm-discovery-filter', candidateRevision: 'batch-a', candidateOwner,
       picks: [{trackKey: 'netease:1', rank: 1, reason: 'synthetic'}], tracks: []});

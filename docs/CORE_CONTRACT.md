@@ -1,6 +1,6 @@
 # 内部控制契约
 
-更新：2026-11-11。本文只维护内部字段、命令与边界，DSH 外部接口经 Adapter 映射；职责见 [架构](ARCHITECTURE.md)，用户行为见 [MVP](MVP.md)，实现／部署／验收状态只看 [开发状态](PROJECT_PLAN.md)。历史理由查 [决策摘要](DECISIONS.md) 与 [实验记录](spikes/README.md)。
+更新：2026-11-17。本文只维护内部字段、命令与边界，DSH 外部接口经 Adapter 映射；职责见 [架构](ARCHITECTURE.md)，用户行为见 [MVP](MVP.md)，实现／部署／验收状态只看 [开发状态](PROJECT_PLAN.md)。历史理由查 [决策摘要](DECISIONS.md) 与 [实验记录](spikes/README.md)。
 
 ## 1. 曲目、账号与资源
 
@@ -117,8 +117,8 @@ UI 经宿主认证 `/api` 调用；完整白名单见 [dsh-settings.mjs](../src/
 | `fishfm/library` | 全库搜索与分页，只返回 `library`，不覆盖播放状态 |
 | `fishfm/command` | 白名单用户命令与更新状态 |
 | `fishfm/lyrics` | `{track:{provider,providerTrackId}}`，只允许当前曲目；独立只读请求返回 `lyrics`，不返回或改写播放快照 |
-| `fishfm/login-start/login-poll/logout` | 网易云扫码、账号确认、退出 |
-| `fishfm/import/playlists` | 来源导入与账号歌单，保留数量/尝试轨迹 |
+| `fishfm/login-start/login-poll/logout` | `provider=netease / qq` 指定扫码、账号确认与退出，省略时沿用网易云 |
+| `fishfm/import/playlists` | 接受同一 `provider`，来源导入与账号歌单保留数量／尝试轨迹 |
 | `fishfm/discovery-refresh` | 后台刷新状态，可补跑一次有预算的筛选 |
 | `fishfm/persona-summary/persona-recommendations` | 旧展示总结 / 平台召回后模型筛选；后者不生成歌名 |
 | `fishfm/persona-budget/persona-output/persona-automatic` | 预算、输出上限与自动更新设置 |
@@ -257,3 +257,19 @@ Provider 解析最多 3 次；自主不可播替换有有限预算，明确资�
 `settings.expression_style_v1` 保存 `{version:1,style,revision}`，style 仅为 current/concise/lively；缺省 current/revision=0，不新增表或迁移。`insights.expression` 返回 version/style/revision/available/examples，reply/explanation 同时返回确定性 variants，text 为已保存预设；默认 current 保留原有文案。表达配置与变体不加入任何音乐模型事实或提示。
 
 认证 `fishfm/expression-style` → Core `expression-style`，只接收 style 和 expectedRevision（表达版本，与 Core revision 无关）。事务内冲突拒绝为 expression_conflict，无效值为 invalid_expression，未知持久化版本为 unsupported_expression；同值不增版本，恢复默认保留递增 revision。响应仅返回 expression，不返回或应用播放快照。客户端独立保存、草稿和版本去旧不占用播放 busy；无新工具、模型请求或上下文注入。三类状态所有权、文字优先级、格式取舍及验证见 [U20](spikes/U20-expression-style-prototype.md)。
+
+## 9. QQ 与自动播放来源
+
+新增认证 `fishfm/playback-source` RPC，对应 Core `playback-source`。空 payload 读取。写入携带 `provider=netease|qq` 与 `expectedRevision`，事务内核对配置版本，冲突为 `playback_source_conflict`，无效值为 `invalid_playback_source`。返回 `playbackSource:{version:1,revision,provider}`，同值保存保持 revision。settings 的 `playback_source_v1` 缺失或损坏时只读默认网易云，实际变更时保存。安全快照包含同一 `playbackSource`，客户端按来源 revision 和既有快照顺序拒绝旧结果。
+
+自动候选、参考种子、批准池、初次默认曲与普通 next 的 `libraryFallback` 限定所选来源。显式点播和固定历史导航按条目所属平台取链。Core 接受的当前实例继续执行，来源配置变更只取消尚未转交当前实例的预取，并清理活跃推荐派生缓存。旧筛选按候选 owner／revision 拒绝提交，宿主取消对应筛选流，实际 usage 仍完成账本终结。
+
+缓存 owner 使用 `source-v2:<provider>:<sourceRevision>:<accountStatus>:<accountId>` 后再生成候选指纹。旧 owner 的候选、批准池与评审结果失效后重新补齐。另一平台的纯登录状态变化保留当前池。来源切换继承现有共享预算、池容量、补池门控与最近 50 次窗口，数据库 schema 沿用现有版本。
+
+QQ 曲目归一化优先 `mid / songmid`，`singer` 填充艺人，`interval` 转成毫秒。歌词 ID 校验由平台规则提供，QQ LRC 原文／译文使用已有歌词服务。近期播放能力明确不可用，默认种子顺序为 `liked → playlist`，喜欢／歌单详情分批读取到请求数量或实际结束。QQ 推荐来源为 `qq_daily / qq_personal_fm / qq_similar`，与通用 `platform_recommendation` 一同按曲目平台验证。
+
+QQ `qqmusic_session` token 和稳定的 `fishfm/qq-runtime` 密钥存入现有加密存储，SQLite 仅存 `fishfm/qq` 凭据引用。当前公开无端口入口使用 sealed 模式，按小时检查续期，旋转 token 先保存后采用。刷新自己持有网络取消控制，播放等待者取消时其他等待者可继续使用同一刷新。账号退出／替换及 Core 停用结束对应任务。重启 QQ 资料验证异步执行，等待验证的账号显示 checking，HTTP 200 空资料映射 expired。
+
+取链资源缓存与 in-flight 请求同时核对平台曲目键及账号上下文。退出账号清理其资源并停止该平台的当前实例，已发生进度按既有规则结算，另一平台的音频继续执行。QQ 明确 `preview=true` 的链接归为 `media_unavailable`。422 按角色解释，429 保留安全退避信息，网络或上游失败保留账号状态。媒体下载继续使用 Playback 的匿名请求、独立临时文件与取消控制。
+
+QQ 重启验证遇到临时网络失败时保留加密会话，并显示 error／canRestore。现有 `fishfm/login-poll` 可携带 `restore:true` 重试资料验证，对应 Core login 的 restore 步骤。确认凭据失效才转 expired，用户可在账号行重试验证。
