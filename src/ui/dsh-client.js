@@ -101,9 +101,35 @@ window.__ModuleLoader__.load({
         letter-spacing:-.5px; line-height:1.3; overflow-wrap:anywhere; }
       .fm-artist { color:var(--fm-muted); font-size:12px; }
       .fm-track-swap { animation:fm-swap var(--fm-fast) var(--fm-ease) both; }
-      .fm-progress { height:4px; overflow:hidden; margin:10px 0 5px; border-radius:99px; background:var(--fm-line); }
-      .fm-progress span { display:block; height:100%; border-radius:inherit; background:var(--fm-accent);
-        transition:width var(--fm-fast) linear; }
+      .fm-seek { position:relative; min-width:0; height:24px; }
+      .fm-seek[data-enabled=true] { cursor:pointer; touch-action:none; }
+      .fm-seek[data-dragging=true] { cursor:grabbing; }
+      .fm-seek-input { position:absolute; inset:0; width:100%; height:100%; margin:0; opacity:0;
+        pointer-events:none; direction:ltr; }
+      .fm-seek-rail { position:absolute; inset:50% 0 auto; height:4px; transform:translateY(-50%);
+        border-radius:999px; background:var(--fm-line-strong); pointer-events:none; }
+      .fm-seek-fill { position:absolute; inset:0 auto 0 0; width:var(--fm-seek-position);
+        border-radius:inherit; background:var(--fm-accent); }
+      .fm-seek[data-enabled=true]:hover .fm-seek-rail,.fm-seek-input:focus-visible ~ .fm-seek-rail,
+      .fm-seek[data-dragging=true] .fm-seek-rail { height:6px; }
+      .fm-seek-input:focus-visible ~ .fm-seek-rail { outline:2px solid var(--fm-accent); outline-offset:4px; }
+      .fm-seek-thumb,.fm-seek-marker { display:none; position:absolute; top:50%; transform:translate(-50%,-50%); border-radius:50%; }
+      .fm-seek-thumb { left:var(--fm-seek-position); width:12px; height:12px;
+        border:2px solid var(--fm-accent); background:var(--fm-surface); }
+      .fm-seek[data-enabled=true]:hover .fm-seek-thumb,.fm-seek-input:focus-visible ~ .fm-seek-rail .fm-seek-thumb,
+      .fm-seek[data-dragging=true] .fm-seek-thumb { display:block; }
+      .fm-seek-marker { left:var(--fm-seek-preview); width:6px; height:6px; background:var(--fm-ink); }
+      .fm-seek[data-preview=true][data-dragging=false] .fm-seek-marker { display:block; }
+      .fm-seek-tooltip { display:none; position:absolute; z-index:2; bottom:calc(50% + 10px);
+        left:clamp(26px,var(--fm-seek-preview),calc(100% - 26px)); transform:translateX(-50%);
+        padding:3px 7px; border-radius:5px; background:var(--fm-ink); color:var(--fm-surface);
+        font-size:11px; font-variant-numeric:tabular-nums; white-space:nowrap; pointer-events:none; }
+      .fm-seek[data-preview=true] .fm-seek-tooltip,
+      .fm-seek-input:focus-visible ~ .fm-seek-tooltip { display:block; }
+      .fm-seek-status { margin-top:3px; color:var(--fm-muted); font-size:11px; }
+      .fm-seek-status:empty { position:absolute; margin:0; }
+      .fm-seek-status[data-pending=true] { position:absolute; width:1px; height:1px; margin:0; overflow:hidden; clip-path:inset(50%); }
+      .fm-seek-status[data-error=true] { color:var(--fm-danger); }
       .fm-time { display:flex; justify-content:space-between; gap:8px; color:var(--fm-faint);
         font-size:10px; font-variant-numeric:tabular-nums; }
       .fm-controls { grid-column:1; display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
@@ -506,8 +532,9 @@ window.__ModuleLoader__.load({
       .fm-player-dock .fm-controls { justify-content:center; flex-wrap:nowrap; gap:8px; }
       .fm-player-dock .fm-transport { min-width:0; white-space:nowrap; }
       .fm-dock-timeline { display:flex; align-items:center; gap:9px; color:var(--fm-muted); font-size:11px;
-        font-variant-numeric:tabular-nums; margin-top:10px; }
-      .fm-dock-timeline .fm-progress { flex:1; height:3px; margin:0; }
+        font-variant-numeric:tabular-nums; margin-top:2px; }
+      .fm-dock-timeline .fm-seek { flex:1; }
+      .fm-dock-timeline .fm-seek-tooltip { top:calc(50% + 6px); bottom:auto; }
       .fm-volume { justify-self:end; display:grid; grid-template-columns:auto minmax(70px,112px) 34px; align-items:center; gap:8px; min-width:0; }
       .fm-volume .fm-volume-mute { padding:8px; min-width:34px; background:transparent; border:0; color:var(--fm-muted); }
       .fm-volume-value { color:var(--fm-muted); font-size:12px; text-align:right; font-variant-numeric:tabular-nums; }
@@ -558,6 +585,7 @@ window.__ModuleLoader__.load({
         .fm-volume { justify-self:center; }
       }
       @media(pointer:coarse) {
+        .fm-seek { height:44px; }
         .fm-volume { grid-template-columns:auto minmax(60px,100px) 34px; }
         .fm-volume .fm-volume-mute { min-width:44px;min-height:44px; }
         .fm-volume-slider { height:44px; }
@@ -608,7 +636,6 @@ window.__ModuleLoader__.load({
       .fm-lyrics-footer { min-height:30px;display:flex;align-items:center;flex-wrap:wrap;gap:8px;padding-top:4px; }
       .fm-lyric-hint { color:var(--fm-muted);font-size:11px; }
       .fm-lyric-return { color:var(--fm-accent);font-size:12px;padding-left:0; }
-      .fm-lyric-error { font-size:12px;color:var(--fm-muted); }
       .fm-lyrics :is(button,[tabindex]):focus-visible { outline:2px solid var(--fm-accent);outline-offset:2px; }
       @container fishfm (max-width:760px) {
         .fm-now-layout { grid-template-columns:minmax(0,1fr);gap:12px;margin-bottom:20px; }
@@ -686,6 +713,14 @@ window.__ModuleLoader__.load({
       if (snapshot?.paused) return { label: '已暂停 · 不会自动恢复', art: 'whale-idle', active: false };
       if (snapshot?.status === 'playing') return { label: snapshot.settings?.humanPlayback ? '正在播放' : '静音播放', art: 'whale-listening', active: true };
       return { label: '电台待命', art: 'whale-idle', active: false };
+    }
+
+    function canSeekPlayback(snapshot, connected, transportPending) {
+      const current = snapshot?.current;
+      const duration = current?.track?.durationMs;
+      return Boolean(connected && snapshot?.playbackCapabilities?.seek && current?.playInstanceId && !current.finished
+        && Number.isSafeInteger(duration) && duration > 0
+        && ['playing', 'paused'].includes(snapshot.status) && (!transportPending || transportPending === 'seek'));
     }
 
     // Pending acknowledges a request, never claims that audio has started.
@@ -1612,13 +1647,13 @@ window.__ModuleLoader__.load({
       const id = current?.playInstanceId ?? null;
       const positionMs = current?.positionMs ?? 0;
       React.useEffect(() => {
-        anchor.current = { id, at: Date.now(), ms: positionMs };
+        anchor.current = active ? { id, at: Date.now(), ms: positionMs } : null;
         if (!active || !id) return undefined;
         const timer = setInterval(() => tick(value => value + 1), 500);
         return () => clearInterval(timer);
       }, [id, positionMs, active]);
       return interpolatedPosition({
-        anchor: anchor.current, playInstanceId: id, positionMs,
+        anchor: anchor.current?.ms === positionMs ? anchor.current : null, playInstanceId: id, positionMs,
         durationMs: current?.track?.durationMs, now: Date.now(), active,
       });
     }
@@ -1678,6 +1713,113 @@ window.__ModuleLoader__.load({
         onClick: (e) => { if (e.detail === 0) onClose(); } }, h('span', { className: 'fm-handle-bar' }));
     }
 
+    // src/ui/client/timeline.mjs
+    function PlaybackTimeline({ controller, state, positionMs, playbackLabel }) {
+      const { snapshot, connected, transportPending } = state;
+      const { playInstanceId, track } = snapshot.current;
+      const duration = track?.durationMs;
+      const knownDuration = Number.isSafeInteger(duration) && duration > 0;
+      const canSeek = canSeekPlayback(snapshot, connected, transportPending);
+      const maxTarget = knownDuration ? duration - 1 : 0;
+      const clampTarget = ms => Math.max(0, Math.min(maxTarget, Math.round(ms)));
+      const [hover, setHover] = React.useState(null);
+      const [drag, setDrag] = React.useState(null);
+      const [submitted, setSubmitted] = React.useState(null);
+      const slider = React.useRef(null);
+      const pointer = React.useRef(null);
+
+      React.useEffect(() => {
+        if (canSeek) return;
+        pointer.current = null;
+        setDrag(null);
+        setHover(null);
+      }, [canSeek]);
+
+      const pending = snapshot.seekPending?.playInstanceId === playInstanceId ? snapshot.seekPending?.positionMs ?? null : null;
+      const requested = (transportPending === 'seek' ? submitted?.positionMs : null) ?? pending;
+      const preview = canSeek ? drag ?? hover ?? requested : null;
+      const value = clampTarget(drag ?? positionMs);
+      const percent = ms => knownDuration ? `${100 * Math.max(0, Math.min(duration, ms)) / duration}%` : '0%';
+
+      function seek(ms) {
+        if (!canSeek) return;
+        const target = { playInstanceId, positionMs: clampTarget(ms) };
+        setSubmitted(target);
+        void controller.command('seek', target).finally(() => {
+          setSubmitted(previous => previous === target ? null : previous);
+        });
+      }
+
+      function pointerTarget(event) {
+        const { left, width } = event.currentTarget.getBoundingClientRect();
+        return clampTarget(duration * (event.clientX - left) / Math.max(1, width));
+      }
+
+      function startDrag(event) {
+        if (!canSeek || pointer.current !== null || !event.isPrimary || event.button !== 0) return;
+        event.preventDefault();
+        slider.current?.focus({ preventScroll: true });
+        event.currentTarget.setPointerCapture(event.pointerId);
+        pointer.current = event.pointerId;
+        setDrag(pointerTarget(event));
+      }
+
+      function movePointer(event) {
+        if (!canSeek || !event.isPrimary) return;
+        if (pointer.current === event.pointerId) setDrag(pointerTarget(event));
+        else if (event.pointerType !== 'touch') setHover(pointerTarget(event));
+      }
+
+      function cancelDrag(event) {
+        if (pointer.current !== event.pointerId) return;
+        pointer.current = null;
+        setDrag(null);
+        setHover(null);
+      }
+
+      function finishDrag(event) {
+        if (pointer.current !== event.pointerId) return;
+        const target = pointerTarget(event);
+        cancelDrag(event);
+        if (event.pointerType !== 'touch' && event.currentTarget.matches(':hover')) setHover(target);
+        seek(target);
+      }
+
+      function adjustWithKey(event) {
+        if (!canSeek || pointer.current !== null) return;
+        const base = requested ?? value;
+        const targets = { ArrowLeft: base - 5000, ArrowDown: base - 5000,
+          ArrowRight: base + 5000, ArrowUp: base + 5000, Home: 0, End: maxTarget };
+        if (!Object.hasOwn(targets, event.key)) return;
+        event.preventDefault();
+        setHover(null);
+        seek(targets[event.key]);
+      }
+
+      const bar = h('div', { className: 'fm-seek', 'data-enabled': canSeek, 'data-preview': preview !== null, 'data-dragging': drag !== null,
+        onPointerDown: startDrag, onPointerEnter: movePointer, onPointerMove: movePointer, onPointerUp: finishDrag,
+        onPointerCancel: cancelDrag, onLostPointerCapture: cancelDrag, onPointerLeave: () => setHover(null),
+        style: { '--fm-seek-position': percent(drag ?? positionMs), '--fm-seek-preview': percent(preview ?? value) } },
+        h('input', { ref: slider, className: 'fm-seek-input', type: 'range', min: 0, max: maxTarget, step: 1,
+          value, disabled: !canSeek, 'aria-label': '播放进度',
+          'aria-valuetext': `${minutes(drag ?? positionMs)} / ${knownDuration ? minutes(duration) : '未知时长'}`,
+          onChange: event => seek(event.currentTarget.valueAsNumber), onKeyDown: adjustWithKey }),
+        h('div', { className: 'fm-seek-rail', 'aria-hidden': true },
+          h('span', { className: 'fm-seek-fill' }), h('span', { className: 'fm-seek-thumb' }),
+          h('span', { className: 'fm-seek-marker' })),
+        canSeek && h('span', { className: 'fm-seek-tooltip', 'aria-hidden': true }, minutes(preview ?? value)));
+      const total = knownDuration ? minutes(duration) : '--:--';
+      const error = snapshot.seekError?.message;
+      const seeking = pending !== null || transportPending === 'seek';
+      return h('div', { className: 'fm-playback-timeline' },
+        playbackLabel
+          ? h(React.Fragment, null, bar, h('div', { className: 'fm-time' },
+            h('span', null, playbackLabel), h('span', null, `${minutes(positionMs)} / ${total}`)))
+          : h('div', { className: 'fm-dock-timeline' }, h('span', null, minutes(positionMs)), bar, h('span', null, total)),
+        h('div', { className: 'fm-seek-status', role: 'status', 'data-pending': seeking, 'data-error': !seeking && Boolean(error) },
+          seeking ? '正在跳转…' : error));
+    }
+
     // src/ui/client/lyrics.mjs
     function lyricLineIndex(lines, positionMs) {
       let low = 0, high = lines.length;
@@ -1726,8 +1868,7 @@ window.__ModuleLoader__.load({
         const reduced = motion === 'off' || motion === 'reduced' || window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
         root.scrollTo?.({ top: Math.max(0, row.offsetTop - root.clientHeight * .34), behavior: reduced ? 'instant' : 'smooth' });
       }, [index, following, visible, pageVisible, translation, romanization, data, motion]);
-      const canSeek = connected && snapshot?.playbackCapabilities?.seek && track?.durationMs > 0
-        && (!transportPending || transportPending === 'seek');
+      const canSeek = canSeekPlayback(snapshot, connected, transportPending);
       const option = (label, enabled, active, change) => h('button', { type: 'button', className: 'fm-lyric-option',
         disabled: !enabled, 'aria-pressed': active, onClick: () => change(!active) }, label);
       let content;
@@ -1758,8 +1899,7 @@ window.__ModuleLoader__.load({
           onKeyDown: event => { if (['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End'].includes(event.key)) setFollowing(false); } }, content),
         h('div', { className: 'fm-lyrics-footer' }, !following && lines.length > 0
           ? h('button', { type: 'button', className: 'fm-lyric-return', onClick: () => setFollowing(true) }, '回到当前句')
-          : h('span', { className: 'fm-lyric-hint' }, snapshot?.seekPending ? '正在跳转…' : data?.status === 'synced' && canSeek ? '点击歌词，跳到这一句' : ''),
-        snapshot?.seekError && h('span', { className: 'fm-lyric-error', role: 'status' }, snapshot.seekError.message)));
+          : h('span', { className: 'fm-lyric-hint' }, data?.status === 'synced' && canSeek ? '点击歌词，跳到这一句' : '')));
     }
 
     // src/ui/client/doll-world.mjs
@@ -2471,9 +2611,7 @@ window.__ModuleLoader__.load({
             h(Svg, { type: transport.icon }), transport.label),
           h('button', { type: 'button', className: 'fm-button fm-transport', disabled: transport.nextDisabled,
             'aria-busy': state.transportPending === 'next', onClick: () => controller.command('next') }, h(Svg, { type: 'next' }), transport.nextLabel)),
-          current && h('div', { className: 'fm-dock-timeline' }, h('span', null, minutes(positionMs)),
-            h('div', { className: 'fm-progress', 'aria-label': '播放进度' }, h('span', { style: { width: `${progressPercent({ ...current, positionMs })}%` } })),
-            h('span', null, current.track.durationMs ? minutes(current.track.durationMs) : '--:--'))),
+          current && h(PlaybackTimeline, { key: current.playInstanceId, controller, state, positionMs })),
         h(VolumeControl, { controller, state }));
 
 
@@ -2685,9 +2823,8 @@ window.__ModuleLoader__.load({
           h('div', { className: 'fm-float-drawer-body' },
             current ? h(React.Fragment, null,
               h('div', { className: 'fm-float-track' }, h('strong', null, current.track?.title || '正在播放'), h('span', null, current.track?.artist || '未知艺人')),
-              h('div', { className: 'fm-progress' }, h('span', { style: { width: `${progressPercent({ ...current, positionMs })}%` } })),
-              h('div', { className: 'fm-time' }, h('span', null, playing ? '正在播放' : paused ? '已暂停' : '等待音乐'),
-                h('span', null, `${minutes(positionMs)} / ${current.track?.durationMs ? minutes(current.track.durationMs) : '--:--'}`)))
+              h(PlaybackTimeline, { key: current.playInstanceId, controller, state, positionMs,
+                playbackLabel: playing ? '正在播放' : paused ? '已暂停' : '等待音乐' }))
               : h('div', { className: 'fm-float-empty' }, snapshot ? '当前没有播放曲目。可以打开电台设置或导入音乐。' : state.connected ? '正在读取播放状态…' : '本地音乐服务暂时无法连接。'),
             state.error && h('div', { className: 'fm-notice', 'data-error': true, role: 'alert' }, state.error,
               ' ', h('button', { className: 'fm-button', type: 'button', disabled: state.busy,

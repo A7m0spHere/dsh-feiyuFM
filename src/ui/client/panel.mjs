@@ -1,7 +1,8 @@
 import { playbackPresentation, playbackControls, discoveryPresentation, playbackNotice } from './presentation.mjs';
 import React from 'react';
-import { h, minutes, progressPercent, modes, sourceNames, stageNames } from './shared.mjs';
+import { h, modes, sourceNames, stageNames } from './shared.mjs';
 import { Svg, StatusMark, PlaybackArtwork, VolumeControl, useSmoothProgress } from './components.mjs';
+import { PlaybackTimeline } from './timeline.mjs';
 import { Library } from './library.mjs';
 import {Persona} from './persona.mjs';
 import {FeedbackSettings} from './feedback.mjs';
@@ -231,9 +232,7 @@ export function Panel({ controller, back }) {
         h(Svg, { type: transport.icon }), transport.label),
       h('button', { type: 'button', className: 'fm-button fm-transport', disabled: transport.nextDisabled,
         'aria-busy': state.transportPending === 'next', onClick: () => controller.command('next') }, h(Svg, { type: 'next' }), transport.nextLabel)),
-      current && h('div', { className: 'fm-dock-timeline' }, h('span', null, minutes(positionMs)),
-        h('div', { className: 'fm-progress', 'aria-label': '播放进度' }, h('span', { style: { width: `${progressPercent({ ...current, positionMs })}%` } })),
-        h('span', null, current.track.durationMs ? minutes(current.track.durationMs) : '--:--'))),
+      current && h(PlaybackTimeline, { key: current.playInstanceId, controller, state, positionMs })),
     h(VolumeControl, { controller, state }));
 
 

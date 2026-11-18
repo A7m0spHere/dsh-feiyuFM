@@ -1,5 +1,6 @@
 import React from 'react';
 import { h, minutes } from './shared.mjs';
+import { canSeekPlayback } from './presentation.mjs';
 
 export function lyricLineIndex(lines, positionMs) {
   let low = 0, high = lines.length;
@@ -48,8 +49,7 @@ export function Lyrics({ controller, snapshot, connected, visible, positionMs, m
     const reduced = motion === 'off' || motion === 'reduced' || window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
     root.scrollTo?.({ top: Math.max(0, row.offsetTop - root.clientHeight * .34), behavior: reduced ? 'instant' : 'smooth' });
   }, [index, following, visible, pageVisible, translation, romanization, data, motion]);
-  const canSeek = connected && snapshot?.playbackCapabilities?.seek && track?.durationMs > 0
-    && (!transportPending || transportPending === 'seek');
+  const canSeek = canSeekPlayback(snapshot, connected, transportPending);
   const option = (label, enabled, active, change) => h('button', { type: 'button', className: 'fm-lyric-option',
     disabled: !enabled, 'aria-pressed': active, onClick: () => change(!active) }, label);
   let content;
@@ -80,6 +80,5 @@ export function Lyrics({ controller, snapshot, connected, visible, positionMs, m
       onKeyDown: event => { if (['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End'].includes(event.key)) setFollowing(false); } }, content),
     h('div', { className: 'fm-lyrics-footer' }, !following && lines.length > 0
       ? h('button', { type: 'button', className: 'fm-lyric-return', onClick: () => setFollowing(true) }, '回到当前句')
-      : h('span', { className: 'fm-lyric-hint' }, snapshot?.seekPending ? '正在跳转…' : data?.status === 'synced' && canSeek ? '点击歌词，跳到这一句' : ''),
-    snapshot?.seekError && h('span', { className: 'fm-lyric-error', role: 'status' }, snapshot.seekError.message)));
+      : h('span', { className: 'fm-lyric-hint' }, data?.status === 'synced' && canSeek ? '点击歌词，跳到这一句' : '')));
 }
