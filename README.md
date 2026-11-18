@@ -127,7 +127,7 @@ dsh plugin --profile web add dsh-feiyufm@0.1.2 --registry https://registry.npmjs
 | Windows + 网易云 | npm `0.1.2` 已发布；公开 HTTPS 静音播放、暂停／预加载换曲及公开包安装通过，反馈设备与真实账号歌曲仍需复验。见 [发行记录](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/releases/0.1.2.md) |
 | DSH / Node.js | 发行包在 DSH `0.2.2-rc.1`／内置 Node `24.21.0` 隔离安装与初始化通过；要求 Node `>=24.14.0 <25`，桌面宿主自带兼容版本时无需另装 |
 | macOS | 实验性适配随包提供；真实登录、音频与退出生命周期待真机验收 |
-| QQ 音乐 | 开发分支提供独立扫码与自动来源选择，隔离实包已验证入口。真实账号导入、完整播放与恢复待验，npm `0.1.2` 沿用既有发行范围 |
+| QQ 音乐 | 开发分支提供 QQ 扫码，登录后自动使用当前账号的平台。真实账号导入、完整播放与恢复待验，npm `0.1.2` 沿用既有发行范围 |
 
 长期体验、平台与宿主组合的未验项见 [开发状态](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/PROJECT_PLAN.md)。
 

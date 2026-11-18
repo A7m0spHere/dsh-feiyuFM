@@ -1,6 +1,8 @@
 // Stores platform sessions as generic-password items in the logged-in user's
 // macOS Keychain. The secret is sent to the native helper over stdin, not argv.
 import { spawnSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
+import { resolve } from 'node:path';
 import { ensureMacHelper } from '../runtime/macos-helper.mjs';
 
 function invoke(helper, request, run = spawnSync) {
@@ -18,13 +20,15 @@ function invoke(helper, request, run = spawnSync) {
 
 export function createMacKeychainCredentials({
   helper = null,
+  directory = null,
   ensureHelper = ensureMacHelper,
   run = spawnSync,
 } = {}) {
   let binary = helper;
+  const namespace = directory ? createHash('sha256').update(resolve(directory)).digest('hex') : null;
   const getHelper = () => binary ??= ensureHelper();
   const invokeOne = (operation, reference, secret) => invoke(getHelper(), {
-    operation, reference, ...(secret === undefined ? {} : { secret }),
+    operation, reference: namespace ? `${namespace}/${reference}` : reference, ...(secret === undefined ? {} : { secret }),
   }, run);
 
   return {

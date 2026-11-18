@@ -20,6 +20,22 @@ test('DPAPI deletion propagates file errors and treats absent files as success',
   assert.equal(credentials.delete('test'), true);
 });
 
+test('isolated macOS data directories use different Keychain entries for the same platform', () => {
+  const memory = createMemoryCredentials();
+  const run = (_helper, _args, options) => {
+    const { operation, reference, secret } = JSON.parse(options.input);
+    const value = operation === 'read' ? memory.read(reference) : memory[operation](reference, secret);
+    return { status: 0, stdout: JSON.stringify({ value }) };
+  };
+  const make = directory => createMacKeychainCredentials({ helper: 'synthetic-helper', directory, run });
+  const first = make('test-instance-a'), second = make('test-instance-b');
+  first.write('fishfm/qq', 'first');
+  second.write('fishfm/qq', 'second');
+  second.delete('fishfm/qq');
+  assert.equal(make('test-instance-a').read('fishfm/qq'), 'first');
+  assert.equal(second.read('fishfm/qq'), null);
+});
+
 test('logout disables sessions on cleanup failure, preserves a revoked retry reference across restart and retries', async t => {
   for (const backend of ['EACCES', 'keychain-helper', 'false-result']) await t.test(backend, async () => {
     const store = new MusicStore();

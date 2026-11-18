@@ -73,8 +73,8 @@ try {
   const initial = await rpc('fishfm/state', { minimal: true });
   report.rpc = { http: initial.http, ms: initial.ms, ok: initial.result?.ok, error: initial.result?.error,
     snapshot: !!initial.result?.value?.snapshot, neteaseInstalled: initial.result?.value?.platforms?.netease?.installed, libraryTotal: initial.result?.value?.library?.total }; save();
-  if (process.argv.includes('--qq-source')) {
-    report.scope = 'real-isolated-dsh-installed-qq-source-rpc';
+  if (process.argv.includes('--single-account')) {
+    report.scope = 'real-isolated-dsh-installed-single-account-rpc';
     const check = (name, passed) => {
       report.checks.push({ name, passed });
       save();
@@ -82,28 +82,29 @@ try {
     };
     check('both production platform adapters are installed', initial.result?.value?.platforms?.netease?.installed === true
       && initial.result?.value?.platforms?.qq?.installed === true);
-    const sourceRead = await rpc('fishfm/playback-source');
-    const source = sourceRead.result?.value?.playbackSource;
-    check('source defaults to NetEase in an empty installed profile', source?.provider === 'netease' && source.revision === 0);
-    const selected = await rpc('fishfm/playback-source', { provider: 'qq', expectedRevision: source.revision });
-    check('authenticated source write selects QQ', selected.result?.value?.playbackSource?.provider === 'qq');
-    const conflict = await rpc('fishfm/playback-source', { provider: 'netease', expectedRevision: 0 });
-    check('stale source writes are rejected', conflict.result?.error?.code === 'playback_source_conflict');
-    const qr = await rpc('fishfm/login-start', { provider: 'qq' });
+    const account = initial.result?.value?.snapshot?.musicAccount;
+    check('fresh installation starts logged out', account?.provider === null && account.revision === 0);
+    const selected = await rpc('fishfm/playback-source', { provider: 'qq', expectedRevision: account.revision });
+    check('manual source writes are rejected in account mode', selected.result?.error?.code === 'source_follows_account');
+    const scope = { accountRevision: account.revision };
+    const qr = await rpc('fishfm/login-start', { provider: 'qq', ...scope });
+    const attemptId = qr.result?.value?.login?.attemptId;
     report.qqQr = { ok: qr.result?.ok, status: qr.result?.value?.login?.status,
       dataImage: qr.result?.value?.login?.qrImage?.startsWith('data:image/png;base64,') === true, errorCode: qr.result?.error?.code ?? null };
-    check('installed QQ Worker returns a real QR through authenticated RPC', report.qqQr.ok && report.qqQr.dataImage);
-    const logout = await rpc('fishfm/logout', { provider: 'qq' });
+    check('installed QQ Worker returns a real QR and an attempt ID through authenticated RPC', report.qqQr.ok && report.qqQr.dataImage && typeof attemptId === 'string');
+    const second = await rpc('fishfm/login-start', { provider: 'netease', ...scope });
+    check('a second platform cannot start while QQ is pending', second.result?.error?.code === 'music_login_pending');
+    const logout = await rpc('fishfm/logout', { provider: 'qq', attemptId, ...scope });
     check('QQ pending login can be cancelled', logout.result?.ok === true);
+    const late = await rpc('fishfm/login-poll', { provider: 'qq', attemptId, ...scope });
+    check('the cancelled QR cannot be polled', late.result?.error?.code === 'music_login_changed');
     await rpc('fishfm-acceptance', { op: 'toggle', disabled: true });
     await rpc('fishfm-acceptance', { op: 'toggle', disabled: false });
     const restarted = await until(async () => {
       const response = await rpc('fishfm/state', { minimal: true });
       return response.result?.ok ? response.result.value : null;
     });
-    check('plugin restart retains QQ source and pause', restarted.snapshot?.playbackSource?.provider === 'qq' && restarted.snapshot?.paused === true);
-    const restored = await rpc('fishfm/playback-source', { provider: 'netease', expectedRevision: 1 });
-    check('source can return to NetEase after restart', restored.result?.value?.playbackSource?.provider === 'netease');
+    check('plugin restart stays logged out and paused', restarted.snapshot?.musicAccount?.provider === null && restarted.snapshot?.paused === true);
     console.log(JSON.stringify({ out, checks: report.checks, qqQr: report.qqQr }));
   } else {
   chrome = spawn(arg('--chrome', 'C:/Program Files/Google/Chrome/Application/chrome.exe'), ['--headless=new', `--remote-debugging-port=${await port()}`, `--user-data-dir=${join(out, 'chrome')}`, '--no-first-run', '--no-default-browser-check', '--disable-extensions', '--disable-sync', '--disable-background-networking', '--mute-audio', '--window-size=1440,1000', 'about:blank'], { windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] });

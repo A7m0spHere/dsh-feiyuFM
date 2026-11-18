@@ -43,7 +43,7 @@ test('neutral clears, command deduplication and independent revisions survive fi
     assert.equal(store.db.prepare('SELECT score FROM user_track_feedback').get().score,0);
     store.close();store=new MusicStore(path);clear(store,t,'same',revision);
     assert.equal(feedbackRevision(store),after);assert.equal(trackFeedback(store,t),0);
-    assert.equal(store.db.prepare('PRAGMA user_version').get().user_version,11);
+    assert.equal(store.db.prepare('PRAGMA user_version').get().user_version,12);
   }finally{store.close();rmSync(dir,{recursive:true,force:true});}
 });
 

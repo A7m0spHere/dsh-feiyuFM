@@ -99,10 +99,12 @@ async function readSettingsState(bridge, signal, libraryOptions, { profile = tru
     if (profile) for (const result of [insights, persona]) if (result.status === 'rejected') throw result.reason;
     const partial = (result, key, label) => result.status === 'fulfilled' ? { [key]: result.value[key] }
       : { [key === 'platforms' ? 'platformError' : 'libraryError']: `${label}读取失败，请重试。 (${initializationCode(result.reason)})` };
+    const accountRevision = state.value.snapshot?.musicAccount?.revision;
+    const currentProfile = profile && [insights, persona].every(result => result.value?.accountRevision === accountRevision);
     // Publish only the UI projection, never credentials or media handles.
     return { snapshot: state.value.snapshot, ...partial(platforms, 'platforms', '平台连接状态'),
       ...(library ? partial(library, 'library', '曲库') : { libraryPending: true }),
-      ...(profile ? { insights:insights.value?.insights,persona:persona.value?.persona } : {}),
+      ...(currentProfile ? { insights:insights.value?.insights,persona:persona.value?.persona } : {}),
       features: { discoveryRefresh: true,importSources:true,insights:true, artwork: artworkCapabilities } };
   } finally { libraryController.abort(); }
 }
@@ -122,6 +124,8 @@ async function initializationStage(bridge, phase, operation) {
 export function createSettingsHandler(bridge,summaryService={current:null}) {
   return async (endpoint, payload, signal) => {
     try {
+      const account = Number.isSafeInteger(payload?.accountRevision) ? { accountRevision: payload.accountRevision } : {};
+      const attempt = typeof payload?.attemptId === 'string' && /^[a-f0-9-]{36}$/.test(payload.attemptId) ? { attemptId: payload.attemptId } : {};
       if (endpoint !== LYRICS_ENDPOINT && endpoint !== STATE_ENDPOINT && endpoint !== PROFILE_ENDPOINT && endpoint !== LIBRARY_ENDPOINT && endpoint !== EXPRESSION_ENDPOINT && endpoint !== NETWORK_PROXY_ENDPOINT && endpoint !== PLAYBACK_SOURCE_ENDPOINT && !FEEDBACK_ENDPOINTS.has(endpoint) && endpoint !== 'fishfm/command' && !PLATFORM_ENDPOINTS.has(endpoint)&&!PERSONA_ENDPOINTS.has(endpoint)) {
         throw Object.assign(new Error('Unknown FeiyuFM endpoint'), { code: 'not_found' });
       }
@@ -152,8 +156,12 @@ export function createSettingsHandler(bridge,summaryService={current:null}) {
           bridge.request({ type: 'insights' }, { signal, abortable: true }),
           bridge.request({ type: 'persona' }, { signal, abortable: true }),
         ]);
+        if (insights?.accountRevision !== persona?.accountRevision) {
+          throw Object.assign(new Error('音乐账号已变化，请刷新后重试。'), { code: 'music_account_changed' });
+        }
         summaryService.current?.warm();
         return { ok: true, value: { insights: insights?.insights, persona: persona?.persona,
+          ...(insights?.accountRevision !== undefined ? { accountRevision: insights.accountRevision } : {}),
           summaryModels: summaryService.current?.peekModels() ?? [],
           features: { discoveryRefresh: true, importSources: true, insights: true, artwork: artworkCapabilities,
             personaSummary: Boolean(summaryService.current) } } };
@@ -162,12 +170,13 @@ export function createSettingsHandler(bridge,summaryService={current:null}) {
         const clear=endpoint==='fishfm/feedback-clear';
         const view=validateFeedbackQuery(clear?payload?.view??{}:payload??{});
         const mutation=clear?{track:{provider:payload?.track?.provider,providerTrackId:payload?.track?.providerTrackId},
-          commandId:payload?.commandId,expectedRevision:payload?.expectedRevision}:null;
+          commandId:payload?.commandId,expectedRevision:payload?.expectedRevision,...account}:null;
         if(clear)validateFeedbackClear(mutation);
         await bridge.start();
         const result=await bridge.request(clear?{type:'feedback-clear',...mutation,view}:{type:'feedback-list',...view},
           clear?{}:{signal,abortable:true});
-        return {ok:true,value:{feedbackPage:result.feedbackPage,...(clear?{feedback:result.feedback}:{})}};
+        return {ok:true,value:{feedbackPage:result.feedbackPage,...(clear?{feedback:result.feedback}:{}),
+          ...(result.accountRevision !== undefined ? { accountRevision: result.accountRevision } : {})}};
       }
       if (endpoint === EXPRESSION_ENDPOINT) {
         validateExpressionInput(payload?.style,payload?.expectedRevision);
@@ -236,7 +245,7 @@ export function createSettingsHandler(bridge,summaryService={current:null}) {
         if (!PROVIDERS.includes(provider)) throw Object.assign(new Error('不支持该音乐平台。'), { code: 'platform_unavailable' });
         await bridge.start();
         if(endpoint==='fishfm/playlists') {
-          const listed=await bridge.request({type:'playlists',provider},{signal,abortable:true,timeoutMs:40000});
+          const listed=await bridge.request({type:'playlists',provider,...account},{signal,abortable:true,timeoutMs:40000});
           return {ok:true,value:{playlists:listed.playlists,...(await readSettingsState(bridge,signal,payload?.library))}};
         }
         if (endpoint === 'fishfm/discovery-refresh') {
@@ -249,7 +258,8 @@ export function createSettingsHandler(bridge,summaryService={current:null}) {
           return { ok: true, value: { discovery: refreshed.discovery, ...(await readSettingsState(bridge, signal, payload?.library)) } };
         }
         if (endpoint === 'fishfm/login-start') {
-          const started = await bridge.request({ type: 'login', step: 'begin', provider }, { signal, abortable: true });
+          const started = await bridge.request({ type: 'login', step: 'begin', provider, ...account }, { signal, abortable: true });
+          const ticket = started.login?.attemptId ? { attemptId: started.login.attemptId } : {};
           const key = started.login?.key;
           if (typeof key !== 'string' || !key) throw Object.assign(new Error('The platform did not return a QR login key'), { code: 'login_qr_unavailable' });
           if (provider === 'qq') {
@@ -257,7 +267,7 @@ export function createSettingsHandler(bridge,summaryService={current:null}) {
             if (typeof image !== 'string' || !/^data:image\/(?:png|jpeg);base64,/.test(image) || image.length > 512000) {
               throw Object.assign(new Error('QQ 音乐未返回可用的登录二维码。'), { code: 'login_qr_unavailable' });
             }
-            return { ok: true, value: { login: { provider, status: 'waiting', qrImage: image }, ...(await readSettingsState(bridge, signal, payload?.library)) } };
+            return { ok: true, value: { login: { provider, status: 'waiting', qrImage: image, ...ticket }, ...(await readSettingsState(bridge, signal, payload?.library)) } };
           }
           const providedUrl = started.login?.qrUrl;
           const qrUrl = providedUrl || `${NETEASE_QR_LOGIN_URL}?codekey=${encodeURIComponent(key)}`;
@@ -269,22 +279,32 @@ export function createSettingsHandler(bridge,summaryService={current:null}) {
           const image = typeof started.login?.qrImage === 'string' && started.login.qrImage.startsWith('data:image/')
             ? started.login.qrImage
             : await QRCode.toDataURL(qrUrl, { width: 288, margin: 2, errorCorrectionLevel: 'M' });
-          return { ok: true, value: { login: { provider, status: 'waiting', qrImage: image }, ...(await readSettingsState(bridge, signal, payload?.library)) } };
+          return { ok: true, value: { login: { provider, status: 'waiting', qrImage: image, ...ticket }, ...(await readSettingsState(bridge, signal, payload?.library)) } };
         }
         if (endpoint === 'fishfm/login-poll') {
-          const polled = await bridge.request({ type: 'login', step: payload?.restore === true ? 'restore' : 'poll', provider }, { signal, abortable: true, timeoutMs: 40_000 });
+          const polled = await bridge.request({ type: 'login', step: payload?.restore === true ? 'restore' : 'poll', provider, ...account, ...attempt }, { signal, abortable: true, timeoutMs: 40_000 });
           return { ok: true, value: { login: { provider, status: polled.status, qrExpired: polled.status === 'expired' && payload?.restore !== true,
-            accountId: polled.login?.accountId ?? null, identityError: polled.login?.identityError ?? null },
+            accountId: polled.login?.accountId ?? null, identityError: polled.login?.identityError ?? null, ...attempt },
           ...(await readSettingsState(bridge, signal, payload?.library)) } };
         }
         if (endpoint === 'fishfm/logout') {
-          await bridge.request({ type: 'logout', provider }, { signal, abortable: true });
+          let disconnected;
+          try {
+            const result = await bridge.request({ type: 'logout', provider, ...account, ...attempt }, { signal, abortable: true });
+            disconnected = result.accountDisconnected;
+          } catch (error) {
+            disconnected = error.code === 'credential_cleanup_failed';
+            throw error;
+          } finally {
+            // Core independently fences model results by account revision.
+            if (disconnected) for (const purpose of ['discovery-filter', 'persona-summary', 'model-recommendations']) summaryService.current?.cancel?.(purpose);
+          }
           return { ok: true, value: { login: null, imported: null, ...(await readSettingsState(bridge, signal, payload?.library)) } };
         }
         const source=['recent','liked','playlist'].includes(payload.source)?payload.source:null;
         const playlistId=source==='playlist' && /^\d{1,20}$/.test(String(payload.playlistId??''))?String(payload.playlistId):null;
         if(source==='playlist'&&!playlistId)throw Object.assign(new Error('请选择有效歌单。'),{code:'invalid_command'});
-        const imported = await bridge.request({ type: 'import-platform', provider, limit: 300,source,playlistId },
+        const imported = await bridge.request({ type: 'import-platform', provider, limit: 300,source,playlistId,...account },
           { signal, abortable: true, timeoutMs: 75_000 });
         if(typeof summaryService.discoveryFilterRun==='function')setTimeout(()=>{void Promise.resolve(summaryService.discoveryFilterRun()).catch(()=>{});},0);
         return { ok: true, value: { login: { provider, status: 'authorized' }, imported: imported.import,
@@ -295,7 +315,7 @@ export function createSettingsHandler(bridge,summaryService={current:null}) {
         if (!payload || !ALLOWED.has(payload.type)) {
           throw Object.assign(new Error('Unsupported settings command'), { code: 'invalid_command' });
         }
-        command = { type: payload.type, value: payload.value, commandId: randomUUID() };
+        command = { type: payload.type, value: payload.value, commandId: randomUUID(), ...account };
         if (command.type === 'setVolume' && payload.previousVolume !== undefined) command.previousVolume = payload.previousVolume;
         if (typeof payload.traceId === 'string' && /^[\w:.-]{1,100}$/.test(payload.traceId)
           && ['pause','resume','next','previous','seek','requestTrack','stopForToday'].includes(command.type)) command.traceId = payload.traceId;

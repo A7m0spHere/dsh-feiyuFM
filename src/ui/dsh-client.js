@@ -745,7 +745,9 @@ window.__ModuleLoader__.load({
       if (data.filtering) return `找到 ${data.count ?? 0} 首候选新歌，大肥鱼正在试听挑选…`;
       if (data.picked > 0) return `大肥鱼从 ${data.count} 首候选里挑了 ${data.picked} 首合口味的。`;
       if (data.count > 0) return data.playlist ? `有 ${data.count} 首新歌可以播；大肥鱼稍后再挑一轮。` : `找到 ${data.count} 首新歌。`;
-      if (data.reason === 'login-required' || data.state === 'login_required') return `需要先登录${snapshot?.playbackSource?.provider === 'qq' ? 'QQ 音乐' : '网易云'}才能找新歌。`;
+      if (data.reason === 'login-required' || data.state === 'login_required') {
+        return '请先在电台设置登录音乐账号，再找新歌。';
+      }
       if (data.state === 'idle') return '稍后会自动找新歌。';
       if (data.state === 'empty') return '暂时没找到合适的新歌；先播常听的歌曲。';
       return '新歌推荐暂时不可用；先播常听的歌曲。';
@@ -772,9 +774,10 @@ window.__ModuleLoader__.load({
     function firstUseDecision(state) {
       if (!guideReady(state)) return 'wait';
       const account = state.platforms?.[state.snapshot?.playbackSource?.provider ?? 'netease']?.account;
+      const pending = Object.values(state.platforms ?? {}).some(platform => platform.account?.pending);
       const profile = state.insights?.profile;
       const feedback = state.insights?.feedback;
-      if (['authorized', 'expired'].includes(account?.status) || account?.pending || account?.cleanupPending || state.login
+      if (['authorized', 'expired'].includes(account?.status) || pending || account?.cleanupPending || state.login
         || state.library?.total > 0 || state.library?.tracks?.length || state.imported?.total > 0
         || state.snapshot.current || state.snapshot.queue?.length || state.snapshot.navigation?.previous
         || state.insights?.statistics?.observedStarts > 0 || profile?.artists?.length || profile?.tracks?.length
@@ -789,12 +792,14 @@ window.__ModuleLoader__.load({
 
     function UsageGuide({ state, onStep, onClose, rootRef, titleId }) {
       if (!state.guideVisible || !guideReady(state)) return null;
-      const provider = state.snapshot?.playbackSource?.provider ?? 'netease';
-      const title = provider === 'qq' ? 'QQ 音乐' : '网易云音乐';
+      const scope = state.snapshot?.musicAccount;
+      const provider = scope ? scope.provider : state.snapshot?.playbackSource?.provider ?? 'netease';
+      const title = provider === 'qq' ? 'QQ 音乐' : provider === 'netease' ? '网易云音乐' : '音乐平台';
+      const connectText = provider ? `用${provider === 'qq' ? '手机 QQ' : '网易云音乐 App'}扫码并确认连接。` : '选择网易云音乐或 QQ 音乐，扫码并确认连接。';
       const connected = state.platforms?.[provider]?.account?.status === 'authorized';
       const imported = state.libraryReady && state.library?.total > 0;
       const steps = [
-        ['connect', `连接${title}`, connected ? `${title}已连接，可继续导入参考歌曲。` : `用${provider === 'qq' ? '手机 QQ' : '网易云音乐 App'}扫码并确认连接。`, connected ? '查看连接' : '去连接'],
+        ['connect', `连接${title}`, connected ? `${title}已连接，可继续导入参考歌曲。` : connectText, connected ? '查看连接' : '去连接'],
         ['import', '导入参考歌单', '参考歌曲帮助电台了解你常听的音乐，作为后续推荐的起点。', imported ? '查看导入' : '去导入'],
         ['listen', '开始听歌', '自行点击播放；“喜欢／少推荐”会影响本机后续推荐。', '去播放页'],
       ];
@@ -859,7 +864,7 @@ window.__ModuleLoader__.load({
         networkProxy: null, networkProxyBusy: false, networkProxyError: '', networkProxyNotice: '',
         volumePending: null, volumeError: '',
         feedbackPage: null, feedbackListBusy: false, feedbackClearBusy: false, feedbackError: '', feedbackNotice: '',
-        platformStates: {}, playbackSource: null, playbackSourceBusy: false, playbackSourceError: '',
+        platformStates: {},
         login: null, imported: null, importAttempts: [], library: { total: 0, tracks: [] },
         profileState: 'idle', profileError: '',
         widgetVisible: readPreference(WIDGET_VISIBLE_KEY, true) !== false,
@@ -873,7 +878,6 @@ window.__ModuleLoader__.load({
       let volumeWrite = null, volumeQueued = null, volumeRemembered = 0.35;
       const writes = new Set();
       const platformWrites = new Map();
-      let sourceWrite = null;
       const transportCommands = new Set(['pause', 'resume', 'next', 'previous', 'seek', 'requestTrack', 'stopForToday']);
       let libraryOptions = { query: '', offset: 0, limit: 12 };
       let feedbackOptions = { query: '', filter: 'all', offset: 0, limit: 12 };
@@ -885,6 +889,24 @@ window.__ModuleLoader__.load({
       let profileWanted = false, profileRead = null, profileEpoch = 0, profileRefreshQueued = false, profileDirty = false, profileTimer;
       const listeners = new Set();
       const emit = (patch) => { if (!disposed) {
+        const account = patch.snapshot?.musicAccount ?? state.snapshot?.musicAccount;
+        const accountChanged = patch.snapshot?.musicAccount && state.snapshot?.musicAccount
+          && account.revision !== state.snapshot.musicAccount.revision;
+        if (accountChanged) {
+          ++libraryEpoch; libraryRead?.abort(); libraryRead = null;
+          ++profileEpoch; profileRead?.abort(); profileRead = null;
+          ++feedbackEpoch; feedbackRead?.abort(); feedbackRead = null;
+          feedbackRetry = null; feedbackRevision = -1; feedbackRequestedRevision = -1;
+          libraryOptions = { query: '', offset: 0, limit: 12 };
+          patch = { ...patch, platforms: patch.platforms ?? {}, platformStates: {}, login: null, imported: null, playlists: null, importAttempts: [],
+            libraryQuery: '', libraryBusy: false, libraryError: '', libraryReady: false,
+            insights: null, persona: null, profileState: 'idle', profileError: '', feedbackPage: null, feedbackListBusy: false,
+            feedbackError: '', feedbackNotice: '', summaryNotice: '', summaryError: '' };
+        }
+        if (account && patch.library && patch.library.accountRevision !== account.revision) {
+          patch = { ...patch }; delete patch.library;
+        }
+        if (accountChanged && !patch.library) patch.library = { total: 0, tracks: [], accountRevision: account.revision };
         if (patch.insights?.feedback) {
           patch = { ...patch, insights: { ...patch.insights } };
           let feedback = patch.insights.feedback;
@@ -907,8 +929,6 @@ window.__ModuleLoader__.load({
         }
         if(patch.persona?.generatedAt<state.persona?.generatedAt){patch={...patch};delete patch.persona;}
         if(patch.error==='')patch={...patch,errorCode:null};
-        const source = patch.snapshot?.playbackSource;
-        if (source && (!state.playbackSource || source.revision >= state.playbackSource.revision)) patch = { ...patch, playbackSource: source };
         const previous = state.snapshot;
         if (patch.library && patch.library !== state.library && Number.isSafeInteger(patch.library.total) && patch.library.total >= 0) patch.libraryReady = true;
         const candidate = { ...state, ...patch };
@@ -921,6 +941,14 @@ window.__ModuleLoader__.load({
           }
         }
         state = { ...state, ...patch }; listeners.forEach(fn => fn());
+        if (accountChanged) {
+          const revision = account.revision;
+          Promise.resolve().then(() => {
+            if (disposed || state.snapshot?.musicAccount?.revision !== revision) return;
+            if (account.provider && !libraryRead) void controllerApi.queryLibrary();
+            if (profileWanted && !profileRead) void loadProfile();
+          });
+        }
         if (patch.snapshot?.current) {
           const current = patch.snapshot.current;
           const detail = { traceId: traceInstances.get(current.playInstanceId) ?? null, playInstanceId: current.playInstanceId, version: patch.snapshot.commandVersion };
@@ -966,6 +994,10 @@ window.__ModuleLoader__.load({
           if (patch.library?.offset !== undefined) libraryOptions = { ...libraryOptions, offset: patch.library.offset };
         }
         const incoming = patch.snapshot, current = state.snapshot;
+        if (incoming?.musicAccount && current?.musicAccount && incoming.musicAccount.revision < current.musicAccount.revision) {
+          for (const key of ['snapshot', 'platforms', 'platformError', 'library', 'libraryError', 'insights', 'persona']) delete patch[key];
+          return patch;
+        }
         // Startup retains revision but advances commandVersion and restores pause.
         // Apply ordering to every entrance, including polling and command replies.
         const older = incoming && current && (incoming.revision < current.revision
@@ -1022,6 +1054,7 @@ window.__ModuleLoader__.load({
           const result = await connection.rpc.call('/api', 'fishfm/feedback-list', feedbackOptions, request.signal);
           if (version !== feedbackEpoch) return;
           if (!result.ok) throw result.error;
+          if (result.value?.accountRevision !== state.snapshot?.musicAccount?.revision) return;
           if (result.value?.feedbackPage?.version !== 1) throw { message: '反馈列表应答未就绪，请重试。' };
           applyFeedbackPage(result.value.feedbackPage, version);
         } catch (error) {
@@ -1050,6 +1083,10 @@ window.__ModuleLoader__.load({
           if (version !== profileEpoch || disposed) return;
           if (!result.ok) throw result.error;
           const value = result.value ?? {};
+          if (value.accountRevision !== state.snapshot?.musicAccount?.revision) {
+            emit({ profileState: 'idle' });
+            return;
+          }
           emit({ profileState: 'ready', profileError: '',
             insights: value.insights ?? state.insights,
             persona: value.persona ?? state.persona,
@@ -1265,8 +1302,11 @@ window.__ModuleLoader__.load({
             const result = await connection.rpc.call('/api', 'fishfm/feedback-clear', {
               track: { provider: item.track.provider, providerTrackId: item.track.providerTrackId },
               commandId: operation.commandId, expectedRevision: operation.expectedRevision, view: feedbackOptions,
+              accountRevision: state.snapshot?.musicAccount?.revision,
             }, request.signal);
+            if (version !== feedbackEpoch) return;
             if (!result.ok) throw result.error;
+            if (result.value?.accountRevision !== state.snapshot?.musicAccount?.revision) return;
             feedbackRetry = null;
             const summary = result.value?.feedback;
             if (summary) emit({ insights: { ...state.insights, feedback: summary } });
@@ -1389,6 +1429,7 @@ window.__ModuleLoader__.load({
           const timeout = setTimeout(() => request.abort(), 25000);
           try {
             const payload = type === 'requestTrack' ? {type,track:value} : ['setTrackFeedback', 'seek'].includes(type) ? {type,...value} : {type,value};
+            if (state.snapshot?.musicAccount) payload.accountRevision = state.snapshot.musicAccount.revision;
             if (traceId) { payload.traceId = traceId; trace('rpc-sent', { traceId, kind: type }); }
             const result = await connection.rpc.call('/api', 'fishfm/command',
               ['setTrackFeedback','resetTaste','resetLibrary','undoTasteReset','setRecommendationMode'].includes(type) ? { ...payload, library: libraryOptions } : payload, request.signal);
@@ -1437,6 +1478,8 @@ window.__ModuleLoader__.load({
           platformWrites.set(provider, request);
           writes.add(request);
           const playbackVersion = playbackEpoch;
+          const accountRevision = state.snapshot?.musicAccount?.revision;
+          const attemptId = !state.snapshot?.musicAccount?.provider ? state.platformStates[provider]?.login?.attemptId : undefined;
           let libraryVersion = libraryEpoch;
           const title = provider === 'qq' ? 'QQ 音乐' : '网易云音乐';
           const update = patch => {
@@ -1451,10 +1494,13 @@ window.__ModuleLoader__.load({
           const timeout = setTimeout(() => request.abort(), action === 'import' ? 120000 : 45000);
           try {
             const result = await connection.rpc.call('/api', endpoint, { provider, library: libraryOptions,
+              ...(accountRevision !== undefined ? { accountRevision } : {}),
+              ...(['poll', 'logout'].includes(action) && attemptId ? { attemptId } : {}),
               ...(action === 'restore' ? { restore: true } : {}),
               ...(action === 'import' ? { source: options.source ?? null, playlistId: options.playlistId ?? null } : {}) }, request.signal);
             if (disposed || platformWrites.get(provider) !== request) return;
             if (!result.ok) throw result.error;
+            if (result.value?.snapshot?.musicAccount?.revision < state.snapshot?.musicAccount?.revision) return;
             ++platformEpoch;
             const value = action === 'import' ? libraryWriteReply(result.value, libraryVersion) : result.value;
             if (action === 'import') libraryVersion = libraryEpoch;
@@ -1463,7 +1509,7 @@ window.__ModuleLoader__.load({
             if (action === 'poll' && login) login.qrImage = previous.login?.qrImage;
             const projected = project(value, libraryVersion, playbackVersion);
             for (const key of ['login', 'playlists', 'imported', 'attempts', 'platforms']) delete projected[key];
-            const platforms = { ...state.platforms };
+            const platforms = value.snapshot?.musicAccount && value.platforms ? { ...value.platforms } : { ...state.platforms };
             if (value.platformError) delete platforms[provider];
             else if (value.platforms?.[provider]) platforms[provider] = value.platforms[provider];
             emit({ ...projected, platforms,
@@ -1489,7 +1535,7 @@ window.__ModuleLoader__.load({
               else recoveryError = refreshed?.error;
             } catch (failure) { recoveryError = failure; }
             const previous = state.platformStates[provider] ?? (provider === 'netease' ? { login: state.login } : {});
-            const login = ['begin', 'poll'].includes(action)
+            const login = ['music_account_changed','music_login_changed','music_login_pending','music_account_connected'].includes(error.code) ? null : ['begin', 'poll'].includes(action)
               ? { ...previous.login, provider, status: 'error', qrExpired: false, identityError: error.message,
                 canRetryValidation: action === 'poll' && ['login_status', 'accountInfo'].includes(error.details?.stage),
                 canRetryCheck: action === 'poll' }
@@ -1519,35 +1565,6 @@ window.__ModuleLoader__.load({
               update({ busy: false });
               emit({ platformBusy: platformWrites.size > 0 });
             }
-          }
-        },
-        async savePlaybackSource(provider, expectedRevision) {
-          if (disposed || !state.connected || sourceWrite) return { ok: false };
-          const request = new AbortController();
-          sourceWrite = request;
-          writes.add(request);
-          emit({ playbackSourceBusy: true, playbackSourceError: '' });
-          const timer = setTimeout(() => request.abort(), 25000);
-          try {
-            const result = await connection.rpc.call('/api', 'fishfm/playback-source', { provider, expectedRevision }, request.signal);
-            if (!result.ok) throw result.error;
-            const view = result.value?.playbackSource;
-            if (view?.version !== 1 || !Number.isSafeInteger(view.revision) || !['netease', 'qq'].includes(view.provider)) throw { code: 'invalid_playback_source', message: '来源配置应答无效。' };
-            if (!disposed) {
-              const current = state.playbackSource ?? state.snapshot?.playbackSource;
-              if (!current || view.revision >= current.revision) emit({ playbackSource: view });
-              scheduleProfileRefresh();
-              await refresh();
-            }
-            return { ok: true, playbackSource: view };
-          } catch (error) {
-            emit({ playbackSourceError: failure(error) });
-            await refresh();
-            return { ok: false };
-          } finally {
-            clearTimeout(timer);
-            writes.delete(request);
-            if (sourceWrite === request) { sourceWrite = null; emit({ playbackSourceBusy: false }); }
           }
         },
         clearExpressionFeedback(){emit({expressionError:'',expressionErrorCode:null,expressionNotice:''});},
@@ -2094,7 +2111,7 @@ window.__ModuleLoader__.load({
       const status=!state.connected?'正在连接电台…':!referenceCount?'先在电台设置中导入参考歌曲。'
         :pipeline.refreshing?'正在网易云寻找新歌，现有歌曲仍可点播。':filtering?'正在挑选新歌，播放控制仍可使用。'
         :state.summaryBusy?'正在准备新一批歌曲…':tracks.length?poolAvailable?autonomous?'不同批次的入选歌曲，由大肥鱼自主选择下一首。':'不同批次的入选歌曲，可以手动点播。':'当前宿主展示最新批次的歌曲。'
-        :repeatWaiting?'最近 50 首暂不重复，正在等待窗口外的新歌。':pipeline.state==='login_required'?'先在电台设置中连接网易云。'
+        :repeatWaiting?'最近 50 首暂不重复，正在等待窗口外的新歌。':pipeline.state==='login_required'?'先在电台设置登录音乐账号。'
         :!routes.length?'先在 DSH 配置模型，再到电台设置中选择。':pipeline.selectionComplete?'暂无新的可选歌曲，可以补充歌单或手动点播输入曲库。':'参考歌曲已准备好，可以找一批歌。';
       const song=(track,index)=>h('button',{type:'button',className:'fm-pick',key:`${track.provider}:${track.providerTrackId}`,disabled:state.busy||!state.connected,
         'aria-label':`播放 ${track.title} · ${track.artist||'未知艺人'}`,onClick:()=>controller.command('requestTrack',track)},
@@ -2325,11 +2342,15 @@ window.__ModuleLoader__.load({
         return () => clearInterval(timer);
       }, [login?.status, controller, id]);
       const authorized = platform?.account?.status === 'authorized';
+      const active = state.snapshot?.musicAccount?.provider === id;
+      const pending = Boolean(platform?.account?.pending || login?.attemptId && ['waiting', 'scanned', 'error'].includes(login.status));
       const selected = playlistId || own.playlists?.[0]?.id || '';
       const status = !state.snapshot ? state.initializationState === 'error' ? '读取失败' : '读取中' : state.platformError ? '读取失败' : !platform?.installed ? '接口尚未接入'
         : authorized ? '已登录' : platform.account?.checking ? '正在验证登录' : platform.account?.status === 'error' ? '验证失败' : platform.account?.status === 'expired' ? '登录已过期'
           : platform.account?.pending || ['waiting', 'scanned'].includes(login?.status) ? '等待扫码' : '未登录';
       const act = action => controller.platformAction(action, id);
+      const signOut = h('button', { type: 'button', className: 'fm-button fm-subtle', disabled: !state.connected,
+        onClick: () => act('logout') }, active ? '退出并切换账号' : '退出');
       return h('div', { ref: regionRef, tabIndex: -1, role: 'group', 'aria-label': `${title}连接与导入` },
         h('div', { className: 'fm-platform' },
           h('div', { className: 'fm-platform-name' }, h('span', { className: 'fm-platform-mark', 'aria-hidden': true }, id === 'qq' ? 'Q' : '网'), title),
@@ -2337,7 +2358,7 @@ window.__ModuleLoader__.load({
             platform?.account?.cleanupPending
               ? h('button', { type: 'button', className: 'fm-button', disabled: !state.connected || busy, onClick: () => act('logout') }, '重试清理凭据')
               : platform?.account?.canRestore
-                ? h('button', { type: 'button', className: 'fm-button', disabled, onClick: () => act('restore') }, '重试登录验证')
+                ? h(React.Fragment, null, h('button', { type: 'button', className: 'fm-button', disabled, onClick: () => act('restore') }, '重试登录验证'), signOut)
               : authorized ? h(React.Fragment, null,
                 state.features?.importSources && h('select', { 'aria-label': id === 'netease' ? '导入来源' : `${title}导入来源`,
                   'data-guide-import': true, value: source, disabled,
@@ -2351,9 +2372,9 @@ window.__ModuleLoader__.load({
                 h('button', { type: 'button', className: 'fm-button fm-primary', 'data-guide-import': true,
                   disabled: disabled || (source === 'playlist' && !selected),
                   onClick: () => controller.platformAction('import', id, { source: source === 'auto' ? null : source, playlistId: source === 'playlist' ? selected : null }) }, '导入我的音乐'),
-                h('button', { type: 'button', className: 'fm-button fm-subtle', disabled: !state.connected,
-                  onClick: () => act('logout') }, '退出'))
-                : platform?.installed && !state.platformError && !['waiting', 'scanned'].includes(login?.status)
+                signOut)
+                : active ? signOut
+                : platform?.installed && !state.platformError && !pending && !['waiting', 'scanned'].includes(login?.status)
                   && h('button', { type: 'button', className: 'fm-button fm-primary', 'data-guide-login': true, disabled,
                     onClick: () => act('begin') }, '扫码登录'))),
         login && login.status !== 'authorized' && h('div', { className: 'fm-login' },
@@ -2365,10 +2386,11 @@ window.__ModuleLoader__.load({
           login.identityError && h('p', { role: 'status' }, login.identityError),
           login.status === 'error' && (login.canRetryValidation || login.canRetryCheck)
             && h('button', { type: 'button', className: 'fm-button', disabled, onClick: () => act('poll') }, login.canRetryValidation ? '重试登录校验' : '重试扫码检测'),
-          ['error', 'expired'].includes(login.status)
+          !active && !pending && ['error', 'expired'].includes(login.status)
             && h('button', { type: 'button', className: 'fm-button', disabled, onClick: () => act('begin') }, '重新获取二维码'),
-          ['waiting', 'scanned'].includes(login.status)
+          (pending || ['waiting', 'scanned'].includes(login.status))
             && h('button', { type: 'button', className: 'fm-button fm-subtle', disabled: !state.connected, onClick: () => act('logout') }, '取消登录')),
+        !login && pending && h('button', { type: 'button', className: 'fm-button fm-subtle', disabled: !state.connected, onClick: () => act('logout') }, '取消登录'),
         own.imported && h('div', { className: 'fm-import', role: 'status' },
           `最近导入 ${sourceNames[own.imported.source] ?? '平台音乐'}，新增 ${own.imported.imported ?? 0} 首。`,
           own.imported.reason ? h('p', { className: 'fm-note' }, own.imported.reason) : null),
@@ -2379,41 +2401,15 @@ window.__ModuleLoader__.load({
         own.notice && h('p', { className: 'fm-note', role: 'status', 'aria-live': 'polite' }, own.notice));
     }
 
-    function PlaybackSourceSettings({ state, controller }) {
-      const view = state.playbackSource ?? state.snapshot?.playbackSource;
-      const [draft, setDraft] = React.useState(view?.provider ?? 'netease');
-      const [baseRevision, setBaseRevision] = React.useState(view?.revision ?? 0);
-      const [dirty, setDirty] = React.useState(false);
-      const id = React.useId();
-      React.useEffect(() => {
-        if (!dirty && view) { setDraft(view.provider); setBaseRevision(view.revision); }
-      }, [view?.provider, view?.revision, dirty]);
-      if (!view) return null;
-      const conflict = dirty && view.revision !== baseRevision;
-      const selected = state.platforms?.[view.provider];
-      return h('div', { className: 'fm-card' },
-        h('div', { className: 'fm-motion-row' }, h('label', { htmlFor: id }, '自动播放来源'),
-          h('select', { id, 'aria-label': '自动播放来源', value: draft, disabled: !state.connected || state.playbackSourceBusy,
-            onChange: event => { if (!dirty) setBaseRevision(view.revision); setDraft(event.target.value); setDirty(true); } },
-          h('option', { value: 'netease' }, '网易云音乐'), h('option', { value: 'qq' }, 'QQ 音乐'))),
-        h('p', { className: 'fm-note' }, '后续推荐与自动续播使用此平台，当前歌曲继续按原来源播放。两边曲库都可点播。'),
-        selected?.account?.status !== 'authorized' && h('p', { className: 'fm-note', role: 'status' }, '所选自动来源尚未登录，请在下方连接对应账号。'),
-        conflict && h('p', { className: 'fm-note', role: 'status' }, '另一窗口已更改来源，请读取最新选择后重试。'),
-        state.playbackSourceError && h('p', { className: 'fm-note', role: 'alert' }, state.playbackSourceError),
-        h('div', { className: 'fm-feedback-actions' },
-          h('button', { type: 'button', className: 'fm-button', disabled: !dirty || conflict || !state.connected || state.playbackSourceBusy,
-            onClick: async () => {
-              const result = await controller.savePlaybackSource(draft, baseRevision);
-              if (result?.ok) setDirty(false);
-            } }, state.playbackSourceBusy ? '正在保存…' : '保存来源'),
-          conflict && h('button', { type: 'button', className: 'fm-button', onClick: () => { setDraft(view.provider); setBaseRevision(view.revision); setDirty(false); } }, '读取最新选择')));
-    }
-
     // src/ui/client/panel.mjs
     function Panel({ controller, back }) {
       const state = React.useSyncExternalStore(controller.subscribe, controller.getSnapshot);
       const snapshot = state.snapshot;
-      const automaticSource = state.playbackSource?.provider ?? snapshot?.playbackSource?.provider ?? 'netease';
+      const account = snapshot?.musicAccount;
+      const pendingProvider = account && ['netease', 'qq'].find(id => state.platforms?.[id]?.account?.pending
+        || ['waiting', 'scanned'].includes(state.platformStates[id]?.login?.status));
+      const visiblePlatform = account?.provider ?? pendingProvider;
+      const automaticSource = visiblePlatform ?? snapshot?.playbackSource?.provider ?? 'netease';
       const settings = snapshot?.settings || {};
       const [rate, setRate] = React.useState(20);
       const rateId = React.useId();
@@ -2462,16 +2458,14 @@ window.__ModuleLoader__.load({
       const button = (label, type, blocked = false, extra = {}) => h('button', { type: 'button', className: 'fm-button', disabled: disabled || blocked, onClick: () => controller.command(type), ...extra }, label);
       const platformSection = h('section', null,
         h('h2', null, '音乐平台', h('small', null, 'ACCOUNTS')),
-        h(PlaybackSourceSettings, { state, controller }),
         h('div', { className: 'fm-card' },
-          ...[['netease', '网易云音乐'], ['qq', 'QQ 音乐']].map(([id, title]) =>
-            h(PlatformAccount, { key: id, id, title, state, controller, regionRef: id === automaticSource ? neteaseRef : undefined })),
+          ...[['netease', '网易云音乐'], ['qq', 'QQ 音乐']].filter(([id]) => !visiblePlatform || id === visiblePlatform).map(([id, title]) =>
+            h(PlatformAccount, { key: `${id}:${account?.revision ?? ''}`, id, title, state, controller, regionRef: id === automaticSource ? neteaseRef : undefined })),
           state.platformError && h('p', { className: 'fm-note', role: 'alert' }, state.platformError,
             h('button', { type: 'button', className: 'fm-button', onClick: controller.refresh }, '重试连接状态')),
-          guideAccountHint && h('p', { className: 'fm-note fm-guide-target-note', role: 'status' }, automaticSource === 'netease'
-            ? state.platforms?.netease?.account?.status === 'authorized' ? '网易云已连接，可在这里选择来源并导入参考歌曲。'
-              : '请先扫码连接网易云，授权后即可在这里选择来源并导入。'
-            : '连接所选自动来源，再导入参考歌曲。'),
+          guideAccountHint && h('p', { className: 'fm-note fm-guide-target-note', role: 'status' },
+            account?.provider || state.platforms?.[automaticSource]?.account?.status === 'authorized'
+              ? '选择曲库来源并导入参考歌曲。' : '任选一个音乐平台扫码，登录后导入参考歌曲。'),
           h('p', { className: 'fm-platform-note' }, '网易云可导入近期记录、喜欢或歌单。QQ 可导入喜欢或歌单，使用手机 QQ 扫码。登录材料保存在本机加密存储中。')));
 
       const preferencesColumn = h('div', {className:'fm-main-column'},

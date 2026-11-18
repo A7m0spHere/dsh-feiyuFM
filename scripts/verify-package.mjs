@@ -20,7 +20,7 @@ for (const path of [
   'package.json', 'index.js', 'cordis.patch.yml', 'bin/fishfm-core.mjs',
   'src/ui/dsh-client.js', 'src/network.mjs', 'src/playback/media-download.mjs', 'src/playback/host/macos-host-launcher.mjs',
   'src/playback/host/fishfm-macos-host.swift', 'src/playback/host/wpf-media-host.ps1',
-  'src/providers/dpapi-helper.ps1', 'src/playback-source.mjs',
+  'src/providers/dpapi-helper.ps1', 'src/playback-source.mjs', 'src/music-account.mjs',
   'src/providers/qq-transport.mjs', 'src/providers/qq-worker.mjs', 'src/providers/qq-upstream.mjs',
   'node_modules/@yakult-green-tea/qq-music-api/dist-esm/src/serverless/index.js',
   'node_modules/@yakult-green-tea/qq-music-api/LICENSE', 'node_modules/@yakult-green-tea/qq-music-api/ATTRIBUTION.md',

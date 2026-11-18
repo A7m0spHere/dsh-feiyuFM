@@ -11,11 +11,15 @@ import { NetworkProxySettings } from './network.mjs';
 import { DollLayer } from './dolls.mjs';
 import { UsageGuide, guideReady } from './guide.mjs';
 import { Lyrics } from './lyrics.mjs';
-import { PlatformAccount, PlaybackSourceSettings } from './platforms.mjs';
+import { PlatformAccount } from './platforms.mjs';
 export function Panel({ controller, back }) {
   const state = React.useSyncExternalStore(controller.subscribe, controller.getSnapshot);
   const snapshot = state.snapshot;
-  const automaticSource = state.playbackSource?.provider ?? snapshot?.playbackSource?.provider ?? 'netease';
+  const account = snapshot?.musicAccount;
+  const pendingProvider = account && ['netease', 'qq'].find(id => state.platforms?.[id]?.account?.pending
+    || ['waiting', 'scanned'].includes(state.platformStates[id]?.login?.status));
+  const visiblePlatform = account?.provider ?? pendingProvider;
+  const automaticSource = visiblePlatform ?? snapshot?.playbackSource?.provider ?? 'netease';
   const settings = snapshot?.settings || {};
   const [rate, setRate] = React.useState(20);
   const rateId = React.useId();
@@ -64,16 +68,14 @@ export function Panel({ controller, back }) {
   const button = (label, type, blocked = false, extra = {}) => h('button', { type: 'button', className: 'fm-button', disabled: disabled || blocked, onClick: () => controller.command(type), ...extra }, label);
   const platformSection = h('section', null,
     h('h2', null, '音乐平台', h('small', null, 'ACCOUNTS')),
-    h(PlaybackSourceSettings, { state, controller }),
     h('div', { className: 'fm-card' },
-      ...[['netease', '网易云音乐'], ['qq', 'QQ 音乐']].map(([id, title]) =>
-        h(PlatformAccount, { key: id, id, title, state, controller, regionRef: id === automaticSource ? neteaseRef : undefined })),
+      ...[['netease', '网易云音乐'], ['qq', 'QQ 音乐']].filter(([id]) => !visiblePlatform || id === visiblePlatform).map(([id, title]) =>
+        h(PlatformAccount, { key: `${id}:${account?.revision ?? ''}`, id, title, state, controller, regionRef: id === automaticSource ? neteaseRef : undefined })),
       state.platformError && h('p', { className: 'fm-note', role: 'alert' }, state.platformError,
         h('button', { type: 'button', className: 'fm-button', onClick: controller.refresh }, '重试连接状态')),
-      guideAccountHint && h('p', { className: 'fm-note fm-guide-target-note', role: 'status' }, automaticSource === 'netease'
-        ? state.platforms?.netease?.account?.status === 'authorized' ? '网易云已连接，可在这里选择来源并导入参考歌曲。'
-          : '请先扫码连接网易云，授权后即可在这里选择来源并导入。'
-        : '连接所选自动来源，再导入参考歌曲。'),
+      guideAccountHint && h('p', { className: 'fm-note fm-guide-target-note', role: 'status' },
+        account?.provider || state.platforms?.[automaticSource]?.account?.status === 'authorized'
+          ? '选择曲库来源并导入参考歌曲。' : '任选一个音乐平台扫码，登录后导入参考歌曲。'),
       h('p', { className: 'fm-platform-note' }, '网易云可导入近期记录、喜欢或歌单。QQ 可导入喜欢或歌单，使用手机 QQ 扫码。登录材料保存在本机加密存储中。')));
 
   const preferencesColumn = h('div', {className:'fm-main-column'},

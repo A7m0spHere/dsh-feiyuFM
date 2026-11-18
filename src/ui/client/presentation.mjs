@@ -95,7 +95,9 @@ export function discoveryPresentation(snapshot) {
   if (data.filtering) return `找到 ${data.count ?? 0} 首候选新歌，大肥鱼正在试听挑选…`;
   if (data.picked > 0) return `大肥鱼从 ${data.count} 首候选里挑了 ${data.picked} 首合口味的。`;
   if (data.count > 0) return data.playlist ? `有 ${data.count} 首新歌可以播；大肥鱼稍后再挑一轮。` : `找到 ${data.count} 首新歌。`;
-  if (data.reason === 'login-required' || data.state === 'login_required') return `需要先登录${snapshot?.playbackSource?.provider === 'qq' ? 'QQ 音乐' : '网易云'}才能找新歌。`;
+  if (data.reason === 'login-required' || data.state === 'login_required') {
+    return '请先在电台设置登录音乐账号，再找新歌。';
+  }
   if (data.state === 'idle') return '稍后会自动找新歌。';
   if (data.state === 'empty') return '暂时没找到合适的新歌；先播常听的歌曲。';
   return '新歌推荐暂时不可用；先播常听的歌曲。';

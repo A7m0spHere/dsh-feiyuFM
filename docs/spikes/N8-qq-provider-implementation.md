@@ -2,6 +2,8 @@
 
 2026-11-17，Windows，开发分支 `feat/qq-provider-source`，基于 `9b5908a`。本记录保存本轮证据快照，持续状态仍在开发状态维护。本记录接续 [接入方案](../design/FEAT_QQ_PROVIDER.md) 与 [初次调研](N8-qq-integration-options.md)，运行和验收状态统一见 [开发状态](../PROJECT_PLAN.md)。
 
+本页的双账号探针命令对应提交 `5224de0`。单账号修订与当前验证命令见 [控制契约](../CORE_CONTRACT.md) 和 [脚本说明](../../scripts/README.md)。
+
 ## 实施选择
 
 当前采用固定 `@yakult-green-tea/qq-music-api@3.3.7` 的公开 `/serverless` 入口，在延迟启动的 Node Worker 内执行。Core 与 Worker 经消息通信，Worker 自身的 fetch 使用请求级代理配置与取消信号。运行时密钥与 sealed token 进入既有 DPAPI／Keychain，SQLite 保存引用。

@@ -11,7 +11,7 @@ DSH 插件宿主（index.js）
  ├─ PersonaModelService：复用 DSH 模型，执行低频调用
  └─ 独立 Node Core
      ├─ MusicCore：播放状态、队列、用户命令与决策版本
-     ├─ Provider：独立账号、单一自动来源、导入、候选、搜索、资源解析
+     ├─ Provider：平台适配、导入、候选、搜索、资源解析
      │   └─ QQ Worker → 固定 SDK 的无监听 handleRequest
      ├─ 本地选择器 / 平台缓存 / LLM 入选歌单
      ├─ MusicStore：SQLite、反馈、历史/成长与模型账本
@@ -36,7 +36,7 @@ DSH 插件宿主（index.js）
 | UI / Expression | 状态投影、命令、本机展示偏好和确定性表达 | `src/ui/client/`、`src/ui/dsh-settings.mjs`、`src/expression.mjs` |
 | 运行证据 / 研究 | 有界脱敏采集与写入健康；研究工具只读导出／离线回放 | `src/runtime/`、[脚本索引](../scripts/README.md) |
 
-网易云固定使用 `@neteasecloudmusicapienhanced/api@4.40.1`，不另起 Express 服务；QQ 固定 `@yakult-green-tea/qq-music-api@3.3.7` 的 `/serverless` 公开入口，在延迟启动的 Worker 内经消息调用。Worker 的独立 fetch 上下文采用请求级网络配置和取消信号，退出时一并终止。两平台共享 Provider 状态机，账号与 ID 按平台区分。版本、来源与许可查 [第三方声明](../THIRD_PARTY_NOTICES.md)。
+网易云固定使用 `@neteasecloudmusicapienhanced/api@4.40.1`，不另起 Express 服务；QQ 固定 `@yakult-green-tea/qq-music-api@3.3.7` 的 `/serverless` 公开入口，在延迟启动的 Worker 内经消息调用。Worker 的独立 fetch 上下文采用请求级网络配置和取消信号，退出时一并终止。两平台共享 Provider 状态机，Core 统一管理每个插件实例的单账号登录。版本、来源与许可查 [第三方声明](../THIRD_PARTY_NOTICES.md)。
 
 ## 推荐与状态所有权
 
@@ -68,8 +68,8 @@ Windows 使用隐藏 STA PowerShell 中的 WPF `MediaPlayer`，优先 `pwsh`、�
 
 U24 主面板按陪伴视图组织，2026-11-02 修订将设置从右侧抽屉迁入第四个页面，与正在听、发现记录、偏好与反馈共用页面切换和底部播放控制；各页面保持挂载，通过 hidden 切换可见性，保留表单草稿和折叠状态。主面板（含电台设置标签页）与悬浮条仍共享客户端控制器与同一 Core，DSH 全局设置不再有独立入口。可选歌曲从整个有效批准池投影安全元数据，不把 UI 列表当成固定播放队列；没有新增播放器宿主或模型调用路径。见 [U24](spikes/U24-companion-player.md)。
 
-## 双平台来源与会话
+## 单账号与平台会话
 
-`playback_source_v1` 保存自动来源与独立 revision。推荐缓存 owner 包含所选平台、来源 revision、账号状态和账号 ID，另一平台的纯登录状态变化保留当前推荐池。切源清理活跃派生缓存，用户环境、偏好和账本继续保留，私有媒体缓存另核对所属账号上下文。
+Core 全局登记扫码尝试与当前账号，平台随账号确定。SQLite 活动表供曲库、选择器和历史查询使用，切换时把账号私有记录事务性归档并加载目标账号。推荐缓存归属由平台和稳定账号 ID 决定，旧请求通过账号 revision 和取消信号失效。
 
 QQ 使用 sealed 会话，稳定运行时密钥与 token 通过 DPAPI／Keychain 保存。重启后后台验证账号资料，HTTP 200 空资料映射为失效。并发续期共用独立请求，各等待者可以分别取消，退出取消整个账号的请求与私有资源。当前 Worker 入口、实包与待验边界见 [N8 实施记录](spikes/N8-qq-provider-implementation.md)。

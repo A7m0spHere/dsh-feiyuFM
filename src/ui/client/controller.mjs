@@ -44,7 +44,7 @@ export function createController(connection, { onPlaybackTrace = null } = {}) {
     networkProxy: null, networkProxyBusy: false, networkProxyError: '', networkProxyNotice: '',
     volumePending: null, volumeError: '',
     feedbackPage: null, feedbackListBusy: false, feedbackClearBusy: false, feedbackError: '', feedbackNotice: '',
-    platformStates: {}, playbackSource: null, playbackSourceBusy: false, playbackSourceError: '',
+    platformStates: {},
     login: null, imported: null, importAttempts: [], library: { total: 0, tracks: [] },
     profileState: 'idle', profileError: '',
     widgetVisible: readPreference(WIDGET_VISIBLE_KEY, true) !== false,
@@ -58,7 +58,6 @@ export function createController(connection, { onPlaybackTrace = null } = {}) {
   let volumeWrite = null, volumeQueued = null, volumeRemembered = 0.35;
   const writes = new Set();
   const platformWrites = new Map();
-  let sourceWrite = null;
   const transportCommands = new Set(['pause', 'resume', 'next', 'previous', 'seek', 'requestTrack', 'stopForToday']);
   let libraryOptions = { query: '', offset: 0, limit: 12 };
   let feedbackOptions = { query: '', filter: 'all', offset: 0, limit: 12 };
@@ -70,6 +69,24 @@ export function createController(connection, { onPlaybackTrace = null } = {}) {
   let profileWanted = false, profileRead = null, profileEpoch = 0, profileRefreshQueued = false, profileDirty = false, profileTimer;
   const listeners = new Set();
   const emit = (patch) => { if (!disposed) {
+    const account = patch.snapshot?.musicAccount ?? state.snapshot?.musicAccount;
+    const accountChanged = patch.snapshot?.musicAccount && state.snapshot?.musicAccount
+      && account.revision !== state.snapshot.musicAccount.revision;
+    if (accountChanged) {
+      ++libraryEpoch; libraryRead?.abort(); libraryRead = null;
+      ++profileEpoch; profileRead?.abort(); profileRead = null;
+      ++feedbackEpoch; feedbackRead?.abort(); feedbackRead = null;
+      feedbackRetry = null; feedbackRevision = -1; feedbackRequestedRevision = -1;
+      libraryOptions = { query: '', offset: 0, limit: 12 };
+      patch = { ...patch, platforms: patch.platforms ?? {}, platformStates: {}, login: null, imported: null, playlists: null, importAttempts: [],
+        libraryQuery: '', libraryBusy: false, libraryError: '', libraryReady: false,
+        insights: null, persona: null, profileState: 'idle', profileError: '', feedbackPage: null, feedbackListBusy: false,
+        feedbackError: '', feedbackNotice: '', summaryNotice: '', summaryError: '' };
+    }
+    if (account && patch.library && patch.library.accountRevision !== account.revision) {
+      patch = { ...patch }; delete patch.library;
+    }
+    if (accountChanged && !patch.library) patch.library = { total: 0, tracks: [], accountRevision: account.revision };
     if (patch.insights?.feedback) {
       patch = { ...patch, insights: { ...patch.insights } };
       let feedback = patch.insights.feedback;
@@ -92,8 +109,6 @@ export function createController(connection, { onPlaybackTrace = null } = {}) {
     }
     if(patch.persona?.generatedAt<state.persona?.generatedAt){patch={...patch};delete patch.persona;}
     if(patch.error==='')patch={...patch,errorCode:null};
-    const source = patch.snapshot?.playbackSource;
-    if (source && (!state.playbackSource || source.revision >= state.playbackSource.revision)) patch = { ...patch, playbackSource: source };
     const previous = state.snapshot;
     if (patch.library && patch.library !== state.library && Number.isSafeInteger(patch.library.total) && patch.library.total >= 0) patch.libraryReady = true;
     const candidate = { ...state, ...patch };
@@ -106,6 +121,14 @@ export function createController(connection, { onPlaybackTrace = null } = {}) {
       }
     }
     state = { ...state, ...patch }; listeners.forEach(fn => fn());
+    if (accountChanged) {
+      const revision = account.revision;
+      Promise.resolve().then(() => {
+        if (disposed || state.snapshot?.musicAccount?.revision !== revision) return;
+        if (account.provider && !libraryRead) void controllerApi.queryLibrary();
+        if (profileWanted && !profileRead) void loadProfile();
+      });
+    }
     if (patch.snapshot?.current) {
       const current = patch.snapshot.current;
       const detail = { traceId: traceInstances.get(current.playInstanceId) ?? null, playInstanceId: current.playInstanceId, version: patch.snapshot.commandVersion };
@@ -151,6 +174,10 @@ export function createController(connection, { onPlaybackTrace = null } = {}) {
       if (patch.library?.offset !== undefined) libraryOptions = { ...libraryOptions, offset: patch.library.offset };
     }
     const incoming = patch.snapshot, current = state.snapshot;
+    if (incoming?.musicAccount && current?.musicAccount && incoming.musicAccount.revision < current.musicAccount.revision) {
+      for (const key of ['snapshot', 'platforms', 'platformError', 'library', 'libraryError', 'insights', 'persona']) delete patch[key];
+      return patch;
+    }
     // Startup retains revision but advances commandVersion and restores pause.
     // Apply ordering to every entrance, including polling and command replies.
     const older = incoming && current && (incoming.revision < current.revision
@@ -207,6 +234,7 @@ export function createController(connection, { onPlaybackTrace = null } = {}) {
       const result = await connection.rpc.call('/api', 'fishfm/feedback-list', feedbackOptions, request.signal);
       if (version !== feedbackEpoch) return;
       if (!result.ok) throw result.error;
+      if (result.value?.accountRevision !== state.snapshot?.musicAccount?.revision) return;
       if (result.value?.feedbackPage?.version !== 1) throw { message: '反馈列表应答未就绪，请重试。' };
       applyFeedbackPage(result.value.feedbackPage, version);
     } catch (error) {
@@ -235,6 +263,10 @@ export function createController(connection, { onPlaybackTrace = null } = {}) {
       if (version !== profileEpoch || disposed) return;
       if (!result.ok) throw result.error;
       const value = result.value ?? {};
+      if (value.accountRevision !== state.snapshot?.musicAccount?.revision) {
+        emit({ profileState: 'idle' });
+        return;
+      }
       emit({ profileState: 'ready', profileError: '',
         insights: value.insights ?? state.insights,
         persona: value.persona ?? state.persona,
@@ -450,8 +482,11 @@ export function createController(connection, { onPlaybackTrace = null } = {}) {
         const result = await connection.rpc.call('/api', 'fishfm/feedback-clear', {
           track: { provider: item.track.provider, providerTrackId: item.track.providerTrackId },
           commandId: operation.commandId, expectedRevision: operation.expectedRevision, view: feedbackOptions,
+          accountRevision: state.snapshot?.musicAccount?.revision,
         }, request.signal);
+        if (version !== feedbackEpoch) return;
         if (!result.ok) throw result.error;
+        if (result.value?.accountRevision !== state.snapshot?.musicAccount?.revision) return;
         feedbackRetry = null;
         const summary = result.value?.feedback;
         if (summary) emit({ insights: { ...state.insights, feedback: summary } });
@@ -574,6 +609,7 @@ export function createController(connection, { onPlaybackTrace = null } = {}) {
       const timeout = setTimeout(() => request.abort(), 25000);
       try {
         const payload = type === 'requestTrack' ? {type,track:value} : ['setTrackFeedback', 'seek'].includes(type) ? {type,...value} : {type,value};
+        if (state.snapshot?.musicAccount) payload.accountRevision = state.snapshot.musicAccount.revision;
         if (traceId) { payload.traceId = traceId; trace('rpc-sent', { traceId, kind: type }); }
         const result = await connection.rpc.call('/api', 'fishfm/command',
           ['setTrackFeedback','resetTaste','resetLibrary','undoTasteReset','setRecommendationMode'].includes(type) ? { ...payload, library: libraryOptions } : payload, request.signal);
@@ -622,6 +658,8 @@ export function createController(connection, { onPlaybackTrace = null } = {}) {
       platformWrites.set(provider, request);
       writes.add(request);
       const playbackVersion = playbackEpoch;
+      const accountRevision = state.snapshot?.musicAccount?.revision;
+      const attemptId = !state.snapshot?.musicAccount?.provider ? state.platformStates[provider]?.login?.attemptId : undefined;
       let libraryVersion = libraryEpoch;
       const title = provider === 'qq' ? 'QQ 音乐' : '网易云音乐';
       const update = patch => {
@@ -636,10 +674,13 @@ export function createController(connection, { onPlaybackTrace = null } = {}) {
       const timeout = setTimeout(() => request.abort(), action === 'import' ? 120000 : 45000);
       try {
         const result = await connection.rpc.call('/api', endpoint, { provider, library: libraryOptions,
+          ...(accountRevision !== undefined ? { accountRevision } : {}),
+          ...(['poll', 'logout'].includes(action) && attemptId ? { attemptId } : {}),
           ...(action === 'restore' ? { restore: true } : {}),
           ...(action === 'import' ? { source: options.source ?? null, playlistId: options.playlistId ?? null } : {}) }, request.signal);
         if (disposed || platformWrites.get(provider) !== request) return;
         if (!result.ok) throw result.error;
+        if (result.value?.snapshot?.musicAccount?.revision < state.snapshot?.musicAccount?.revision) return;
         ++platformEpoch;
         const value = action === 'import' ? libraryWriteReply(result.value, libraryVersion) : result.value;
         if (action === 'import') libraryVersion = libraryEpoch;
@@ -648,7 +689,7 @@ export function createController(connection, { onPlaybackTrace = null } = {}) {
         if (action === 'poll' && login) login.qrImage = previous.login?.qrImage;
         const projected = project(value, libraryVersion, playbackVersion);
         for (const key of ['login', 'playlists', 'imported', 'attempts', 'platforms']) delete projected[key];
-        const platforms = { ...state.platforms };
+        const platforms = value.snapshot?.musicAccount && value.platforms ? { ...value.platforms } : { ...state.platforms };
         if (value.platformError) delete platforms[provider];
         else if (value.platforms?.[provider]) platforms[provider] = value.platforms[provider];
         emit({ ...projected, platforms,
@@ -674,7 +715,7 @@ export function createController(connection, { onPlaybackTrace = null } = {}) {
           else recoveryError = refreshed?.error;
         } catch (failure) { recoveryError = failure; }
         const previous = state.platformStates[provider] ?? (provider === 'netease' ? { login: state.login } : {});
-        const login = ['begin', 'poll'].includes(action)
+        const login = ['music_account_changed','music_login_changed','music_login_pending','music_account_connected'].includes(error.code) ? null : ['begin', 'poll'].includes(action)
           ? { ...previous.login, provider, status: 'error', qrExpired: false, identityError: error.message,
             canRetryValidation: action === 'poll' && ['login_status', 'accountInfo'].includes(error.details?.stage),
             canRetryCheck: action === 'poll' }
@@ -704,35 +745,6 @@ export function createController(connection, { onPlaybackTrace = null } = {}) {
           update({ busy: false });
           emit({ platformBusy: platformWrites.size > 0 });
         }
-      }
-    },
-    async savePlaybackSource(provider, expectedRevision) {
-      if (disposed || !state.connected || sourceWrite) return { ok: false };
-      const request = new AbortController();
-      sourceWrite = request;
-      writes.add(request);
-      emit({ playbackSourceBusy: true, playbackSourceError: '' });
-      const timer = setTimeout(() => request.abort(), 25000);
-      try {
-        const result = await connection.rpc.call('/api', 'fishfm/playback-source', { provider, expectedRevision }, request.signal);
-        if (!result.ok) throw result.error;
-        const view = result.value?.playbackSource;
-        if (view?.version !== 1 || !Number.isSafeInteger(view.revision) || !['netease', 'qq'].includes(view.provider)) throw { code: 'invalid_playback_source', message: '来源配置应答无效。' };
-        if (!disposed) {
-          const current = state.playbackSource ?? state.snapshot?.playbackSource;
-          if (!current || view.revision >= current.revision) emit({ playbackSource: view });
-          scheduleProfileRefresh();
-          await refresh();
-        }
-        return { ok: true, playbackSource: view };
-      } catch (error) {
-        emit({ playbackSourceError: failure(error) });
-        await refresh();
-        return { ok: false };
-      } finally {
-        clearTimeout(timer);
-        writes.delete(request);
-        if (sourceWrite === request) { sourceWrite = null; emit({ playbackSourceBusy: false }); }
       }
     },
     clearExpressionFeedback(){emit({expressionError:'',expressionErrorCode:null,expressionNotice:''});},

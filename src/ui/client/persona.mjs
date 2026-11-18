@@ -53,7 +53,7 @@ export function Persona({state,controller,settingsOnly=false,selectedModel='',on
   const status=!state.connected?'正在连接电台…':!referenceCount?'先在电台设置中导入参考歌曲。'
     :pipeline.refreshing?'正在网易云寻找新歌，现有歌曲仍可点播。':filtering?'正在挑选新歌，播放控制仍可使用。'
     :state.summaryBusy?'正在准备新一批歌曲…':tracks.length?poolAvailable?autonomous?'不同批次的入选歌曲，由大肥鱼自主选择下一首。':'不同批次的入选歌曲，可以手动点播。':'当前宿主展示最新批次的歌曲。'
-    :repeatWaiting?'最近 50 首暂不重复，正在等待窗口外的新歌。':pipeline.state==='login_required'?'先在电台设置中连接网易云。'
+    :repeatWaiting?'最近 50 首暂不重复，正在等待窗口外的新歌。':pipeline.state==='login_required'?'先在电台设置登录音乐账号。'
     :!routes.length?'先在 DSH 配置模型，再到电台设置中选择。':pipeline.selectionComplete?'暂无新的可选歌曲，可以补充歌单或手动点播输入曲库。':'参考歌曲已准备好，可以找一批歌。';
   const song=(track,index)=>h('button',{type:'button',className:'fm-pick',key:`${track.provider}:${track.providerTrackId}`,disabled:state.busy||!state.connected,
     'aria-label':`播放 ${track.title} · ${track.artist||'未知艺人'}`,onClick:()=>controller.command('requestTrack',track)},

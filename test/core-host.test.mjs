@@ -520,7 +520,7 @@ test('publishes state changes without being polled, and a restart comes back pau
 test('spawned as a process it serves the plugin path and exits cleanly on shutdown', async () => {
   const directory = mkdtempSync(join(tmpdir(), 'fishfm-core-'));
   const dbPath = join(directory, 'core.sqlite');
-  const child = spawn(process.execPath, [join(root, 'bin', 'fishfm-core.mjs'), '--db', dbPath, '--playback', 'fake'], {
+  const child = spawn(process.execPath, [join(root, 'bin', 'fishfm-core.mjs'), '--db', dbPath, '--playback', 'fake', '--provider', 'fake'], {
     stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true,
   });
   const messages = [];
@@ -566,7 +566,11 @@ test('spawned as a process it serves the plugin path and exits cleanly on shutdo
     const { existsSync } = await import('node:fs');
     assert.equal(existsSync(dbPath), true, 'the core must persist to the configured database');
   } finally {
-    if (child.exitCode === null) child.kill();
+    if (child.exitCode === null && child.signalCode === null) {
+      const exited = new Promise(resolveExit => child.once('exit', resolveExit));
+      child.kill();
+      await exited;
+    }
     rmSync(directory, { recursive: true, force: true });
   }
 });

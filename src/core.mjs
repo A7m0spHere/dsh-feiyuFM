@@ -1,4 +1,5 @@
 import { playbackSourceView } from './playback-source.mjs';
+import { publicMusicAccount } from './music-account.mjs';
 import { randomUUID } from 'node:crypto';
 import { assertCommand, MusicError, normalizeTrack, PROVIDERS, trackId } from './contracts.mjs';
 import {setTrackFeedback,resetRecommendationTaste,undoRecommendationReset} from './feedback.mjs';
@@ -150,7 +151,8 @@ export class MusicCore {
     const started = performance.now();
     const discovery = this.provider.discoveryStatus ? this.provider.discoveryStatus() : null;
     const afterDiscovery = performance.now();
-    const value = structuredClone({ ...this.state, playbackSource: playbackSourceView(this.store), ...(discovery ? { discovery } : {}), navigation: this._navigationView(),
+    const musicAccount = publicMusicAccount(this.store);
+    const value = structuredClone({ ...this.state, ...(musicAccount ? { musicAccount } : {}), playbackSource: playbackSourceView(this.store), ...(discovery ? { discovery } : {}), navigation: this._navigationView(),
       playbackCapabilities: { seek: this.playback.canSeek?.({ playInstanceId: this.state.current?.playInstanceId }) === true } });
     const afterClone = performance.now();
     const durationMs = afterClone - started;
@@ -220,6 +222,18 @@ export class MusicCore {
     this.state.current = null;
     this.state.paused = true;
     this.state.status = 'idle';
+    this._control('stop', { version: this.state.commandVersion }, true);
+    this._commit();
+  }
+
+  resetAccountPlayback() {
+    this._finishCurrent('account_changed');
+    this._invalidate();
+    this.cancelSourcePreparation();
+    this.resourceCache.clear();
+    this.navigation = null;
+    this.autoFailures = 0;
+    Object.assign(this.state, { current: null, queue: [], lastSelection: null, lastError: null, paused: true, status: 'idle' });
     this._control('stop', { version: this.state.commandVersion }, true);
     this._commit();
   }

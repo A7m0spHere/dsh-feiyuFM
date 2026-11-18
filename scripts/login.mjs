@@ -51,7 +51,9 @@ if (testBase && (!dryRun || !['http:', 'https:'].includes(testBase.protocol)
 const stateDirectory = resolve(argValue('--out', join(process.env.DSH_HOME ?? join(homedir(), '.fishfm'), 'fishfm')));
 const credentials = dryRun ? createMemoryCredentials()
   : createPlatformCredentials({ directory: join(stateDirectory, 'credentials') });
-const reference = `fishfm/${providerName}`;
+// The standalone probe has no Core account transaction. Keep it outside the
+// live account's credential reference, including when --out is the same path.
+const reference = `fishfm/probe/${providerName}`;
 
 // A tiny store stand-in: the providers only use it for the credential reference
 // row, and this command is not the long-lived host.
@@ -248,4 +250,4 @@ if (probe) {
 console.log(`\n${NETEASE_ENDPOINT_PROVENANCE.confirmed.length === 0
   ? 'Reminder: every endpoint in this build is an unconfirmed hypothesis.'
   : 'Some endpoints are confirmed.'} Record what worked in docs/spikes/P0-02-netease.md.`);
-console.log(dryRun ? 'Dry run: nothing was persisted.' : 'Session stored. The plugin can now import and play.');
+console.log(dryRun ? 'Dry run: nothing was persisted.' : 'Probe session stored. Sign in from the DSH panel to use the plugin.');

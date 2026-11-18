@@ -76,7 +76,7 @@ try {
     playbackMode,
     selectionMode,
     ...(providerMode === 'fake' ? { provider: new FakeProvider() } : {}),
-    ...(store ? { store, providerRegistry, platformsFacade } : {}),
+    ...(store ? { store, providerRegistry, platformsFacade, accountIsolation: true } : {}),
     onLog,
   });
 } catch (error) {
