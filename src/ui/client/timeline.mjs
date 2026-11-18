@@ -30,7 +30,7 @@ export function PlaybackTimeline({ controller, state, positionMs, playbackLabel 
   const percent = ms => knownDuration ? `${100 * Math.max(0, Math.min(duration, ms)) / duration}%` : '0%';
 
   function seek(ms) {
-    if (!canSeek) return;
+    if (!canSeek || pointer.current !== null) return;
     const target = { playInstanceId, positionMs: clampTarget(ms) };
     setSubmitted(target);
     void controller.command('seek', target).finally(() => {
@@ -74,12 +74,13 @@ export function PlaybackTimeline({ controller, state, positionMs, playbackLabel 
   }
 
   function adjustWithKey(event) {
-    if (!canSeek || pointer.current !== null) return;
+    if (!canSeek) return;
     const base = requested ?? value;
     const targets = { ArrowLeft: base - 5000, ArrowDown: base - 5000,
       ArrowRight: base + 5000, ArrowUp: base + 5000, Home: 0, End: maxTarget };
     if (!Object.hasOwn(targets, event.key)) return;
     event.preventDefault();
+    if (pointer.current !== null) return;
     setHover(null);
     seek(targets[event.key]);
   }
