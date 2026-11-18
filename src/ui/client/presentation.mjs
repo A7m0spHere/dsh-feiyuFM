@@ -38,6 +38,14 @@ export function playbackPresentation(snapshot, connected) {
   return { label: '电台待命', art: 'whale-idle', active: false };
 }
 
+export function canSeekPlayback(snapshot, connected, transportPending) {
+  const current = snapshot?.current;
+  const duration = current?.track?.durationMs;
+  return Boolean(connected && snapshot?.playbackCapabilities?.seek && current?.playInstanceId && !current.finished
+    && Number.isSafeInteger(duration) && duration > 0
+    && ['playing', 'paused'].includes(snapshot.status) && (!transportPending || transportPending === 'seek'));
+}
+
 // Pending acknowledges a request, never claims that audio has started.
 export function playbackControls(state) {
   const snapshot = state.snapshot, pending = state.transportPending;

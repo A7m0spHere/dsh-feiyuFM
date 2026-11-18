@@ -77,6 +77,46 @@ const snapshot = (revision, humanPlayback = true) => ({ revision, settings: {
 const state = value => ({ ok: true, value: { snapshot: value, platforms: {} } });
 const tick = () => new Promise(resolve => setImmediate(resolve));
 
+test('keyboard and native range changes do not submit a seek during a pointer drag', async () => {
+  const seeks = [];
+  let current = { ...snapshot(1), status: 'paused', playbackCapabilities: { seek: true },
+    current: { playInstanceId: 'timeline-track', positionMs: 22_000,
+      track: { provider: 'netease', providerTrackId: '1', durationMs: 180_000 } } };
+  const f = fixture(async (_channel, endpoint, payload) => {
+    if (endpoint === 'fishfm/command' && payload.type === 'seek') {
+      seeks.push(payload.positionMs);
+      current = { ...current, revision: current.revision + 1, current: { ...current.current, positionMs: payload.positionMs } };
+    }
+    return state(current);
+  });
+  const render = () => all(f.render());
+  const slider = () => render().find(node => node.props['aria-label'] === '播放进度').props;
+  const bar = () => render().find(node => node.props.className === 'fm-seek').props;
+  const pressEnd = () => {
+    let handled = false;
+    slider().onKeyDown({ key: 'End', preventDefault: () => { handled = true; } });
+    if (!handled) slider().onChange({ currentTarget: { valueAsNumber: 179_999 } });
+    return handled;
+  };
+  const pointer = { pointerId: 1, isPrimary: true, button: 0, pointerType: 'mouse', clientX: 90, preventDefault() {},
+    currentTarget: { setPointerCapture() {}, matches: () => false, getBoundingClientRect: () => ({ left: 20, width: 100 }) } };
+  try {
+    await f.controller.refresh();
+    bar().onPointerDown(pointer);
+    assert.equal(pressEnd(), true, 'End must not invoke the browser default while dragging');
+    slider().onChange({ currentTarget: { valueAsNumber: 144_000 } });
+    assert.deepEqual(seeks, []);
+
+    bar().onPointerUp(pointer);
+    await tick();
+    assert.deepEqual(seeks, [126_000]);
+
+    assert.equal(pressEnd(), true);
+    await tick();
+    assert.deepEqual(seeks, [126_000, 179_999]);
+  } finally { f.dispose(); }
+});
+
 test('volume writes retain the last drag position while allowing pause and rejecting stale replies', async () => {
   const writes = [];
   const initial = { ...snapshot(1), paused: false, status: 'playing' };
