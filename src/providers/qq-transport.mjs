@@ -9,6 +9,7 @@ const ROUTES = Object.freeze({
   similarRecommendations: '/song/similar',
 });
 const RUNTIME_REFERENCE = 'fishfm/qq-runtime';
+const isNumericSongId = value => /^\d{1,15}$/.test(String(value ?? '')) && Number(value) > 0;
 
 export function createQQCommunityTransport({ credentials, getNetworkSettings = () => ({ mode: 'direct', url: '' }),
   upstream = createQQUpstream(), now = () => Date.now() } = {}) {
@@ -36,6 +37,10 @@ export function createQQCommunityTransport({ credentials, getNetworkSettings = (
       sessionSecret: secret(), network: getNetworkSettings(), role }, { signal });
     const body = response.body;
     if (response.status < 400) return response;
+    if (response.status === 422 && body?.errorKey === 'resource.not-found'
+      && ['dailyRecommendations', 'personalRecommendations', 'similarRecommendations'].includes(role)) {
+      return { status: 200, body: { songs: [] } };
+    }
     const details = { stage: role, httpStatus: response.status,
       ...(typeof body?.errorKey === 'string' && /^[\w.-]{1,80}$/.test(body.errorKey) ? { errorKey: body.errorKey } : {}),
       ...(Number.isFinite(body?.retryAfterMs) ? { retryAfterMs: Math.max(0, body.retryAfterMs) } : {}) };
@@ -111,17 +116,34 @@ export function createQQCommunityTransport({ credentials, getNetworkSettings = (
           return { status: 200, body: { data: { unikey, qrimg: image.body?.data?.qrimg } } };
         }
         if (role === 'loginPoll') return await invoke('/login/qr/check', { key: params.key }, { signal: combined, candidate: '', role });
-        if (!candidate) await refresh(combined);
+        if (role !== 'lyrics' && !candidate) await refresh(combined);
         const path = role === 'resolve' ? `/getMusicPlay/${encodeURIComponent(params.songmid)}` : ROUTES[role];
         if (!path) throw new MusicError('capability_unavailable', 'QQ 暂不支持该操作。');
-        const query = role === 'resolve' ? { quality: '320' } : params;
-        let response = await invoke(path, query, { signal: combined, candidate: candidate ?? session, role });
+        let query = role === 'resolve' ? { quality: '320' } : params;
+        if (role === 'lyrics') query = { songmid: params.id, trans: 1 };
+        if (role === 'similarRecommendations') {
+          // Playback and storage use MID. The similarity endpoint takes a numeric song ID.
+          let id = params.songmid;
+          if (!isNumericSongId(id)) {
+            const detail = await invoke('/getSongInfo/' + encodeURIComponent(id), {}, { signal: combined, candidate: '', role });
+            const reply = detail.body?.response;
+            const song = reply?.songinfo;
+            const track = song?.data?.track_info;
+            if (reply?.code !== 0 || song?.code !== 0 || track?.mid !== id || !isNumericSongId(track?.id)) {
+              throw new MusicError('provider_failure', 'QQ 音乐未返回对应的歌曲数字 ID。', { retryable: true });
+            }
+            id = track.id;
+          }
+          query = { id };
+        }
+        const requestOptions = { signal: combined, candidate: role === 'lyrics' ? '' : candidate ?? session, role };
+        let response = await invoke(path, query, requestOptions);
         if (['likedTracks', 'playlistTracks'].includes(role)) {
           const wanted = Math.min(1000, Math.max(1, Number.isSafeInteger(params.limit) ? params.limit : 300));
           const songs = [...(response.body?.songs ?? [])];
           let offset = songs.length;
           while (response.body?.more && songs.length && songs.length < wanted) {
-            response = await invoke(path, { ...params, offset, limit: Math.min(100, wanted - songs.length) }, { signal: combined, candidate: candidate ?? session, role });
+            response = await invoke(path, { ...params, offset, limit: Math.min(100, wanted - songs.length) }, requestOptions);
             const page = response.body?.songs;
             if (!Array.isArray(page) || !page.length) break;
             songs.push(...page);

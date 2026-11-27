@@ -156,7 +156,7 @@ export function createQQProvider(options = {}) {
     const failures = [];
     const calls = [{ role: 'dailyRecommendations', source: 'qq_daily', params: {} },
       { role: 'personalRecommendations', source: 'qq_personal_fm', params: {} },
-      ...seeds.filter(track => track.provider === QQ).slice(0, 3).map(track => ({ role: 'similarRecommendations', source: 'qq_similar', params: { id: track.providerTrackId }, seed: track }))];
+      ...seeds.filter(track => track.provider === QQ).slice(0, 3).map(track => ({ role: 'similarRecommendations', source: 'qq_similar', params: { songmid: track.providerTrackId }, seed: track }))];
     for (const call of calls) {
       if (result.size >= limit) break;
       try {

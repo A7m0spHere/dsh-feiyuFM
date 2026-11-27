@@ -268,7 +268,7 @@ Core 在同一实例上只接受一个扫码尝试或已连接账号。开始扫
 
 账号数据切换使用一个 SQLite 事务，在活动表与 `music_account_archive` 之间按平台和账号 ID 移动曲库、导入、反馈、历史和账号派生设置。旧库有账号引用的平台数据随该引用归档，缺少归属的数据保存为 legacy，旧模型与推荐派生缓存重新生成。旧双账号记录按保存的来源优先保留一个有效登录，其他凭据执行退出清理。预算、设备设置、公开曲目元数据和 Agent 长期偏好属于实例。推荐缓存归属使用平台与稳定账号 ID，QQ 正在验证时挂起使用，原账号验证成功后可复用有效池。
 
-QQ 曲目归一化优先 `mid / songmid`，`singer` 填充艺人，`interval` 转成毫秒。歌词 ID 校验由平台规则提供，QQ LRC 原文／译文使用已有歌词服务。近期播放能力明确不可用，默认种子顺序为 `liked → playlist`，喜欢／歌单详情分批读取到请求数量或实际结束。QQ 推荐来源为 `qq_daily / qq_personal_fm / qq_similar`，与通用 `platform_recommendation` 一同按曲目平台验证。
+QQ 曲目归一化优先 `mid / songmid`，`singer` 填充艺人，`interval` 转成毫秒。QQ 歌词以 MID 匿名读取，由已有歌词服务处理 LRC 原文和解码后的译文。近期播放能力明确不可用，默认种子顺序为 `liked → playlist`，喜欢／歌单详情分批读取到请求数量或实际结束。QQ 推荐来源为 `qq_daily / qq_personal_fm / qq_similar`，与通用 `platform_recommendation` 一同按曲目平台验证。相似推荐接口使用数字歌曲 ID，MID 种子先查歌曲详情，曲目键与取链仍使用 MID。平台明确返回无匹配结果时，该推荐源视为空。
 
 QQ `qqmusic_session` token 和稳定的 `fishfm/qq-runtime` 密钥存入现有加密存储，SQLite 仅存 `fishfm/qq` 凭据引用。macOS 按数据目录区分 Keychain 项，旧未分区凭据需要重新扫码。当前公开无端口入口使用 sealed 模式，按小时检查续期，旋转 token 先保存后采用。刷新自己持有网络取消控制，播放等待者取消时其他等待者可继续使用同一刷新。账号退出／替换及 Core 停用结束对应任务。重启 QQ 资料验证异步执行，等待验证的账号显示 checking，HTTP 200 空资料映射 expired。
 

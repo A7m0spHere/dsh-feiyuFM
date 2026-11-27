@@ -143,6 +143,69 @@ test('QQ normalization uses MID, singer and seconds, and rejects previews for th
   } finally { store.close(); }
 });
 
+test('QQ lyrics use the SDK MID parameter and decode the response without refreshing the session', async () => {
+  const vault = credentials();
+  const store = new MusicStore();
+  const requests = [];
+  const lrc = '[00:01.00]原文';
+  const translation = Buffer.from('[00:01.00]译文').toString('base64');
+  const upstream = { close: async () => {}, request: async input => {
+    requests.push(input);
+    return { status: 200, body: { response: { code: 0, lyric: lrc, trans: translation } } };
+  } };
+  const transport = createQQCommunityTransport({ credentials: vault, upstream });
+  transport.useSecret('qqmusic_session=active');
+  const provider = createQQProvider({ store, credentials: vault, transport });
+  try {
+    const result = await provider.lyrics(track('qq', 'songMID'));
+    assert.equal(result.lines[0].text, '原文');
+    assert.equal(result.lines[0].translation, '译文');
+    assert.deepEqual(requests.map(({ path, query, token }) => ({ path, query, token })),
+      [{ path: '/getLyric', query: { songmid: 'songMID', trans: 1 }, token: '' }]);
+  } finally { await provider.dispose(); store.close(); }
+});
+
+test('QQ recommendations look up the numeric song ID and keep MID for playback', async () => {
+  const vault = credentials();
+  const store = new MusicStore();
+  vault.write('fishfm/qq', 'qqmusic_session=active');
+  store.setCredentialReference({ provider: 'qq', accountId: '7', credentialRef: 'fishfm/qq', state: 'authorized', updatedAt: 1 });
+  const requests = [];
+  const upstream = { close: async () => {}, request: async input => {
+    requests.push(input);
+    switch (input.path) {
+      case '/login/refresh': return { status: 200, body: { data: { rotated: false } } };
+      case '/login/status': return { status: 200, body: { data: { profile: { str_musicid: '7' } } } };
+      case '/user/daily-songs':
+      case '/user/personal-fm': return { status: 422, body: { errorKey: 'resource.not-found' } };
+      case '/getSongInfo/seedMID': return { status: 200, body: { response: {
+        code: 0, songinfo: { code: 0, data: { track_info: { mid: 'seedMID', id: 12345 } } },
+      } } };
+      case '/getSongInfo/invalidMID': return { status: 200, body: { response: {
+        code: 0, songinfo: { code: 0, data: { track_info: { mid: 'anotherMID', id: 67890 } } },
+      } } };
+      case '/song/similar': return { status: 200, body: { songs: [{ mid: 'newMID', id: 67890, name: 'Similar song' }] } };
+      case '/getMusicPlay/newMID': return { status: 200, body: { data: { playUrl: {
+        newMID: { url: 'https://example.invalid/complete-track.mp3' },
+      } } } };
+      default: assert.fail(input.path);
+    }
+  } };
+  const transport = createQQCommunityTransport({ credentials: vault, upstream });
+  const provider = createQQProvider({ store, credentials: vault, transport });
+  try {
+    assert.deepEqual(await provider.restore(), { status: 'authorized', accountId: '7' });
+    assert.deepEqual(await provider.getDiscoveryTracks(), []);
+    const result = await provider.getDiscoveryTracks({ seeds: [track('qq', 'seedMID'), track('qq', 'invalidMID')] });
+    assert.deepEqual(result.map(value => [value.providerTrackId, value.discovery.source, value.discovery.seedTrackKey]),
+      [['newMID', 'qq_similar', 'qq:seedMID']]);
+    assert.deepEqual(requests.filter(input => input.path === '/song/similar').map(input => [input.query, input.token]),
+      [[{ id: 12345 }, 'active']]);
+    assert.equal(requests.find(input => input.path === '/getSongInfo/seedMID').token, '');
+    assert.equal((await provider.resolve(result[0])).handle, 'https://example.invalid/complete-track.mp3');
+  } finally { await provider.dispose(); store.close(); }
+});
+
 test('QQ session rotation persists before reuse and playlist import follows all pages', async () => {
   const vault = credentials();
   const requests = [];
