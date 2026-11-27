@@ -427,7 +427,7 @@ export class MusicCore {
 
   _seek(command) {
     const current = this.state.current;
-    if (!current || current.playInstanceId !== command.playInstanceId) throw new MusicError('stale_track', '歌曲已经切换，请重新选择歌词。');
+    if (!current || current.playInstanceId !== command.playInstanceId) throw new MusicError('stale_track', '歌曲已经切换，请重新选择播放位置。');
     if (current.finished || !['playing', 'paused'].includes(this.state.status)
       || !this.playback.canSeek?.({ playInstanceId: current.playInstanceId })) throw new MusicError('seek_unsupported', '当前歌曲尚未就绪，或宿主不支持跳转。');
     if (!current.track.durationMs || command.positionMs >= current.track.durationMs) throw new MusicError('invalid_command', '跳转位置超出歌曲时长。');
@@ -450,7 +450,7 @@ export class MusicCore {
       } catch (error) {
         if (!this._isCurrent(version, controller.signal) || this.state.current !== current) return;
         this.state.seekPending = null;
-        this.state.seekError = { code: error.code ?? 'seek_failed', message: '歌词跳转未成功，请重试。' };
+        this.state.seekError = { code: error.code ?? 'seek_failed', message: '播放进度跳转未成功，请重试。' };
         this._commit();
       }
     });

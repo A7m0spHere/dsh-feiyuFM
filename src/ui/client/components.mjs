@@ -70,13 +70,13 @@ export function useSmoothProgress(current, active) {
   const id = current?.playInstanceId ?? null;
   const positionMs = current?.positionMs ?? 0;
   React.useEffect(() => {
-    anchor.current = { id, at: Date.now(), ms: positionMs };
+    anchor.current = active ? { id, at: Date.now(), ms: positionMs } : null;
     if (!active || !id) return undefined;
     const timer = setInterval(() => tick(value => value + 1), 500);
     return () => clearInterval(timer);
   }, [id, positionMs, active]);
   return interpolatedPosition({
-    anchor: anchor.current, playInstanceId: id, positionMs,
+    anchor: anchor.current?.ms === positionMs ? anchor.current : null, playInstanceId: id, positionMs,
     durationMs: current?.track?.durationMs, now: Date.now(), active,
   });
 }
