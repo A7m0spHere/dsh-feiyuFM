@@ -85,6 +85,9 @@ export function playbackNotice(snapshot) {
       ? '歌曲音频下载超时，可以重新点播或换一首。'
       : '音频准备超时，可以重新点播或换一首。';
   }
+  if (snapshot.lastError.code === 'media_unavailable' && snapshot.playbackSource?.provider === 'qq') {
+    return 'QQ 音乐没有返回这首歌的完整播放地址。可以换一首点播，或在 QQ 音乐里核对这首歌能否完整播放。';
+  }
   if (snapshot.lastError.code === 'media_download_failed') return '歌曲音频下载未成功，可以重新点播或换一首。';
   if (snapshot.lastError.code === 'media_failed') return '音频未能在本机播放器中打开，可以重新点播或换一首。';
   return '播放尚未成功，请核对平台连接和曲目权限。';

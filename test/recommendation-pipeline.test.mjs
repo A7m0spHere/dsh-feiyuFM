@@ -381,6 +381,32 @@ test('successful batches retain old approvals while the journal stays on the new
  }finally{await f.close();}
 });
 
+test('explicit start with an imported library and no model plays once without enabling library autoplay', async () => {
+  const f = fixture({ empty: true });
+  try {
+    await f.bridge.start();
+    const start = await f.handler('fishfm/command', { type: 'resume' });
+    assert.equal(start.ok, true, start.error?.message);
+    await f.host.core.waitForIdle();
+    const playing = f.host.snapshot();
+    assert.equal(playing.status, 'playing');
+    assert.equal(playing.current.track.providerTrackId, '1');
+    assert.equal(playing.current.selectionTrigger, 'user-start');
+    assert.equal(playing.lastSelection.fellBack, true);
+    assert.equal(f.calls(), 0);
+
+    importSeedTracks({ store: f.store, provider: 'netease', source: 'liked', tracks: [track(5)], requested: 1 });
+    f.host.core.onPlaybackEvent({ type: 'ended', playInstanceId: playing.current.playInstanceId });
+    await f.host.core.waitForIdle();
+    assert.equal(f.host.snapshot().current, null, 'natural continuation cannot choose from the input library');
+
+    await f.bridge.command({ type: 'banTrack', track: track(5), commandId: 'ban' });
+    const blocked = await f.handler('fishfm/command', { type: 'resume' });
+    assert.equal(blocked.error?.code, 'no_candidates', 'explicit start still obeys bans and the recent window');
+    assert.equal(f.calls(), 0);
+  } finally { await f.close(); }
+});
+
 test('filtered autoplay waits at the hard window and resumes only after a fresh approved batch',async()=>{
  const f=fixture();
  try{
