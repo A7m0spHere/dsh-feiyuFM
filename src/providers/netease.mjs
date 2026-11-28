@@ -599,6 +599,10 @@ export function createNetEaseProvider(options = {}) {
       try {
         const response = await transport.request({ role: 'resolve', params: { ids: chunk, br: 128000 }, signal });
         if (signal?.aborted || provider.resourceContext() !== context) throw new MusicError('cancelled', '网易云可播检查已取消。');
+        if (response?.status === 401 || response?.status === 403 || response?.body?.code === 301) {
+          throw new MusicError('login_required', '网易云登录已失效，请重新扫码。');
+        }
+        if (response?.status && response.status >= 400) break;
         const rows = Array.isArray(response?.body?.data) ? response.body.data : null;
         if (!rows) continue;
         const byId = new Map(rows.filter(row => row && row.id !== undefined && row.id !== null).map(row => [String(row.id), row]));

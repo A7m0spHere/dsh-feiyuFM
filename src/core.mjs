@@ -382,6 +382,7 @@ export class MusicCore {
     this.availabilityProbedInChain = true;
     const now = this.clock.now();
     const unavailable = this.store.unavailableKeys?.(now) ?? new Set();
+    const recent = new Set(recentPlayback(this.store).map(entry => entry.trackKey));
     const banned = new Set(this.store.activeConstraints(now)
       .filter(row => row.kind === 'ban_track' && typeof row.track_key === 'string')
       .map(row => row.track_key));
@@ -391,7 +392,7 @@ export class MusicCore {
     const addCandidate = (track) => {
       if (!track || track.provider !== providerName || batch.length >= PLAYABILITY_CHECK_BATCH_SIZE) return;
       const key = trackId(track);
-      if (seen.has(key) || banned.has(key) || unavailable.has(key)) return;
+      if (seen.has(key) || banned.has(key) || unavailable.has(key) || recent.has(key)) return;
       seen.add(key);
       batch.push(track);
     };
@@ -426,6 +427,8 @@ export class MusicCore {
     } catch (error) {
       if (version !== this.state.commandVersion || controller.signal.aborted || error?.code === 'cancelled') return false;
       if (error?.code === 'login_required') {
+        this.state.paused = true;
+        this.state.status = 'error';
         this.state.lastError = { code: 'login_required', message: error.message, retryable: false };
         this._commit();
         return false;
@@ -439,7 +442,7 @@ export class MusicCore {
   _launch(work, version) {
     const task = Promise.resolve().then(work).catch(async (error) => {
       if (version !== this.state.commandVersion) return;
-      this.state.lastError = {
+      const failureError = {
         code: error.code ?? 'internal',
         message: error.message,
         // Whether trying again could help is part of the reason, and a caller
@@ -447,6 +450,7 @@ export class MusicCore {
         retryable: error.retryable === true,
         ...(error.details?.stage === 'download' ? { details: { stage: 'download' } } : {}),
       };
+      this.state.lastError = failureError;
       // Release the track that could not be started. Leaving it as `current`
       // would block every later selection, so one unplayable track would stop
       // music for good. Nothing is recorded: a track that never played is not a
@@ -478,43 +482,50 @@ export class MusicCore {
         this.state.current = null;
         if (this.navigation?.playInstanceId === failed?.playInstanceId) this.navigation.playInstanceId = null;
       }
-      this.state.paused = true;
-      this.state.status = 'error';
-      this._commit();
       const userInitiatedPool = ['user-start', 'user-next'].includes(failed?.selectionTrigger);
       const withinBudget = availabilityFailure
         ? this.unavailableSkips < MAX_UNAVAILABLE_SKIPS
         : this.autoFailures < MAX_AUTO_FAILURES;
-      if (failed?.selectedBy === 'agent' && candidateFailure && withinBudget
-        && !this._blockedUntil() && (userInitiatedPool || this.state.settings.listening)) {
-        if (availabilityFailure) this.unavailableSkips++;
-        else this.autoFailures++;
-        if (availabilityFailure) {
-          const ok = await this._probeFallbackAvailability(failed, version);
-          if (!ok || version !== this.state.commandVersion) return;
-        }
+      const canSkip = failed?.selectedBy === 'agent' && candidateFailure && withinBudget
+        && !this._blockedUntil() && (userInitiatedPool || this.state.settings.listening);
+      if (!canSkip) {
+        this.state.paused = true;
+        this.state.status = 'error';
+        this._commit();
+        return;
+      }
+      if (availabilityFailure) this.unavailableSkips++;
+      else this.autoFailures++;
+      if (availabilityFailure) {
         this.state.paused = false;
-        this.state.status = 'idle';
-        if (userInitiatedPool) {
-          try {
-            this._selectForUser(failed.selectionTrigger, false, this.clock.now());
-          } catch (selectError) {
-            this.state.paused = true;
-            this.state.status = 'error';
-            this.state.lastError = {
-              code: availabilityFailure ? 'media_unavailable' : (selectError.code ?? 'no_candidates'),
-              message: availabilityFailure
-                ? '当前可选曲目对这个账号均无法播放完整版，已自动跳过受限歌曲。'
-                : selectError.message,
-              retryable: false,
-            };
-            this._commit();
-          }
-        } else if (!this.selectAutonomously()) {
+        this.state.status = 'selecting';
+        this.state.lastError = null;
+        this._commit();
+        const ok = await this._probeFallbackAvailability(failed, version);
+        if (!ok || version !== this.state.commandVersion) return;
+      }
+      this.state.paused = false;
+      this.state.status = 'idle';
+      if (userInitiatedPool) {
+        try {
+          this._selectForUser(failed.selectionTrigger, false, this.clock.now());
+        } catch (selectError) {
           this.state.paused = true;
           this.state.status = 'error';
+          this.state.lastError = {
+            code: availabilityFailure ? 'media_unavailable' : (selectError.code ?? 'no_candidates'),
+            message: availabilityFailure
+              ? '当前可选曲目对这个账号均无法播放完整版，已自动跳过受限歌曲。'
+              : selectError.message,
+            retryable: false,
+          };
           this._commit();
         }
+      } else if (!this.selectAutonomously()) {
+        this.state.paused = true;
+        this.state.status = 'error';
+        this.state.lastError = failureError;
+        this._commit();
       }
     });
     this.tasks.add(task);

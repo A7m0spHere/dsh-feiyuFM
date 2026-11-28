@@ -279,12 +279,16 @@ test('pausing during a fallback playability probe cancels skipping and preserves
   try {
     core.dispatch({ type: 'resume', commandId: 'start-then-pause' });
     await probeStarted.promise;
+    assert.equal(core.snapshot().status, 'selecting', 'fallback probe stays in selecting without flashing error');
+    assert.equal(core.snapshot().paused, false);
+    assert.equal(core.snapshot().lastError, null);
     core.dispatch({ type: 'pause', commandId: 'user-pause' });
     probeGate.resolve();
     await core.waitForIdle();
     assert.equal(aborted, true);
     assert.equal(core.snapshot().paused, true);
     assert.equal(core.snapshot().current, null);
+    assert.equal(core.snapshot().lastError, null);
   } finally {
     probeGate.resolve();
     store.close();
@@ -365,6 +369,68 @@ test('user-next resets the unavailable skip counter after hitting the finite bud
     assert.equal(attempts, tracks.length, 'a new explicit user start gets a fresh finite skip budget');
     assert.equal(core.snapshot().status, 'error');
     assert.equal(core.snapshot().lastError.code, 'media_unavailable');
+  } finally {
+    store.close();
+  }
+});
+
+test('fallback playability probe skips tracks already blocked by the 50-track recent window', async () => {
+  const store = new MusicStore();
+  const clock = new FakeClock(90_000);
+  const playback = new FakePlayback();
+  store.setSetting('recommendation_mode_v1', 'filtered');
+  store.setSetting('playback_source_v1', { version: 1, revision: 1, provider: 'qq' });
+  const recentTracks = Array.from({ length: 20 }, (_, i) => qqTrack(`a-recent-${String(i + 1).padStart(2, '0')}`));
+  const freshTracks = [qqTrack('z-vip-1'), qqTrack('z-ok-1')];
+  importSeedTracks({ store, provider: 'qq', source: 'liked', tracks: [...recentTracks, ...freshTracks], requested: 22, now: clock.now() });
+  store.setSetting('recent_playback_v1', {
+    version: 1,
+    entries: recentTracks.map((item, idx) => ({
+      playInstanceId: `p-${idx}`, trackKey: `qq:${item.providerTrackId}`, startedAt: clock.now() - 1000 * (20 - idx),
+    })),
+  });
+  const probed = [];
+  const provider = {
+    async resolve(track) {
+      if (track.providerTrackId === 'z-ok-1') return { handle: 'fake:z-ok-1' };
+      throw new MusicError('media_unavailable', 'restricted');
+    },
+    async checkPlayability(_name, tracks) {
+      probed.push(tracks.map(t => t.providerTrackId));
+      return { playable: ['qq:z-ok-1'], unplayable: [], checked: tracks.length, skipped: false };
+    },
+    discoveryTracks: () => [],
+  };
+  const core = new MusicCore({ store, provider, playback, clock, selector: buildSelector({ store, now: () => clock.now() }) });
+  playback.onEvent(e => core.onPlaybackEvent(e));
+  try {
+    core.dispatch({ type: 'resume', commandId: 'start-fresh-only' });
+    await core.waitForIdle();
+    assert.equal(core.snapshot().status, 'playing');
+    assert.equal(core.snapshot().current.track.providerTrackId, 'z-ok-1');
+    if (probed.length) {
+      assert.equal(probed[0].some(id => id.startsWith('a-recent-')), false, 'probe batch must not spend slots on recent-window tracks');
+    }
+  } finally {
+    store.close();
+  }
+});
+
+test('NetEase checkPlayability expires stored credentials on HTTP 200 platform code 301', async () => {
+  const store = new MusicStore();
+  const vault = memoryCredentials({ 'fishfm/netease': 'MUSIC_U=expired' });
+  store.setCredentialReference({ provider: 'netease', accountId: '42', credentialRef: 'fishfm/netease', state: 'authorized', updatedAt: 1 });
+  const provider = createNetEaseProvider({
+    store,
+    credentials: vault,
+    communityApi: {},
+    transport: {
+      async request() { return { status: 200, body: { code: 301 } }; },
+    },
+  });
+  try {
+    await assert.rejects(() => provider.checkPlayability([neteaseTrack('101')]), { code: 'login_required' });
+    assert.equal(provider.getAccount().status, 'expired');
   } finally {
     store.close();
   }
