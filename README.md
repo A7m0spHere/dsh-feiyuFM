@@ -29,14 +29,47 @@
 
 ## 界面预览
 
+<img src="https://raw.githubusercontent.com/A7m0spHere/dsh-feiyuFM/main/assets/readme/panel-v020.jpg" width="100%" alt="肥鱼电台 FeiyuFM 0.2.0 日常 DSH Desktop 实机界面：大肥鱼与当前播放、大肥鱼说、逐行歌词、大肥鱼可选的歌、底栏顺滑进度条与常驻音量横条。">
+
+<sub>实机截图取自 2026-11-28 Windows 日常 DSH Desktop 运行 `0.2.0`：展示宽屏无缝画布、人物与歌曲信息、「大肥鱼说」选歌理由、同步高亮逐行歌词、可选歌曲池、底栏顺滑进度条与 0%–100% 音量横条。</sub>
+
+<details>
+<summary>查看深色模式与窄屏响应式预览</summary>
+
 <picture>
   <source media="(prefers-color-scheme: dark) and (max-width: 600px)" srcset="https://raw.githubusercontent.com/A7m0spHere/dsh-feiyuFM/main/assets/readme/panel-narrow-dark.png?v=20261105">
   <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/A7m0spHere/dsh-feiyuFM/main/assets/readme/panel-dark.png?v=20261105">
   <source media="(max-width: 600px)" srcset="https://raw.githubusercontent.com/A7m0spHere/dsh-feiyuFM/main/assets/readme/panel-narrow.png?v=20261105">
-  <img src="https://raw.githubusercontent.com/A7m0spHere/dsh-feiyuFM/main/assets/readme/panel.png?v=20261105" width="100%" alt="肥鱼电台界面预览：人物与歌曲信息、逐行歌词、可选歌曲池和播放控制。">
+  <img src="https://raw.githubusercontent.com/A7m0spHere/dsh-feiyuFM/main/assets/readme/panel.png?v=20261105" width="100%" alt="肥鱼电台浅深色与窄屏界面预览。">
 </picture>
 
-<sub>界面布局示例取自 2026-11-05 生产 bundle 预览（样例歌曲与歌词）；`0.2.0` 在此基础上新增了宽屏无缝画布、常驻音量横条、可拖动进度条、QQ 音乐接入与模块化拖拽电台设置。详情见 [U26 记录](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/spikes/U26-console-lyrics.md) 与 [0.2.0 发行记录](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/releases/0.2.0.md)。</sub>
+<sub>以上为 2026-11-05 生产 bundle 模拟预览图（样例歌曲与歌词），详见 [U26 记录](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/spikes/U26-console-lyrics.md)。</sub>
+
+</details>
+
+---
+
+## 架构讲解
+
+<img src="https://raw.githubusercontent.com/A7m0spHere/dsh-feiyuFM/main/assets/readme/architecture.svg" width="100%" alt="肥鱼电台 FeiyuFM 0.2.0 系统架构示意图：DSH 界面与插件适配层、独立常驻 Core 进程、Provider 平台层与 Playback 音频层。">
+
+肥鱼电台采用 **「四层解耦 + 独立后台 Core 进程」** 架构，确保可见页面关闭、切回对话或隐藏悬浮条时播放不中断，同时把平台凭据、音频 URL 与模型调用严格隔离在各自边界内：
+
+1. **DSH 客户端界面与插件适配层（`src/ui/client/`、`index.js`、`src/dsh-adapter.mjs`）**
+   - 客户端只读取 Core 投影的状态快照，**绝不接触音频 URL 或平台凭据**；所有播放控制与设置读写都经 DSH 认证 RPC（`fishfm/*`）与版本号护栏校验，迟到响应不会覆盖用户最新操作。
+   - 插件适配层负责托管独立 Core 子进程启停、暴露随包静态素材路由，并在收到 DSH 会话事件或待播池低水位信号时按预算触发低频模型调用；停用插件会干净终止 Core 与音频宿主。
+2. **独立常驻 Core 进程（`bin/fishfm-core.mjs`、`src/core.mjs`、`src/core-host.mjs`）**
+   - 作为整个电台的**唯一状态源与决策中心**，通过 `stdio JSONL` 与宿主通信，不依赖浏览器页面存活。
+   - **播放状态机与选歌决策**：用户命令永远优先（主动暂停不会被自动事件撤销）；维护最近 50 次实际播放的硬性防重复窗口；默认 `filtered` 自动续播只取模型入选池，手动「开始听歌／下一首」按 `入选池 → 输入曲库 → 已预检可播平台发现` 三段有界回退。
+   - **本地持久化与单账号隔离**：数据存在 `$DSH_HOME/fishfm/music.sqlite`（SQLite v12），通过 `music_account_archive` 在切号时事务级归档与恢复曲库、历史、反馈与推荐池；用户偏好与 Agent 长期偏好分表保存；凭据正文交由 Windows DPAPI／macOS Keychain 加密，数据库只存引用。
+3. **Provider 平台适配层（`src/providers/`）**
+   - 单账号二选一连接 **网易云音乐**（单 origin、手动重定向、HTTPS CDN 升级、拦截 30 秒 VIP 试听）或 **QQ 音乐**（无监听端口独立 Worker 隔离、320→128 kbps 完整音源回退、预检 128 句柄进程内短期一次性复用）。
+   - 统一提供批量 `checkPlayability` 完整可播预检（不返回或落盘 URL）与共享应用层网络策略（`src/network.mjs`：默认直连或自定义无认证代理）。
+4. **Playback 独立播放层与原生音频宿主（`src/playback/`）**
+   - 公网音频先由 Node 侧匿名暂存下载器（不带 Cookie、12 秒停滞快败＋25 秒活跃下载总上限、64 MiB 上限）完整落盘后再交付本地解码，暂停或换曲立即中止并清理临时文件。
+   - Windows 使用 WPF `MediaPlayer` 命名管道后台宿主，支持双播放器预加载无缝切换、原地 `seek` 与常驻音量控制；macOS 随包提供 Swift `AVFoundation` 实验性适配。
+
+完整模块边界与数据流详见 [架构文档](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/ARCHITECTURE.md) 与 [控制契约](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/CORE_CONTRACT.md)。
 
 ---
 

@@ -1,0 +1,199 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="704" viewBox="0 0 1200 704" role="img" aria-labelledby="arch-title arch-desc">
+  <title id="arch-title">肥鱼电台 FeiyuFM 0.2.0 系统架构示意图</title>
+  <desc id="arch-desc">四层分层架构：DSH 客户端 UI 与插件适配层、独立常驻 Core 进程（状态机、发现调度与 SQLite v12 单账号归档）、Provider 平台适配层（网易云与 QQ 音乐单账号隔离）以及 Playback 匿名下载与原生后台音频宿主。</desc>
+  <defs>
+    <marker id="arrow-blue" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 1 1.5 L 9 5 L 1 8.5 z" fill="#2864db"/>
+    </marker>
+    <marker id="arrow-slate" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 1 1.5 L 9 5 L 1 8.5 z" fill="#64748b"/>
+    </marker>
+    <marker id="arrow-purple" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 1 1.5 L 9 5 L 1 8.5 z" fill="#635bff"/>
+    </marker>
+    <marker id="arrow-green" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 1 1.5 L 9 5 L 1 8.5 z" fill="#1d8f5a"/>
+    </marker>
+    <marker id="arrow-amber" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 1 1.5 L 9 5 L 1 8.5 z" fill="#c77700"/>
+    </marker>
+  </defs>
+
+  <!-- Outer Canvas -->
+  <rect x="1" y="1" width="1198" height="702" rx="22" fill="#f3f5f8" stroke="#dce2ec" stroke-width="2"/>
+
+  <g font-family="Segoe UI, Microsoft YaHei, PingFang SC, sans-serif">
+    <!-- Header -->
+    <text x="40" y="38" font-size="12" font-weight="700" letter-spacing="1.2" fill="#2864db">ARCHITECTURE · 四层解耦与独立后台进程</text>
+    <text x="40" y="70" font-size="25" font-weight="700" fill="#172235">肥鱼电台 FeiyuFM 0.2.0 系统架构</text>
+
+    <!-- Header Pills -->
+    <g transform="translate(766 42)">
+      <rect width="136" height="28" rx="14" fill="#e9f0fd" stroke="#c8dafc"/>
+      <text x="68" y="18.5" text-anchor="middle" font-size="12" font-weight="600" fill="#2152b8">后台独立持续播放</text>
+    </g>
+    <g transform="translate(912 42)">
+      <rect width="122" height="28" rx="14" fill="#eef0ff" stroke="#d4d7ff"/>
+      <text x="61" y="18.5" text-anchor="middle" font-size="12" font-weight="600" fill="#4f46e5">逐曲零模型请求</text>
+    </g>
+    <g transform="translate(1044 42)">
+      <rect width="116" height="28" rx="14" fill="#e6f7ef" stroke="#bde8d3"/>
+      <text x="58" y="18.5" text-anchor="middle" font-size="12" font-weight="600" fill="#16794b">单账号隔离归档</text>
+    </g>
+
+    <!-- ROW 1: DSH Host & UI Layer -->
+    <!-- UI Panel -->
+    <g transform="translate(40 94)">
+      <rect width="548" height="128" rx="14" fill="#ffffff" stroke="#d5dde9" stroke-width="1.5"/>
+      <rect width="548" height="32" rx="14" fill="#edf2fb"/>
+      <rect y="18" width="548" height="14" fill="#edf2fb"/>
+      <text x="16" y="21" font-size="13" font-weight="700" fill="#1e3a8a">DSH 客户端界面（src/ui/client/ → dsh-client.js）</text>
+      <text x="16" y="54" font-size="12.5" fill="#172235">• 主面板四标签：正在听（人物＋逐行歌词）/ 发现记录 / 偏好与反馈 / 模块化拖拽电台设置</text>
+      <text x="16" y="75" font-size="12.5" fill="#172235">• 共用播放控制：顺滑进度条（零回弹）、常驻音量横条、悬浮控制条、可选左缘频谱</text>
+      <rect x="16" y="90" width="372" height="24" rx="6" fill="#f3f6fb" stroke="#dce4f0"/>
+      <text x="26" y="106" font-size="11.5" font-weight="600" fill="#475569">只读状态投影 · 绝不接触音频 URL 或平台凭据 · 切页不中断播放</text>
+    </g>
+
+    <!-- UI <-> Adapter Arrow -->
+    <line x1="590" y1="158" x2="646" y2="158" stroke="#2864db" stroke-width="2" marker-start="url(#arrow-blue)" marker-end="url(#arrow-blue)"/>
+    <text x="618" y="146" text-anchor="middle" font-size="11" font-weight="600" fill="#2864db">认证 RPC</text>
+    <text x="618" y="176" text-anchor="middle" font-size="10.5" fill="#566171">fishfm/*</text>
+
+    <!-- Plugin Adapter -->
+    <g transform="translate(650 94)">
+      <rect width="268" height="128" rx="14" fill="#ffffff" stroke="#d5dde9" stroke-width="1.5"/>
+      <rect width="268" height="32" rx="14" fill="#edf2fb"/>
+      <rect y="18" width="268" height="14" fill="#edf2fb"/>
+      <text x="16" y="21" font-size="13" font-weight="700" fill="#1e3a8a">DSH 插件适配层（index.js）</text>
+      <text x="16" y="54" font-size="12.5" fill="#172235">• 托管 Core 子进程启停与重启恢复</text>
+      <text x="16" y="75" font-size="12.5" fill="#172235">• 注册认证 RPC 与随包素材路由</text>
+      <text x="16" y="96" font-size="12.5" fill="#172235">• 订阅会话事件与低频调度器</text>
+      <text x="16" y="116" font-size="11" fill="#64748b">停用插件即干净关闭 Core 与音频宿主</text>
+    </g>
+
+    <!-- Adapter <-> LLM Arrow -->
+    <line x1="920" y1="158" x2="964" y2="158" stroke="#635bff" stroke-width="2" stroke-dasharray="4 3" marker-start="url(#arrow-purple)" marker-end="url(#arrow-purple)"/>
+    <text x="942" y="146" text-anchor="middle" font-size="10.5" font-weight="600" fill="#635bff">批筛</text>
+
+    <!-- DSH LLM Service -->
+    <g transform="translate(968 94)">
+      <rect width="192" height="128" rx="14" fill="#ffffff" stroke="#d6d4fb" stroke-width="1.5"/>
+      <rect width="192" height="32" rx="14" fill="#f1efff"/>
+      <rect y="18" width="192" height="14" fill="#f1efff"/>
+      <text x="14" y="21" font-size="13" font-weight="700" fill="#4338ca">DSH LLM 服务（可选）</text>
+      <text x="14" y="54" font-size="12" fill="#172235">• 仅按日预算低频批筛</text>
+      <text x="14" y="75" font-size="12" fill="#172235">• 只收歌名/艺人/反馈</text>
+      <text x="14" y="96" font-size="12" fill="#172235">• 不接触凭据/歌词/URL</text>
+      <text x="14" y="116" font-size="11" fill="#635bff">无模型亦可手动回退听歌</text>
+    </g>
+
+    <!-- Connector Row 1 -> Row 2 -->
+    <line x1="784" y1="224" x2="784" y2="262" stroke="#2864db" stroke-width="2.2" marker-start="url(#arrow-blue)" marker-end="url(#arrow-blue)"/>
+    <rect x="668" y="232" width="232" height="22" rx="11" fill="#e9f0fd" stroke="#c8dafc"/>
+    <text x="784" y="247" text-anchor="middle" font-size="11.5" font-weight="600" fill="#2152b8">stdio JSONL（命令 / 状态快照 / 取消）</text>
+
+    <!-- ROW 2: Independent Core Process -->
+    <g transform="translate(40 266)">
+      <rect width="1120" height="196" rx="16" fill="#eaf1fe" stroke="#b9d0fb" stroke-width="1.8"/>
+      <text x="20" y="27" font-size="14" font-weight="700" fill="#1d4ed8">独立常驻 Core 进程（bin/fishfm-core.mjs）— 唯一状态源与本地决策中心</text>
+
+      <!-- Card 2A: MusicCore -->
+      <g transform="translate(18 42)">
+        <rect width="350" height="138" rx="12" fill="#ffffff" stroke="#cdddf9" stroke-width="1.2"/>
+        <text x="14" y="24" font-size="13" font-weight="700" fill="#172235">播放状态机与选歌决策（core / selection）</text>
+        <text x="14" y="48" font-size="12" fill="#334155">• 用户命令优先，暂停绝不被自动事件撤销</text>
+        <text x="14" y="69" font-size="12" fill="#334155">• 最近 50 次实际播放硬性防重复窗口</text>
+        <text x="14" y="90" font-size="12" fill="#334155">• 自动续播仅取入选池；手动回退：入选→曲库→发现</text>
+        <text x="14" y="111" font-size="12" fill="#334155">• 受限曲有界连跳、历史游标与下一首预取</text>
+        <text x="14" y="129" font-size="11" fill="#64748b">单实例中断恢复（每实例原曲一次预算，暂停可取消）</text>
+      </g>
+
+      <!-- Card 2B: Discovery & Supply -->
+      <g transform="translate(385 42)">
+        <rect width="350" height="138" rx="12" fill="#ffffff" stroke="#cdddf9" stroke-width="1.2"/>
+        <text x="14" y="24" font-size="13" font-weight="700" fill="#172235">发现供给与可播预检（discovery / host）</text>
+        <text x="14" y="48" font-size="12" fill="#334155">• 全池 12 / 24 首水位持续补歌，种子轮换与评审去重</text>
+        <text x="14" y="69" font-size="12" fill="#334155">• 候选进筛选前批量预检完整音源，不可播退避 24h</text>
+        <text x="14" y="90" font-size="12" fill="#334155">• 导入后后台预热首 20 首曲库，前台回退直接复用</text>
+        <text x="14" y="111" font-size="12" fill="#334155">• 共享 Token 日预算门控（初始 100k）与账本落库</text>
+        <text x="14" y="129" font-size="11" fill="#64748b">低可播率账号最多轮换 3 轮种子（12 首可播即停）</text>
+      </g>
+
+      <!-- Card 2C: SQLite & Credentials -->
+      <g transform="translate(752 42)">
+        <rect width="350" height="138" rx="12" fill="#ffffff" stroke="#cdddf9" stroke-width="1.2"/>
+        <text x="14" y="24" font-size="13" font-weight="700" fill="#172235">本地存储与加密凭据（storage / account）</text>
+        <text x="14" y="48" font-size="12" fill="#334155">• SQLite v12（$DSH_HOME/fishfm/music.sqlite）</text>
+        <text x="14" y="69" font-size="12" fill="#334155">• music_account_archive 事务级单账号归档隔离</text>
+        <text x="14" y="90" font-size="12" fill="#334155">• 输入曲库、用户反馈与 Agent 偏好分表独立保存</text>
+        <text x="14" y="111" font-size="12" fill="#334155">• Windows DPAPI / macOS Keychain 加密会话</text>
+        <text x="14" y="129" font-size="11" fill="#64748b">数据库仅存凭据引用，绝不落盘原始 Cookie 或音频 URL</text>
+      </g>
+    </g>
+
+    <!-- Connectors Row 2 -> Row 3 -->
+    <line x1="313" y1="464" x2="313" y2="504" stroke="#1d8f5a" stroke-width="2.2" marker-start="url(#arrow-green)" marker-end="url(#arrow-green)"/>
+    <rect x="133" y="473" width="360" height="22" rx="11" fill="#e6f7ef" stroke="#bde8d3"/>
+    <text x="313" y="488" text-anchor="middle" font-size="11.5" font-weight="600" fill="#16794b">Provider 契约（扫码 / 导入 / 发现 / 批量预检 / 歌词 / 取链）</text>
+
+    <line x1="887" y1="464" x2="887" y2="504" stroke="#c77700" stroke-width="2.2" marker-start="url(#arrow-amber)" marker-end="url(#arrow-amber)"/>
+    <rect x="707" y="473" width="360" height="22" rx="11" fill="#fef5e7" stroke="#f5d5a3"/>
+    <text x="887" y="488" text-anchor="middle" font-size="11.5" font-weight="600" fill="#a86200">Playback 契约（匿名暂存 / 预加载 / 起播 / 跳转 / 音量）</text>
+
+    <!-- ROW 3 Left: Provider Layer -->
+    <g transform="translate(40 508)">
+      <rect width="546" height="144" rx="14" fill="#ffffff" stroke="#bde8d3" stroke-width="1.6"/>
+      <rect width="546" height="32" rx="14" fill="#eaf8f1"/>
+      <rect y="18" width="546" height="14" fill="#eaf8f1"/>
+      <text x="16" y="21" font-size="13" font-weight="700" fill="#146c43">Provider 平台适配层（单账号二选一 · 共用 network.mjs 直连／自定义代理）</text>
+
+      <!-- NetEase Mini Card -->
+      <g transform="translate(14 42)">
+        <rect width="252" height="88" rx="10" fill="#f8fafc" stroke="#dce5ee"/>
+        <text x="12" y="21" font-size="12.5" font-weight="700" fill="#172235">网易云音乐（netease.mjs）</text>
+        <text x="12" y="42" font-size="11.5" fill="#475569">• 固定单 origin、手动重定向、Cookie 隔离</text>
+        <text x="12" y="60" font-size="11.5" fill="#475569">• 编号音频 CDN 自动升级 HTTPS</text>
+        <text x="12" y="78" font-size="11.5" fill="#475569">• 拦截 freeTrialInfo 30 秒 VIP 试听</text>
+      </g>
+
+      <!-- QQ Mini Card -->
+      <g transform="translate(280 42)">
+        <rect width="252" height="88" rx="10" fill="#f8fafc" stroke="#dce5ee"/>
+        <text x="12" y="21" font-size="12.5" font-weight="700" fill="#172235">QQ 音乐（qq.mjs / qq-worker.mjs）</text>
+        <text x="12" y="42" font-size="11.5" fill="#475569">• 无监听端口独立 Worker 隔离运行</text>
+        <text x="12" y="60" font-size="11.5" fill="#475569">• 320 → 128 kbps 完整音源回退</text>
+        <text x="12" y="78" font-size="11.5" fill="#475569">• 预检 128 句柄进程内短期一次性复用</text>
+      </g>
+    </g>
+
+    <!-- ROW 3 Right: Playback Layer -->
+    <g transform="translate(614 508)">
+      <rect width="546" height="144" rx="14" fill="#ffffff" stroke="#f5d5a3" stroke-width="1.6"/>
+      <rect width="546" height="32" rx="14" fill="#fef6e8"/>
+      <rect y="18" width="546" height="14" fill="#fef6e8"/>
+      <text x="16" y="21" font-size="13" font-weight="700" fill="#9a5800">Playback 独立音频播放层（与可见页面解耦 · 匿名下载后本地解码）</text>
+
+      <!-- Media Downloads Mini Card -->
+      <g transform="translate(14 42)">
+        <rect width="252" height="88" rx="10" fill="#f8fafc" stroke="#dce5ee"/>
+        <text x="12" y="21" font-size="12.5" font-weight="700" fill="#172235">匿名暂存下载（media-download.mjs）</text>
+        <text x="12" y="42" font-size="11.5" fill="#475569">• 匿名请求（不带 Cookie / 认证头）</text>
+        <text x="12" y="60" font-size="11.5" fill="#475569">• 12s 停滞快败 / 25s 活跃总上限 / 64 MiB</text>
+        <text x="12" y="78" font-size="11.5" fill="#475569">• 暂停／换曲秒取消并自动清理临时文件</text>
+      </g>
+
+      <!-- Native Host Mini Card -->
+      <g transform="translate(280 42)">
+        <rect width="252" height="88" rx="10" fill="#f8fafc" stroke="#dce5ee"/>
+        <text x="12" y="21" font-size="12.5" font-weight="700" fill="#172235">原生后台音频宿主（playback/host/）</text>
+        <text x="12" y="42" font-size="11.5" fill="#475569">• Windows：WPF MediaPlayer 命名管道</text>
+        <text x="12" y="60" font-size="11.5" fill="#475569">• 双播放器预加载交换、原地 seek 与音量</text>
+        <text x="12" y="78" font-size="11.5" fill="#475569">• macOS：Swift AVFoundation（实验性）</text>
+      </g>
+    </g>
+
+    <!-- Footer Invariant Bar -->
+    <rect x="40" y="666" width="1120" height="24" rx="12" fill="#e9eef5"/>
+    <text x="600" y="682" text-anchor="middle" font-size="11.5" font-weight="600" fill="#475569">职责边界：Provider 管平台 · Playback 管音频 · Core 管队列与决策 · UI 只读投影 · 凭据与音频 URL 绝不落库或发给模型</text>
+  </g>
+</svg>
