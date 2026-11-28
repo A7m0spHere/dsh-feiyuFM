@@ -1968,3 +1968,42 @@ test('the old-data recovery button claims explicitly for the current account and
     assert.equal(recoveryButton(), undefined);
   } finally { f.dispose(); }
 });
+
+test('modular settings layout starts compact, supports reorder/expand/widen with fixed-width bounds, persists and resets', async () => {
+  const storage = new Map();
+  const make = () => fixture(async () => ({ ok: true, value: { snapshot: snapshot(1), platforms: { netease: { installed: true, account: { status: 'login_required' } } }, library: { total: 0, tracks: [] } } }), storage);
+  const f = make();
+  try {
+    await f.controller.refresh();
+    all(f.render()).find(n => n.type === 'button' && n.children.includes('电台设置')).props.onClick();
+    const tiles = () => all(f.render()).filter(n => n.props['data-tile-id']);
+    assert.deepEqual(tiles().map(n => n.props['data-tile-id']), ['modes', 'library', 'preferences', 'model', 'network', 'interface']);
+    assert.ok(tiles().every(n => n.props['data-size'] === 'compact'));
+
+    // Expand library & widen to span 2 columns; fixed-width tile rejects wide downgrade to standard
+    all(f.render()).find(n => n.props['aria-label'] === '展开输入与连接').props.onClick({ stopPropagation() {} });
+    assert.equal(tiles().find(n => n.props['data-tile-id'] === 'library').props['data-size'], 'standard');
+    all(f.render()).find(n => n.type === 'button' && n.props.className?.includes('fm-tile-widen-btn') && n.children.includes('宽展')).props.onClick({ stopPropagation() {} });
+    assert.equal(tiles().find(n => n.props['data-tile-id'] === 'library').props['data-size'], 'wide');
+
+    f.controller.setSettingsLayout({ order: ['network', 'modes'], sizes: { modes: 'wide', network: 'standard' } });
+    assert.deepEqual([...f.controller.getSnapshot().settingsLayout.order], ['network', 'modes', 'library', 'preferences', 'model', 'interface']);
+    assert.equal(f.controller.getSnapshot().settingsLayout.sizes.modes, 'standard', 'fixed-width form tiles clamp wide to standard');
+    assert.equal(f.controller.getSnapshot().settingsLayout.sizes.network, 'standard');
+
+    // Keyboard reorder on grip handle
+    const grip = all(f.render()).find(n => n.props['data-tile-grip'] === 'modes');
+    grip.props.onKeyDown({ key: 'ArrowUp', preventDefault() {} });
+    assert.deepEqual([...f.controller.getSnapshot().settingsLayout.order].slice(0, 2), ['modes', 'network']);
+
+    // Persists across client reload
+    const restored = make();
+    try {
+      assert.deepEqual([...restored.controller.getSnapshot().settingsLayout.order].slice(0, 2), ['modes', 'network']);
+      assert.equal(restored.controller.getSnapshot().settingsLayout.sizes.network, 'standard');
+      restored.controller.resetSettingsLayout();
+      assert.deepEqual([...restored.controller.getSnapshot().settingsLayout.order], ['modes', 'library', 'preferences', 'model', 'network', 'interface']);
+      assert.equal(restored.controller.getSnapshot().settingsLayout.sizes.network, 'compact');
+    } finally { restored.dispose(); }
+  } finally { f.dispose(); }
+});

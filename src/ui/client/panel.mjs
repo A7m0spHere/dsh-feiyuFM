@@ -1,6 +1,6 @@
 import { playbackPresentation, playbackControls, discoveryPresentation, playbackNotice } from './presentation.mjs';
 import React from 'react';
-import { h, modes, sourceNames, stageNames } from './shared.mjs';
+import { h, modes, sourceNames, stageNames, EXPRESSION_LABELS } from './shared.mjs';
 import { Svg, StatusMark, PlaybackArtwork, VolumeControl, useSmoothProgress } from './components.mjs';
 import { PlaybackTimeline } from './timeline.mjs';
 import { Library } from './library.mjs';
@@ -27,12 +27,61 @@ export function Panel({ controller, back }) {
   const feedbackRef = React.useRef(null);
   const platformDetailsRef = React.useRef(null), neteaseRef = React.useRef(null);
   const guideRef = React.useRef(null), playRef = React.useRef(null);
+  const boardRef = React.useRef(null), flipRectsRef = React.useRef(null);
   const [platformExpanded, setPlatformExpanded] = React.useState(false);
   const [guideFocus, setGuideFocus] = React.useState(null);
   const [view, setView] = React.useState('listen');
+  const [dragTile, setDragTile] = React.useState(null);
+  const [dropTile, setDropTile] = React.useState(null);
   // Pages mount on first visit and stay mounted (hidden) afterwards, so the
   // first frame only renders the visible tab instead of all four.
   const [mountedViews, setMountedViews] = React.useState(() => new Set([view]));
+  const settingsLayout = state.settingsLayout ?? {
+    order: ['modes', 'library', 'preferences', 'model', 'network', 'interface'],
+    sizes: { modes: 'compact', library: 'compact', preferences: 'compact', model: 'compact', network: 'compact', interface: 'compact' },
+  };
+  const captureTileRects = () => {
+    const board = boardRef.current;
+    if (!board?.querySelectorAll) return;
+    const rects = new Map();
+    board.querySelectorAll('[data-tile-id]').forEach(el => {
+      if (el.getBoundingClientRect) rects.set(el.dataset.tileId, el.getBoundingClientRect());
+    });
+    flipRectsRef.current = rects;
+  };
+  const updateSettingsLayout = next => {
+    captureTileRects();
+    controller.setSettingsLayout?.(next);
+  };
+  const resetSettingsLayout = () => {
+    captureTileRects();
+    controller.resetSettingsLayout?.();
+  };
+  React.useEffect(() => {
+    const firstRects = flipRectsRef.current;
+    flipRectsRef.current = null;
+    const board = boardRef.current;
+    if (!firstRects || !board?.querySelectorAll) return;
+    const reduced = state.motion === 'off' || window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    if (reduced) return;
+    const duration = state.motion === 'reduced' ? 150 : 280;
+    board.querySelectorAll('[data-tile-id]').forEach(el => {
+      const first = firstRects.get(el.dataset.tileId);
+      if (!first || !el.getBoundingClientRect) return;
+      const last = el.getBoundingClientRect();
+      const dx = first.left - last.left;
+      const dy = first.top - last.top;
+      if (Math.abs(dx) < 1 && Math.abs(dy) < 1) return;
+      el.style.transition = 'none';
+      el.style.transform = `translate(${dx}px, ${dy}px)`;
+      el.getBoundingClientRect();
+      el.style.transition = `transform ${duration}ms var(--fm-ease)`;
+      el.style.transform = '';
+      const cleanup = () => { el.style.transition = ''; el.removeEventListener('transitionend', cleanup); };
+      el.addEventListener('transitionend', cleanup);
+      setTimeout(cleanup, duration + 60);
+    });
+  }, [settingsLayout, state.motion]);
   React.useEffect(() => {
     if (!guideFocus || view !== (['connect', 'import'].includes(guideFocus) ? 'settings' : 'listen')) return;
     const region = neteaseRef.current;
@@ -83,8 +132,9 @@ export function Panel({ controller, back }) {
         h(FeedbackSettings,{state,controller}),
         insights&&h('section',null,h('h2',null,'听歌记录'),h('details',{className:'fm-card fm-profile-details',open:true},h('summary',null,'查看偏好与听歌记录'),
           h('p',{className:'fm-note'},'本地画像 · 来自已保存的独立偏好'),
-          ...(insights.profile?.artists?.length?insights.profile.artists.slice(0,5).map(a=>h('div',{className:'fm-row',key:a.key},
-            h('span',null,a.name),h('span',{className:'fm-badge'},`权重 ${Math.round(a.affinity*100)}% · ${['listen','listen_silent'].includes(a.source)?'有效经历':a.source==='legacy_artist_link'?'旧偏好链接':'初始化/维护'}`))):[h('p',{className:'fm-note'},'还没有足够的艺人偏好记录。')]),
+          ...(insights.profile?.artists?.length?insights.profile.artists.slice(0,5).map(a=>h('div',{className:'fm-affinity-row',key:a.key},
+            h('strong',null,a.name),h('span',{className:'fm-badge'},`权重 ${Math.round(a.affinity*100)}% · ${['listen','listen_silent'].includes(a.source)?'有效经历':a.source==='legacy_artist_link'?'旧偏好链接':'初始化/维护'}`),
+            h('div',{className:'fm-affinity-bar','aria-hidden':true},h('i',{style:{width:`${Math.max(0,Math.min(100,Math.round(a.affinity*100)))}%`}})))):[h('p',{className:'fm-note'},'还没有足够的艺人偏好记录。')]),
           h('p',{className:'fm-note'},'流派/情绪特征尚未提供，不据歌名推断。'),
           Array.isArray(insights.profile?.tracks)&&h('details',null,h('summary',null,'查看歌曲偏好与最近变化'),
             ...(insights.profile?.tracks??[]).map(t=>h('p',{className:'fm-note',key:t.key},`${t.title} · 权重 ${Math.round(t.affinity*100)}% · ${['listen','listen_silent'].includes(t.source)?'有效经历':'初始化/维护'}`)),
@@ -94,42 +144,120 @@ export function Panel({ controller, back }) {
             Number.isFinite(insights.statistics?.repeatedSelections)&&h('p',{className:'fm-note'},`其中 ${insights.statistics.repeatedSelections} 次选中歌曲在近期已有播放历史。`),
             ...(insights.decisions??[]).slice(0,3).map(d=>h('p',{className:'fm-note',key:d.decisionId},`${d.trackTitle??d.trackKey??'未选中歌曲'} · ${d.pool==='queue'?'队列':d.pool==='discovery'?'新歌':'常听歌曲'}${d.fellBack?'（回退）':''}${d.trackKey?'':' · 本次未开始播放'}`)),
             h('p',{className:'fm-note'},`${Number.isFinite(insights.statistics?.windowStart)?`窗口始于 ${new Date(insights.statistics.windowStart).toLocaleString()}。`:''}按已追踪的决策实例统计，历史覆盖不足时不视作全期比例。`)))));
-  const controlsColumn = h('aside', {className:'fm-controls-column','aria-label':'电台设置'},
-        h('section', null, h('h2', null, '听歌方式', h('small', null, 'MODES')), h('div', { className: 'fm-modes' }, modes.map(([id, title, desc]) =>
+  const modeMeta = modes.find(([id]) => id === mode) ?? ['manual', '手动', '仅手动点播：保留声音，不自动选歌'];
+  const activeRoute = (state.summaryModels ?? []).find(item => JSON.stringify([item.provider, item.model]) === selectedModel)
+    ?? state.persona?.recommendationRoute ?? state.persona?.lastModelRoute;
+  const remainingTokens = state.persona?.ledger?.remainingTokens;
+  const motionText = ({ full: '完整动效', reduced: '轻量动效', off: '关闭动效' })[state.motion || 'full'] || '完整动效';
+  const exprText = EXPRESSION_LABELS[state.expression?.style ?? 'current'] || '保持当前';
+  const setTileSize = (id, nextSize) => updateSettingsLayout({ ...settingsLayout, sizes: { ...settingsLayout.sizes, [id]: nextSize } });
+  const setAllTileSizes = target => {
+    const sizes = {};
+    for (const id of settingsLayout.order) sizes[id] = target;
+    updateSettingsLayout({ ...settingsLayout, sizes });
+  };
+  const moveTileOrder = (fromId, toId) => {
+    if (!fromId || !toId || fromId === toId) return;
+    const next = settingsLayout.order.filter(item => item !== fromId);
+    const targetIdx = next.indexOf(toId);
+    if (targetIdx < 0) return;
+    next.splice(targetIdx, 0, fromId);
+    updateSettingsLayout({ ...settingsLayout, order: next });
+  };
+  const nudgeTile = (id, delta) => {
+    const idx = settingsLayout.order.indexOf(id);
+    const nextIdx = idx + delta;
+    if (idx < 0 || nextIdx < 0 || nextIdx >= settingsLayout.order.length) return;
+    const next = [...settingsLayout.order];
+    [next[idx], next[nextIdx]] = [next[nextIdx], next[idx]];
+    updateSettingsLayout({ ...settingsLayout, order: next });
+  };
+  const settingsTileDefs = {
+    modes: {
+      title: '听歌方式',
+      pill: modeMeta[1],
+      pillTone: 'accent',
+      sub: modeMeta[2],
+      canWide: false,
+      quick: h('div', { className: 'fm-tile-quick' }, modes.map(([id, title, desc]) =>
+        h('button', { type: 'button', key: id, className: 'fm-quick-chip', 'aria-pressed': mode === id, disabled, title: desc,
+          onClick: event => { event.stopPropagation(); controller.command('setMode', id); } }, title))),
+      body: h(React.Fragment, null,
+        h('div', { className: 'fm-modes' }, modes.map(([id, title, desc]) =>
           h('button', { type: 'button', key: id, className: 'fm-mode', 'data-selected': mode === id, 'aria-pressed': mode === id, disabled,
             title: desc, onClick: () => controller.command('setMode', id) }, h('strong', null, title), h('span', null, desc)))),
-          mode === 'manual' && h('p', { className: 'fm-note' }, '仅手动点播：保留声音，不自动选歌。'),
-          button('今天停止', 'stopForToday', Boolean(state.transportPending))),
-        h('section', null, h('h2', null, '听歌偏好', h('small', null, 'PREFERENCES')), h('div', { className: 'fm-card' },
-          toggle('DeepSeek 自主听歌', '自动选歌、续播并积累偏好。', 'listening', 'setListening'),
-          toggle('电脑输出声音', '关闭只静音，不暂停听歌。', 'humanPlayback', 'setHumanPlayback'),
-          toggle('探索新音乐', '从可播放的新歌候选中探索。', 'discovery', 'setDiscovery'),
-          h('p', { className: 'fm-note', role: 'status', 'aria-live': 'polite' }, discoveryPresentation(snapshot)),
-          snapshot?.lastSelection?.fellBack && h('p', { className: 'fm-note' }, '最近一次自主选择：没有合适的新歌，先播了常听歌曲。'),
-          state.features?.discoveryRefresh && insights?.recommendationMode!=='filtered' && h('button', { type: 'button', className: 'fm-button', disabled: disabled || state.platformBusy || !settings.discovery || settings.discoveryRate === 0 || state.platforms?.[automaticSource]?.account?.status !== 'authorized',
-            onClick: () => controller.platformAction('discovery', automaticSource) }, '刷新新歌推荐'),
-          h('div', { className: 'fm-rate' }, h('div', { className: 'fm-rate-head' }, h('label', { htmlFor: rateId }, '新歌探索率'), h('output', { htmlFor: rateId }, `${rate}%`)),
-            h('input', { id: rateId, 'aria-label': '新歌探索率', type: 'range', min: 0, max: 100, step: 1, value: rate, disabled: disabled || !settings.discovery,
-              onChange: e => setRate(Number(e.target.value)) }),
-            h('div', { className: 'fm-save-line' }, h('span', { className: 'fm-save', role: 'status', 'aria-live': 'polite' }, state.notice || '开关即时保存；探索率需点击保存。'),
-              h('button', { type: 'button', className: 'fm-button', disabled: disabled || !settings.discovery || rate === Math.round(settings.discoveryRate * 100),
-                onClick: () => controller.command('setDiscoveryRate', rate / 100) }, '保存'))))));
-  const management = h('div', {className:'fm-management','aria-label':'曲库与界面设置'},
-        h(NetworkProxySettings, { state, controller }),
-        h('section', null, h('h2', null, '输入与连接',h('small',null,'LIBRARY')),
-          h('details',{className:'fm-input-library'},h('summary',null,`输入曲库 · ${state.library?.total??0} 首（展开查看）`),h(Library,{state,controller})),
-          h('details',{className:'fm-platform-details fm-input-library',ref:platformDetailsRef,open:platformExpanded,
-            'data-guide-reveal':['connect','import'].includes(guideFocus)||undefined,
-            onToggle:event=>setPlatformExpanded(event.currentTarget.open)},h('summary',null,'音乐平台',h('span',{className:'fm-disclosure-meta'},accountHint)),platformSection)),
-        h('section', null, h('h2', null, '使用指南'), h('div', { className: 'fm-card' },
-          h('p', { className: 'fm-note' }, '选择音乐平台并导入参考歌曲，了解推荐反馈。'),
-          h('button', { type: 'button', className: 'fm-button fm-guide-open', disabled: !guideReady(state), onClick: () => {
-            controller.openGuide(); selectView('listen', false); setGuideFocus('guide');
-          } }, '打开使用指南'),
-          !guideReady(state) && h('p', { className: 'fm-note' }, '连接状态恢复后可打开指南。'))),
-        h(Persona,{key:'settings',state,controller,settingsOnly:true,selectedModel,onSelectModel:setSelectedModel}),
-        h('section', null, h('h2', null, '界面选项', h('small', null, 'INTERFACE')), h('details', { className: 'fm-card fm-interface-details' }, h('summary',null,'界面与悬浮条'),
-          h(ExpressionSettings,{state,controller}),
+        mode === 'manual' && h('p', { className: 'fm-note' }, '仅手动点播：保留声音，不自动选歌。'),
+        h('div', { className: 'fm-stop-wrap' },
+          h('span', { className: 'fm-note' }, '暂停并禁止自主听歌至今日结束'),
+          button('今天停止', 'stopForToday', Boolean(state.transportPending)))),
+    },
+    library: {
+      title: '输入与连接',
+      pill: `${accountHint} · ${state.library?.total ?? 0} 首`,
+      pillTone: state.platforms?.[automaticSource]?.account?.status === 'authorized' ? 'ok' : 'neutral',
+      sub: '管理音乐平台账号、导入参考歌单与搜索输入曲库',
+      canWide: true,
+      body: h('div', { className: 'fm-tile-wide-grid' },
+        h('details', { className: 'fm-platform-details fm-input-library', ref: platformDetailsRef, open: platformExpanded,
+          'data-guide-reveal': ['connect', 'import'].includes(guideFocus) || undefined,
+          onToggle: event => setPlatformExpanded(event.currentTarget.open) },
+          h('summary', null, '音乐平台', h('span', { className: 'fm-disclosure-meta' }, accountHint)), platformSection),
+        h('details', { className: 'fm-input-library' },
+          h('summary', null, `输入曲库 · ${state.library?.total ?? 0} 首（展开查看）`), h(Library, { state, controller }))),
+    },
+    preferences: {
+      title: '听歌偏好',
+      pill: `${settings.listening ? '自主开' : '自主关'} · ${settings.humanPlayback ? '有声' : '静音'} · 探索 ${rate}%`,
+      pillTone: 'neutral',
+      sub: '自主听歌、电脑输出声音与新歌探索比例',
+      canWide: false,
+      body: h('div', { className: 'fm-card' },
+        toggle('DeepSeek 自主听歌', '自动选歌、续播并积累偏好。', 'listening', 'setListening'),
+        toggle('电脑输出声音', '关闭只静音，不暂停听歌。', 'humanPlayback', 'setHumanPlayback'),
+        toggle('探索新音乐', '从可播放的新歌候选中探索。', 'discovery', 'setDiscovery'),
+        h('p', { className: 'fm-note', role: 'status', 'aria-live': 'polite' }, discoveryPresentation(snapshot)),
+        snapshot?.lastSelection?.fellBack && h('p', { className: 'fm-note' }, '最近一次自主选择：没有合适的新歌，先播了常听歌曲。'),
+        state.features?.discoveryRefresh && insights?.recommendationMode !== 'filtered' && h('button', { type: 'button', className: 'fm-button', disabled: disabled || state.platformBusy || !settings.discovery || settings.discoveryRate === 0 || state.platforms?.[automaticSource]?.account?.status !== 'authorized',
+          onClick: () => controller.platformAction('discovery', automaticSource) }, '刷新新歌推荐'),
+        h('div', { className: 'fm-rate' }, h('div', { className: 'fm-rate-head' }, h('label', { htmlFor: rateId }, '新歌探索率'), h('output', { htmlFor: rateId }, `${rate}%`)),
+          h('input', { id: rateId, 'aria-label': '新歌探索率', type: 'range', min: 0, max: 100, step: 1, value: rate, disabled: disabled || !settings.discovery,
+            onChange: e => setRate(Number(e.target.value)) }),
+          h('div', { className: 'fm-save-line' }, h('span', { className: 'fm-save', role: 'status', 'aria-live': 'polite' }, state.notice || '开关即时保存；探索率需点击保存。'),
+            h('button', { type: 'button', className: 'fm-button', disabled: disabled || !settings.discovery || rate === Math.round(settings.discoveryRate * 100),
+              onClick: () => controller.command('setDiscoveryRate', rate / 100) }, '保存')))),
+    },
+    model: {
+      title: '模型与推荐',
+      pill: activeRoute?.model ? `${activeRoute.model}${Number.isFinite(remainingTokens) ? ` · 余 ${remainingTokens}` : ''}` : '查看模型与预算',
+      pillTone: 'neutral',
+      sub: '挑歌模型选择、每日共享 token 预算与用量诊断',
+      canWide: false,
+      body: h(Persona, { key: 'settings', state, controller, settingsOnly: true, selectedModel, onSelectModel: setSelectedModel }),
+    },
+    network: {
+      title: '网络连接',
+      pill: state.networkProxy?.mode === 'proxy' ? '自定义代理' : '直连（默认）',
+      pillTone: state.networkProxy?.mode === 'proxy' ? 'accent' : 'ok',
+      sub: '平台接口与音频下载路由，TUN／VPN 分流由外部管理',
+      canWide: false,
+      body: h(NetworkProxySettings, { state, controller }),
+    },
+    interface: {
+      title: '界面与指南',
+      pill: `${motionText} · 频谱${state.spectrumVisible ? '开' : '关'}`,
+      pillTone: 'neutral',
+      sub: `表达「${exprText}」 · 悬浮条${state.widgetVisible ? '显示' : '隐藏'} · 使用指南`,
+      canWide: true,
+      body: h('div', { className: 'fm-tile-wide-grid' },
+        h('div', null,
+          h(ExpressionSettings, { state, controller }),
+          h('div', { className: 'fm-stop-wrap' },
+            h('span', { className: 'fm-note' }, '选择音乐平台并导入参考歌曲，了解推荐反馈。'),
+            h('button', { type: 'button', className: 'fm-button fm-guide-open', disabled: !guideReady(state), onClick: () => {
+              controller.openGuide(); selectView('listen', false); setGuideFocus('guide');
+            } }, '打开使用指南')),
+          !guideReady(state) && h('p', { className: 'fm-note' }, '连接状态恢复后可打开指南。')),
+        h('div', null,
           h('div', { className: 'fm-motion-row' }, h('label', { htmlFor: `${rateId}-motion` }, '动态效果'),
             h('select', { id: `${rateId}-motion`, 'aria-label': '动态效果', value: state.motion || 'full', onChange: event => controller.setMotion(event.target.value) },
               h('option', { value: 'full' }, '完整'), h('option', { value: 'reduced' }, '轻量'), h('option', { value: 'off' }, '关闭'))),
@@ -142,8 +270,70 @@ export function Panel({ controller, back }) {
           h('div', { className: 'fm-widget-note' }, h(Svg, { type: 'grip' }),
             h('span', null, state.widgetVisible ? '离开面板后显示，可拖动吸附。' : '悬浮条已隐藏，可随时显示。'), h('button', { type: 'button', className: 'fm-button fm-widget-pref',
               'aria-pressed': state.widgetVisible, 'aria-label': '显示或隐藏悬浮条',
-              onClick: () => controller.setWidgetVisible(!state.widgetVisible) }, state.widgetVisible ? '隐藏' : '显示')))));
-  const settingsBody = h('div', { className: 'fm-settings-body' }, controlsColumn, management);
+              onClick: () => controller.setWidgetVisible(!state.widgetVisible) }, state.widgetVisible ? '隐藏' : '显示')))),
+    },
+  };
+  const settingsBody = h('div', { className: 'fm-settings-body fm-settings-modular', 'aria-label': '电台设置' },
+    h('div', { className: 'fm-settings-toolbar' },
+      h('span', null, '拖动卡片左上手柄可自由排序 · 表单卡片固定单列防变形，宽内容支持跨列宽展'),
+      h('div', { className: 'fm-settings-toolbar-actions' },
+        h('button', { type: 'button', className: 'fm-button', onClick: () => setAllTileSizes('compact') }, '全部最简'),
+        h('button', { type: 'button', className: 'fm-button', onClick: () => setAllTileSizes('standard') }, '全部展开'),
+        h('button', { type: 'button', className: 'fm-button', onClick: resetSettingsLayout }, '恢复默认'))),
+    h('div', { className: 'fm-settings-board', ref: boardRef },
+      settingsLayout.order.map(id => {
+        const def = settingsTileDefs[id];
+        const size = settingsLayout.sizes?.[id] || 'compact';
+        const expanded = size !== 'compact';
+        return h('section', {
+          key: id, className: 'fm-setting-tile', 'data-tile-id': id, 'data-size': size,
+          'data-dragging': dragTile === id || undefined, 'data-drop-target': dropTile === id && dragTile !== id || undefined,
+          draggable: true,
+          onDragStart: event => {
+            if (['INPUT', 'SELECT', 'TEXTAREA'].includes(event.target?.tagName)) { event.preventDefault(); return; }
+            setDragTile(id);
+            event.dataTransfer?.setData?.('text/plain', id);
+            if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move';
+          },
+          onDragEnd: () => { setDragTile(null); setDropTile(null); },
+          onDragOver: event => {
+            if (!dragTile || dragTile === id) return;
+            event.preventDefault();
+            if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
+            if (dropTile !== id) setDropTile(id);
+          },
+          onDragLeave: () => { if (dropTile === id) setDropTile(null); },
+          onDrop: event => {
+            event.preventDefault();
+            const from = dragTile || event.dataTransfer?.getData?.('text/plain');
+            setDragTile(null); setDropTile(null);
+            if (from && from !== id) moveTileOrder(from, id);
+          },
+        },
+        h('div', { className: 'fm-tile-head', onClick: event => { if (!event.target?.closest?.('button')) setTileSize(id, expanded ? 'compact' : 'standard'); } },
+          h('button', { type: 'button', className: 'fm-tile-grip', 'data-tile-grip': id,
+            'aria-label': `拖动调整「${def.title}」顺序；方向键上下移动`, title: '拖动调整顺序；方向键上下移动',
+            onKeyDown: event => {
+              if (event.key === 'ArrowUp') { event.preventDefault(); nudgeTile(id, -1); }
+              else if (event.key === 'ArrowDown') { event.preventDefault(); nudgeTile(id, 1); }
+            } }, h(Svg, { type: 'grip' })),
+          h('div', { className: 'fm-tile-title-wrap' },
+            h('div', { className: 'fm-tile-title-row' },
+              h('span', { className: 'fm-tile-title' }, def.title),
+              h('span', { className: 'fm-tile-pill', 'data-ok': def.pillTone === 'ok' || undefined, 'data-accent': def.pillTone === 'accent' || undefined }, def.pill)),
+            h('div', { className: 'fm-tile-sub-wrap' }, h('span', { className: 'fm-tile-sub' }, def.sub))),
+          h('div', { className: 'fm-tile-actions' },
+            def.canWide
+              ? h('button', { type: 'button', className: 'fm-tile-btn fm-tile-widen-btn', 'aria-pressed': size === 'wide', title: '切换单列 / 跨两列宽展',
+                onClick: event => { event.stopPropagation(); setTileSize(id, size === 'wide' ? 'standard' : 'wide'); } }, size === 'wide' ? '标准宽' : '宽展')
+              : h('span', { className: 'fm-fixed-tag', title: '表单类组件固定舒适单列宽' }, '固定宽'),
+            h('button', { type: 'button', className: 'fm-tile-btn', 'aria-expanded': expanded,
+              'aria-label': `${expanded ? '收起' : '展开'}${def.title}`,
+              onClick: event => { event.stopPropagation(); setTileSize(id, expanded ? 'compact' : 'standard'); } }, expanded ? '收起' : '展开'))),
+        def.quick && h('div', { className: 'fm-tile-quick-wrap' }, h('div', { className: 'fm-tile-quick-inner' }, def.quick)),
+        h('div', { className: 'fm-tile-collapse', ref: element => { if (element) element.inert = !expanded; } },
+          h('div', { className: 'fm-tile-collapse-inner' }, h('div', { className: 'fm-tile-body' }, def.body))));
+      })));
   const replyCurrent = !current?.decisionId || !insights?.reply?.decisionId || current.decisionId === insights.reply.decisionId;
   const selectView = (value, loadProfile = true) => {
     controller.setFeedbackOpen(value === 'taste' && feedbackRef.current?.querySelector('.fm-feedback-manager')?.open === true);
@@ -154,7 +344,12 @@ export function Panel({ controller, back }) {
   const guideStep = step => {
     controller.setGuideStage(step);
     selectView(step === 'listen' ? 'listen' : 'settings', false);
-    if (step !== 'listen') setPlatformExpanded(true);
+    if (step !== 'listen') {
+      setPlatformExpanded(true);
+      if ((settingsLayout.sizes?.library || 'compact') === 'compact') {
+        updateSettingsLayout({ ...settingsLayout, sizes: { ...settingsLayout.sizes, library: 'standard' } });
+      }
+    }
     setGuideFocus(step);
   };
   const dock = () => h('div', { className: 'fm-player-dock', 'aria-label': '播放控制' },

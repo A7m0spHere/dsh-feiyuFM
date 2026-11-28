@@ -6,6 +6,28 @@ const WIDGET_POSITION_KEY = 'fishfm.widget.position.v1';
 const MOTION_KEY = 'fishfm.motion.v1';
 const PLAYBACK_EFFECTS_KEY = 'fishfm.playback.effects.v1';
 const SPECTRUM_VISIBLE_KEY = 'fishfm.spectrum.visible.v1';
+const SETTINGS_LAYOUT_KEY = 'fishfm.settings.layout.v1';
+const DEFAULT_SETTINGS_ORDER = ['modes', 'library', 'preferences', 'model', 'network', 'interface'];
+const WIDE_SETTINGS_TILES = new Set(['library', 'interface']);
+const normalizeSettingsLayout = raw => {
+  const seen = new Set();
+  const order = [];
+  if (Array.isArray(raw?.order)) {
+    for (const id of raw.order) {
+      if (DEFAULT_SETTINGS_ORDER.includes(id) && !seen.has(id)) { seen.add(id); order.push(id); }
+    }
+  }
+  for (const id of DEFAULT_SETTINGS_ORDER) {
+    if (!seen.has(id)) { seen.add(id); order.push(id); }
+  }
+  const sizes = {};
+  for (const id of DEFAULT_SETTINGS_ORDER) {
+    const candidate = raw?.sizes?.[id];
+    sizes[id] = candidate === 'wide' ? (WIDE_SETTINGS_TILES.has(id) ? 'wide' : 'standard')
+      : candidate === 'standard' ? 'standard' : 'compact';
+  }
+  return { order, sizes };
+};
 const readPreference = (key, fallback) => {
   try {
     const value = window.localStorage.getItem(key);
@@ -52,6 +74,7 @@ export function createController(connection, { onPlaybackTrace = null } = {}) {
     playbackEffects: readPreference(PLAYBACK_EFFECTS_KEY, false) === true,
     spectrumVisible: readPreference(SPECTRUM_VISIBLE_KEY, true) !== false,
     motion: ['full', 'reduced', 'off'].includes(readPreference(MOTION_KEY, 'full')) ? readPreference(MOTION_KEY, 'full') : 'full',
+    settingsLayout: normalizeSettingsLayout(readPreference(SETTINGS_LAYOUT_KEY, null)),
   };
   let epoch = 0, playbackEpoch = 0, libraryEpoch = 0, platformEpoch = 0, timer, playbackTimer, read, transportWrite, settingsWrite, libraryRead,summaryWrite,expressionWrite, disposed = false;
   let networkProxyEpoch = 0, networkProxyRead = null, networkProxyWrite = null;
@@ -157,6 +180,12 @@ export function createController(connection, { onPlaybackTrace = null } = {}) {
     emit({ guideStatus: status, guideVisible: false, guideStage: null });
   };
   window.addEventListener?.('storage', syncGuidePreference);
+  const syncSettingsLayout = event => {
+    if (event.key !== SETTINGS_LAYOUT_KEY && event.key !== null) return;
+    try { if (event.storageArea !== window.localStorage) return; } catch { return; }
+    emit({ settingsLayout: normalizeSettingsLayout(readPreference(SETTINGS_LAYOUT_KEY, null)) });
+  };
+  window.addEventListener?.('storage', syncSettingsLayout);
   const syncVisibility = () => { if (document.hidden) clearTimeout(playbackTimer); else followPlayback(); };
   document.addEventListener?.('visibilitychange', syncVisibility);
   const failure = error => `${error?.message || '音乐服务连接失败，请刷新重试。'}${error?.code ? ` (${error.code})` : ''}`;
@@ -437,6 +466,16 @@ export function createController(connection, { onPlaybackTrace = null } = {}) {
       if (!['full', 'reduced', 'off'].includes(level)) return;
       writePreference(MOTION_KEY, level);
       emit({ motion: level });
+    },
+    setSettingsLayout(value) {
+      const next = normalizeSettingsLayout(value);
+      writePreference(SETTINGS_LAYOUT_KEY, next);
+      emit({ settingsLayout: next });
+    },
+    resetSettingsLayout() {
+      const next = normalizeSettingsLayout(null);
+      writePreference(SETTINGS_LAYOUT_KEY, next);
+      emit({ settingsLayout: next });
     },
     async playOrPause() {
       if (state.snapshot?.current) return this.command(state.snapshot.paused ? 'resume' : 'pause');
@@ -799,6 +838,7 @@ export function createController(connection, { onPlaybackTrace = null } = {}) {
     dispose() { disposed = true; ++epoch; ++libraryEpoch; ++feedbackEpoch; ++profileEpoch; ++networkProxyEpoch; networkProxyRead?.abort(); networkProxyWrite?.abort(); profileRead?.abort(); profileRead = null; clearTimeout(profileTimer); profileTimer = null; profileRefreshQueued = false; profileDirty = false; feedbackRead?.abort(); feedbackWrite?.abort(); clearInterval(timer); clearTimeout(playbackTimer); read?.abort(); writes.forEach(request => request.abort()); libraryRead?.abort();summaryWrite?.abort();expressionWrite?.abort(); listeners.clear();
       window.removeEventListener?.('storage', syncPlaybackEffects);
       window.removeEventListener?.('storage', syncGuidePreference);
+      window.removeEventListener?.('storage', syncSettingsLayout);
       document.removeEventListener?.('visibilitychange', syncVisibility); },
   };
   return controllerApi;

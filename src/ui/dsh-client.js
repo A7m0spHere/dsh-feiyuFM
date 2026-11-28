@@ -659,6 +659,201 @@ window.__ModuleLoader__.load({
       }
       @media (max-height:700px) { .fm-lyrics-scroll { height:220px; } }
       @media (prefers-reduced-motion:reduce) { .fm-lyric-original { transition:none; } }
+      /* Proposal A + A1: refined native polish & modular draggable settings */
+      .fishfm,.fm-float {
+        --fm-r-sm:6px; --fm-r-md:10px; --fm-r-lg:14px;
+        --fm-canvas:hsl(220 22% 96.5%); --fm-surface:hsl(0 0% 100%);
+        --fm-sunken:hsl(220 22% 97.2%); --fm-hover:hsl(220 24% 94.5%);
+        --fm-line:hsl(220 17% 89.5%); --fm-line-strong:hsl(220 15% 81%);
+        --fm-dock-bg:color-mix(in srgb,var(--fm-surface) 92%,transparent);
+        --fm-dock-shadow:0 -6px 20px hsl(222 44% 22% / .055);
+        --fm-card-shadow:0 1px 2px hsl(222 44% 22% / .04),0 4px 16px hsl(222 44% 22% / .035);
+        --fm-inner-rim:inset 0 1px 0 hsl(0 0% 100% / .7);
+      }
+      :is([data-ds-dark-theme],.dark,[data-theme=dark]) :is(.fishfm,.fm-float),
+      :is(.fishfm,.fm-float)[data-theme=dark] {
+        --fm-canvas:hsl(224 18% 8.5%); --fm-surface:hsl(222 15% 12.8%);
+        --fm-raised:hsl(222 15% 15.2%); --fm-sunken:hsl(224 17% 10.4%);
+        --fm-hover:hsl(222 14% 18.5%); --fm-line:hsl(222 13% 20.5%);
+        --fm-line-strong:hsl(222 12% 30%);
+        --fm-dock-bg:color-mix(in srgb,var(--fm-surface) 90%,transparent);
+        --fm-dock-shadow:0 -8px 24px hsl(224 60% 2% / .32);
+        --fm-card-shadow:0 1px 2px hsl(224 60% 2% / .25),0 6px 20px hsl(224 60% 2% / .18);
+        --fm-inner-rim:inset 0 1px 0 hsl(220 40% 96% / .045);
+      }
+      .fishfm { padding:18px 24px 0; scrollbar-gutter:stable; }
+      .fm-top { margin-bottom:14px; }
+      .fm-brand { border-radius:var(--fm-r-md); box-shadow:var(--fm-inner-rim); }
+      .fm-button { border-radius:var(--fm-r-sm); }
+      .fm-card { border-radius:var(--fm-r-lg); box-shadow:var(--fm-card-shadow),var(--fm-inner-rim); }
+      .fm-page-nav { gap:0 6px; margin-bottom:18px; }
+      .fm-page-nav button { position:relative; padding:8px 12px 11px; border-radius:var(--fm-r-sm) var(--fm-r-sm) 0 0;
+        transition:color var(--fm-fast) var(--fm-ease),background-color var(--fm-fast) var(--fm-ease); }
+      .fm-page-nav button:hover { color:var(--fm-ink); background:var(--fm-hover); }
+      .fm-page-nav button[aria-pressed=true] { background:transparent; border-bottom-color:transparent; }
+      .fm-page-nav button[aria-pressed=true]::after { content:''; position:absolute; left:10px; right:10px; bottom:-1px;
+        height:2.5px; border-radius:3px 3px 0 0; background:var(--fm-accent); }
+      .fm-now-layout { margin:8px 0 22px; }
+      .fm-companion-hero .fm-feedback-button { border-radius:999px; padding:6px 14px;
+        box-shadow:0 1px 2px hsl(222 44% 22% / .04); }
+      .fishfm .fm-now-layout .fm-companion-hero .fm-reply { margin-top:18px; padding:10px 14px;
+        border-left:2.5px solid color-mix(in srgb,var(--fm-accent) 45%,var(--fm-line));
+        background:color-mix(in srgb,var(--fm-surface) 75%,transparent);
+        border-radius:0 var(--fm-r-md) var(--fm-r-md) 0; }
+      .fm-lyrics { padding-left:26px; }
+      .fm-lyric-option { padding:3px 10px; border-radius:999px; border:1px solid var(--fm-line);
+        background:var(--fm-surface); font-size:11px; transition:all var(--fm-fast) var(--fm-ease); }
+      .fm-lyric-option:hover:not(:disabled) { border-color:var(--fm-line-strong); color:var(--fm-ink); }
+      .fm-lyric-option[aria-pressed=true] { border-color:color-mix(in srgb,var(--fm-accent) 45%,transparent);
+        background:var(--fm-accent-soft); color:var(--fm-accent-ink); font-weight:550; }
+      .fm-lyrics-scroll { padding:26px 10px 76px 0; overflow-x:hidden;
+        -webkit-mask-image:linear-gradient(to bottom,transparent 0%,#000 11%,#000 84%,transparent 100%);
+        mask-image:linear-gradient(to bottom,transparent 0%,#000 11%,#000 84%,transparent 100%); }
+      .fm-lyric-line { padding:9px 10px; margin:0; width:100%; border-radius:var(--fm-r-md);
+        transition:background-color var(--fm-fast) var(--fm-ease),opacity var(--fm-fast) var(--fm-ease); }
+      .fm-lyric-line:hover:not(:disabled) { background:var(--fm-hover); }
+      .fm-lyric-original { font-size:20px; opacity:.58; transition:color var(--fm-fast) var(--fm-ease),opacity var(--fm-fast) var(--fm-ease); }
+      .fm-lyric-line[data-active=true] .fm-lyric-original { opacity:1; font-size:21px; }
+      .fm-lyric-line:hover:not(:disabled) .fm-lyric-original { opacity:.95; }
+      .fm-persona-card { padding:20px 22px 16px; }
+      .fm-picks { gap:12px; margin:16px 0 8px; }
+      .fm-pick { position:relative; padding:12px 13px; border-radius:var(--fm-r-md);
+        background:var(--fm-sunken); border:1px solid color-mix(in srgb,var(--fm-line) 70%,transparent);
+        align-items:center; gap:10px;
+        transition:background-color var(--fm-fast) var(--fm-ease),border-color var(--fm-fast) var(--fm-ease),transform var(--fm-press) var(--fm-ease); }
+      .fm-pick:hover:not(:disabled) { background:var(--fm-hover);
+        border-color:color-mix(in srgb,var(--fm-accent) 42%,var(--fm-line)); transform:translateY(-1px); }
+      .fm-pick-copy { padding-left:10px; gap:3px; border-left:2.5px solid color-mix(in srgb,var(--fm-accent) 32%,var(--fm-line)); }
+      .fm-pick-play { display:grid; place-items:center; width:28px; height:28px; border-radius:50%;
+        background:var(--fm-surface); border:1px solid var(--fm-line); color:var(--fm-muted);
+        font-size:10px; opacity:.55; transition:all var(--fm-fast) var(--fm-ease); }
+      .fm-pick:hover:not(:disabled) .fm-pick-play { opacity:1; background:var(--fm-accent); border-color:transparent; color:var(--fm-on-accent); }
+      .fm-pool-footer .fm-button { padding:5px 12px; border-radius:var(--fm-r-sm);
+        border:1px solid color-mix(in srgb,var(--fm-accent) 28%,var(--fm-line));
+        background:var(--fm-accent-soft); color:var(--fm-accent-ink); }
+      .fm-pool-footer .fm-button:hover:not(:disabled) { background:color-mix(in srgb,var(--fm-accent) 16%,var(--fm-surface)); }
+      .fm-player-dock { padding:13px 24px; background:var(--fm-dock-bg);
+        backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px); box-shadow:var(--fm-dock-shadow); }
+      .fm-player-dock .fm-transport { min-height:34px; padding:5px 13px; border-radius:var(--fm-r-md); }
+      .fm-dock-timeline .fm-seek-tooltip { bottom:calc(50% + 10px); top:auto; box-shadow:0 4px 12px rgba(0,0,0,.18); }
+      .fm-volume-slider::-webkit-slider-runnable-track { height:4px; transition:height 140ms ease; }
+      .fm-volume-slider:hover::-webkit-slider-runnable-track { height:6px; }
+      .fm-volume-slider:hover::-webkit-slider-thumb { margin-top:-3px; }
+      .fm-float-pill { position:relative; overflow:hidden; border-radius:13px;
+        background:color-mix(in srgb,var(--fm-raised) 92%,transparent);
+        backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px);
+        box-shadow:var(--fm-popup-shadow),var(--fm-inner-rim); }
+      .fm-float-progress { position:absolute; left:0; right:0; bottom:0; height:2px;
+        background:color-mix(in srgb,var(--fm-line) 65%,transparent); pointer-events:none; }
+      .fm-float-progress>i { display:block; height:100%; background:var(--fm-accent); border-radius:0 2px 2px 0; }
+      .fm-float-drawer { border-radius:13px; background:color-mix(in srgb,var(--fm-raised) 95%,transparent);
+        backdrop-filter:blur(16px); -webkit-backdrop-filter:blur(16px); }
+      .fm-float-controls { grid-template-columns:repeat(3,minmax(0,1fr)); gap:7px; }
+      .fm-float-controls .fm-button { padding:6px 8px; white-space:nowrap; }
+      .fm-discover-page .fm-discoveries-card { padding:6px 18px 14px; }
+      .fm-discover-page .fm-discoveries-card>summary .fm-label::before { content:none; }
+      .fm-badge[data-tone=info] { color:var(--fm-accent-ink); background:var(--fm-accent-soft);
+        border-color:color-mix(in srgb,var(--fm-accent) 24%,transparent); }
+      .fm-affinity-row { display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:center;
+        gap:6px 12px; padding:10px 0; border-bottom:1px solid var(--fm-line); }
+      .fm-affinity-row:last-of-type { border-bottom:0; }
+      .fm-affinity-row strong { font-size:12.5px; font-weight:550; overflow-wrap:anywhere; }
+      .fm-affinity-bar { grid-column:1/-1; height:4px; border-radius:99px; background:var(--fm-sunken); overflow:hidden; }
+      .fm-affinity-bar>i { display:block; height:100%; border-radius:inherit;
+        background:linear-gradient(90deg,color-mix(in srgb,var(--fm-accent) 65%,transparent),var(--fm-accent)); }
+      .fm-danger-btn { color:var(--fm-danger); border-color:color-mix(in srgb,var(--fm-danger) 32%,var(--fm-line)); }
+      .fm-danger-btn:hover:not(:disabled) { background:color-mix(in srgb,var(--fm-danger) 8%,var(--fm-surface));
+        border-color:color-mix(in srgb,var(--fm-danger) 55%,var(--fm-line)); }
+      .fm-stop-wrap { margin-top:12px; padding-top:12px; border-top:1px solid var(--fm-line);
+        display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; }
+      .fm-stop-wrap .fm-note { margin:0!important; }
+      .fm-settings-page .fm-settings-body.fm-settings-modular { display:block; padding:0; }
+      .fm-settings-toolbar { display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap;
+        margin-bottom:14px; padding:8px 12px; border-radius:var(--fm-r-md);
+        background:var(--fm-sunken); border:1px solid var(--fm-line); font-size:12px; color:var(--fm-muted); }
+      .fm-settings-toolbar-actions { display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
+      .fm-settings-toolbar .fm-button { min-height:28px; padding:4px 10px; font-size:11.5px; }
+      .fm-settings-board { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); grid-auto-flow:dense;
+        align-items:start; gap:12px; overflow-anchor:none; }
+      .fm-setting-tile { display:flex; flex-direction:column; min-width:0;
+        background:var(--fm-surface); border:1px solid var(--fm-line); border-radius:var(--fm-r-lg);
+        box-shadow:var(--fm-card-shadow),var(--fm-inner-rim);
+        transition:border-color var(--fm-fast) var(--fm-ease),box-shadow var(--fm-fast) var(--fm-ease),opacity var(--fm-fast) var(--fm-ease); }
+      .fm-setting-tile[data-size=compact]:hover { border-color:var(--fm-line-strong); }
+      .fm-setting-tile[data-size=wide] { grid-column:1/-1; }
+      .fm-setting-tile[data-dragging=true] { opacity:.42; transform:scale(.985); }
+      .fm-setting-tile[data-drop-target=true] { outline:2px dashed var(--fm-accent); outline-offset:2px;
+        background:color-mix(in srgb,var(--fm-accent-soft) 32%,var(--fm-surface)); }
+      .fm-tile-head { display:flex; align-items:center; gap:8px; padding:11px 12px; min-height:48px;
+        cursor:pointer; user-select:none; border-bottom:1px solid transparent; transition:border-color var(--fm-base) var(--fm-ease); }
+      .fm-setting-tile:not([data-size=compact]) .fm-tile-head { border-bottom-color:var(--fm-line); }
+      .fm-tile-grip { display:grid; place-items:center; width:22px; height:26px; flex:none; padding:0; border:0;
+        border-radius:5px; background:transparent; color:var(--fm-faint); cursor:grab;
+        transition:background var(--fm-fast) var(--fm-ease),color var(--fm-fast) var(--fm-ease); }
+      .fm-tile-grip:hover { background:var(--fm-hover); color:var(--fm-ink); }
+      .fm-tile-grip:active { cursor:grabbing; }
+      .fm-tile-title-wrap { min-width:0; flex:1; display:flex; flex-direction:column; gap:2px; }
+      .fm-tile-title-row { display:flex; align-items:center; gap:7px; flex-wrap:wrap; }
+      .fm-tile-title { font-size:13.5px; font-weight:600; color:var(--fm-ink); }
+      .fm-tile-pill { font-size:10.5px; font-weight:500; padding:1px 7px; border-radius:999px;
+        background:var(--fm-sunken); border:1px solid var(--fm-line); color:var(--fm-muted);
+        max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+      .fm-tile-pill[data-ok=true] { color:var(--fm-ok); background:color-mix(in srgb,var(--fm-ok) 9%,var(--fm-surface));
+        border-color:color-mix(in srgb,var(--fm-ok) 24%,var(--fm-line)); }
+      .fm-tile-pill[data-accent=true] { color:var(--fm-accent-ink); background:var(--fm-accent-soft);
+        border-color:color-mix(in srgb,var(--fm-accent) 24%,transparent); }
+      .fm-tile-sub-wrap { display:grid; grid-template-rows:1fr; opacity:1;
+        transition:grid-template-rows var(--fm-base) var(--fm-ease),opacity var(--fm-fast) ease; }
+      .fm-setting-tile:not([data-size=compact]) .fm-tile-sub-wrap { grid-template-rows:0fr; opacity:0; }
+      .fm-tile-sub { overflow:hidden; min-height:0; font-size:11px; color:var(--fm-muted); text-overflow:ellipsis; white-space:nowrap; }
+      .fm-tile-actions { display:flex; align-items:center; gap:4px; flex:none; }
+      .fm-tile-btn { display:inline-flex; align-items:center; gap:4px; height:26px; padding:0 8px;
+        border:1px solid var(--fm-line); border-radius:6px; background:var(--fm-sunken);
+        color:var(--fm-muted); font-size:11px; font-weight:500; white-space:nowrap;
+        transition:all var(--fm-fast) var(--fm-ease); }
+      .fm-tile-btn:hover { background:var(--fm-hover); color:var(--fm-ink); border-color:var(--fm-line-strong); }
+      .fm-tile-btn[aria-pressed=true] { background:var(--fm-accent-soft); color:var(--fm-accent-ink);
+        border-color:color-mix(in srgb,var(--fm-accent) 35%,transparent); }
+      .fm-setting-tile[data-size=compact] .fm-tile-widen-btn,
+      .fm-setting-tile[data-size=compact] .fm-fixed-tag { display:none; }
+      .fm-fixed-tag { font-size:10px; color:var(--fm-faint); padding:2px 6px; border-radius:4px;
+        background:var(--fm-sunken); white-space:nowrap; }
+      .fm-tile-quick-wrap { display:grid; grid-template-rows:1fr; opacity:1;
+        transition:grid-template-rows var(--fm-base) var(--fm-ease),opacity var(--fm-fast) ease; }
+      .fm-setting-tile:not([data-size=compact]) .fm-tile-quick-wrap { grid-template-rows:0fr; opacity:0; pointer-events:none; }
+      .fm-tile-quick-inner { overflow:hidden; min-height:0; }
+      .fm-tile-quick { display:flex; align-items:center; gap:5px; flex-wrap:wrap; padding:0 12px 11px 42px; }
+      .fm-quick-chip { padding:3px 9px; border-radius:999px; border:1px solid var(--fm-line);
+        background:var(--fm-sunken); color:var(--fm-muted); font-size:11px; font-weight:500;
+        transition:all var(--fm-fast) var(--fm-ease); }
+      .fm-quick-chip:hover:not(:disabled) { color:var(--fm-ink); border-color:var(--fm-line-strong); }
+      .fm-quick-chip[aria-pressed=true] { background:var(--fm-accent-soft); color:var(--fm-accent-ink);
+        border-color:color-mix(in srgb,var(--fm-accent) 42%,transparent); font-weight:600; }
+      .fm-tile-collapse { display:grid; grid-template-rows:0fr; opacity:0;
+        transition:grid-template-rows var(--fm-page) var(--fm-ease),opacity var(--fm-base) ease; }
+      .fm-setting-tile:not([data-size=compact]) .fm-tile-collapse { grid-template-rows:1fr; opacity:1; }
+      .fm-tile-collapse-inner { overflow:hidden; min-height:0; }
+      .fm-tile-body { padding:12px 14px 14px; }
+      .fm-tile-body>section>h2 { display:none; }
+      .fm-tile-body .fm-card { border:0; box-shadow:none; padding:0; background:transparent; border-radius:0; }
+      .fm-tile-body .fm-recommendation-settings { padding:0; }
+      .fm-tile-body .fm-platform-details { margin-top:0; }
+      .fm-tile-body .fm-row:first-child { padding-top:2px; }
+      .fm-tile-body .fm-row:last-child { border-bottom:0; padding-bottom:2px; }
+      .fm-tile-wide-grid { display:grid; grid-template-columns:minmax(0,1fr); gap:12px; }
+      .fm-setting-tile[data-size=wide] .fm-tile-wide-grid { grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:18px; align-items:start; }
+      @container fishfm (max-width:640px) {
+        .fm-settings-board { grid-template-columns:1fr; }
+        .fm-setting-tile[data-size=wide] { grid-column:auto; }
+        .fm-setting-tile[data-size=wide] .fm-tile-wide-grid { grid-template-columns:1fr; }
+        .fm-tile-widen-btn { display:none; }
+      }
+      @container fishfm (max-width:560px) {
+        .fm-picks { grid-template-columns:1fr; gap:10px; }
+      }
+      @container fishfm (max-width:760px) {
+        .fm-lyrics { padding-left:0; }
+      }
     `;
 
     // src/ui/client/shared.mjs
@@ -861,6 +1056,28 @@ window.__ModuleLoader__.load({
     const MOTION_KEY = 'fishfm.motion.v1';
     const PLAYBACK_EFFECTS_KEY = 'fishfm.playback.effects.v1';
     const SPECTRUM_VISIBLE_KEY = 'fishfm.spectrum.visible.v1';
+    const SETTINGS_LAYOUT_KEY = 'fishfm.settings.layout.v1';
+    const DEFAULT_SETTINGS_ORDER = ['modes', 'library', 'preferences', 'model', 'network', 'interface'];
+    const WIDE_SETTINGS_TILES = new Set(['library', 'interface']);
+    const normalizeSettingsLayout = raw => {
+      const seen = new Set();
+      const order = [];
+      if (Array.isArray(raw?.order)) {
+        for (const id of raw.order) {
+          if (DEFAULT_SETTINGS_ORDER.includes(id) && !seen.has(id)) { seen.add(id); order.push(id); }
+        }
+      }
+      for (const id of DEFAULT_SETTINGS_ORDER) {
+        if (!seen.has(id)) { seen.add(id); order.push(id); }
+      }
+      const sizes = {};
+      for (const id of DEFAULT_SETTINGS_ORDER) {
+        const candidate = raw?.sizes?.[id];
+        sizes[id] = candidate === 'wide' ? (WIDE_SETTINGS_TILES.has(id) ? 'wide' : 'standard')
+          : candidate === 'standard' ? 'standard' : 'compact';
+      }
+      return { order, sizes };
+    };
     const readPreference = (key, fallback) => {
       try {
         const value = window.localStorage.getItem(key);
@@ -907,6 +1124,7 @@ window.__ModuleLoader__.load({
         playbackEffects: readPreference(PLAYBACK_EFFECTS_KEY, false) === true,
         spectrumVisible: readPreference(SPECTRUM_VISIBLE_KEY, true) !== false,
         motion: ['full', 'reduced', 'off'].includes(readPreference(MOTION_KEY, 'full')) ? readPreference(MOTION_KEY, 'full') : 'full',
+        settingsLayout: normalizeSettingsLayout(readPreference(SETTINGS_LAYOUT_KEY, null)),
       };
       let epoch = 0, playbackEpoch = 0, libraryEpoch = 0, platformEpoch = 0, timer, playbackTimer, read, transportWrite, settingsWrite, libraryRead,summaryWrite,expressionWrite, disposed = false;
       let networkProxyEpoch = 0, networkProxyRead = null, networkProxyWrite = null;
@@ -1012,6 +1230,12 @@ window.__ModuleLoader__.load({
         emit({ guideStatus: status, guideVisible: false, guideStage: null });
       };
       window.addEventListener?.('storage', syncGuidePreference);
+      const syncSettingsLayout = event => {
+        if (event.key !== SETTINGS_LAYOUT_KEY && event.key !== null) return;
+        try { if (event.storageArea !== window.localStorage) return; } catch { return; }
+        emit({ settingsLayout: normalizeSettingsLayout(readPreference(SETTINGS_LAYOUT_KEY, null)) });
+      };
+      window.addEventListener?.('storage', syncSettingsLayout);
       const syncVisibility = () => { if (document.hidden) clearTimeout(playbackTimer); else followPlayback(); };
       document.addEventListener?.('visibilitychange', syncVisibility);
       const failure = error => `${error?.message || '音乐服务连接失败，请刷新重试。'}${error?.code ? ` (${error.code})` : ''}`;
@@ -1292,6 +1516,16 @@ window.__ModuleLoader__.load({
           if (!['full', 'reduced', 'off'].includes(level)) return;
           writePreference(MOTION_KEY, level);
           emit({ motion: level });
+        },
+        setSettingsLayout(value) {
+          const next = normalizeSettingsLayout(value);
+          writePreference(SETTINGS_LAYOUT_KEY, next);
+          emit({ settingsLayout: next });
+        },
+        resetSettingsLayout() {
+          const next = normalizeSettingsLayout(null);
+          writePreference(SETTINGS_LAYOUT_KEY, next);
+          emit({ settingsLayout: next });
         },
         async playOrPause() {
           if (state.snapshot?.current) return this.command(state.snapshot.paused ? 'resume' : 'pause');
@@ -1654,6 +1888,7 @@ window.__ModuleLoader__.load({
         dispose() { disposed = true; ++epoch; ++libraryEpoch; ++feedbackEpoch; ++profileEpoch; ++networkProxyEpoch; networkProxyRead?.abort(); networkProxyWrite?.abort(); profileRead?.abort(); profileRead = null; clearTimeout(profileTimer); profileTimer = null; profileRefreshQueued = false; profileDirty = false; feedbackRead?.abort(); feedbackWrite?.abort(); clearInterval(timer); clearTimeout(playbackTimer); read?.abort(); writes.forEach(request => request.abort()); libraryRead?.abort();summaryWrite?.abort();expressionWrite?.abort(); listeners.clear();
           window.removeEventListener?.('storage', syncPlaybackEffects);
           window.removeEventListener?.('storage', syncGuidePreference);
+          window.removeEventListener?.('storage', syncSettingsLayout);
           document.removeEventListener?.('visibilitychange', syncVisibility); },
       };
       return controllerApi;
@@ -2322,10 +2557,10 @@ window.__ModuleLoader__.load({
               h('p',{className:'fm-label'},confirm==='library'?`清空 ${state.library?.total??0} 首输入歌曲并重建偏好？`:'仅重置成长偏好，保留输入曲库？'),
               h('label',{className:'fm-check-row'},h('input',{type:'checkbox',checked:clearFeedback,disabled,'aria-label':'同时清除喜欢和少推荐反馈',onChange:e=>setClearFeedback(e.target.checked)}),'同时清除喜欢 / 少推荐反馈'),
               h('div',{className:'fm-feedback-actions'},
-                h('button',{type:'button',className:'fm-button',disabled,onClick:async()=>{await controller.command(confirm==='library'?'resetLibrary':'resetTaste',{clearFeedback});setConfirm(null);}},confirm==='library'?'确认清空输入曲库':'确认重置'),
+                h('button',{type:'button',className:confirm==='library'?'fm-button fm-danger-btn':'fm-button',disabled,onClick:async()=>{await controller.command(confirm==='library'?'resetLibrary':'resetTaste',{clearFeedback});setConfirm(null);}},confirm==='library'?'确认清空输入曲库':'确认重置'),
                 h('button',{type:'button',className:'fm-button',disabled:state.busy,onClick:()=>setConfirm(null)},'取消')))
               :h('div',{className:'fm-feedback-actions'},
-                h('button',{type:'button',className:'fm-button',disabled:disabled||!state.insights?.libraryResetSupported,onClick:()=>{setClearFeedback(false);setConfirm('library');}},'清空输入曲库并重建偏好'),
+                h('button',{type:'button',className:'fm-button fm-danger-btn',disabled:disabled||!state.insights?.libraryResetSupported,onClick:()=>{setClearFeedback(false);setConfirm('library');}},'清空输入曲库并重建偏好'),
                 h('button',{type:'button',className:'fm-button',disabled,onClick:()=>{setClearFeedback(false);setConfirm('taste');}},'仅重置成长偏好'),
                 feedback?.canUndoReset&&h('button',{type:'button',className:'fm-button',disabled,onClick:()=>controller.command('undoTasteReset')},'撤销最近一次重置')),
             h('p',{className:'fm-note'},'清空后可重新导入参考歌曲。保留最近一次恢复点；撤销会覆盖重置之后的导入和成长。')))));
@@ -2355,7 +2590,7 @@ window.__ModuleLoader__.load({
               return h('li', {className: 'fm-discovery-item', key: item.key},
                 h('div', {className: 'fm-discovery-heading'}, h('div', {className: 'fm-discovery-copy'}, h('strong', null, item.title), h('span', {className: 'fm-note'}, item.artist)),
                   h('div', {className: 'fm-discovery-badges'}, h('span', {className: 'fm-badge'}, '已推荐'),
-                    item.userRequested && h('span', {className: 'fm-badge'}, '本机点播'),
+                    item.userRequested && h('span', {className: 'fm-badge', 'data-tone': 'info'}, '本机点播'),
                     item.audibleHeard ? h('span', {className: 'fm-badge', 'data-ok': true}, '有效听过')
                       : item.silentExperienced ? h('span', {className: 'fm-badge'}, '静音有效经历')
                         : item.agentExperienced ? h('span', {className: 'fm-badge'}, '有效经历') : null)),
@@ -2567,12 +2802,61 @@ window.__ModuleLoader__.load({
       const feedbackRef = React.useRef(null);
       const platformDetailsRef = React.useRef(null), neteaseRef = React.useRef(null);
       const guideRef = React.useRef(null), playRef = React.useRef(null);
+      const boardRef = React.useRef(null), flipRectsRef = React.useRef(null);
       const [platformExpanded, setPlatformExpanded] = React.useState(false);
       const [guideFocus, setGuideFocus] = React.useState(null);
       const [view, setView] = React.useState('listen');
+      const [dragTile, setDragTile] = React.useState(null);
+      const [dropTile, setDropTile] = React.useState(null);
       // Pages mount on first visit and stay mounted (hidden) afterwards, so the
       // first frame only renders the visible tab instead of all four.
       const [mountedViews, setMountedViews] = React.useState(() => new Set([view]));
+      const settingsLayout = state.settingsLayout ?? {
+        order: ['modes', 'library', 'preferences', 'model', 'network', 'interface'],
+        sizes: { modes: 'compact', library: 'compact', preferences: 'compact', model: 'compact', network: 'compact', interface: 'compact' },
+      };
+      const captureTileRects = () => {
+        const board = boardRef.current;
+        if (!board?.querySelectorAll) return;
+        const rects = new Map();
+        board.querySelectorAll('[data-tile-id]').forEach(el => {
+          if (el.getBoundingClientRect) rects.set(el.dataset.tileId, el.getBoundingClientRect());
+        });
+        flipRectsRef.current = rects;
+      };
+      const updateSettingsLayout = next => {
+        captureTileRects();
+        controller.setSettingsLayout?.(next);
+      };
+      const resetSettingsLayout = () => {
+        captureTileRects();
+        controller.resetSettingsLayout?.();
+      };
+      React.useEffect(() => {
+        const firstRects = flipRectsRef.current;
+        flipRectsRef.current = null;
+        const board = boardRef.current;
+        if (!firstRects || !board?.querySelectorAll) return;
+        const reduced = state.motion === 'off' || window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+        if (reduced) return;
+        const duration = state.motion === 'reduced' ? 150 : 280;
+        board.querySelectorAll('[data-tile-id]').forEach(el => {
+          const first = firstRects.get(el.dataset.tileId);
+          if (!first || !el.getBoundingClientRect) return;
+          const last = el.getBoundingClientRect();
+          const dx = first.left - last.left;
+          const dy = first.top - last.top;
+          if (Math.abs(dx) < 1 && Math.abs(dy) < 1) return;
+          el.style.transition = 'none';
+          el.style.transform = `translate(${dx}px, ${dy}px)`;
+          el.getBoundingClientRect();
+          el.style.transition = `transform ${duration}ms var(--fm-ease)`;
+          el.style.transform = '';
+          const cleanup = () => { el.style.transition = ''; el.removeEventListener('transitionend', cleanup); };
+          el.addEventListener('transitionend', cleanup);
+          setTimeout(cleanup, duration + 60);
+        });
+      }, [settingsLayout, state.motion]);
       React.useEffect(() => {
         if (!guideFocus || view !== (['connect', 'import'].includes(guideFocus) ? 'settings' : 'listen')) return;
         const region = neteaseRef.current;
@@ -2623,8 +2907,9 @@ window.__ModuleLoader__.load({
             h(FeedbackSettings,{state,controller}),
             insights&&h('section',null,h('h2',null,'听歌记录'),h('details',{className:'fm-card fm-profile-details',open:true},h('summary',null,'查看偏好与听歌记录'),
               h('p',{className:'fm-note'},'本地画像 · 来自已保存的独立偏好'),
-              ...(insights.profile?.artists?.length?insights.profile.artists.slice(0,5).map(a=>h('div',{className:'fm-row',key:a.key},
-                h('span',null,a.name),h('span',{className:'fm-badge'},`权重 ${Math.round(a.affinity*100)}% · ${['listen','listen_silent'].includes(a.source)?'有效经历':a.source==='legacy_artist_link'?'旧偏好链接':'初始化/维护'}`))):[h('p',{className:'fm-note'},'还没有足够的艺人偏好记录。')]),
+              ...(insights.profile?.artists?.length?insights.profile.artists.slice(0,5).map(a=>h('div',{className:'fm-affinity-row',key:a.key},
+                h('strong',null,a.name),h('span',{className:'fm-badge'},`权重 ${Math.round(a.affinity*100)}% · ${['listen','listen_silent'].includes(a.source)?'有效经历':a.source==='legacy_artist_link'?'旧偏好链接':'初始化/维护'}`),
+                h('div',{className:'fm-affinity-bar','aria-hidden':true},h('i',{style:{width:`${Math.max(0,Math.min(100,Math.round(a.affinity*100)))}%`}})))):[h('p',{className:'fm-note'},'还没有足够的艺人偏好记录。')]),
               h('p',{className:'fm-note'},'流派/情绪特征尚未提供，不据歌名推断。'),
               Array.isArray(insights.profile?.tracks)&&h('details',null,h('summary',null,'查看歌曲偏好与最近变化'),
                 ...(insights.profile?.tracks??[]).map(t=>h('p',{className:'fm-note',key:t.key},`${t.title} · 权重 ${Math.round(t.affinity*100)}% · ${['listen','listen_silent'].includes(t.source)?'有效经历':'初始化/维护'}`)),
@@ -2634,42 +2919,120 @@ window.__ModuleLoader__.load({
                 Number.isFinite(insights.statistics?.repeatedSelections)&&h('p',{className:'fm-note'},`其中 ${insights.statistics.repeatedSelections} 次选中歌曲在近期已有播放历史。`),
                 ...(insights.decisions??[]).slice(0,3).map(d=>h('p',{className:'fm-note',key:d.decisionId},`${d.trackTitle??d.trackKey??'未选中歌曲'} · ${d.pool==='queue'?'队列':d.pool==='discovery'?'新歌':'常听歌曲'}${d.fellBack?'（回退）':''}${d.trackKey?'':' · 本次未开始播放'}`)),
                 h('p',{className:'fm-note'},`${Number.isFinite(insights.statistics?.windowStart)?`窗口始于 ${new Date(insights.statistics.windowStart).toLocaleString()}。`:''}按已追踪的决策实例统计，历史覆盖不足时不视作全期比例。`)))));
-      const controlsColumn = h('aside', {className:'fm-controls-column','aria-label':'电台设置'},
-            h('section', null, h('h2', null, '听歌方式', h('small', null, 'MODES')), h('div', { className: 'fm-modes' }, modes.map(([id, title, desc]) =>
+      const modeMeta = modes.find(([id]) => id === mode) ?? ['manual', '手动', '仅手动点播：保留声音，不自动选歌'];
+      const activeRoute = (state.summaryModels ?? []).find(item => JSON.stringify([item.provider, item.model]) === selectedModel)
+        ?? state.persona?.recommendationRoute ?? state.persona?.lastModelRoute;
+      const remainingTokens = state.persona?.ledger?.remainingTokens;
+      const motionText = ({ full: '完整动效', reduced: '轻量动效', off: '关闭动效' })[state.motion || 'full'] || '完整动效';
+      const exprText = EXPRESSION_LABELS[state.expression?.style ?? 'current'] || '保持当前';
+      const setTileSize = (id, nextSize) => updateSettingsLayout({ ...settingsLayout, sizes: { ...settingsLayout.sizes, [id]: nextSize } });
+      const setAllTileSizes = target => {
+        const sizes = {};
+        for (const id of settingsLayout.order) sizes[id] = target;
+        updateSettingsLayout({ ...settingsLayout, sizes });
+      };
+      const moveTileOrder = (fromId, toId) => {
+        if (!fromId || !toId || fromId === toId) return;
+        const next = settingsLayout.order.filter(item => item !== fromId);
+        const targetIdx = next.indexOf(toId);
+        if (targetIdx < 0) return;
+        next.splice(targetIdx, 0, fromId);
+        updateSettingsLayout({ ...settingsLayout, order: next });
+      };
+      const nudgeTile = (id, delta) => {
+        const idx = settingsLayout.order.indexOf(id);
+        const nextIdx = idx + delta;
+        if (idx < 0 || nextIdx < 0 || nextIdx >= settingsLayout.order.length) return;
+        const next = [...settingsLayout.order];
+        [next[idx], next[nextIdx]] = [next[nextIdx], next[idx]];
+        updateSettingsLayout({ ...settingsLayout, order: next });
+      };
+      const settingsTileDefs = {
+        modes: {
+          title: '听歌方式',
+          pill: modeMeta[1],
+          pillTone: 'accent',
+          sub: modeMeta[2],
+          canWide: false,
+          quick: h('div', { className: 'fm-tile-quick' }, modes.map(([id, title, desc]) =>
+            h('button', { type: 'button', key: id, className: 'fm-quick-chip', 'aria-pressed': mode === id, disabled, title: desc,
+              onClick: event => { event.stopPropagation(); controller.command('setMode', id); } }, title))),
+          body: h(React.Fragment, null,
+            h('div', { className: 'fm-modes' }, modes.map(([id, title, desc]) =>
               h('button', { type: 'button', key: id, className: 'fm-mode', 'data-selected': mode === id, 'aria-pressed': mode === id, disabled,
                 title: desc, onClick: () => controller.command('setMode', id) }, h('strong', null, title), h('span', null, desc)))),
-              mode === 'manual' && h('p', { className: 'fm-note' }, '仅手动点播：保留声音，不自动选歌。'),
-              button('今天停止', 'stopForToday', Boolean(state.transportPending))),
-            h('section', null, h('h2', null, '听歌偏好', h('small', null, 'PREFERENCES')), h('div', { className: 'fm-card' },
-              toggle('DeepSeek 自主听歌', '自动选歌、续播并积累偏好。', 'listening', 'setListening'),
-              toggle('电脑输出声音', '关闭只静音，不暂停听歌。', 'humanPlayback', 'setHumanPlayback'),
-              toggle('探索新音乐', '从可播放的新歌候选中探索。', 'discovery', 'setDiscovery'),
-              h('p', { className: 'fm-note', role: 'status', 'aria-live': 'polite' }, discoveryPresentation(snapshot)),
-              snapshot?.lastSelection?.fellBack && h('p', { className: 'fm-note' }, '最近一次自主选择：没有合适的新歌，先播了常听歌曲。'),
-              state.features?.discoveryRefresh && insights?.recommendationMode!=='filtered' && h('button', { type: 'button', className: 'fm-button', disabled: disabled || state.platformBusy || !settings.discovery || settings.discoveryRate === 0 || state.platforms?.[automaticSource]?.account?.status !== 'authorized',
-                onClick: () => controller.platformAction('discovery', automaticSource) }, '刷新新歌推荐'),
-              h('div', { className: 'fm-rate' }, h('div', { className: 'fm-rate-head' }, h('label', { htmlFor: rateId }, '新歌探索率'), h('output', { htmlFor: rateId }, `${rate}%`)),
-                h('input', { id: rateId, 'aria-label': '新歌探索率', type: 'range', min: 0, max: 100, step: 1, value: rate, disabled: disabled || !settings.discovery,
-                  onChange: e => setRate(Number(e.target.value)) }),
-                h('div', { className: 'fm-save-line' }, h('span', { className: 'fm-save', role: 'status', 'aria-live': 'polite' }, state.notice || '开关即时保存；探索率需点击保存。'),
-                  h('button', { type: 'button', className: 'fm-button', disabled: disabled || !settings.discovery || rate === Math.round(settings.discoveryRate * 100),
-                    onClick: () => controller.command('setDiscoveryRate', rate / 100) }, '保存'))))));
-      const management = h('div', {className:'fm-management','aria-label':'曲库与界面设置'},
-            h(NetworkProxySettings, { state, controller }),
-            h('section', null, h('h2', null, '输入与连接',h('small',null,'LIBRARY')),
-              h('details',{className:'fm-input-library'},h('summary',null,`输入曲库 · ${state.library?.total??0} 首（展开查看）`),h(Library,{state,controller})),
-              h('details',{className:'fm-platform-details fm-input-library',ref:platformDetailsRef,open:platformExpanded,
-                'data-guide-reveal':['connect','import'].includes(guideFocus)||undefined,
-                onToggle:event=>setPlatformExpanded(event.currentTarget.open)},h('summary',null,'音乐平台',h('span',{className:'fm-disclosure-meta'},accountHint)),platformSection)),
-            h('section', null, h('h2', null, '使用指南'), h('div', { className: 'fm-card' },
-              h('p', { className: 'fm-note' }, '选择音乐平台并导入参考歌曲，了解推荐反馈。'),
-              h('button', { type: 'button', className: 'fm-button fm-guide-open', disabled: !guideReady(state), onClick: () => {
-                controller.openGuide(); selectView('listen', false); setGuideFocus('guide');
-              } }, '打开使用指南'),
-              !guideReady(state) && h('p', { className: 'fm-note' }, '连接状态恢复后可打开指南。'))),
-            h(Persona,{key:'settings',state,controller,settingsOnly:true,selectedModel,onSelectModel:setSelectedModel}),
-            h('section', null, h('h2', null, '界面选项', h('small', null, 'INTERFACE')), h('details', { className: 'fm-card fm-interface-details' }, h('summary',null,'界面与悬浮条'),
-              h(ExpressionSettings,{state,controller}),
+            mode === 'manual' && h('p', { className: 'fm-note' }, '仅手动点播：保留声音，不自动选歌。'),
+            h('div', { className: 'fm-stop-wrap' },
+              h('span', { className: 'fm-note' }, '暂停并禁止自主听歌至今日结束'),
+              button('今天停止', 'stopForToday', Boolean(state.transportPending)))),
+        },
+        library: {
+          title: '输入与连接',
+          pill: `${accountHint} · ${state.library?.total ?? 0} 首`,
+          pillTone: state.platforms?.[automaticSource]?.account?.status === 'authorized' ? 'ok' : 'neutral',
+          sub: '管理音乐平台账号、导入参考歌单与搜索输入曲库',
+          canWide: true,
+          body: h('div', { className: 'fm-tile-wide-grid' },
+            h('details', { className: 'fm-platform-details fm-input-library', ref: platformDetailsRef, open: platformExpanded,
+              'data-guide-reveal': ['connect', 'import'].includes(guideFocus) || undefined,
+              onToggle: event => setPlatformExpanded(event.currentTarget.open) },
+              h('summary', null, '音乐平台', h('span', { className: 'fm-disclosure-meta' }, accountHint)), platformSection),
+            h('details', { className: 'fm-input-library' },
+              h('summary', null, `输入曲库 · ${state.library?.total ?? 0} 首（展开查看）`), h(Library, { state, controller }))),
+        },
+        preferences: {
+          title: '听歌偏好',
+          pill: `${settings.listening ? '自主开' : '自主关'} · ${settings.humanPlayback ? '有声' : '静音'} · 探索 ${rate}%`,
+          pillTone: 'neutral',
+          sub: '自主听歌、电脑输出声音与新歌探索比例',
+          canWide: false,
+          body: h('div', { className: 'fm-card' },
+            toggle('DeepSeek 自主听歌', '自动选歌、续播并积累偏好。', 'listening', 'setListening'),
+            toggle('电脑输出声音', '关闭只静音，不暂停听歌。', 'humanPlayback', 'setHumanPlayback'),
+            toggle('探索新音乐', '从可播放的新歌候选中探索。', 'discovery', 'setDiscovery'),
+            h('p', { className: 'fm-note', role: 'status', 'aria-live': 'polite' }, discoveryPresentation(snapshot)),
+            snapshot?.lastSelection?.fellBack && h('p', { className: 'fm-note' }, '最近一次自主选择：没有合适的新歌，先播了常听歌曲。'),
+            state.features?.discoveryRefresh && insights?.recommendationMode !== 'filtered' && h('button', { type: 'button', className: 'fm-button', disabled: disabled || state.platformBusy || !settings.discovery || settings.discoveryRate === 0 || state.platforms?.[automaticSource]?.account?.status !== 'authorized',
+              onClick: () => controller.platformAction('discovery', automaticSource) }, '刷新新歌推荐'),
+            h('div', { className: 'fm-rate' }, h('div', { className: 'fm-rate-head' }, h('label', { htmlFor: rateId }, '新歌探索率'), h('output', { htmlFor: rateId }, `${rate}%`)),
+              h('input', { id: rateId, 'aria-label': '新歌探索率', type: 'range', min: 0, max: 100, step: 1, value: rate, disabled: disabled || !settings.discovery,
+                onChange: e => setRate(Number(e.target.value)) }),
+              h('div', { className: 'fm-save-line' }, h('span', { className: 'fm-save', role: 'status', 'aria-live': 'polite' }, state.notice || '开关即时保存；探索率需点击保存。'),
+                h('button', { type: 'button', className: 'fm-button', disabled: disabled || !settings.discovery || rate === Math.round(settings.discoveryRate * 100),
+                  onClick: () => controller.command('setDiscoveryRate', rate / 100) }, '保存')))),
+        },
+        model: {
+          title: '模型与推荐',
+          pill: activeRoute?.model ? `${activeRoute.model}${Number.isFinite(remainingTokens) ? ` · 余 ${remainingTokens}` : ''}` : '查看模型与预算',
+          pillTone: 'neutral',
+          sub: '挑歌模型选择、每日共享 token 预算与用量诊断',
+          canWide: false,
+          body: h(Persona, { key: 'settings', state, controller, settingsOnly: true, selectedModel, onSelectModel: setSelectedModel }),
+        },
+        network: {
+          title: '网络连接',
+          pill: state.networkProxy?.mode === 'proxy' ? '自定义代理' : '直连（默认）',
+          pillTone: state.networkProxy?.mode === 'proxy' ? 'accent' : 'ok',
+          sub: '平台接口与音频下载路由，TUN／VPN 分流由外部管理',
+          canWide: false,
+          body: h(NetworkProxySettings, { state, controller }),
+        },
+        interface: {
+          title: '界面与指南',
+          pill: `${motionText} · 频谱${state.spectrumVisible ? '开' : '关'}`,
+          pillTone: 'neutral',
+          sub: `表达「${exprText}」 · 悬浮条${state.widgetVisible ? '显示' : '隐藏'} · 使用指南`,
+          canWide: true,
+          body: h('div', { className: 'fm-tile-wide-grid' },
+            h('div', null,
+              h(ExpressionSettings, { state, controller }),
+              h('div', { className: 'fm-stop-wrap' },
+                h('span', { className: 'fm-note' }, '选择音乐平台并导入参考歌曲，了解推荐反馈。'),
+                h('button', { type: 'button', className: 'fm-button fm-guide-open', disabled: !guideReady(state), onClick: () => {
+                  controller.openGuide(); selectView('listen', false); setGuideFocus('guide');
+                } }, '打开使用指南')),
+              !guideReady(state) && h('p', { className: 'fm-note' }, '连接状态恢复后可打开指南。')),
+            h('div', null,
               h('div', { className: 'fm-motion-row' }, h('label', { htmlFor: `${rateId}-motion` }, '动态效果'),
                 h('select', { id: `${rateId}-motion`, 'aria-label': '动态效果', value: state.motion || 'full', onChange: event => controller.setMotion(event.target.value) },
                   h('option', { value: 'full' }, '完整'), h('option', { value: 'reduced' }, '轻量'), h('option', { value: 'off' }, '关闭'))),
@@ -2682,8 +3045,70 @@ window.__ModuleLoader__.load({
               h('div', { className: 'fm-widget-note' }, h(Svg, { type: 'grip' }),
                 h('span', null, state.widgetVisible ? '离开面板后显示，可拖动吸附。' : '悬浮条已隐藏，可随时显示。'), h('button', { type: 'button', className: 'fm-button fm-widget-pref',
                   'aria-pressed': state.widgetVisible, 'aria-label': '显示或隐藏悬浮条',
-                  onClick: () => controller.setWidgetVisible(!state.widgetVisible) }, state.widgetVisible ? '隐藏' : '显示')))));
-      const settingsBody = h('div', { className: 'fm-settings-body' }, controlsColumn, management);
+                  onClick: () => controller.setWidgetVisible(!state.widgetVisible) }, state.widgetVisible ? '隐藏' : '显示')))),
+        },
+      };
+      const settingsBody = h('div', { className: 'fm-settings-body fm-settings-modular', 'aria-label': '电台设置' },
+        h('div', { className: 'fm-settings-toolbar' },
+          h('span', null, '拖动卡片左上手柄可自由排序 · 表单卡片固定单列防变形，宽内容支持跨列宽展'),
+          h('div', { className: 'fm-settings-toolbar-actions' },
+            h('button', { type: 'button', className: 'fm-button', onClick: () => setAllTileSizes('compact') }, '全部最简'),
+            h('button', { type: 'button', className: 'fm-button', onClick: () => setAllTileSizes('standard') }, '全部展开'),
+            h('button', { type: 'button', className: 'fm-button', onClick: resetSettingsLayout }, '恢复默认'))),
+        h('div', { className: 'fm-settings-board', ref: boardRef },
+          settingsLayout.order.map(id => {
+            const def = settingsTileDefs[id];
+            const size = settingsLayout.sizes?.[id] || 'compact';
+            const expanded = size !== 'compact';
+            return h('section', {
+              key: id, className: 'fm-setting-tile', 'data-tile-id': id, 'data-size': size,
+              'data-dragging': dragTile === id || undefined, 'data-drop-target': dropTile === id && dragTile !== id || undefined,
+              draggable: true,
+              onDragStart: event => {
+                if (['INPUT', 'SELECT', 'TEXTAREA'].includes(event.target?.tagName)) { event.preventDefault(); return; }
+                setDragTile(id);
+                event.dataTransfer?.setData?.('text/plain', id);
+                if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move';
+              },
+              onDragEnd: () => { setDragTile(null); setDropTile(null); },
+              onDragOver: event => {
+                if (!dragTile || dragTile === id) return;
+                event.preventDefault();
+                if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
+                if (dropTile !== id) setDropTile(id);
+              },
+              onDragLeave: () => { if (dropTile === id) setDropTile(null); },
+              onDrop: event => {
+                event.preventDefault();
+                const from = dragTile || event.dataTransfer?.getData?.('text/plain');
+                setDragTile(null); setDropTile(null);
+                if (from && from !== id) moveTileOrder(from, id);
+              },
+            },
+            h('div', { className: 'fm-tile-head', onClick: event => { if (!event.target?.closest?.('button')) setTileSize(id, expanded ? 'compact' : 'standard'); } },
+              h('button', { type: 'button', className: 'fm-tile-grip', 'data-tile-grip': id,
+                'aria-label': `拖动调整「${def.title}」顺序；方向键上下移动`, title: '拖动调整顺序；方向键上下移动',
+                onKeyDown: event => {
+                  if (event.key === 'ArrowUp') { event.preventDefault(); nudgeTile(id, -1); }
+                  else if (event.key === 'ArrowDown') { event.preventDefault(); nudgeTile(id, 1); }
+                } }, h(Svg, { type: 'grip' })),
+              h('div', { className: 'fm-tile-title-wrap' },
+                h('div', { className: 'fm-tile-title-row' },
+                  h('span', { className: 'fm-tile-title' }, def.title),
+                  h('span', { className: 'fm-tile-pill', 'data-ok': def.pillTone === 'ok' || undefined, 'data-accent': def.pillTone === 'accent' || undefined }, def.pill)),
+                h('div', { className: 'fm-tile-sub-wrap' }, h('span', { className: 'fm-tile-sub' }, def.sub))),
+              h('div', { className: 'fm-tile-actions' },
+                def.canWide
+                  ? h('button', { type: 'button', className: 'fm-tile-btn fm-tile-widen-btn', 'aria-pressed': size === 'wide', title: '切换单列 / 跨两列宽展',
+                    onClick: event => { event.stopPropagation(); setTileSize(id, size === 'wide' ? 'standard' : 'wide'); } }, size === 'wide' ? '标准宽' : '宽展')
+                  : h('span', { className: 'fm-fixed-tag', title: '表单类组件固定舒适单列宽' }, '固定宽'),
+                h('button', { type: 'button', className: 'fm-tile-btn', 'aria-expanded': expanded,
+                  'aria-label': `${expanded ? '收起' : '展开'}${def.title}`,
+                  onClick: event => { event.stopPropagation(); setTileSize(id, expanded ? 'compact' : 'standard'); } }, expanded ? '收起' : '展开'))),
+            def.quick && h('div', { className: 'fm-tile-quick-wrap' }, h('div', { className: 'fm-tile-quick-inner' }, def.quick)),
+            h('div', { className: 'fm-tile-collapse', ref: element => { if (element) element.inert = !expanded; } },
+              h('div', { className: 'fm-tile-collapse-inner' }, h('div', { className: 'fm-tile-body' }, def.body))));
+          })));
       const replyCurrent = !current?.decisionId || !insights?.reply?.decisionId || current.decisionId === insights.reply.decisionId;
       const selectView = (value, loadProfile = true) => {
         controller.setFeedbackOpen(value === 'taste' && feedbackRef.current?.querySelector('.fm-feedback-manager')?.open === true);
@@ -2694,7 +3119,12 @@ window.__ModuleLoader__.load({
       const guideStep = step => {
         controller.setGuideStage(step);
         selectView(step === 'listen' ? 'listen' : 'settings', false);
-        if (step !== 'listen') setPlatformExpanded(true);
+        if (step !== 'listen') {
+          setPlatformExpanded(true);
+          if ((settingsLayout.sizes?.library || 'compact') === 'compact') {
+            updateSettingsLayout({ ...settingsLayout, sizes: { ...settingsLayout.sizes, library: 'standard' } });
+          }
+        }
         setGuideFocus(step);
       };
       const dock = () => h('div', { className: 'fm-player-dock', 'aria-label': '播放控制' },
@@ -2975,7 +3405,9 @@ window.__ModuleLoader__.load({
               'aria-busy': state.transportPending === 'next', disabled: transport.nextDisabled,
               onClick: () => controller.command('next') }, h(Svg, { type: 'next' })),
             h('button', { type: 'button', className: 'fm-float-icon fm-float-more', 'aria-label': '更多音乐设置',
-            'aria-haspopup': 'menu', 'aria-expanded': menuOpen, onClick: () => menuOpen ? closeOverlay() : openMenu() }, h(Svg, { type: 'more' })))),
+            'aria-haspopup': 'menu', 'aria-expanded': menuOpen, onClick: () => menuOpen ? closeOverlay() : openMenu() }, h(Svg, { type: 'more' }))),
+          current?.track?.durationMs > 0 && h('div', { className: 'fm-float-progress', 'aria-hidden': true },
+            h('i', { style: { width: `${Math.min(100, Math.max(0, 100 * positionMs / current.track.durationMs))}%` } }))),
       );
     }
 

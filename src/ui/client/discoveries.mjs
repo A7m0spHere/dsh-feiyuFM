@@ -24,7 +24,7 @@ export function Discoveries({state,expanded=false}) {
           return h('li', {className: 'fm-discovery-item', key: item.key},
             h('div', {className: 'fm-discovery-heading'}, h('div', {className: 'fm-discovery-copy'}, h('strong', null, item.title), h('span', {className: 'fm-note'}, item.artist)),
               h('div', {className: 'fm-discovery-badges'}, h('span', {className: 'fm-badge'}, '已推荐'),
-                item.userRequested && h('span', {className: 'fm-badge'}, '本机点播'),
+                item.userRequested && h('span', {className: 'fm-badge', 'data-tone': 'info'}, '本机点播'),
                 item.audibleHeard ? h('span', {className: 'fm-badge', 'data-ok': true}, '有效听过')
                   : item.silentExperienced ? h('span', {className: 'fm-badge'}, '静音有效经历')
                     : item.agentExperienced ? h('span', {className: 'fm-badge'}, '有效经历') : null)),
