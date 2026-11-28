@@ -15,10 +15,11 @@ export function formatExpression(style, kind, original, snapshot) {
   if (snapshot?.lastError && snapshot.lastError.code !== 'no_candidates') return lively ? '这次播放没完成，先看看状态提示吧。' : '播放未成功，请查看状态。';
   if (snapshot?.settings?.listening === false) return lively ? '自主听歌已关闭，先保持你的当前设置。' : '自主听歌已关闭。';
   if (!current) return lively ? '电台待命，准备好后再选歌。' : '电台待命。';
+  const providerLabel = (current.track?.provider === 'qq' || String(current.origin?.source ?? '').startsWith('qq_')) ? 'QQ 音乐' : '网易云';
   let text;
   if (kind === 'user') text = lively ? '这是你点的歌，按你的选择播放。' : '用户点播。';
   else if (kind === 'legacy') text = lively ? '这是旧版记录，选曲来源还没法完整确认。' : '旧版记录，选曲来源未完整标记。';
-  else if (kind === 'llm-picked') text = lively ? '这首从网易云候选里挑出，本地播放规则继续把关。' : '平台候选经模型筛选，本地规则执行。';
+  else if (kind === 'llm-picked') text = lively ? `这首从${providerLabel}候选里挑出，本地播放规则继续把关。` : '平台候选经模型筛选，本地规则执行。';
   else if (kind === 'model-recommended') text = lively ? '这首来自已核对的缓存歌单，继续按本地规则播放。' : '来自平台已核对的缓存歌单。';
   else if (kind === 'recommended-next') text = snapshot?.lastSelection?.fallbackReason?.includes('输入曲库')
     ? lively ? '你想换一首，筛选歌单暂时不可用，这次从输入曲库选。' : '应请求换曲，回退输入曲库。'
@@ -28,7 +29,7 @@ export function formatExpression(style, kind, original, snapshot) {
     : lively ? '陌生候选暂不可用，这次先回到熟悉歌曲。' : '陌生候选不可用，回到熟悉池。';
   else if (kind === 'related') text = lively ? '这次沿着平台的相似推荐试一首，本地规则仍在把关。' : '平台相似推荐，本地规则选曲。';
   else if (kind === 'account') {
-    const source = current.origin?.source === 'netease_personal_fm' ? '网易云私人 FM' : '网易云每日推荐';
+    const source = String(current.origin?.source ?? '').endsWith('_personal_fm') ? `${providerLabel}私人 FM` : `${providerLabel}每日推荐`;
     text = lively ? `这首来自${source}，先沿着平台给出的候选试试。` : `来自${source}。`;
   } else if (kind === 'earned') text = lively ? '这次参考了已记录的自主经历，也保留本地规则的限制。' : '按已记录的自主经历与本地规则选择。';
   else text = lively ? '这次继续按本地规则选歌，缺少的来源信息先不猜。' : '按本地规则选歌。';

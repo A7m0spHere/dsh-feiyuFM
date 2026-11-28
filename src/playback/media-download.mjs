@@ -19,7 +19,7 @@ export class MediaDownloads {
     this.closed = false;
   }
 
-  async stage(handle, { signal, timeoutMs = 12000 } = {}) {
+  async stage(handle, { signal, timeoutMs = 25000, stallTimeoutMs = timeoutMs } = {}) {
     if (this.closed || signal?.aborted) throw new MusicError('cancelled', 'Media staging was cancelled', { details: { stage: 'download' } });
     const entry = { controller: new AbortController(), created: false, completed: false, released: false,
       traceId: randomUUID(), started: performance.now(), receivedBytes: 0, protocol: null, httpStatus: null, declaredBytes: null };
@@ -27,8 +27,16 @@ export class MediaDownloads {
     let expired = false;
     const abort = () => entry.controller.abort();
     signal?.addEventListener('abort', abort, { once: true });
-    const timer = setTimeout(() => { expired = true; abort(); }, Math.max(1, timeoutMs));
-    entry.done = this._download(entry, handle).then(() => {
+    const totalMs = Math.max(1, timeoutMs);
+    const stallMs = Math.max(1, Math.min(totalMs, stallTimeoutMs ?? totalMs));
+    const timer = setTimeout(() => { expired = true; abort(); }, totalMs);
+    let stallTimer = null;
+    const touch = () => {
+      if (stallTimer) clearTimeout(stallTimer);
+      stallTimer = setTimeout(() => { expired = true; abort(); }, stallMs);
+    };
+    touch();
+    entry.done = this._download(entry, handle, touch).then(() => {
       this._log(entry, 'complete');
     }).catch(() => {
       entry.released = true;
@@ -41,7 +49,7 @@ export class MediaDownloads {
       throw new MusicError(code,
         expired ? 'Media preparation timed out' : 'Anonymous media download failed', { retryable: true, details: { stage: 'download' } });
     }).finally(async () => {
-      clearTimeout(timer); signal?.removeEventListener('abort', abort);
+      clearTimeout(timer); if (stallTimer) clearTimeout(stallTimer); signal?.removeEventListener('abort', abort);
       entry.completed = true;
       if (entry.released) await this._cleanup(entry);
     });
@@ -67,7 +75,7 @@ export class MediaDownloads {
     return this.network.request(url, { signal, headers: { accept: '*/*' } });
   }
 
-  async _download(entry, handle) {
+  async _download(entry, handle, touch = () => {}) {
     let url = new URL(handle);
     const signal = entry.controller.signal;
     for (let hop = 0; ; hop++) {
@@ -79,6 +87,7 @@ export class MediaDownloads {
       const response = await this._request(url, signal);
       let file;
       try {
+        touch();
         entry.httpStatus = Number.isInteger(response.statusCode) && response.statusCode >= 100 && response.statusCode <= 599 ? response.statusCode : null;
         const header = response.headers['content-length'];
         const declared = header === undefined ? null : Number(header);
@@ -100,7 +109,9 @@ export class MediaDownloads {
         entry.path = join(directory, randomUUID() + (EXTENSIONS.has(extension) ? extension : '.mp3'));
         file = await open(entry.path, 'wx', 0o600); entry.created = true;
         for await (const chunk of response) {
-          signal.throwIfAborted(); entry.receivedBytes += chunk.length;
+          signal.throwIfAborted();
+          if (chunk.length > 0) touch();
+          entry.receivedBytes += chunk.length;
           if (entry.receivedBytes > MAX_BYTES) throw new Error('size-limit');
           await file.writeFile(chunk);
         }

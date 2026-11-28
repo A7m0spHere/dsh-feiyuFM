@@ -296,3 +296,40 @@ test('volume changes during staging reach the load without cancelling it or over
   assert.equal(commands.find(command => command.type === 'load').muted, true);
   assert.equal(service.muted, true);
 });
+
+test('media download allows active streaming past stallTimeoutMs while failing fast when stalled', async t => {
+  const server = createServer((req, res) => {
+    if (req.url === '/slow-steady.mp3') {
+      res.writeHead(200, { 'content-type': 'audio/mpeg', 'content-length': String(fixture.length) });
+      const third = Math.ceil(fixture.length / 3);
+      res.write(fixture.subarray(0, third));
+      setTimeout(() => res.write(fixture.subarray(third, third * 2)), 75);
+      setTimeout(() => res.end(fixture.subarray(third * 2)), 150);
+      return;
+    }
+    if (req.url === '/mid-stall.mp3') {
+      res.writeHead(200, { 'content-type': 'audio/mpeg', 'content-length': String(fixture.length) });
+      res.write(fixture.subarray(0, 8));
+      return;
+    }
+    res.writeHead(404).end();
+  });
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  const origin = `http://127.0.0.1:${server.address().port}`;
+  t.after(() => new Promise(resolve => server.close(resolve)));
+  const media = new MediaDownloads();
+  t.after(() => media.close());
+
+  // Steady chunks arrive every 75ms (150ms total > 110ms stall timeout, < 800ms total timeout): succeeds!
+  const steady = await media.stage(`${origin}/slow-steady.mp3`, { timeoutMs: 800, stallTimeoutMs: 110 });
+  assert.deepEqual(await readFile(steady.handle), fixture);
+  await steady.release();
+
+  // Mid-stream stall with no bytes for >110ms fails fast well before 2000ms total timeout.
+  const started = Date.now();
+  await assert.rejects(
+    media.stage(`${origin}/mid-stall.mp3`, { timeoutMs: 2000, stallTimeoutMs: 110 }),
+    { code: 'media_open_timeout' },
+  );
+  assert.ok(Date.now() - started < 900, 'stalled stream fails near stallTimeoutMs instead of waiting for total timeout');
+});

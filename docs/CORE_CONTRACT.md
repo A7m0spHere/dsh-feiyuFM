@@ -239,7 +239,7 @@ Provider 解析最多 3 次；不可播替换有有限预算（`media_unavailabl
 
 ### Windows 匿名媒体暂存（2026-11-06，#19）
 
-修订上文 Windows 打开路径：`load/preload` 的 HTTP(S) handle 由 Node `PlaybackService` 内的匿名暂存器下载，完整落盘后仅将本地文件路径交给 WPF。此项取代首轮宿主内的 C# HttpClient 动态编译，不添加进程或播放器。前台下载前停止旧源；暂存器的 AbortController 随版本／暂停／停止／关闭取消，迟到下载只释放自身文件，不能提交或清理新曲目。预加载按原 handle 与宿主代次识别，消费时转移同一文件、不重新下载；WPF 交换后关闭退役本地源，再释放旧文件。禁止默认／代理认证、Cookie、URL 用户信息、非 HTTP(S) 跳转和 HTTPS 降级；使用直接连接，最多 5 次跳转、64 MiB，同时检查声明与实际字节、空文件和截断。下载消耗从 `openTimeoutMs`（默认 12000ms）扣除，仅把余量交给本地打开，不给两段各一份完整预算。下载失败代码 `media_download_failed`，按候选失败退避 5 分钟，不生成收听／成长；准备超时为 `media_open_timeout`，本机解码仍为 `media_failed`。临时文件由 Playback 服务保留至对应播放器释放，取消／失败／正常退出后清理；文件仍被原生播放器占用时延后到控制应答／关闭后重试。不进入存储、UI、模型或日志；异常强杀可能留下系统临时文件。IPC v1 形状、Provider／Core 及 macOS 打开路径不变。见 [#19 修复依据](spikes/ISSUE-19-wpf-public-media.md)。
+修订上文 Windows 打开路径：`load/preload` 的 HTTP(S) handle 由 Node `PlaybackService` 内的匿名暂存器下载，完整落盘后仅将本地文件路径交给 WPF。此项取代首轮宿主内的 C# HttpClient 动态编译，不添加进程或播放器。前台下载前停止旧源；暂存器的 AbortController 随版本／暂停／停止／关闭取消，迟到下载只释放自身文件，不能提交或清理新曲目。预加载按原 handle 与宿主代次识别，消费时转移同一文件、不重新下载；WPF 交换后关闭退役本地源，再释放旧文件。禁止默认／代理认证、Cookie、URL 用户信息、非 HTTP(S) 跳转和 HTTPS 降级；使用直接连接，最多 5 次跳转、64 MiB，同时检查声明与实际字节、空文件和截断。下载采用双层超时：默认单次握手／无字节停滞超时 `openTimeoutMs`（12000ms），字节持续流入时的活跃下载总上限 `downloadTimeoutMs`（25000ms，显式传入更小 `openTimeoutMs` 时共用同一上限）；下载耗时从总预算扣除后，本地打开余量仍以 `openTimeoutMs` 为上限，不给两段各一份完整预算。下载失败代码 `media_download_failed`，按候选失败退避 5 分钟，不生成收听／成长；准备超时为 `media_open_timeout`，本机解码仍为 `media_failed`。临时文件由 Playback 服务保留至对应播放器释放，取消／失败／正常退出后清理；文件仍被原生播放器占用时延后到控制应答／关闭后重试。不进入存储、UI、模型或日志；异常强杀可能留下系统临时文件。IPC v1 形状、Provider／Core 及 macOS 打开路径不变。见 [#19 修复依据](spikes/ISSUE-19-wpf-public-media.md)。
 
 
 ## 7. 存储与恢复

@@ -101,15 +101,21 @@ export const css = `
   .fm-seek-input { position:absolute; inset:0; width:100%; height:100%; margin:0; opacity:0;
     pointer-events:none; direction:ltr; }
   .fm-seek-rail { position:absolute; inset:50% 0 auto; height:4px; transform:translateY(-50%);
-    border-radius:999px; background:var(--fm-line-strong); pointer-events:none; }
-  .fm-seek-fill { position:absolute; inset:0 auto 0 0; width:var(--fm-seek-position);
+    border-radius:999px; background:var(--fm-line-strong); pointer-events:none;
+    transition:height 120ms var(--fm-ease); }
+  .fm-seek-fill { position:absolute; inset:0; width:100%; transform-origin:left center;
+    transform:scaleX(var(--fm-seek-ratio,0)); will-change:transform;
     border-radius:inherit; background:var(--fm-accent); }
+  .fm-seek[data-dragging=false][data-seeking=false] .fm-seek-fill { transition:transform 200ms linear; }
   .fm-seek[data-enabled=true]:hover .fm-seek-rail,.fm-seek-input:focus-visible ~ .fm-seek-rail,
   .fm-seek[data-dragging=true] .fm-seek-rail { height:6px; }
   .fm-seek-input:focus-visible ~ .fm-seek-rail { outline:2px solid var(--fm-accent); outline-offset:4px; }
   .fm-seek-thumb,.fm-seek-marker { display:none; position:absolute; top:50%; transform:translate(-50%,-50%); border-radius:50%; }
-  .fm-seek-thumb { left:var(--fm-seek-position); width:12px; height:12px;
-    border:2px solid var(--fm-accent); background:var(--fm-surface); }
+  .fm-seek-thumb { left:var(--fm-seek-position); width:12px; height:12px; will-change:left,transform;
+    border:2px solid var(--fm-accent); background:var(--fm-surface); box-shadow:0 1px 4px rgba(0,0,0,.18);
+    transition:transform 120ms var(--fm-ease); }
+  .fm-seek[data-dragging=false][data-seeking=false] .fm-seek-thumb { transition:left 200ms linear,transform 120ms var(--fm-ease); }
+  .fm-seek[data-dragging=true] .fm-seek-thumb { transform:translate(-50%,-50%) scale(1.18); }
   .fm-seek[data-enabled=true]:hover .fm-seek-thumb,.fm-seek-input:focus-visible ~ .fm-seek-rail .fm-seek-thumb,
   .fm-seek[data-dragging=true] .fm-seek-thumb { display:block; }
   .fm-seek-marker { left:var(--fm-seek-preview); width:6px; height:6px; background:var(--fm-ink); }

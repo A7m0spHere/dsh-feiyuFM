@@ -24,6 +24,7 @@ export class PlaybackService {
   constructor({
     supervisor,
     openTimeoutMs = 12000,
+    downloadTimeoutMs = undefined,
     commandTimeoutMs = 6000,
     recoveryTimeoutMs = 20000,
     progressIntervalMs = 400,
@@ -34,6 +35,10 @@ export class PlaybackService {
     if (!supervisor) throw new Error('supervisor is required');
     this.supervisor = supervisor;
     this.openTimeoutMs = openTimeoutMs;
+    // Active streaming downloads get up to 25s total while stalled/unresponsive
+    // transfers still fail fast at openTimeoutMs (12s); explicit tight test
+    // openTimeoutMs values keep a single shared cap.
+    this.downloadTimeoutMs = downloadTimeoutMs ?? (openTimeoutMs >= 12000 ? Math.max(openTimeoutMs, 25000) : openTimeoutMs);
     this.commandTimeoutMs = commandTimeoutMs;
     this.recoveryTimeoutMs = recoveryTimeoutMs;
     this.progressIntervalMs = progressIntervalMs;
@@ -172,7 +177,7 @@ export class PlaybackService {
    * Opens the next track in the standby player. Advisory: a failure only means
    * the real load opens normally.
    */
-  async preload({ resource, playInstanceId, version, signal, timeoutMs = this.openTimeoutMs + this.commandTimeoutMs }) {
+  async preload({ resource, playInstanceId, version, signal, timeoutMs = this.downloadTimeoutMs + this.commandTimeoutMs }) {
     if (this.closing) throw playbackError('playback_closed', 'Playback service is closing');
     if (!resource || typeof resource.handle !== 'string' || !resource.handle) {
       throw playbackError('resource_missing', 'Preload needs a resolved resource handle');
@@ -200,13 +205,16 @@ export class PlaybackService {
           throw new MusicError('cancelled', 'Preload was superseded');
         }
         const began = performance.now();
-        const budget = Math.min(this.openTimeoutMs, timeoutMs);
-        if (this.mediaDownloads && isRemoteMedia(resource.handle)) {
-          entry.media = await this.mediaDownloads.stage(resource.handle, { signal: entry.controller.signal, timeoutMs: budget });
+        const remote = this.mediaDownloads && isRemoteMedia(resource.handle);
+        const budget = Math.min(remote ? this.downloadTimeoutMs : this.openTimeoutMs, timeoutMs);
+        if (remote) {
+          entry.media = await this.mediaDownloads.stage(resource.handle, {
+            signal: entry.controller.signal, timeoutMs: budget, stallTimeoutMs: this.openTimeoutMs,
+          });
         }
         if (this._preload !== entry || entry.controller.signal.aborted) throw new MusicError('cancelled', 'Preload was superseded');
         const elapsed = performance.now() - began;
-        const remaining = budget - elapsed;
+        const remaining = Math.min(this.openTimeoutMs, budget - elapsed);
         if (remaining <= 0) throw playbackError('media_open_timeout', 'Media preparation timed out');
         const answer = await raceAbort(this._send('preload', {
           resource: entry.media?.handle ?? resource.handle, playInstanceId, version, openTimeoutMs: Math.ceil(remaining),
@@ -291,8 +299,11 @@ export class PlaybackService {
         await this._mediaActive?.release(); this._mediaActive = null;
         await this.mediaDownloads.cleanup();
         const began = performance.now();
-        media = await this.mediaDownloads.stage(resource.handle, { signal: loadSignal, timeoutMs: remaining });
-        remaining -= performance.now() - began;
+        const totalBudget = this.downloadTimeoutMs;
+        media = await this.mediaDownloads.stage(resource.handle, {
+          signal: loadSignal, timeoutMs: totalBudget, stallTimeoutMs: this.openTimeoutMs,
+        });
+        remaining = Math.min(this.openTimeoutMs, totalBudget - (performance.now() - began));
         usePreload = false;
       }
       if (!current()) throw new MusicError('cancelled', 'Playback load was superseded');

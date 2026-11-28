@@ -72,7 +72,7 @@ export function useSmoothProgress(current, active) {
   React.useEffect(() => {
     anchor.current = active ? { id, at: Date.now(), ms: positionMs } : null;
     if (!active || !id) return undefined;
-    const timer = setInterval(() => tick(value => value + 1), 500);
+    const timer = setInterval(() => tick(value => value + 1), 200);
     return () => clearInterval(timer);
   }, [id, positionMs, active]);
   return interpolatedPosition({

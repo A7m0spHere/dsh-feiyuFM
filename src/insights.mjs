@@ -3,20 +3,21 @@ import {qualifiesAsListen} from './growth.mjs';
 import {feedbackView} from './feedback.mjs';
 import {recommendationMode} from './model-recommendations.mjs';
 import {expressionView,expressionVariants} from './expression.mjs';
+const platformName=(track,source)=>(track?.provider==='qq'||String(source??'').startsWith('qq_'))?'QQ 音乐':'网易云';
 export function explainSelection(snapshot) {
  const current=snapshot?.current,choice=snapshot?.lastSelection;
  if(!current)return{kind:'idle',text:choice?.reason==='every candidate was filtered out'?'候选暂时都被约束或冷却过滤，等待可用歌曲。':'电台待命，尚未选择歌曲。'};
  if(current.selectionTrigger==='legacy-unknown')return{kind:'legacy',text:'这首来自旧版选曲，旧数据没有区分点播和请求下一首。'};
  if(current.selectedBy==='user')return{kind:'user',text:'这首由你点播，按手动播放处理。'};
- if(current.origin?.llmReason)return{kind:'llm-picked',text:`我从网易云找来的歌里挑了这首：${String(current.origin.llmReason).trim().slice(0,40)}。`};
+ if(current.origin?.llmReason)return{kind:'llm-picked',text:`我从${platformName(current.track,current.origin?.source)}找来的歌里挑了这首：${String(current.origin.llmReason).trim().slice(0,40)}。`};
  if(current.origin?.source==='llm_recommendation')return{kind:'model-recommended',text:`${current.selectionTrigger==='user-next'?'你请求了下一首，':''}这首来自模型生成的缓存歌单，平台已核对歌名和艺人。本地规则只负责播放顺序、反馈与重复限制。`};
  if(choice?.fallbackReason?.includes('平台相似推荐'))return{kind:'fallback',text:current.selectionTrigger==='user-next'?'你请求了下一首；推荐歌单和输入曲库暂时没有未播曲目，这首从平台相似推荐里选了已确认可播的新歌。':'推荐歌单和输入曲库暂时没有未播曲目，这次从平台相似推荐里选了一首已确认可播的新歌。'};
  if(current.selectionTrigger==='user-start'&&choice?.fallbackReason?.includes('输入曲库'))return{kind:'fallback',text:'推荐歌单暂时没有可播的歌曲，这次从你的输入曲库选了一首。'};
  if(current.selectionTrigger==='user-next')return{kind:'recommended-next',text:choice?.fallbackReason?.includes('输入曲库')?'你请求了下一首；模型歌单暂时没有可播的曲目，这首从你的输入曲库按偏好和重复限制选择。':choice?.pool==='queue'?'你请求了下一首，我按既定队列继续。':'你请求了下一首，这首由推荐器按偏好、候选来源和重复限制选择。'};
  if(choice?.fellBack)return{kind:'fallback',text:'陌生候选暂不可用，这次回到熟悉歌曲。'};
- if(current.origin?.source==='netease_similar')return{kind:'related',text:'这首与已有种子存在平台相似关系，本地偏好和重复限制共同选中了它。'};
- if(current.origin?.source==='netease_daily')return{kind:'account',text:'这次探索网易云每日推荐中的陌生歌，再由本地偏好排序。'};
- if(current.origin?.source==='netease_personal_fm')return{kind:'account',text:'这次使用网易云私人 FM 候选，再由本地规则选择。'};
+ if(['netease_similar','qq_similar'].includes(current.origin?.source))return{kind:'related',text:'这首与已有种子存在平台相似关系，本地偏好和重复限制共同选中了它。'};
+ if(['netease_daily','qq_daily'].includes(current.origin?.source))return{kind:'account',text:`这次探索${platformName(current.track,current.origin?.source)}每日推荐中的陌生歌，再由本地偏好排序。`};
+ if(['netease_personal_fm','qq_personal_fm'].includes(current.origin?.source))return{kind:'account',text:`这次使用${platformName(current.track,current.origin?.source)}私人 FM 候选，再由本地规则选择。`};
  if(choice?.detail?.affinitySource==='listen'||choice?.detail?.affinitySource==='listen_silent')return{kind:'earned',text:'它有自主收听形成的偏好记录，这次也通过了重复过滤。'};
  return{kind:'familiar',text:'这次从熟悉歌曲中按已有偏好和有界随机项选择。'};
 }
@@ -63,8 +64,8 @@ export function describeMusicInsights(store,snapshot,now=Date.now(),facts=null) 
  const current=snapshot?.current,seed=current?.origin?.seedTrackKey;
  const reply=current?{decisionId:current.decisionId,kind:current.selectedBy==='user'?'user':'agent',
   text:current.selectionTrigger==='legacy-unknown'||current.origin?.source==='llm_recommendation'?explainSelection(snapshot).text:current.selectedBy==='user'?'这是你点的，我按你的选择播放。':current.selectionTrigger==='user-next'?explainSelection(snapshot).text:current.origin?.llmReason
-   ?explainSelection(snapshot).text:current.origin?.source==='netease_similar'
-   ?`这次想试一首相近的新歌。网易云把它与《${f.titles.get(seed)||'已有歌曲'}》关联，我再按本地偏好与重复限制选中了它。`
+   ?explainSelection(snapshot).text:['netease_similar','qq_similar'].includes(current.origin?.source)
+   ?`这次想试一首相近的新歌。${platformName(current.track,current.origin?.source)}把它与《${f.titles.get(seed)||'已有歌曲'}》关联，我再按本地偏好与重复限制选中了它。`
    :explainSelection(snapshot).text}:null;
  // 当前曲的已观测开始不在 facts 里（依赖快照），按原逻辑去重后并入。
  let observedStarts=f.statistics.observedStarts;

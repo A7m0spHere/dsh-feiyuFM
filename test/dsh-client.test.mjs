@@ -2091,3 +2091,74 @@ test('without a configured recommendation model, no_candidates points at 电台�
     assert.equal(nav.children.find(b => b.children.includes('电台设置')).props['aria-pressed'], true);
   } finally { f.dispose(); }
 });
+
+test('QQ account refreshing status and pending recommendation notice label QQ 音乐 instead of 网易云', async () => {
+  const deferred = Promise.withResolvers();
+  const persona = {
+    generatedAt: 1,
+    recommendationPipeline: { pipeline: 'platform-filter', refreshing: true, referenceCount: 19, tracks: [] },
+    policy: { dailyTokens: 4000, maxOutputTokens: 256 },
+    ledger: { today: { knownTokens: 0 }, total: { knownTokens: 0 }, remainingTokens: 4000, recent: [] },
+  };
+  const f = fixture(async (_channel, endpoint) => {
+    if (endpoint === 'fishfm/persona-recommendations') return deferred.promise;
+    return {
+      ok: true,
+      value: {
+        snapshot: { ...snapshot(1), musicAccount: { provider: 'qq', revision: 1 }, playbackSource: { provider: 'qq', revision: 1 } },
+        platforms: { qq: { installed: true, account: { status: 'authorized' } } },
+        persona,
+        summaryModels: [{ provider: 'p', model: 'm', label: 'M' }],
+        features: { personaSummary: true },
+      },
+    };
+  });
+  try {
+    await f.controller.refresh();
+    const text = all(f.render()).flatMap(n => n.children.filter(c => typeof c === 'string')).join(' ');
+    assert.match(text, /正在QQ 音乐寻找新歌，现有歌曲仍可点播。/);
+    assert.equal(text.includes('正在网易云寻找新歌'), false);
+    const pending = f.controller.personaAction('recommendations', { provider: 'p', model: 'm' });
+    assert.equal(f.controller.getSnapshot().summaryNotice, '正在从QQ 音乐找歌，再挑一批…');
+    deferred.resolve({ ok: true, value: { persona, summaryResult: { cached: true } } });
+    await pending;
+  } finally { f.dispose(); }
+});
+
+test('seek timeline holds the submitted target without snapping back to the old position while seek is in flight', async () => {
+  const seekReply = Promise.withResolvers();
+  const current = {
+    ...snapshot(1),
+    status: 'playing',
+    paused: false,
+    playbackCapabilities: { seek: true },
+    current: { playInstanceId: 'smooth-1', positionMs: 20_000, track: { provider: 'qq', providerTrackId: '1', durationMs: 200_000 } },
+  };
+  const f = fixture(async (_channel, endpoint, payload) => {
+    if (endpoint === 'fishfm/command' && payload.type === 'seek') return seekReply.promise;
+    return state(current);
+  });
+  const render = () => all(f.render());
+  const bar = () => render().find(node => node.props.className === 'fm-seek').props;
+  const dockTime = () => render().find(node => node.props.className === 'fm-dock-timeline').children[0].children.join('');
+  const pointer = {
+    pointerId: 1, isPrimary: true, button: 0, pointerType: 'mouse', clientX: 120, preventDefault() {},
+    currentTarget: { setPointerCapture() {}, matches: () => false, getBoundingClientRect: () => ({ left: 20, width: 200 }) },
+  };
+  try {
+    await f.controller.refresh();
+    bar().onPointerDown(pointer);
+    assert.equal(bar().style['--fm-seek-ratio'], '0.5');
+    assert.equal(dockTime(), '1:40');
+    bar().onPointerUp(pointer);
+    // While seek RPC is still in-flight, display position stays at 1:40 (50%) instead of snapping back to 0:20!
+    assert.equal(bar()['data-dragging'], false);
+    assert.equal(bar()['data-seeking'], true);
+    assert.equal(bar().style['--fm-seek-ratio'], '0.5');
+    assert.equal(dockTime(), '1:40');
+    seekReply.resolve(state({ ...current, revision: 2, current: { ...current.current, positionMs: 100_000 } }));
+    await tick();
+    assert.equal(bar()['data-seeking'], false);
+    assert.equal(dockTime(), '1:40');
+  } finally { f.dispose(); }
+});

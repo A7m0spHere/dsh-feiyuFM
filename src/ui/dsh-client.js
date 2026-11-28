@@ -107,15 +107,21 @@ window.__ModuleLoader__.load({
       .fm-seek-input { position:absolute; inset:0; width:100%; height:100%; margin:0; opacity:0;
         pointer-events:none; direction:ltr; }
       .fm-seek-rail { position:absolute; inset:50% 0 auto; height:4px; transform:translateY(-50%);
-        border-radius:999px; background:var(--fm-line-strong); pointer-events:none; }
-      .fm-seek-fill { position:absolute; inset:0 auto 0 0; width:var(--fm-seek-position);
+        border-radius:999px; background:var(--fm-line-strong); pointer-events:none;
+        transition:height 120ms var(--fm-ease); }
+      .fm-seek-fill { position:absolute; inset:0; width:100%; transform-origin:left center;
+        transform:scaleX(var(--fm-seek-ratio,0)); will-change:transform;
         border-radius:inherit; background:var(--fm-accent); }
+      .fm-seek[data-dragging=false][data-seeking=false] .fm-seek-fill { transition:transform 200ms linear; }
       .fm-seek[data-enabled=true]:hover .fm-seek-rail,.fm-seek-input:focus-visible ~ .fm-seek-rail,
       .fm-seek[data-dragging=true] .fm-seek-rail { height:6px; }
       .fm-seek-input:focus-visible ~ .fm-seek-rail { outline:2px solid var(--fm-accent); outline-offset:4px; }
       .fm-seek-thumb,.fm-seek-marker { display:none; position:absolute; top:50%; transform:translate(-50%,-50%); border-radius:50%; }
-      .fm-seek-thumb { left:var(--fm-seek-position); width:12px; height:12px;
-        border:2px solid var(--fm-accent); background:var(--fm-surface); }
+      .fm-seek-thumb { left:var(--fm-seek-position); width:12px; height:12px; will-change:left,transform;
+        border:2px solid var(--fm-accent); background:var(--fm-surface); box-shadow:0 1px 4px rgba(0,0,0,.18);
+        transition:transform 120ms var(--fm-ease); }
+      .fm-seek[data-dragging=false][data-seeking=false] .fm-seek-thumb { transition:left 200ms linear,transform 120ms var(--fm-ease); }
+      .fm-seek[data-dragging=true] .fm-seek-thumb { transform:translate(-50%,-50%) scale(1.18); }
       .fm-seek[data-enabled=true]:hover .fm-seek-thumb,.fm-seek-input:focus-visible ~ .fm-seek-rail .fm-seek-thumb,
       .fm-seek[data-dragging=true] .fm-seek-thumb { display:block; }
       .fm-seek-marker { left:var(--fm-seek-preview); width:6px; height:6px; background:var(--fm-ink); }
@@ -1887,7 +1893,8 @@ window.__ModuleLoader__.load({
           if(disposed||state.summaryBusy||!state.connected)return;
           summaryWrite=new AbortController();const timeout=setTimeout(()=>summaryWrite?.abort(),action==='recommendations'?120000:65000);
           const endpoint={summary:'fishfm/persona-summary',recommendations:'fishfm/persona-recommendations',budget:'fishfm/persona-budget',output:'fishfm/persona-output',automatic:'fishfm/persona-automatic'}[action];
-          const pending={summary:'正在总结聚合画像…',recommendations:'正在从网易云找歌，再挑一批…',budget:'正在保存模型预算…',output:'正在保存单次输出上限…',automatic:'正在保存自动总结设置…'}[action];
+          const providerName=(state.snapshot?.musicAccount?.provider??state.snapshot?.playbackSource?.provider)==='qq'?'QQ 音乐':'网易云';
+          const pending={summary:'正在总结聚合画像…',recommendations:`正在从${providerName}找歌，再挑一批…`,budget:'正在保存模型预算…',output:'正在保存单次输出上限…',automatic:'正在保存自动总结设置…'}[action];
           emit({summaryBusy:true,summaryError:'',summaryErrorCode:null,summaryNotice:pending,summaryLimit:null});
           try{
             if(!endpoint)throw Object.assign(new Error('未知的画像操作。'),{code:'invalid_command'});
@@ -1989,7 +1996,7 @@ window.__ModuleLoader__.load({
       React.useEffect(() => {
         anchor.current = active ? { id, at: Date.now(), ms: positionMs } : null;
         if (!active || !id) return undefined;
-        const timer = setInterval(() => tick(value => value + 1), 500);
+        const timer = setInterval(() => tick(value => value + 1), 200);
         return () => clearInterval(timer);
       }, [id, positionMs, active]);
       return interpolatedPosition({
@@ -2067,10 +2074,12 @@ window.__ModuleLoader__.load({
       const [submitted, setSubmitted] = React.useState(null);
       const slider = React.useRef(null);
       const pointer = React.useRef(null);
+      const trackRect = React.useRef(null);
 
       React.useEffect(() => {
         if (canSeek) return;
         pointer.current = null;
+        trackRect.current = null;
         setDrag(null);
         setHover(null);
       }, [canSeek]);
@@ -2078,7 +2087,9 @@ window.__ModuleLoader__.load({
       const pending = snapshot.seekPending?.playInstanceId === playInstanceId ? snapshot.seekPending?.positionMs ?? null : null;
       const requested = (transportPending === 'seek' ? submitted?.positionMs : null) ?? pending;
       const preview = canSeek ? drag ?? hover ?? requested : null;
-      const value = clampTarget(drag ?? positionMs);
+      const displayMs = clampTarget(drag ?? requested ?? positionMs);
+      const value = displayMs;
+      const ratio = knownDuration ? Math.max(0, Math.min(1, displayMs / duration)) : 0;
       const percent = ms => knownDuration ? `${100 * Math.max(0, Math.min(duration, ms)) / duration}%` : '0%';
 
       function seek(ms) {
@@ -2090,8 +2101,8 @@ window.__ModuleLoader__.load({
         });
       }
 
-      function pointerTarget(event) {
-        const { left, width } = event.currentTarget.getBoundingClientRect();
+      function pointerTarget(event, cachedRect = null) {
+        const { left, width } = cachedRect ?? event.currentTarget.getBoundingClientRect();
         return clampTarget(duration * (event.clientX - left) / Math.max(1, width));
       }
 
@@ -2101,25 +2112,28 @@ window.__ModuleLoader__.load({
         slider.current?.focus({ preventScroll: true });
         event.currentTarget.setPointerCapture(event.pointerId);
         pointer.current = event.pointerId;
-        setDrag(pointerTarget(event));
+        const rect = event.currentTarget.getBoundingClientRect();
+        trackRect.current = rect;
+        setDrag(pointerTarget(event, rect));
       }
 
       function movePointer(event) {
         if (!canSeek || !event.isPrimary) return;
-        if (pointer.current === event.pointerId) setDrag(pointerTarget(event));
+        if (pointer.current === event.pointerId) setDrag(pointerTarget(event, trackRect.current));
         else if (event.pointerType !== 'touch') setHover(pointerTarget(event));
       }
 
       function cancelDrag(event) {
         if (pointer.current !== event.pointerId) return;
         pointer.current = null;
+        trackRect.current = null;
         setDrag(null);
         setHover(null);
       }
 
       function finishDrag(event) {
         if (pointer.current !== event.pointerId) return;
-        const target = pointerTarget(event);
+        const target = pointerTarget(event, trackRect.current);
         cancelDrag(event);
         if (event.pointerType !== 'touch' && event.currentTarget.matches(':hover')) setHover(target);
         seek(target);
@@ -2137,13 +2151,15 @@ window.__ModuleLoader__.load({
         seek(targets[event.key]);
       }
 
-      const bar = h('div', { className: 'fm-seek', 'data-enabled': canSeek, 'data-preview': preview !== null, 'data-dragging': drag !== null,
+      const seeking = pending !== null || transportPending === 'seek';
+      const bar = h('div', { className: 'fm-seek', 'data-enabled': canSeek, 'data-preview': preview !== null,
+        'data-dragging': drag !== null, 'data-seeking': seeking,
         onPointerDown: startDrag, onPointerEnter: movePointer, onPointerMove: movePointer, onPointerUp: finishDrag,
         onPointerCancel: cancelDrag, onLostPointerCapture: cancelDrag, onPointerLeave: () => setHover(null),
-        style: { '--fm-seek-position': percent(drag ?? positionMs), '--fm-seek-preview': percent(preview ?? value) } },
+        style: { '--fm-seek-position': percent(displayMs), '--fm-seek-ratio': String(ratio), '--fm-seek-preview': percent(preview ?? value) } },
         h('input', { ref: slider, className: 'fm-seek-input', type: 'range', min: 0, max: maxTarget, step: 1,
           value, disabled: !canSeek, 'aria-label': '播放进度',
-          'aria-valuetext': `${minutes(drag ?? positionMs)} / ${knownDuration ? minutes(duration) : '未知时长'}`,
+          'aria-valuetext': `${minutes(displayMs)} / ${knownDuration ? minutes(duration) : '未知时长'}`,
           onChange: event => seek(event.currentTarget.valueAsNumber), onKeyDown: adjustWithKey }),
         h('div', { className: 'fm-seek-rail', 'aria-hidden': true },
           h('span', { className: 'fm-seek-fill' }), h('span', { className: 'fm-seek-thumb' }),
@@ -2151,12 +2167,11 @@ window.__ModuleLoader__.load({
         canSeek && h('span', { className: 'fm-seek-tooltip', 'aria-hidden': true }, minutes(preview ?? value)));
       const total = knownDuration ? minutes(duration) : '--:--';
       const error = snapshot.seekError?.message;
-      const seeking = pending !== null || transportPending === 'seek';
       return h('div', { className: 'fm-playback-timeline' },
         playbackLabel
           ? h(React.Fragment, null, bar, h('div', { className: 'fm-time' },
-            h('span', null, playbackLabel), h('span', null, `${minutes(positionMs)} / ${total}`)))
-          : h('div', { className: 'fm-dock-timeline' }, h('span', null, minutes(positionMs)), bar, h('span', null, total)),
+            h('span', null, playbackLabel), h('span', null, `${minutes(displayMs)} / ${total}`)))
+          : h('div', { className: 'fm-dock-timeline' }, h('span', null, minutes(displayMs)), bar, h('span', null, total)),
         h('div', { className: 'fm-seek-status', role: 'status', 'data-pending': seeking, 'data-error': !seeking && Boolean(error) },
           seeking ? '正在跳转…' : error));
     }
@@ -2513,8 +2528,9 @@ window.__ModuleLoader__.load({
           pipeline.summary&&h('p',{className:'fm-note'},pipeline.summary),
           ...(ledger.recent??[]).map(call=>h('p',{className:'fm-note',key:call.callId},`${call.purpose==='discovery-filter'?'挑歌':'旧版总结'} · ${call.model} · ${call.status}`)))));
       const repeatWaiting=!state.snapshot?.current&&state.snapshot?.lastSelection?.reason==='recent-window-exhausted';
+      const providerName=(state.snapshot?.musicAccount?.provider??state.snapshot?.playbackSource?.provider)==='qq'?'QQ 音乐':'网易云';
       const status=!state.connected?'正在连接电台…':!referenceCount?'先在电台设置中导入参考歌曲。'
-        :pipeline.refreshing?'正在网易云寻找新歌，现有歌曲仍可点播。':filtering?'正在挑选新歌，播放控制仍可使用。'
+        :pipeline.refreshing?`正在${providerName}寻找新歌，现有歌曲仍可点播。`:filtering?'正在挑选新歌，播放控制仍可使用。'
         :state.summaryBusy?'正在准备新一批歌曲…':tracks.length?poolAvailable?autonomous?'不同批次的入选歌曲，由大肥鱼自主选择下一首。':'不同批次的入选歌曲，可以手动点播。':'当前宿主展示最新批次的歌曲。'
         :repeatWaiting?'最近 50 首暂不重复，正在等待窗口外的新歌。':pipeline.state==='login_required'?'先在电台设置登录音乐账号。'
         :!routes.length?'先在 DSH 配置模型，再到电台设置中选择。':pipeline.selectionComplete?'暂无新的可选歌曲，可以补充歌单或手动点播输入曲库。':'参考歌曲已准备好，可以找一批歌。';

@@ -814,7 +814,8 @@ export function createController(connection, { onPlaybackTrace = null } = {}) {
       if(disposed||state.summaryBusy||!state.connected)return;
       summaryWrite=new AbortController();const timeout=setTimeout(()=>summaryWrite?.abort(),action==='recommendations'?120000:65000);
       const endpoint={summary:'fishfm/persona-summary',recommendations:'fishfm/persona-recommendations',budget:'fishfm/persona-budget',output:'fishfm/persona-output',automatic:'fishfm/persona-automatic'}[action];
-      const pending={summary:'正在总结聚合画像…',recommendations:'正在从网易云找歌，再挑一批…',budget:'正在保存模型预算…',output:'正在保存单次输出上限…',automatic:'正在保存自动总结设置…'}[action];
+      const providerName=(state.snapshot?.musicAccount?.provider??state.snapshot?.playbackSource?.provider)==='qq'?'QQ 音乐':'网易云';
+      const pending={summary:'正在总结聚合画像…',recommendations:`正在从${providerName}找歌，再挑一批…`,budget:'正在保存模型预算…',output:'正在保存单次输出上限…',automatic:'正在保存自动总结设置…'}[action];
       emit({summaryBusy:true,summaryError:'',summaryErrorCode:null,summaryNotice:pending,summaryLimit:null});
       try{
         if(!endpoint)throw Object.assign(new Error('未知的画像操作。'),{code:'invalid_command'});
