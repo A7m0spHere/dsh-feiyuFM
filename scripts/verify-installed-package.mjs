@@ -19,12 +19,14 @@ const fromUri = createRequire(fromPac.resolve('get-uri'));
 let basicRoot = dirname(fromUri.resolve('basic-ftp'));
 while (!existsSync(join(basicRoot, 'package.json'))) basicRoot = dirname(basicRoot);
 const basic = JSON.parse(readFileSync(join(basicRoot, 'package.json'), 'utf8'));
-assert.equal(basic.version, '6.2.2', 'Installed consumer did not retain the FTP fix');
+const sourceManifest = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
+const expectedBasicFtp = sourceManifest.overrides?.['basic-ftp'];
+assert.equal(basic.version, expectedBasicFtp, 'Installed consumer did not retain the FTP fix');
 assert.ok(basicRoot.startsWith(join(root, 'node_modules')), 'FTP fix must come from the bundled runtime tree');
 
 const plugin = await import(pathToFileURL(join(root, 'index.js')));
 const manifest = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
-const expectedVersion = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version;
+const expectedVersion = sourceManifest.version;
 assert.equal(manifest.version, expectedVersion, 'Installed package does not match the prepared release');
 assert.ok(existsSync(join(root, manifest.dsh.bundle.patch)));
 assert.ok(existsSync(join(root, manifest.exports['./client'])));

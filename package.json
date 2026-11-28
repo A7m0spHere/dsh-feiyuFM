@@ -1,8 +1,8 @@
 {
   "name": "dsh-feiyufm",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "type": "module",
-  "description": "肥鱼电台 FeiyuFM：DSH 社区音乐插件，从参考歌曲出发，由网易云推荐、模型筛选，再自主听歌。",
+  "description": "肥鱼电台 FeiyuFM：DSH 社区音乐插件，支持网易云与 QQ 音乐单账号接入、模型筛选与自主听歌。",
   "license": "SEE LICENSE IN THIRD_PARTY_NOTICES.md",
   "os": [
     "darwin",
@@ -106,6 +106,7 @@
     "qrcode": "^1.5.4"
   },
   "overrides": {
-    "basic-ftp": "6.2.2"
+    "basic-ftp": "6.2.6",
+    "follow-redirects": "1.16.3"
   }
 }

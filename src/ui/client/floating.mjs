@@ -134,14 +134,15 @@ export function FloatingPlayer({ controller, layout, usePanelInfo }) {
         ? { right: '16px', left: 'auto', top: `${position.top}px`, bottom: 'auto' }
         : { right: '16px', bottom: '16px', left: 'auto', top: 'auto' };
   // 未配置推荐模型时「重新找歌」不会生效：悬浮条直接引导打开主面板的电台设置。
+  const automaticSource = snapshot?.musicAccount?.provider ?? snapshot?.playbackSource?.provider ?? 'netease';
   const errorAction = (() => {
     if (state.errorCode !== 'no_candidates') return { label: state.connected ? '刷新状态' : '重新连接', onClick: controller.refresh };
     const mode = state.insights?.recommendationMode;
     if (mode !== 'llm' && state.persona && !state.persona.recommendationRoute?.model) {
       return { label: '打开电台设置', onClick: () => layout.selectPanel('fishfm') };
     }
-    if (mode === 'llm') return { label: '重新核对歌单', onClick: () => controller.platformAction('discovery', 'netease') };
-    return { label: '重新找歌', onClick: () => controller.platformAction('discovery', 'netease') };
+    if (mode === 'llm') return { label: '重新核对歌单', onClick: () => controller.platformAction('discovery', automaticSource) };
+    return { label: '重新找歌', onClick: () => controller.platformAction('discovery', automaticSource) };
   })();
   return h('div', { ref: rootRef, className: 'fm-float', style: { ...style, '--fm-pop-max': `${popup.maxHeight}px` },
     'data-motion': state.motion || 'full', 'data-dragging': Boolean(dragPosition), 'data-pop-side': popup.side,

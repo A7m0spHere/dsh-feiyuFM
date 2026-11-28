@@ -478,7 +478,7 @@ SOFTWARE.
 | asynckit | 0.4.0 | MIT | `node_modules/asynckit/LICENSE` |
 | atomic-sleep | 1.0.0 | MIT | `node_modules/atomic-sleep/LICENSE` |
 | axios | 1.20.0 | MIT | `node_modules/axios/LICENSE` |
-| basic-ftp | 6.2.2 | MIT | `node_modules/basic-ftp/LICENSE.txt` |
+| basic-ftp | 6.2.6 | MIT | `node_modules/basic-ftp/LICENSE.txt` |
 | body-parser | 1.20.8 | MIT | `node_modules/@neteasecloudmusicapienhanced/unblockmusic-utils/node_modules/body-parser/LICENSE` |
 | body-parser | 2.3.0 | MIT | `node_modules/body-parser/LICENSE` |
 | busboy | 1.6.0 | MIT | `node_modules/busboy/LICENSE` |
@@ -568,7 +568,7 @@ SOFTWARE.
 | finalhandler | 2.1.1 | MIT | `node_modules/finalhandler/LICENSE` |
 | find-up | 4.1.0 | MIT | `node_modules/find-up/license` |
 | flatstr | 1.0.12 | MIT | `node_modules/flatstr/LICENSE` |
-| follow-redirects | 1.16.0 | MIT | `node_modules/follow-redirects/LICENSE` |
+| follow-redirects | 1.16.3 | MIT | `node_modules/follow-redirects/LICENSE` |
 | form-data | 4.0.6 | MIT | `node_modules/form-data/License` |
 | forwarded | 0.2.0 | MIT | `node_modules/forwarded/LICENSE` |
 | fresh | 0.5.2 | MIT | `node_modules/@neteasecloudmusicapienhanced/unblockmusic-utils/node_modules/fresh/LICENSE` |

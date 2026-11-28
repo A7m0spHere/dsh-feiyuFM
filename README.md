@@ -8,7 +8,7 @@
 
 **Windows · 网易云 · 0.1.2**　[开始使用](#开始使用) · [下载发行包](https://github.com/A7m0spHere/dsh-feiyuFM/releases/tag/v0.1.2) · [使用说明](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/DELIVERY.md) · [更新记录](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/CHANGELOG.md)
 
-**0.1.2 已发布到 npm，`latest` 指向此版本。** 本次包含 Windows 公网播放修复、逐行歌词与点击跳转，以及人物与文本并排的陪伴区。升级后须完整退出并重开 DSH，让新播放服务生效；保留原有音乐数据库与登录状态。发布确认与验证范围见 [0.1.2 记录](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/releases/0.1.2.md)。
+**0.1.2 已发布到 npm，`latest` 指向此版本。** `0.2.0` 候选已在 `main` 完成准备（新增 QQ 音乐单账号隔离、受限／VIP 曲目批量预检跳过、无模型发现回退、常驻音量条、可拖动进度条、模块化拖拽设置与应用层代理，尚未上架 npm，待 DSH Desktop 真实账号验收后发布；详见 [0.2.0 发行记录](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/releases/0.2.0.md)）。升级后须完整退出并重开 DSH，让新播放服务生效；保留原有音乐数据库与登录状态。上一正式版发布确认见 [0.1.2 记录](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/releases/0.1.2.md)。
 
 ## 电台长什么样
 
@@ -127,7 +127,7 @@ dsh plugin --profile web add dsh-feiyufm@0.1.2 --registry https://registry.npmjs
 | Windows + 网易云 | npm `0.1.2` 已发布；公开 HTTPS 静音播放、暂停／预加载换曲及公开包安装通过，反馈设备与真实账号歌曲仍需复验。见 [发行记录](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/releases/0.1.2.md) |
 | DSH / Node.js | 发行包在 DSH `0.2.2-rc.1`／内置 Node `24.21.0` 隔离安装与初始化通过；要求 Node `>=24.14.0 <25`，桌面宿主自带兼容版本时无需另装 |
 | macOS | 实验性适配随包提供；真实登录、音频与退出生命周期待真机验收 |
-| QQ 音乐 | 开发分支提供 QQ 扫码，登录后自动使用当前账号的平台。真实账号导入、完整播放与恢复待验，npm `0.1.2` 沿用既有发行范围 |
+| QQ 音乐 | `main`（0.2.0 候选）提供 QQ 扫码、导入、歌词、推荐与可播预检，单账号隔离自动跟随当前账号；依赖第三方接口包 `@yakult-green-tea/qq-music-api`，受上游非商业声明约束，仅限个人学习与非商业使用（详见 [版权声明](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/THIRD_PARTY_NOTICES.md)）。真实账号闭环与日常 Desktop 验收进行中，npm `0.1.2` 沿用既有发行范围 |
 
 长期体验、平台与宿主组合的未验项见 [开发状态](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/PROJECT_PLAN.md)。
 
