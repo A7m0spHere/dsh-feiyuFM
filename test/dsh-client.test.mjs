@@ -1996,6 +1996,25 @@ test('modular settings layout starts compact, supports reorder/expand/widen with
     grip.props.onKeyDown({ key: 'ArrowUp', preventDefault() {} });
     assert.deepEqual([...f.controller.getSnapshot().settingsLayout.order].slice(0, 2), ['modes', 'network']);
 
+    // Drag is scoped to tile header so body inputs/sliders are not hijacked,
+    // and dragging forward onto the last card places it at the very end.
+    assert.equal(tiles()[0].props.draggable, undefined);
+    const tileHead = id => all(tiles().find(n => n.props['data-tile-id'] === id)).find(n => n.props.className === 'fm-tile-head');
+    assert.equal(tileHead('modes').props.draggable, true);
+    tileHead('modes').props.onDragStart({ target: { closest: () => null }, dataTransfer: { setData() {}, effectAllowed: '' } });
+    const lastTile = () => tiles().find(n => n.props['data-tile-id'] === 'interface');
+    lastTile().props.onDragOver({ preventDefault() {}, dataTransfer: {} });
+    assert.equal(lastTile().props['data-drop-target'], true);
+    // Crossing into a child element inside the tile must not flicker off drop target.
+    lastTile().props.onDragLeave({ currentTarget: { contains: () => true }, relatedTarget: {} });
+    assert.equal(lastTile().props['data-drop-target'], true);
+    lastTile().props.onDrop({ preventDefault() {}, dataTransfer: { getData: () => 'modes' } });
+    assert.equal(f.controller.getSnapshot().settingsLayout.order.at(-1), 'modes');
+    // Dragging backward onto the first card moves it to index 0.
+    tileHead('modes').props.onDragStart({ target: { closest: () => null }, dataTransfer: { setData() {}, effectAllowed: '' } });
+    tiles()[0].props.onDrop({ preventDefault() {}, dataTransfer: { getData: () => 'modes' } });
+    assert.equal(f.controller.getSnapshot().settingsLayout.order[0], 'modes');
+
     // Toggle auto-fill masonry switch & verify persistence across client reload
     const autoFillBtn = () => all(f.render()).find(n => n.props.role === 'switch' && n.children.includes('自动补齐空白'));
     assert.equal(autoFillBtn().props['aria-checked'], true);

@@ -834,6 +834,7 @@ export const css = `
   .fm-tile-collapse { display:grid; grid-template-rows:0fr; opacity:0;
     transition:grid-template-rows var(--fm-page) var(--fm-ease),opacity var(--fm-base) ease; }
   .fm-setting-tile:not([data-size=compact]) .fm-tile-collapse { grid-template-rows:1fr; opacity:1; }
+  .fm-setting-tile[data-guide-reveal] :is(.fm-tile-collapse,.fm-tile-sub-wrap,.fm-tile-quick-wrap) { transition:none!important; }
   .fm-tile-collapse-inner { overflow:hidden; min-height:0; }
   .fm-tile-body { padding:12px 14px 14px; }
   .fm-tile-body>section>h2 { display:none; }
@@ -851,6 +852,9 @@ export const css = `
     .fm-setting-tile[data-size=wide] { grid-column:auto; }
     .fm-setting-tile[data-size=wide] .fm-tile-wide-grid { grid-template-columns:1fr; }
     .fm-tile-widen-btn { display:none; }
+  }
+  @container fishfm (max-width:420px) {
+    .fm-fixed-tag { display:none; }
   }
   @container fishfm (max-width:560px) {
     .fm-picks { grid-template-columns:1fr; gap:10px; }

@@ -27,7 +27,7 @@ export function Panel({ controller, back }) {
   const feedbackRef = React.useRef(null);
   const platformDetailsRef = React.useRef(null), neteaseRef = React.useRef(null);
   const guideRef = React.useRef(null), playRef = React.useRef(null);
-  const boardRef = React.useRef(null), flipRectsRef = React.useRef(null);
+  const boardRef = React.useRef(null), flipRectsRef = React.useRef(null), focusGripRef = React.useRef(null);
   const [platformExpanded, setPlatformExpanded] = React.useState(false);
   const [guideFocus, setGuideFocus] = React.useState(null);
   const [view, setView] = React.useState('listen');
@@ -60,6 +60,11 @@ export function Panel({ controller, back }) {
     controller.resetSettingsLayout?.();
   };
   React.useEffect(() => {
+    const focusId = focusGripRef.current;
+    if (focusId) {
+      focusGripRef.current = null;
+      boardRef.current?.querySelector?.(`[data-tile-grip="${focusId}"]`)?.focus?.({ preventScroll: true });
+    }
     const firstRects = flipRectsRef.current;
     flipRectsRef.current = null;
     const board = boardRef.current;
@@ -94,8 +99,8 @@ export function Panel({ controller, back }) {
     }
     const syncSpan = tile => {
       const frame = tile.querySelector?.('.fm-tile-frame');
-      if (!frame?.getBoundingClientRect) return;
-      const height = Math.ceil(frame.getBoundingClientRect().height);
+      if (!frame) return;
+      const height = Math.ceil(frame.offsetHeight || frame.getBoundingClientRect?.().height || 0);
       if (height > 0) tile.style.gridRowEnd = `span ${height + 14}`;
     };
     tiles.forEach(syncSpan);
@@ -188,10 +193,12 @@ export function Panel({ controller, back }) {
   };
   const moveTileOrder = (fromId, toId) => {
     if (!fromId || !toId || fromId === toId) return;
+    const fromIdx = settingsLayout.order.indexOf(fromId);
+    const toIdx = settingsLayout.order.indexOf(toId);
+    if (fromIdx < 0 || toIdx < 0) return;
     const next = settingsLayout.order.filter(item => item !== fromId);
     const targetIdx = next.indexOf(toId);
-    if (targetIdx < 0) return;
-    next.splice(targetIdx, 0, fromId);
+    next.splice(fromIdx < toIdx ? targetIdx + 1 : targetIdx, 0, fromId);
     updateSettingsLayout({ ...settingsLayout, order: next });
   };
   const nudgeTile = (id, delta) => {
@@ -200,6 +207,7 @@ export function Panel({ controller, back }) {
     if (idx < 0 || nextIdx < 0 || nextIdx >= settingsLayout.order.length) return;
     const next = [...settingsLayout.order];
     [next[idx], next[nextIdx]] = [next[nextIdx], next[idx]];
+    focusGripRef.current = id;
     updateSettingsLayout({ ...settingsLayout, order: next });
   };
   const settingsTileDefs = {
@@ -322,21 +330,16 @@ export function Panel({ controller, back }) {
         return h('section', {
           key: id, className: 'fm-setting-tile', 'data-tile-id': id, 'data-size': size,
           'data-dragging': dragTile === id || undefined, 'data-drop-target': dropTile === id && dragTile !== id || undefined,
-          draggable: true,
-          onDragStart: event => {
-            if (['INPUT', 'SELECT', 'TEXTAREA'].includes(event.target?.tagName)) { event.preventDefault(); return; }
-            setDragTile(id);
-            event.dataTransfer?.setData?.('text/plain', id);
-            if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move';
-          },
-          onDragEnd: () => { setDragTile(null); setDropTile(null); },
+          'data-guide-reveal': id === 'library' && ['connect', 'import'].includes(guideFocus) || undefined,
           onDragOver: event => {
             if (!dragTile || dragTile === id) return;
             event.preventDefault();
             if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
             if (dropTile !== id) setDropTile(id);
           },
-          onDragLeave: () => { if (dropTile === id) setDropTile(null); },
+          onDragLeave: event => {
+            if (!event.currentTarget?.contains?.(event.relatedTarget) && dropTile === id) setDropTile(null);
+          },
           onDrop: event => {
             event.preventDefault();
             const from = dragTile || event.dataTransfer?.getData?.('text/plain');
@@ -345,7 +348,22 @@ export function Panel({ controller, back }) {
           },
         },
         h('div', { className: 'fm-tile-frame' },
-          h('div', { className: 'fm-tile-head', onClick: event => { if (!event.target?.closest?.('button')) setTileSize(id, expanded ? 'compact' : 'standard'); } },
+          h('div', { className: 'fm-tile-head', draggable: true,
+            onDragStart: event => {
+              if (event.target?.closest?.('button:not(.fm-tile-grip), input, select, textarea')) { event.preventDefault(); return; }
+              setDragTile(id);
+              event.dataTransfer?.setData?.('text/plain', id);
+              if (event.dataTransfer) {
+                event.dataTransfer.effectAllowed = 'move';
+                const tile = event.currentTarget?.closest?.('[data-tile-id]');
+                if (tile && event.dataTransfer.setDragImage) {
+                  const rect = tile.getBoundingClientRect?.();
+                  event.dataTransfer.setDragImage(tile, rect ? Math.max(0, event.clientX - rect.left) : 20, rect ? Math.max(0, event.clientY - rect.top) : 20);
+                }
+              }
+            },
+            onDragEnd: () => { setDragTile(null); setDropTile(null); },
+            onClick: event => { if (!event.target?.closest?.('button')) setTileSize(id, expanded ? 'compact' : 'standard'); } },
             h('button', { type: 'button', className: 'fm-tile-grip', 'data-tile-grip': id,
               'aria-label': `拖动调整「${def.title}」顺序；方向键上下移动`, title: '拖动调整顺序；方向键上下移动',
               onKeyDown: event => {
