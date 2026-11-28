@@ -53,6 +53,20 @@ export function normalizeNetEaseLyrics(body, track) {
   })) };
 }
 
+export function normalizeQQMusicLyrics(body, track) {
+  const data = body?.response ?? body?.data ?? body;
+  let translation = data?.trans;
+  // The QQ SDK decodes the original LRC but forwards the translation as base64.
+  if (body?.response && typeof translation === 'string' && translation) {
+    if (translation.length > Math.ceil(MAX_TEXT * 4 * 4 / 3)) {
+      throw new MusicError('lyrics_too_large', '歌词内容过长，暂时无法显示。');
+    }
+    translation = Buffer.from(translation, 'base64').toString('utf8');
+  }
+  const normalized = normalizeNetEaseLyrics({ lrc: { lyric: data?.lyric }, tlyric: { lyric: translation } }, track);
+  return { ...normalized, source: 'qq' };
+}
+
 /** Bounded, account-generation-scoped cache. Failures never become missing lyrics. */
 export function createLyricsService({ providerFor, now = () => Date.now(), maxEntries = 100, timeoutMs = 12_000 }) {
   const cache = new Map(), pending = new Map();

@@ -12,13 +12,17 @@ import { NetworkProxySettings } from './network.mjs';
 import { DollLayer } from './dolls.mjs';
 import { UsageGuide, guideReady } from './guide.mjs';
 import { Lyrics } from './lyrics.mjs';
+import { PlatformAccount } from './platforms.mjs';
 export function Panel({ controller, back }) {
   const state = React.useSyncExternalStore(controller.subscribe, controller.getSnapshot);
   const snapshot = state.snapshot;
+  const account = snapshot?.musicAccount;
+  const pendingProvider = account && ['netease', 'qq'].find(id => state.platforms?.[id]?.account?.pending
+    || ['waiting', 'scanned'].includes(state.platformStates[id]?.login?.status));
+  const visiblePlatform = account?.provider ?? pendingProvider;
+  const automaticSource = visiblePlatform ?? snapshot?.playbackSource?.provider ?? 'netease';
   const settings = snapshot?.settings || {};
   const [rate, setRate] = React.useState(20);
-  const [importSource,setImportSource]=React.useState('auto');
-  const [playlistId,setPlaylistId]=React.useState('');
   const rateId = React.useId();
   const feedbackRef = React.useRef(null);
   const platformDetailsRef = React.useRef(null), neteaseRef = React.useRef(null);
@@ -43,11 +47,6 @@ export function Panel({ controller, back }) {
   const selectedModel = state.recommendationChoice || '';
   const setSelectedModel = value => controller.chooseRecommendationModel(value);
   React.useEffect(() => { if (snapshot) setRate(Math.round(settings.discoveryRate * 100)); }, [settings.discoveryRate]);
-  React.useEffect(() => {
-    if (!['waiting', 'scanned'].includes(state.login?.status)) return undefined;
-    const poll = setInterval(() => controller.platformAction('poll', state.login.provider), 2500);
-    return () => clearInterval(poll);
-  }, [state.login?.status, state.login?.provider, controller]);
   // Insights/persona are not part of the first frame; load them once this panel
   // is actually visible, then let invalidation events refresh them.
   React.useEffect(() => { controller.ensureProfile(); }, [controller]);
@@ -60,7 +59,7 @@ export function Panel({ controller, back }) {
   const positionMs = useSmoothProgress(current, presentation.active && !snapshot?.seekPending);
   const insights=state.insights;
   const art = presentation.art;
-  const accountHint = state.platformError ? '连接状态读取失败' : !state.connected ? '连接中断' : ({authorized:'网易云已登录',expired:'登录已过期',signed_out:'未登录',login_required:'等待登录'}[state.platforms?.netease?.account?.status] || '查看连接');
+  const accountHint = state.platformError ? '连接状态读取失败' : !state.connected ? '连接中断' : ({authorized:`${automaticSource === 'qq' ? 'QQ 音乐' : '网易云'}已登录`,expired:'登录已过期',signed_out:'未登录',login_required:'等待登录'}[state.platforms?.[automaticSource]?.account?.status] || '查看连接');
   const guideAccountHint = state.guideVisible && ['connect', 'import'].includes(state.guideStage);
   function toggle(title, description, field, command) {
     return h('div', { className: 'fm-row', key: field }, h('div', null, h('div', { className: 'fm-label' }, title), h('p', null, description)),
@@ -68,80 +67,17 @@ export function Panel({ controller, back }) {
         onClick: () => controller.command(command, !settings[field]) }, h('span')));
   }
   const button = (label, type, blocked = false, extra = {}) => h('button', { type: 'button', className: 'fm-button', disabled: disabled || blocked, onClick: () => controller.command(type), ...extra }, label);
-  const platformRows = [['netease', '网易云音乐', '网'], ['qq', 'QQ 音乐', 'Q']].map(([id, title, mark]) => {
-    const platform = state.platforms?.[id];
-    const label = !snapshot ? (state.initializationState === 'error' ? '读取失败' : '读取中')
-      : state.platformError ? '读取失败' : !platform?.installed ? '接口尚未接入' : ({
-      authorized: '已登录', expired: '登录已过期', signed_out: '未登录',
-      login_required: platform.account?.pending ? '等待扫码' : '未登录',
-    }[platform.account?.status] || '未连接');
-    const available = id === 'netease' && platform?.installed && !state.platformError;
-    const selectedPlaylist=playlistId||state.playlists?.[0]?.id||'';
-    const action = state.platformError ? null : platform?.account?.cleanupPending
-      ? h('button', { type: 'button', className: 'fm-button', disabled: (state.busy || state.platformBusy) || !state.connected,
-        onClick: () => controller.platformAction('logout', id) }, '重试清理凭据')
-      : platform?.account?.status === 'authorized'
-      ? h(React.Fragment, null,
-        state.features?.importSources&&h('select',{ 'aria-label':'导入来源','data-guide-import':true,value:importSource,disabled:(state.busy || state.platformBusy)||!state.connected,
-          onChange:e=>{setImportSource(e.target.value);if(e.target.value==='playlist')controller.platformAction('playlists',id);} },
-          h('option',{value:'auto'},'自动来源'),h('option',{value:'recent'},'近期播放'),h('option',{value:'liked'},'我喜欢'),h('option',{value:'playlist'},'指定歌单')),
-        state.features?.importSources&&importSource==='playlist'&&h('select',{'aria-label':'输入歌单',value:selectedPlaylist,disabled:(state.busy || state.platformBusy)||!state.playlists?.length,
-          onChange:e=>setPlaylistId(e.target.value)},...(state.playlists?.length?state.playlists.map(p=>h('option',{key:p.id,value:p.id},p.title)):[h('option',{value:''},'读取歌单…')])),
-        h('button', { type: 'button', className: 'fm-button fm-primary', 'data-guide-import': true, disabled: (state.busy || state.platformBusy) || !state.connected || (importSource==='playlist'&&!selectedPlaylist),
-          onClick: () => controller.platformAction('import', id,{source:importSource==='auto'?null:importSource,playlistId:importSource==='playlist'?selectedPlaylist:null}) }, '导入我的音乐'),
-        h('button', { type: 'button', className: 'fm-button fm-subtle', disabled: (state.busy || state.platformBusy) || !state.connected,
-          onClick: () => controller.platformAction('logout', id) }, '退出'))
-      : available && !state.login && h('button', { type: 'button', className: 'fm-button fm-primary', 'data-guide-login': true, disabled: (state.busy || state.platformBusy) || !state.connected,
-        onClick: () => controller.platformAction('begin', id) }, '扫码登录');
-    return h('div', { className: 'fm-platform', key: id, ...(id === 'netease' ? { ref: neteaseRef, tabIndex: -1, role: 'group', 'aria-label': '网易云音乐连接与导入' } : {}) },
-      h('div', { className: 'fm-platform-name' }, h('span', { className: 'fm-platform-mark', 'aria-hidden': true }, mark), title),
-      h('div', { className: 'fm-platform-actions' }, h('span', { className: 'fm-badge', 'data-ok': platform?.account?.status === 'authorized' || undefined }, label), action));
-  });
-  const loginPanel = state.login?.provider === 'netease'
-    ? h('div', { className: 'fm-login' },
-      h('div', { className: 'fm-label' }, state.login.status === 'authorized' ? '网易云音乐已连接'
-        : state.login.status === 'scanned' ? '已扫码，请在手机上确认'
-          : state.login.status === 'expired' ? state.login.qrExpired === false ? '登录已失效' : '二维码已过期'
-            : state.login.status === 'error' ? state.login.canRetryValidation ? '登录校验未通过' : '登录未完成' : '使用网易云音乐 App 扫描'),
-      state.login.qrImage && !['authorized', 'expired', 'error'].includes(state.login.status)
-        && h('img', { src: state.login.qrImage, width: 172, height: 172, alt: '网易云音乐登录二维码' }),
-      h('p', { role: 'status', 'aria-live': 'polite' }, state.login.identityError || (state.login.status === 'authorized'
-        ? state.login.accountId ? `账号已连接（ID ${state.login.accountId}），可以导入音乐。` : '账号已连接；导入前会自动补读账号 ID。'
-        : state.login.status === 'expired' ? '请重新获取二维码后再试。' : '手机确认后会自动读取账号状态，随后即可导入音乐。')),
-      (state.login.canRetryValidation || state.login.canRetryCheck) && state.login.status === 'error'
-        && h('button', { type: 'button', className: 'fm-button', disabled: (state.busy || state.platformBusy) || !state.connected,
-          onClick: () => controller.platformAction('poll', 'netease') }, state.login.canRetryValidation ? '重试登录校验' : '重试扫码检测'),
-      ['expired', 'error'].includes(state.login.status)
-        && h('button', { type: 'button', className: 'fm-button fm-primary', disabled: (state.busy || state.platformBusy) || !state.connected,
-          onClick: () => controller.platformAction('begin', 'netease') }, '重新获取二维码'))
-    : null;
-  const importNotice = state.imported
-    ? h('div', { className: 'fm-import', role: 'status', 'aria-live': 'polite' },
-      h('strong', null, `最近导入：${sourceNames[state.imported.source] || state.imported.source || '平台音乐'}`),
-      ` · 新增 ${state.imported.imported ?? 0} 首，当前共 ${state.imported.total ?? 0} 首`,
-      state.imported.degraded && state.imported.reason ? h('span', null, ` · ${state.imported.reason}`) : null)
-    : null;
-  const attempts = Array.isArray(state.importAttempts) && state.importAttempts.length
-    ? h('div', { className: 'fm-attempts' }, h('div', { className: 'fm-attempts-title' }, '本次来源尝试'),
-      state.importAttempts.map((row, index) => h('div', { className: 'fm-attempt', key: `${row.source}-${index}` },
-        h('div', null, h('strong', null, sourceNames[row.source] || row.source),
-          h('span', { className: 'fm-attempt-note' }, row.ok
-            ? `可用 · ${row.count} 首`
-            : `${stageNames[row.stage] || '请求'}失败${row.code ? ` · ${row.code}` : ''}${row.httpStatus ? ` · HTTP ${row.httpStatus}` : ''}${row.platformCode ? ` · 接口码 ${row.platformCode}` : ''}${row.reason ? ` · ${row.reason}` : ''}`)),
-        h('span', { className: 'fm-badge', 'data-ok': row.ok || undefined }, row.ok ? `${row.count} 首` : '失败'))))
-    : null;
   const platformSection = h('section', null,
     h('h2', null, '音乐平台', h('small', null, 'ACCOUNTS')),
-    h('div', { className: 'fm-card' }, platformRows,
-      state.platformError && h('div', { className: 'fm-notice', role: 'alert' }, state.platformError,
+    h('div', { className: 'fm-card' },
+      ...[['netease', '网易云音乐'], ['qq', 'QQ 音乐']].filter(([id]) => !visiblePlatform || id === visiblePlatform).map(([id, title]) =>
+        h(PlatformAccount, { key: `${id}:${account?.revision ?? ''}`, id, title, state, controller, regionRef: id === automaticSource ? neteaseRef : undefined })),
+      state.platformError && h('p', { className: 'fm-note', role: 'alert' }, state.platformError,
         h('button', { type: 'button', className: 'fm-button', onClick: controller.refresh }, '重试连接状态')),
-      guideAccountHint && h('p', { className: 'fm-note fm-guide-target-note', role: 'status' }, state.guideStage === 'import'
-        ? state.platforms?.netease?.account?.status === 'authorized' ? '选择来源，再点击“导入我的音乐”。参考歌曲是后续推荐的起点。'
-          : '请先扫码连接网易云，授权后即可在这里选择来源并导入。'
-        : state.platforms?.netease?.account?.status === 'authorized' ? '网易云已连接，可在这里选择来源并导入参考歌曲。'
-          : '点击“扫码登录”，用网易云音乐 App 扫描并确认。'),
-      loginPanel, importNotice, attempts,
-      h('p', { className: 'fm-platform-note' }, '近期记录优先，读取失败时尝试喜欢列表和用户歌单。QQ 接入暂缓。登录材料仅保存在本机。')));
+      guideAccountHint && h('p', { className: 'fm-note fm-guide-target-note', role: 'status' },
+        account?.provider || state.platforms?.[automaticSource]?.account?.status === 'authorized'
+          ? '选择曲库来源并导入参考歌曲。' : '任选一个音乐平台扫码，登录后导入参考歌曲。'),
+      h('p', { className: 'fm-platform-note' }, '网易云可导入近期记录、喜欢或歌单。QQ 可导入喜欢或歌单，使用手机 QQ 扫码。登录材料保存在本机加密存储中。')));
 
   const preferencesColumn = h('div', {className:'fm-main-column'},
         h(FeedbackSettings,{state,controller}),
@@ -170,8 +106,8 @@ export function Panel({ controller, back }) {
           toggle('探索新音乐', '从可播放的新歌候选中探索。', 'discovery', 'setDiscovery'),
           h('p', { className: 'fm-note', role: 'status', 'aria-live': 'polite' }, discoveryPresentation(snapshot)),
           snapshot?.lastSelection?.fellBack && h('p', { className: 'fm-note' }, '最近一次自主选择：没有合适的新歌，先播了常听歌曲。'),
-          state.features?.discoveryRefresh && insights?.recommendationMode!=='filtered' && h('button', { type: 'button', className: 'fm-button', disabled: disabled || state.platformBusy || !settings.discovery || settings.discoveryRate === 0 || state.platforms?.netease?.account?.status !== 'authorized',
-            onClick: () => controller.platformAction('discovery', 'netease') }, '刷新新歌推荐'),
+          state.features?.discoveryRefresh && insights?.recommendationMode!=='filtered' && h('button', { type: 'button', className: 'fm-button', disabled: disabled || state.platformBusy || !settings.discovery || settings.discoveryRate === 0 || state.platforms?.[automaticSource]?.account?.status !== 'authorized',
+            onClick: () => controller.platformAction('discovery', automaticSource) }, '刷新新歌推荐'),
           h('div', { className: 'fm-rate' }, h('div', { className: 'fm-rate-head' }, h('label', { htmlFor: rateId }, '新歌探索率'), h('output', { htmlFor: rateId }, `${rate}%`)),
             h('input', { id: rateId, 'aria-label': '新歌探索率', type: 'range', min: 0, max: 100, step: 1, value: rate, disabled: disabled || !settings.discovery,
               onChange: e => setRate(Number(e.target.value)) }),
@@ -186,7 +122,7 @@ export function Panel({ controller, back }) {
             'data-guide-reveal':['connect','import'].includes(guideFocus)||undefined,
             onToggle:event=>setPlatformExpanded(event.currentTarget.open)},h('summary',null,'音乐平台',h('span',{className:'fm-disclosure-meta'},accountHint)),platformSection)),
         h('section', null, h('h2', null, '使用指南'), h('div', { className: 'fm-card' },
-          h('p', { className: 'fm-note' }, '连接网易云、导入参考歌曲，了解推荐反馈。'),
+          h('p', { className: 'fm-note' }, '选择音乐平台并导入参考歌曲，了解推荐反馈。'),
           h('button', { type: 'button', className: 'fm-button fm-guide-open', disabled: !guideReady(state), onClick: () => {
             controller.openGuide(); selectView('listen', false); setGuideFocus('guide');
           } }, '打开使用指南'),
@@ -222,7 +158,7 @@ export function Panel({ controller, back }) {
     setGuideFocus(step);
   };
   const dock = () => h('div', { className: 'fm-player-dock', 'aria-label': '播放控制' },
-    h('div', { className: 'fm-dock-track' }, h('strong', null, current?.track?.title || '肥鱼电台'), h('span', null, current?.track?.artist || '等待音乐')),
+    h('div', { className: 'fm-dock-track' }, h('strong', null, current?.track?.title || '肥鱼电台'), h('span', null, (current?.track ? `${current.track.artist || '未知艺人'} · ${current.track.provider === 'qq' ? 'QQ 音乐' : '网易云音乐'}` : '') || '等待音乐')),
     h('div', { className: 'fm-dock-center' }, h('div', { className: 'fm-controls' },
       h('button', { type: 'button', className: 'fm-button fm-transport', disabled: transport.previousDisabled,
         'aria-busy': state.transportPending === 'previous', onClick: () => controller.command('previous') },
@@ -250,7 +186,7 @@ export function Panel({ controller, back }) {
         h('span', { className: 'fm-mode-label' }, modes.find(([id]) => id === mode)?.[1] || '手动')),
       h('div', { className: 'fm-track-swap', key: `track:${current?.playInstanceId || 'empty'}` },
         h('div', { className: 'fm-track' }, current?.track?.title || '今天，从哪一首开始？'),
-        h('p', { className: 'fm-artist' }, current?.track?.artist || (state.library?.total ? '让大肥鱼挑一首，或点播你想听的歌。' : '打开电台设置，连接网易云并导入音乐。'))),
+        h('p', { className: 'fm-artist' }, (current?.track ? `${current.track.artist || '未知艺人'} · ${current.track.provider === 'qq' ? 'QQ 音乐' : '网易云音乐'}` : '') || (state.library?.total ? '让大肥鱼挑一首，或点播你想听的歌。' : '打开电台设置，选择音乐平台并导入歌曲。'))),
       current && h('div', { className: 'fm-feedback-actions', 'aria-label': '当前歌曲推荐反馈' },
         ...[[1, '喜欢', '♥'], [-1, '少推荐', '↓']].map(([score, label, mark]) => h('button', {
           type: 'button', key: score, className: 'fm-button fm-feedback-button', 'aria-pressed': insights?.feedback?.current === score,
@@ -265,7 +201,7 @@ export function Panel({ controller, back }) {
         h('p', { className: 'fm-label' }, '大肥鱼说'),
         h('p', { className: 'fm-reply-text' }, insights.reply?.variants?.[state.expression?.style ?? 'current'] || insights.reply?.text || insights.explanation.variants?.[state.expression?.style ?? 'current'] || insights.explanation.text),
         h('details', null, h('summary', null, '展开选歌依据'),
-          h('p', null, `来源：${({ llm_recommendation: '大肥鱼推荐歌单', netease_similar: '与你常听的歌相似', netease_daily: '网易云每日推荐', netease_personal_fm: '网易云私人 FM', platform_recommendation: '平台推荐' })[current.origin?.source] ?? (current.selectedBy === 'user' ? '你点播' : '常听歌曲')}`),
+          h('p', null, `来源：${({ llm_recommendation: '大肥鱼推荐歌单', netease_similar: '与你常听的歌相似', netease_daily: '网易云每日推荐', netease_personal_fm: '网易云私人 FM', qq_similar: '与你常听的歌相似', qq_daily: 'QQ 每日推荐', qq_personal_fm: 'QQ 私人 FM', platform_recommendation: '平台推荐' })[current.origin?.source] ?? (current.selectedBy === 'user' ? '你点播' : '常听歌曲')}`),
           current.selectedBy === 'agent' && snapshot?.lastSelection?.detail && h('p', null, `排序得分 ${snapshot.lastSelection.score?.toFixed(3)}；近期已播 ${snapshot.lastSelection.detail.repeatPlays ?? 0} 次。`),
           h('p', null, '喜欢 / 少推荐只影响本机推荐；逐曲说明由已记录的决策生成，不新增模型请求。')))));
   const heroWithLyrics = h('div', { className: 'fm-now-layout' }, hero,
@@ -286,7 +222,7 @@ export function Panel({ controller, back }) {
         }, label))),
       state.error && h('div', { className: 'fm-notice', 'data-error': true, role: 'alert' }, state.error,
         h('button', { className: 'fm-button', type: 'button', disabled: state.busy,
-          onClick: state.errorCode === 'no_candidates' && ['llm', 'filtered'].includes(state.insights?.recommendationMode) ? () => controller.platformAction('discovery', 'netease') : controller.refresh },
+          onClick: state.errorCode === 'no_candidates' && ['llm', 'filtered'].includes(state.insights?.recommendationMode) ? () => controller.platformAction('discovery', automaticSource) : controller.refresh },
         state.errorCode === 'no_candidates' && state.insights?.recommendationMode === 'filtered' ? '重新找歌' : state.errorCode === 'no_candidates' && state.insights?.recommendationMode === 'llm' ? '重新核对歌单' : state.connected ? '刷新状态' : '重新连接')),
       snapshot?.lastError && h('div', { className: 'fm-notice', role: 'status' }, playbackNotice(snapshot)),
       snapshot?.blockUntil > Date.now() && h('div', { className: 'fm-notice' }, '今天已停止自主听歌。到期后保持暂停，直到你主动恢复。',

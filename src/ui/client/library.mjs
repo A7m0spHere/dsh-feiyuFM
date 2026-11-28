@@ -36,7 +36,7 @@ export function Library({ state, controller }) {
           h('span', { className: 'fm-song-artist' }, `${track.artist || '未知艺人'} · ${track.provider === 'netease' ? '网易云音乐' : 'QQ 音乐'}`)),
         h('span', { className: 'fm-song-duration' }, track.durationMs ? minutes(track.durationMs) : '--:--'), h(Svg, { type: 'play' }));
     }) : h('div', { className: 'fm-library-empty', role: 'status' }, state.libraryError ? '曲库查询未完成，请重试。' : waiting ? '正在查询曲库…'
-      : library.total ? '没有匹配的歌曲，试试其他关键词。' : '还没有导入音乐。连接网易云后，点击“导入我的音乐”。')),
+      : library.total ? '没有匹配的歌曲，试试其他关键词。' : '还没有导入音乐。连接音乐平台后，点击“导入我的音乐”。')),
     h('div', { className: 'fm-library-foot' }, h('span', { role: 'status', 'aria-live': 'polite' }, state.libraryError ? '未能取得查询结果' : waiting ? '正在查询曲库…'
       : query ? `${matched} 首匹配` : paged ? `共 ${library.total} 首 · 点击曲目即可播放` : `已载入 ${library.tracks.length} / ${library.total} 首 · 点击曲目即可播放`),
       !waiting && !state.libraryError && pages > 1 && h('div', { className: 'fm-library-pages' },

@@ -19,7 +19,7 @@ export function recommendationFeedback(error){
   summary_busy:'已有模型任务正在进行，稍后再试。',
   summary_retry_limit:'今天的挑歌次数已用完，明天可再换。',
   budget_exhausted:'模型预算不足，请在推荐设置中调整后再试。',
-  no_candidates:'网易云暂时没有合适的候选，可补充参考歌曲或稍后重试。'};
+  no_candidates:'当前平台暂时没有合适的候选，可补充参考歌曲或稍后重试。'};
  return{expected:Boolean(messages[error?.code]),message:messages[error?.code]||error?.message||'这次挑歌没有完成，请稍后重试。',code:error?.code||'model_failed'};
 }
 
@@ -103,7 +103,9 @@ export function discoveryPresentation(snapshot) {
   if (data.filtering) return `找到 ${data.count ?? 0} 首候选新歌，大肥鱼正在试听挑选…`;
   if (data.picked > 0) return `大肥鱼从 ${data.count} 首候选里挑了 ${data.picked} 首合口味的。`;
   if (data.count > 0) return data.playlist ? `有 ${data.count} 首新歌可以播；大肥鱼稍后再挑一轮。` : `找到 ${data.count} 首新歌。`;
-  if (data.reason === 'login-required' || data.state === 'login_required') return '需要先登录网易云才能找新歌；暂时只播常听的歌曲。';
+  if (data.reason === 'login-required' || data.state === 'login_required') {
+    return '请先在电台设置登录音乐账号，再找新歌。';
+  }
   if (data.state === 'idle') return '稍后会自动找新歌。';
   if (data.state === 'empty') return '暂时没找到合适的新歌；先播常听的歌曲。';
   return '新歌推荐暂时不可用；先播常听的歌曲。';

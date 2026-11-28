@@ -19,8 +19,8 @@ export async function prepareRecommendations({bridge,service,route,signal}){
   if(!status?.refreshing)break;
   await delay(250,undefined,{signal});
  }
- if(status?.refreshing)throw Object.assign(new Error('网易云还在找歌，稍后可以再试。'),{code:'provider_timeout'});
- if(!status?.count)throw Object.assign(new Error('暂时没有未评过的新候选，等待网易云补充新歌；仍可点播已有歌曲。'),{code:'no_candidates'});
+ if(status?.refreshing)throw Object.assign(new Error('所选平台还在找歌，稍后可以再试。'),{code:'provider_timeout'});
+ if(!status?.count)throw Object.assign(new Error('暂时没有未评过的新候选，等待所选平台补充新歌；仍可点播已有歌曲。'),{code:'no_candidates'});
  return service.summarize(route,{signal,purpose:'discovery-filter'});
 }
 export function createPersonaScheduler({bridge,service,onLog=()=>{},intervalMs=30000}){

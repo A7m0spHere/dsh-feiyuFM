@@ -115,7 +115,7 @@ export class MusicStore {
 
   migrate() {
     const version = this.db.prepare('PRAGMA user_version').get().user_version;
-    if (version > 11) throw new Error(`Unsupported schema version ${version}`);
+    if (version > 12) throw new Error(`Unsupported schema version ${version}`);
     if (version === 0) {
       this.transaction(() => {
         this.db.exec(MIGRATION_1);
@@ -209,6 +209,15 @@ export class MusicStore {
           CREATE INDEX IF NOT EXISTS growth_jobs_processed_at ON growth_jobs(processed_at);`);
         this.db.prepare('INSERT INTO schema_migrations VALUES (?, ?)').run(11,new Date().toISOString());
         this.db.exec('PRAGMA user_version = 11');
+      });
+    }
+    if (this.db.prepare('PRAGMA user_version').get().user_version === 11) {
+      this.transaction(() => {
+        this.db.exec(`CREATE TABLE IF NOT EXISTS music_account_archive (
+          account_key TEXT NOT NULL, table_name TEXT NOT NULL, original_rowid INTEGER NOT NULL,
+          value_json TEXT NOT NULL, PRIMARY KEY(account_key, table_name, original_rowid));`);
+        this.db.prepare('INSERT INTO schema_migrations VALUES (?, ?)').run(12, new Date().toISOString());
+        this.db.exec('PRAGMA user_version = 12');
       });
     }
   }

@@ -43,7 +43,7 @@ test('discovery display distinguishes target settings from available candidates 
   assert.match(discoveryPresentation({ ...snapshot, discovery: { state: 'ready', count: 30, picked: 12, filtering: true } }), /正在试听挑选/);
   assert.match(discoveryPresentation({ ...snapshot, discovery: { state: 'ready', count: 30, picked: 12 } }), /挑了 12 首合口味/);
   assert.match(discoveryPresentation({ ...snapshot, discovery: { state: 'refreshing', refreshing: true, count: 3 } }), /正在找新歌/);
-  assert.match(discoveryPresentation({ ...snapshot, discovery: { state: 'login_required', reason: 'login-required', count: 0 } }), /需要先登录网易云/);
+  assert.match(discoveryPresentation({ ...snapshot, discovery: { state: 'login_required', reason: 'login-required', count: 0 } }), /先在电台设置登录音乐账号/);
   assert.match(discoveryPresentation({ ...snapshot, settings: { discovery: true, discoveryRate: 0 } }), /探索已关闭/);
 });
 

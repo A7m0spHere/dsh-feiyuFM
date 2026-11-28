@@ -1,12 +1,12 @@
+import {isRecommendationSource} from './playback-source.mjs';
 import {normalizeTrack,trackId} from './contracts.mjs';
 
 export const APPROVED_POOL_KEY='filtered_playback_pool_v1';
 export const APPROVED_POOL_LIMIT=100;
-const sources=new Set(['netease_daily','netease_similar','netease_personal_fm','platform_recommendation']);
 function sanitize(record,now){
  try{
   const track=normalizeTrack(record.track),origin=record.track.discovery;
-  if(track.provider!=='netease'||!sources.has(origin?.source)||!Number.isSafeInteger(origin?.llmRank)||origin.llmRank<1
+  if(!isRecommendationSource(origin?.source,track.provider)||!Number.isSafeInteger(origin?.llmRank)||origin.llmRank<1
    ||typeof origin.modelCallId!=='string'||!Number.isFinite(origin.expiresAt)||origin.expiresAt<=now||!Number.isFinite(record.approvedAt))return null;
   return{approvedAt:record.approvedAt,track:{...track,discovery:{...origin}}};
  }catch{return null;}

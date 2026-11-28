@@ -70,14 +70,14 @@ test('bans and temporary media failures stay hard filters even for retained appr
 test('account changes and explicit cache clearing discard approvals as well as the current filter',()=>{
  const store=new MusicStore();let account='a';
  const registry={providers:{netease:{getAccount:()=>({status:'authorized',accountId:account})}}};
- const hash=createHash('sha256').update('netease:authorized:a').digest('hex');
+ const hash=createHash('sha256').update('source-v2:netease:0:authorized:a').digest('hex');
  const cache=createDiscoveryCache({store,registry,now:()=>at});
  try{
   cache.setEnabled(true);save(store,filter([1],'call',at,hash));
   assert.equal(cache.playbackRecommendations().length,1);
   account='b';assert.equal(cache.playbackRecommendations().length,0);
   assert.equal(store.getSetting(APPROVED_POOL_KEY,null),null);
-  const hashB=createHash('sha256').update('netease:authorized:b').digest('hex');
+  const hashB=createHash('sha256').update('source-v2:netease:0:authorized:b').digest('hex');
   save(store,filter([2],'call-b',at,hashB));cache.clear();
   assert.equal(store.getSetting(APPROVED_POOL_KEY,null),null);
   assert.equal(store.getSetting('discovery_filter_v1',null),null);

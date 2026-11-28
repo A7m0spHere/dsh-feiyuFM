@@ -10,12 +10,12 @@
 import { createInterface } from 'node:readline';
 import { randomUUID } from 'node:crypto';
 import { createLyricsService } from './lyrics.mjs';
-import { MusicError, normalizeTrack, trackId } from './contracts.mjs';
+import { MusicError, PROVIDERS, normalizeTrack, trackId } from './contracts.mjs';
 import { MusicStore } from './storage.mjs';
 import { MusicCore } from './core.mjs';
 import { FakePlayback } from './fakes.mjs';
 import { createSelector } from './selection.mjs';
-import {repeatContext} from './recent-playback.mjs';
+import {initializeRecentPlayback,repeatContext} from './recent-playback.mjs';
 import {SUPPLY_POLICY,reviewedKeys} from './recommendation-supply.mjs';
 import { createRng, readAgentSeed, initializeAgentPreferences, describeTaste } from './taste.mjs';
 import { importSeedTracks, describeEnvironment, describeEnvironmentProfile } from './environment.mjs';
@@ -23,6 +23,8 @@ import { applyListenGrowth, decayPreferences, describeGrowth } from './growth.mj
 import { createSessionRegistry, mayStartPlayback } from './sessions.mjs';
 import { createHttpTransport } from './providers/transport.mjs';
 import { createNetworkClient, networkProxyView, saveNetworkProxy } from './network.mjs';
+import { playbackSourceView, savePlaybackSource, isRecommendationSource } from './playback-source.mjs';
+import { activateMusicAccount, hasLegacyMusicData, initializeMusicAccount, musicAccount, recoverLegacyMusicData, requireCurrentMusicAccount } from './music-account.mjs';
 import { NETEASE_ORIGIN } from './providers/endpoints/netease.mjs';
 import { createNetEaseProvider } from './providers/netease.mjs';
 import { createQQProvider } from './providers/qq.mjs';
@@ -108,6 +110,10 @@ export class ProviderRegistry {
    * by design, so an adapter without it reports that rather than returning an
    * empty list that would look like "no new music exists".
    */
+  async close() {
+    await Promise.allSettled(Object.values(this.providers).map(provider => provider.dispose?.()));
+  }
+
   async getDiscoveryTracks(provider, options = {}) {
     const adapter = this.providers[provider];
     if (!adapter) {
@@ -142,11 +148,11 @@ export function buildSelector({ store, now = () => Date.now(), rng = null, listD
     // LLM 模式的默认池只来自模型歌单。options.libraryFallback 是用户主动
     // 下一首的回退通道：歌单没有可播曲目时改用输入曲库，自主续播不用它。
     listFamiliar: (options = {}) => recommendationMode(store)==='filtered'&&!options.libraryFallback
-      ? (listDiscovery?.()??[]).filter(track=>track.provider==='netease'&&Number.isSafeInteger(track.discovery?.llmRank)
-        &&track.discovery.llmRank>0&&['netease_daily','netease_similar','netease_personal_fm','platform_recommendation'].includes(track.discovery?.source)
+      ? (listDiscovery?.()??[]).filter(track=>track.provider===playbackSourceView(store).provider&&Number.isSafeInteger(track.discovery?.llmRank)
+        &&track.discovery.llmRank>0&&isRecommendationSource(track.discovery?.source, track.provider)
         &&(options.discoveryRate>0||familiar(track)))
       : recommendationMode(store)==='llm'&&!options.libraryFallback
-      ? modelRecommendationTracks(store).filter(t=>store.getEnvironmentEntry(t)||store.hasEffectiveListen(t)||store.listLikedTracks().some(r=>r.track_key===`${t.provider}:${t.providerTrackId}`))
+      ? modelRecommendationTracks(store).filter(t=>t.provider===playbackSourceView(store).provider).filter(t=>store.getEnvironmentEntry(t)||store.hasEffectiveListen(t)||store.listLikedTracks().some(r=>r.track_key===`${t.provider}:${t.providerTrackId}`))
       : [...new Map([...store.listEnvironment({ limit: 100000 }), ...store.listAgentKnownTracks(), ...store.listLikedTracks()].map(row => [row.track_key, row])).values()].map((row) => {
       // Restore the stored metadata, not just the key: the effective-progress
       // threshold needs the real duration, and a title is needed to tell the
@@ -156,17 +162,17 @@ export function buildSelector({ store, now = () => Date.now(), rng = null, listD
         providerTrackId: row.track_key.split(':').slice(1).join(':'),
       });
       return stored;
-    }),
+    }).filter(track => track.provider === playbackSourceView(store).provider),
     listDiscovery: (options = {}) => {
       if(recommendationMode(store)==='filtered')return [];
       // LLM 模式探索池：模型歌单中未听过的歌 + 平台发现候选（后续由 LLM 筛选排序）。
       if (recommendationMode(store) === 'llm' && !options.libraryFallback) {
-        const playlist = modelRecommendationTracks(store).filter(t=>!store.getEnvironmentEntry(t)&&!store.hasEffectiveListen(t)&&!store.listLikedTracks().some(r=>r.track_key===`${t.provider}:${t.providerTrackId}`));
+        const playlist = modelRecommendationTracks(store).filter(t=>t.provider===playbackSourceView(store).provider).filter(t=>!store.getEnvironmentEntry(t)&&!store.hasEffectiveListen(t)&&!store.listLikedTracks().some(r=>r.track_key===`${t.provider}:${t.providerTrackId}`));
         const seen = new Set(playlist.map(t=>`${t.provider}:${t.providerTrackId}`));
         const platform = (listDiscovery?.() ?? []).filter(t => !seen.has(`${t.provider}:${t.providerTrackId}`));
         return [...playlist, ...platform];
       }
-      return (listDiscovery?.()??[]);
+      return (listDiscovery?.()??[]).filter(track => track.provider === playbackSourceView(store).provider);
     },
     now,
   });
@@ -264,7 +270,7 @@ export function createProviderFacade({ registry, store = null, now = () => Date.
   const recommendationCandidates=()=>{
     const owner=discovery.status().candidateOwner,reviewed=reviewedKeys(store,owner,now());
     const approved=new Set(discovery.playbackRecommendations().map(t=>`${t.provider}:${t.providerTrackId}`));
-    return freshTracks(discovery.candidates().filter(track=>track.provider==='netease'))
+    return freshTracks(discovery.candidates().filter(track=>track.provider===playbackSourceView(store).provider))
       .filter(t=>!reviewed.has(`${t.provider}:${t.providerTrackId}`)&&!approved.has(`${t.provider}:${t.providerTrackId}`));
   };
 
@@ -276,30 +282,31 @@ export function createProviderFacade({ registry, store = null, now = () => Date.
     getSeedTracks: (provider, options) => registry.getSeedTracks(provider, options),
     search: (provider, query, options) => registry.search(provider, query, options),
     resolve: (track, options) => resolveOnOwnPlatform({ registry, track, options }),
+    resourceContext: track => registry.providers[track.provider]?.resourceContext?.() ?? '',
     platforms: () => describePlatforms(registry),
 
     /** Synchronous, cache-only: the selector must not perform network I/O. */
     discoveryTracks: () => recommendationMode(store)==='filtered'
-      ? discovery.playbackRecommendations().filter(track=>track.provider==='netease') : discovery.tracks(),
+      ? discovery.playbackRecommendations().filter(track=>track.provider===playbackSourceView(store).provider) : discovery.tracks(),
     recommendationCandidates,
     // LLM 模式下平台候选同样进入缓存，供 LLM 筛选（探索池）；歌单核对信息单列。
     discoveryStatus: () => {
       const status = discovery.status();
       if(recommendationMode(store)==='filtered'){
-        const picks=discovery.recommendations().filter(track=>track.provider==='netease');
+        const picks=discovery.recommendations().filter(track=>track.provider===playbackSourceView(store).provider);
         const filter=store.getSetting('discovery_filter_v1',null);
         const selectionComplete=filter?.source==='llm-discovery-filter'&&filter.candidateRevision===status.candidateRevision;
-        return {...status,pipeline:'platform-filter',count:discovery.candidates().filter(track=>track.provider==='netease').length,
+        return {...status,pipeline:'platform-filter',count:discovery.candidates().filter(track=>track.provider===playbackSourceView(store).provider).length,
           picked:picks.length,remaining:freshTracks(picks).length,filterCallId:filter?.callId??null,
           tracks:picks.slice(0,12),summary:selectionComplete||picks.length?filter?.text??'':'',selectionComplete,
           playbackPool:playbackSupply(true),
-          referenceCount:store.countEnvironment(),playlist:null};
+          referenceCount:store.countEnvironment(playbackSourceView(store).provider),playlist:null};
       }
       if (recommendationMode(store) !== 'llm') return status;
       const record = modelRecommendations(store);
       return { ...status, playlist: record ? { verification: record.verification, verified: record.verified.length, total: record.songs.length } : null };
     },
-    setDiscoveryEnabled: value => discovery.setEnabled(recommendationMode(store)==='filtered'?store.countEnvironment()>0:Boolean(value)),
+    setDiscoveryEnabled: value => discovery.setEnabled(recommendationMode(store)==='filtered'?store.countEnvironment(playbackSourceView(store).provider)>0:Boolean(value)),
     tickDiscovery: () => {
       if(recommendationMode(store)==='filtered'){
         const snapshot=store.getCoreState(),status=discovery.status();
@@ -314,6 +321,7 @@ export function createProviderFacade({ registry, store = null, now = () => Date.
     verifyModelRecommendations:()=>{if(recommendationMode(store)==='llm')modelResolver.tick();},
 
     clearDiscovery() { modelResolver.cancel();discovery.clear(); },
+    cancelAccountWork() { modelResolver.cancel(); discovery.cancel(); replenishing = true; },
   };
 }
 
@@ -362,6 +370,7 @@ export function createCoreHost({
   providerRegistry = null,
   /** Optional facade from createProviderFacade(); enables the platform messages. */
   platformsFacade = null,
+  accountIsolation = false,
   clock,
   now = () => Date.now(),
   stateIntervalMs = 400,
@@ -433,10 +442,13 @@ export function createCoreHost({
   const sessions = createSessionRegistry({ now });
   let closed = false;
   let lastRevision = -1;
-  let pending = Promise.resolve();
+  const platformPending = new Map();
   // Independent of playback commands: input resets supersede even imports
   // queued by another client before the reset, without cancelling on pause.
   let inputEpoch = 0;
+  let loginAttempt = null;
+  let disconnecting = false;
+  let restoringAccount = null;
 
   const send = (message) => {
     if (closed) return;
@@ -465,10 +477,132 @@ export function createCoreHost({
   };
 
   /** Commands are serialised so two user commands cannot interleave mid-flight. */
-  const enqueue = (work) => {
-    pending = pending.then(work, work);
-    return pending;
+  const enqueue = (provider, work) => {
+    const next = (platformPending.get(provider) ?? Promise.resolve()).then(work, work);
+    platformPending.set(provider, next);
+    return next;
   };
+
+  const updateAccount = () => {
+    invalidateProfile();
+    core._commit();
+    platformsFacade?.setDiscoveryEnabled(core.state.settings.discovery && core.state.settings.discoveryRate > 0);
+    platformsFacade?.tickDiscovery();
+    publishIfChanged();
+  };
+
+  function checkAccount(message, provider = null) {
+    return requireCurrentMusicAccount(store, provider, message.accountRevision ?? message.command?.accountRevision);
+  }
+
+  function checkPlatformAccess(message) {
+    const current = checkAccount(message, message.provider);
+    if (!current) return;
+    const platform = registry.getAccount(message.provider);
+    if (platform.status !== 'authorized' || platform.accountId !== current.accountId) {
+      throw new MusicError('login_required', '请先完成当前音乐账号的登录验证。');
+    }
+  }
+
+  async function disconnectAccount(name, adapter) {
+    if (disconnecting) throw new MusicError('music_account_busy', '正在退出音乐账号，请稍后重试。');
+    if (loginAttempt?.provider === name) {
+      loginAttempt.controller.abort();
+      loginAttempt = null;
+    }
+    disconnecting = true;
+    restoringAccount = null;
+    try {
+      if (musicAccount(store).provider === name) {
+        ++inputEpoch;
+        platformsFacade.cancelAccountWork();
+        core.resetAccountPlayback();
+        activateMusicAccount(store);
+        initializeRecentPlayback(store);
+      }
+      return await adapter.logout();
+    } finally {
+      disconnecting = false;
+      updateAccount();
+    }
+  }
+
+  async function restoreAccount(name, adapter) {
+    if (restoringAccount) return restoringAccount;
+    const scope = musicAccount(store);
+    const work = (async () => {
+      try {
+        const restored = await adapter.restore({ signal: null });
+        if (closed || musicAccount(store).revision !== scope.revision) throw new MusicError('cancelled', '旧账号验证已取消。');
+        if (restored.status === 'authorized' && restored.accountId !== scope.accountId) {
+          await disconnectAccount(name, adapter);
+          throw new MusicError('music_account_changed', '登录凭据对应的账号已变化，请重新扫码。');
+        }
+        return restored;
+      } finally {
+        if (!closed && musicAccount(store).revision === scope.revision) updateAccount();
+      }
+    })();
+    restoringAccount = work;
+    try { return await work; }
+    finally { if (restoringAccount === work) restoringAccount = null; }
+  }
+
+  async function loginSingleAccount(message, adapter, step) {
+    const name = message.provider;
+    const active = musicAccount(store);
+    if (message.accountRevision !== undefined && message.accountRevision !== active.revision) {
+      throw new MusicError('music_account_changed', '音乐账号已变化，请刷新后重试。');
+    }
+    if (disconnecting) throw new MusicError('music_account_busy', '正在退出音乐账号，请稍后重试。');
+    if (step === 'restore') {
+      checkAccount(message, name);
+      return await restoreAccount(name, adapter);
+    }
+    if (active.provider) throw new MusicError('music_account_connected', '请先退出当前账号，再扫码登录。');
+    if (step === 'begin') {
+      if (loginAttempt) {
+        throw new MusicError('music_login_pending', '已有扫码登录，请先完成或取消。');
+      }
+      const attempt = { id: randomUUID(), provider: name, controller: new AbortController(), polling: false, ready: false };
+      loginAttempt = attempt;
+      try {
+        const result = await adapter.beginLogin({ signal: attempt.controller.signal });
+        if (loginAttempt !== attempt) throw new MusicError('cancelled', '扫码登录已取消。');
+        attempt.ready = true;
+        return { ...result, status: 'pending', attemptId: attempt.id };
+      } catch (error) {
+        if (loginAttempt === attempt) loginAttempt = null;
+        throw error;
+      }
+    }
+    if (step !== 'poll') throw new MusicError('invalid_command', `Unknown login step ${String(step)}`);
+    const attempt = loginAttempt;
+    if (!attempt?.ready || attempt.provider !== name || attempt.id !== message.attemptId) {
+      throw new MusicError('music_login_changed', '扫码登录已变化，请重新获取二维码。');
+    }
+    if (attempt.polling) throw new MusicError('music_account_busy', '正在验证扫码登录，请稍后重试。', { retryable: true });
+    attempt.polling = true;
+    try {
+      const result = await adapter.pollLogin({ signal: attempt.controller.signal });
+      if (loginAttempt !== attempt) throw new MusicError('cancelled', '扫码登录已取消。');
+      if (result.status === 'expired') loginAttempt = null;
+      if (result.status === 'authorized') {
+        loginAttempt = null;
+        try {
+          if (!result.accountId) throw new MusicError('account_id_unavailable', '音乐平台未返回可验证的账号 ID。');
+          activateMusicAccount(store, name, result.accountId);
+        } catch (error) {
+          await disconnectAccount(name, adapter);
+          throw error;
+        }
+        initializeRecentPlayback(store);
+        ++inputEpoch;
+        updateAccount();
+      }
+      return { ...result, attemptId: attempt.id };
+    } finally { attempt.polling = false; }
+  }
 
   const handle = async (message, inputVersion = inputEpoch) => {
     const id = message.id ?? null;
@@ -490,6 +624,10 @@ export function createCoreHost({
           return;
         }
         case 'command': {
+          const kind = message.command?.type;
+          if (['requestTrack','banTrack','unbanTrack','setTrackFeedback','resetTaste','resetLibrary','undoTasteReset','chooseSelf','next','previous','resume','seek'].includes(kind)) {
+            checkAccount(message, message.command.track?.provider);
+          }
           const coreReceivedAt = Date.now();
           const traceId = typeof message.command?.traceId === 'string' && /^[\w:.-]{1,100}$/.test(message.command.traceId)
             ? message.command.traceId : null;
@@ -522,6 +660,7 @@ export function createCoreHost({
           return;
         }
         case 'setQueue': {
+          for (const track of message.tracks ?? []) checkAccount(message, track.provider);
           core.setQueue(message.tracks ?? []);
           send({ type: 'result', id, ok: true, snapshot: core.snapshot() });
           return;
@@ -597,7 +736,13 @@ export function createCoreHost({
             || !Number.isSafeInteger(limit) || limit < 1 || limit > 100) {
             throw new MusicError('invalid_command', '曲库查询参数无效。');
           }
-          send({ type: 'result', id, ok: true, library: store.searchEnvironment({ query: query.trim(), offset, limit }) });
+          const library = store.searchEnvironment({ query: query.trim(), offset, limit });
+          const provider = playbackSourceView(store).provider;
+          const first = store.listEnvironment({ provider, limit: 1 })[0];
+          library.firstTrack = first ? store.getNormalizedTrack({ provider, providerTrackId: first.track_key.slice(provider.length + 1) }) : null;
+          const active = musicAccount(store);
+          if (active) library.accountRevision = active.revision;
+          send({ type: 'result', id, ok: true, library });
           return;
         }
         case 'environment': {
@@ -611,20 +756,37 @@ export function createCoreHost({
           return;
         }
         case 'insights': {
-          send({type:'result',id,ok:true,insights:describeMusicInsights(store,core.snapshot(),now(),profileInputs().insightsFacts)});return;
+          send({type:'result',id,ok:true,accountRevision:musicAccount(store)?.revision,insights:describeMusicInsights(store,core.snapshot(),now(),profileInputs().insightsFacts)});return;
         }
         case 'feedback-list': {
-          send({type:'result',id,ok:true,feedbackPage:listTrackFeedback(store,message)});return;
+          send({type:'result',id,ok:true,accountRevision:musicAccount(store)?.revision,feedbackPage:listTrackFeedback(store,message)});return;
         }
         case 'feedback-clear': {
+          checkAccount(message, message.track?.provider);
           const query=validateFeedbackQuery(message.view??{});
           clearTrackFeedback(store,message,now());
           invalidateProfile();
-          send({type:'result',id,ok:true,feedbackPage:listTrackFeedback(store,query),feedback:feedbackView(store,core.snapshot())});return;
+          send({type:'result',id,ok:true,accountRevision:musicAccount(store)?.revision,feedbackPage:listTrackFeedback(store,query),feedback:feedbackView(store,core.snapshot())});return;
         }
         case 'expression-style': {
           const expression=setExpressionStyle(store,message.style,message.expectedRevision);
           send({type:'result',id,ok:true,expression});return;
+        }
+        case 'playback-source': {
+          const previous = playbackSourceView(store);
+          const playbackSource = Object.hasOwn(message, 'provider')
+            ? savePlaybackSource(store, message.provider, message.expectedRevision) : previous;
+          if (playbackSource.revision !== previous.revision) {
+            core.cancelSourcePreparation();
+            platformsFacade?.clearDiscovery();
+            invalidateProfile();
+            core._commit();
+            platformsFacade?.setDiscoveryEnabled(core.state.settings.discovery && core.state.settings.discoveryRate > 0);
+            platformsFacade?.tickDiscovery();
+            publishIfChanged();
+          }
+          send({ type: 'result', id, ok: true, playbackSource });
+          return;
         }
         case 'network-proxy': {
           const networkProxy = Object.hasOwn(message, 'value')
@@ -643,7 +805,7 @@ export function createCoreHost({
             persona.recommendationPipeline.lastError=refused?.candidateRevision===persona.recommendationPipeline.candidateRevision?refused.code:last?.status==='failed'?last.error_code:null;}
           persona.recommendationRoute=store.getSetting('recommendation_route_v1',null);
           persona.discoveryJournal=describeDiscoveryJournal({store,pipeline:persona.recommendationPipeline,snapshot:core.snapshot(),now:now()});
-          send({type:'result',id,ok:true,persona});return;
+          send({type:'result',id,ok:true,accountRevision:musicAccount(store)?.revision,persona});return;
         }
         case 'recommendation-route':{
           const route={provider:message.provider,model:message.model};
@@ -691,13 +853,25 @@ export function createCoreHost({
             send({ type: 'result', id, ok: true, platforms: { platforms: {}, usable: [], reason: 'no platform adapters are configured in this build' } });
             return;
           }
-          send({ type: 'result', id, ok: true, ...platformsFacade.platforms() });
+          const view = platformsFacade.platforms();
+          const pending = accountIsolation && loginAttempt && view.platforms[loginAttempt.provider];
+          if (pending && !pending.account.pending) pending.account = { ...pending.account, pending: true };
+          const active = accountIsolation ? musicAccount(store) : null;
+          const current = active?.provider && view.platforms[active.provider];
+          if (current?.account.status === 'authorized' && current.account.accountId === active.accountId
+            && hasLegacyMusicData(store, active.provider)) current.legacyRecoveryAvailable = true;
+          send({ type: 'result', id, ok: true, ...view });
           return;
         }
         case 'login': {
           requireFacade();
           const accountProvider = requireProvider(message.provider);
           const step = message.step ?? 'begin';
+          if (accountIsolation) {
+            const login = await loginSingleAccount(message, accountProvider, step);
+            send({ type: 'result', id, ok: true, status: login.status, login, account: accountProvider.getAccount() });
+            return;
+          }
           if (step === 'begin') {
             const started = await accountProvider.beginLogin({ signal: null });
             send({ type: 'result', id, ok: true, status: 'pending', login: started });
@@ -723,10 +897,36 @@ export function createCoreHost({
         case 'logout': {
           requireFacade();
           const accountProvider = requireProvider(message.provider);
+          if (accountIsolation) {
+            const active = musicAccount(store);
+            if ((message.accountRevision !== undefined && message.accountRevision !== active.revision)
+              || (message.attemptId && message.attemptId !== loginAttempt?.id)) {
+              throw new MusicError('music_account_changed', '音乐账号已变化，请刷新后重试。');
+            }
+            const result = await disconnectAccount(message.provider, accountProvider);
+            send({ type: 'result', id, ok: true, status: result.status, accountDisconnected: active.provider === message.provider, account: accountProvider.getAccount() });
+            return;
+          }
           let result;
           try { result = await accountProvider.logout(); }
-          finally { platformsFacade.clearDiscovery(); publishIfChanged(); }
+          finally {
+            core.suspendProvider(message.provider);
+            if (message.provider === playbackSourceView(store).provider) platformsFacade.clearDiscovery();
+            publishIfChanged();
+          }
           send({ type: 'result', id, ok: true, status: result.status, account: accountProvider.getAccount() });
+          return;
+        }
+        case 'recover-legacy-music': {
+          requireFacade();
+          checkPlatformAccess(message);
+          const restored = recoverLegacyMusicData(store, message.provider, message.accountRevision);
+          if (restored) {
+            ++inputEpoch;
+            if (recommendationMode(store) === 'filtered') platformsFacade.clearDiscovery();
+            updateAccount();
+          }
+          send({ type: 'result', id, ok: true, restored });
           return;
         }
         case 'import-platform': {
@@ -737,6 +937,7 @@ export function createCoreHost({
           try {
             const checkInput = () => {
               if (closed || inputVersion !== inputEpoch) throw new MusicError('cancelled', '曲库或偏好已重置，本次旧导入已取消，请重新导入。');
+              checkPlatformAccess(message);
             };
             checkInput();
             const seed = await accountProvider.getSeedTracks({
@@ -750,7 +951,7 @@ export function createCoreHost({
             });
             const taste = initializeAgentPreferences({ store, seed: message.seed ?? null, now: now() });
             invalidateProfile();
-            if(recommendationMode(store)==='filtered')platformsFacade.clearDiscovery();
+            if(recommendationMode(store)==='filtered' && message.provider===playbackSourceView(store).provider)platformsFacade.clearDiscovery();
             platformsFacade.tickDiscovery();
             publishIfChanged();
             send({ type: 'result', id, ok: true, provider: message.provider, source: seed.source, import: imported, attempts: seed.attempts, taste, snapshot: core.snapshot() });
@@ -801,21 +1002,25 @@ export function createCoreHost({
             playbackPool:status?.playbackPool??null,
             filtering: status?.filtering === true, refreshing: status?.refreshing === true,
             hasFilter: Boolean(filter), llmMode, pipeline:status?.pipeline??null,
-            referenceCount:store.countEnvironment(),
+            referenceCount:store.countEnvironment(playbackSourceView(store).provider),
           } });
           return;
         }
         case 'search': {
           requireFacade();
+          checkPlatformAccess(message);
           const accountProvider = requireProvider(message.provider);
           const found = await accountProvider.search(message.query ?? '', { limit: message.limit ?? 20, signal: null });
+          if (inputVersion !== inputEpoch) throw new MusicError('music_account_changed', '音乐账号已变化，请重新搜索。');
           send({ type: 'result', id, ok: true, provider: message.provider, query: found.query, tracks: found.tracks, capability: found.capability });
           return;
         }
         case 'playlists': {
+          checkPlatformAccess(message);
           const adapter=requireProvider(message.provider);
           if(typeof adapter.getUserPlaylists!=='function')throw new MusicError('capability_unavailable','Playlist selection is unavailable');
           const playlists=await adapter.getUserPlaylists();
+          if (inputVersion !== inputEpoch) throw new MusicError('music_account_changed', '音乐账号已变化，请重新读取歌单。');
           send({type:'result',id,ok:true,playlists});return;
         }
         case 'account': {
@@ -859,12 +1064,15 @@ export function createCoreHost({
   async function close() {
     if (closed) return;
     closed = true;
+    loginAttempt?.controller.abort();
+    loginAttempt = null;
     clearInterval(timer);
     clearInterval(loopTimer);
     if (maintenance) clearInterval(maintenance);
     platformsFacade?.closeDiscovery();
     lyrics.close();
     core?._invalidate();
+    await registry.close?.();
     try { await disposePlayback(); } catch (error) { onLog({ type: 'playback-dispose-failed', message: error.message }); }
     try { await core?.waitForIdle(); } catch { /* late tasks cannot publish after invalidation */ }
     try { if (!givenStore) store.close(); } catch { /* already closed */ }
@@ -884,6 +1092,20 @@ export function createCoreHost({
 
   return {
     async start() {
+      if (accountIsolation) {
+        const previous = musicAccount(store);
+        const active = initializeMusicAccount(store, playbackSourceView(store).provider);
+        for (const name of PROVIDERS) {
+          if (name === active.provider || !store.getCredentialReference(name)) continue;
+          try { await registry.providers[name]?.logout(); }
+          catch (error) { onLog({ type: 'account-cleanup', provider: name, code: error.code ?? 'provider_failure' }); }
+        }
+        const saved = store.getCoreState();
+        if (saved && (!previous || active.revision !== previous.revision)) {
+          store.setCoreState({ ...saved, queue: [], lastSelection: null, lastError: null,
+            current: !previous && saved.current?.track.provider === active.provider ? saved.current : null });
+        }
+      }
       const created = await createPlayback({ mode: playbackMode, onLog, network });
       playback = created.playback;
       disposePlayback = created.dispose;
@@ -965,6 +1187,19 @@ export function createCoreHost({
       });
       platformsFacade?.setDiscoveryEnabled(core.snapshot().settings.discovery && core.snapshot().settings.discoveryRate > 0);
       send({ type: 'ready', protocol: CORE_HOST_PROTOCOL, snapshot: core.snapshot() });
+      if (registry.providers.qq && store.getCredentialReference('qq')?.state === 'authorized'
+        && (!accountIsolation || musicAccount(store).provider === 'qq')) {
+        if (accountIsolation) {
+          void restoreAccount('qq', registry.providers.qq)
+            .catch(error => { if (!closed) onLog({ type: 'provider-restore', provider: 'qq', code: error.code ?? 'provider_failure' }); });
+        } else void registry.providers.qq.restore().then(() => {
+          if (closed) return;
+          invalidateProfile();
+          core._commit();
+          platformsFacade?.tickDiscovery();
+          publishIfChanged();
+        }).catch(error => { if (!closed) onLog({ type: 'provider-restore', provider: 'qq', code: error.code ?? 'provider_failure' }); });
+      }
       platformsFacade?.onDiscoveryChange(() => { invalidateProfile(); core._commit(); publishIfChanged(); });
       platformsFacade?.tickDiscovery();
       timer = setInterval(() => {
@@ -983,8 +1218,9 @@ export function createCoreHost({
     // long account/import work so a slow media request cannot hold up pause.
     handle: (message) => {
       const inputVersion = inputEpoch;
-      return ['lyrics','command','snapshot','platforms','library','account','environment','insights','expression-style','network-proxy','feedback-list','feedback-clear','persona','recommendation-route','persona-budget','persona-output','persona-automatic','persona-reserve','persona-start','persona-finish','sessions','discovery','discovery-filter-status','shutdown','wait','autonomous','session-event','setQueue'].includes(message.type)
-        ? handle(message, inputVersion) : enqueue(() => handle(message, inputVersion));
+      if (accountIsolation && message.type === 'login') return handle(message, inputVersion);
+      return ['lyrics','command','snapshot','platforms','library','account','environment','insights','expression-style','playback-source','network-proxy','feedback-list','feedback-clear','persona','recommendation-route','persona-budget','persona-output','persona-automatic','persona-reserve','persona-start','persona-finish','sessions','discovery','discovery-filter-status','logout','recover-legacy-music','shutdown','wait','autonomous','session-event','setQueue'].includes(message.type)
+        ? handle(message, inputVersion) : enqueue(message.provider ?? 'default', () => handle(message, inputVersion));
     },
     close,
     get core() { return core; },

@@ -6,6 +6,7 @@ const safeId=v=>typeof v==='string'&&/^[\w./:-]{1,120}$/.test(v);
 export function createPersonaModelService({llm,bridge,onLog=()=>{}}){
  let disposed=false,catalog=null,catalogAt=0,catalogPending=null,observed=null;
  const ownRequests=new WeakSet(),active=new Set();
+ const generations = new Map();
  async function models(){
   if(catalog&&Date.now()-catalogAt<60000)return catalog;
   if(catalogPending)return catalogPending;
@@ -20,6 +21,7 @@ export function createPersonaModelService({llm,bridge,onLog=()=>{}}){
   })().finally(()=>{catalogPending=null;});return catalogPending;
  }
  async function summarize(route,{signal,maxOutputTokens=null,automatic=false,purpose='persona-summary'}={}){
+  const generation = generations.get(purpose) ?? 0;
   if(maxOutputTokens!==null&&(!Number.isSafeInteger(maxOutputTokens)||maxOutputTokens<64))throw Object.assign(new Error('单次输出上限至少为 64 tokens。'),{code:'invalid_output'});
   if(purpose==='model-recommendations'&&maxOutputTokens!==null&&maxOutputTokens<128)throw Object.assign(new Error('歌单输出上限至少为 128 tokens。'),{code:'invalid_output'});
   if(disposed||signal?.aborted)throw Object.assign(new Error('总结已取消。'),{code:'cancelled'});
@@ -29,7 +31,8 @@ export function createPersonaModelService({llm,bridge,onLog=()=>{}}){
   const answer=await bridge.request({type:'persona-reserve',provider:route.provider,model:route.model,automatic:automatic===true,purpose});
   const plan=answer.plan;if(plan.cached)return{cached:true};
   const abort=new AbortController();active.add(abort);const combined=signal?AbortSignal.any([abort.signal,signal]):abort.signal;
-  if(disposed)abort.abort();
+  abort.purpose = purpose;
+  if(disposed || generation !== (generations.get(purpose) ?? 0))abort.abort();
   const timer=setTimeout(()=>abort.abort(),45000);
   let usage=null,text='',status='failed',code=null,started=false,finishReason=null,reasoningOnly=false;
   const blocks=new Map();
@@ -79,6 +82,10 @@ export function createPersonaModelService({llm,bridge,onLog=()=>{}}){
   return{cached:false};
  }
  return{models,summarize,peekModels:()=>catalog??(observed?[{...observed,label:`${observed.provider} · ${observed.model}`}]:[]),
+  cancel(purpose) {
+    generations.set(purpose, (generations.get(purpose) ?? 0) + 1);
+    for (const controller of active) if (controller.purpose === purpose) controller.abort();
+  },
   warm(){if(!catalogPending&&(!catalog||Date.now()-catalogAt>=60000))void models();},
   observe(options){if(!ownRequests.has(options)&&safeId(options?.provider)&&safeId(options?.model)){
    const changed=observed?.provider!==options.provider||observed?.model!==options.model;

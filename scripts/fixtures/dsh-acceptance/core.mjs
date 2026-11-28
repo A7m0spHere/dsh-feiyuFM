@@ -27,7 +27,7 @@ if(store.listEnvironment().length===0){
 }
 let facade,registry;
 if(repeatPolicy){
- const owner='netease:authorized:acceptance-fixture',hash=createHash('sha256').update(owner).digest('hex'),at=Date.now();
+ const owner='source-v2:netease:0:authorized:acceptance-fixture',hash=createHash('sha256').update(owner).digest('hex'),at=Date.now();
  store.setSetting('recommendation_mode_v1','filtered');
  store.setSetting('summary_daily_tokens',0);
  const cached=tracks.map(t=>({...t,discovery:{source:'netease_similar',seedTrackKey:'netease:acceptance-1',fetchedAt:at,expiresAt:at+21600000}}));

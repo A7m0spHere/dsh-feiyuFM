@@ -1,3 +1,5 @@
+import {playbackSourceView} from './playback-source.mjs';
+import { publicMusicAccount } from './music-account.mjs';
 // Core owns facts, reservations and real usage. Summary prose never changes taste.
 import {randomUUID,createHash} from 'node:crypto';
 import {describeMusicInsights} from './insights.mjs';
@@ -77,9 +79,10 @@ export function factBundle(store,snapshot,purpose='persona-summary',candidates=n
     title:String(track.title??'').slice(0,24),artist:String(track.artist??'').slice(0,20),
     ...(trackFeedback(store,track)===1?{feedback:'liked'}:trackFeedback(store,track)===-1?{feedback:'reduced'}:{}),
     from:track.discovery?.seedTitle?`相似于《${String(track.discovery.seedTitle).slice(0,14)}》`
-     :track.discovery?.source==='netease_daily'?'每日推荐':track.discovery?.source==='netease_personal_fm'?'私人FM':'平台推荐'}))};
-  if(recommendationMode(store)==='filtered')facts.references=store.listEnvironment({provider:'netease',limit:4}).map(row=>{
-    const track=store.getNormalizedTrack({provider:'netease',providerTrackId:row.track_key.slice(8)});
+     :track.discovery?.source?.endsWith('_daily')?'每日推荐':track.discovery?.source?.endsWith('_personal_fm')?'私人FM':'平台推荐'}))};
+  if(recommendationMode(store)==='filtered')facts.playbackSource=playbackSourceView(store);
+  if(recommendationMode(store)==='filtered')facts.references=store.listEnvironment({provider:playbackSourceView(store).provider,limit:4}).map(row=>{
+    const track=store.getNormalizedTrack({provider:row.provider,providerTrackId:row.track_key.slice(row.provider.length+1)});
     return [track.title.slice(0,24),track.artist.slice(0,20)];
   });
  }
@@ -205,6 +208,7 @@ export function reserveSummary({store,snapshot,provider,model,now=Date.now(),aut
   if(automatic&&purpose===DISCOVERY_FILTER_PURPOSE&&recommendationMode(store)==='filtered'
     &&(!snapshot.settings.listening||snapshot.blockUntil>now))throw Object.assign(new Error('自主听歌已关闭；仍可手动找歌。'),{code:'autonomy_blocked'});
   const bundle=factBundle(store,snapshot,purpose,candidates,graph),cached=purpose===STRATEGY_PURPOSE?modelRecommendations(store):purpose===DISCOVERY_FILTER_PURPOSE?store.getSetting('discovery_filter_v1',null):store.getSetting('persona_summary_v1',null),policy=readPolicy(store);
+  const account = publicMusicAccount(store);
   if(purpose===DISCOVERY_FILTER_PURPOSE&&candidateRevision){
    const charged=aggregate(store.db.prepare('SELECT usage_json,reserved_tokens FROM music_model_calls WHERE day=?').all(dayOf(now))).chargedTokens;
    const remaining=Math.max(0,policy.dailyTokens-charged);
@@ -244,6 +248,7 @@ export function reserveSummary({store,snapshot,provider,model,now=Date.now(),aut
   // Conservative reservation, not a claim about exact input tokenization.
   const reserved=bundle.bytes+1024+policy.maxOutputTokens,today=aggregate(store.db.prepare('SELECT usage_json,reserved_tokens FROM music_model_calls WHERE day=?').all(dayOf(now)));
   if(Math.max(0,policy.dailyTokens-today.chargedTokens)<reserved)fail('budget_exhausted');
+  if (account) bundle.facts.musicAccountRevision = account.revision;
   const callId=randomUUID();store.db.prepare("INSERT INTO music_model_calls (call_id,day,provider,model,fact_hash,status,reserved_tokens,started_at,trigger,valid_listens,baseline_growth_rowid,purpose,facts_json) VALUES (?,?,?,?,?,'reserved',?,?,?,?,?,?,?)")
    .run(callId,dayOf(now),provider,model,bundle.factHash,reserved,now,automatic?'automatic':'manual',evidence.total,evidence.watermark,purpose,JSON.stringify(bundle.facts));
   return{cached:false,callId,provider,model,system:bundle.system,prompt:bundle.prompt,maxTokens:policy.maxOutputTokens,
@@ -251,6 +256,11 @@ export function reserveSummary({store,snapshot,provider,model,now=Date.now(),aut
  });
 }
 export function startSummary(store,callId){
+ const account = publicMusicAccount(store);
+ if (account) {
+  const row = store.db.prepare('SELECT facts_json FROM music_model_calls WHERE call_id=?').get(callId);
+  if (JSON.parse(row?.facts_json ?? 'null')?.musicAccountRevision !== account.revision) return false;
+ }
  return store.db.prepare("UPDATE music_model_calls SET status='running' WHERE call_id=? AND status='reserved'").run(callId).changes===1;
 }
 /** 解析发现筛选的模型输出：序号必须落在候选范围内，理由截断，重复序号丢弃。 */
@@ -280,6 +290,10 @@ export function finishSummary({store,callId,status='failed',usage=null,text='',c
   if(!row||!['reserved','running'].includes(row.status))return{duplicate:true};
   const actual=measuredUsage(usage);let success=status==='completed'&&typeof text==='string'&&text.trim().length>0,strategy=null;
   let safeCode=/^[\w-]{1,60}$/.test(code??'')?code:null;
+  const account = publicMusicAccount(store);
+  if (success && account && JSON.parse(row.facts_json ?? 'null')?.musicAccountRevision !== account.revision) {
+   success = false; safeCode = 'music_account_changed';
+  }
   if(success&&row.purpose===STRATEGY_PURPOSE){try{strategy=parseModelRecommendations(text,JSON.parse(row.facts_json));}catch{success=false;safeCode='invalid_recommendations';}}
   if(success&&row.purpose===DISCOVERY_FILTER_PURPOSE){try{strategy=parseDiscoveryFilterPicks(text,JSON.parse(row.facts_json??'null'));}catch{strategy=null;}
    if(!strategy){success=false;safeCode='invalid_recommendations';}

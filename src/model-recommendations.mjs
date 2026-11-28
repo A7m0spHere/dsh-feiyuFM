@@ -1,3 +1,4 @@
+import {playbackSourceView} from './playback-source.mjs';
 // Model-proposed songs are data. Only matching platform metadata becomes playable.
 import {MusicError,trackId,normalizeTrack} from './contracts.mjs';
 export const STRATEGY_KEY='model_recommendations_v1';
@@ -83,15 +84,16 @@ export function createModelRecommendationResolver({store,registry,now=()=>Date.n
   lastAttempt=now();controller=new AbortController();const signal=controller.signal,id=record.callId;
   const work=(async()=>{
    const verified=[],attempts=[];let loginUnavailable=false;
-   const local=store.db.prepare("SELECT provider_track_id FROM tracks WHERE provider='netease'").all().map(r=>store.getNormalizedTrack({provider:'netease',providerTrackId:r.provider_track_id}));
+   const provider=playbackSourceView(store).provider;
+   const local=store.db.prepare('SELECT provider_track_id FROM tracks WHERE provider=?').all(provider).map(r=>store.getNormalizedTrack({provider,providerTrackId:r.provider_track_id}));
    for(const [index,song] of record.songs.entries()){
     if(signal.aborted||stopped||modelRecommendations(store)?.callId!==id)return{reason:'cancelled'};
     try{
      let found=local.filter(t=>matches(song,t));
      if(found.length!==1){
       if(loginUnavailable){attempts.push({index,status:'login-required'});continue;}
-      const result=await registry.search('netease',`${song.title} ${song.artist}`,{limit:10,signal});
-      found=[...new Map((result.tracks??[]).filter(t=>t.provider==='netease'&&matches(song,t)).map(t=>[trackId(t),t])).values()];
+      const result=await registry.search(provider,`${song.title} ${song.artist}`,{limit:10,signal});
+      found=[...new Map((result.tracks??[]).filter(t=>t.provider===provider&&matches(song,t)).map(t=>[trackId(t),t])).values()];
      }
      const selected=selectMatchedVersion(song,found);
      if(!selected){attempts.push({index,status:found.length?'ambiguous':'not-found'});continue;}

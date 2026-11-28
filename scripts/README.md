@@ -38,6 +38,8 @@
 | `node scripts/probes/initial-state-install.mjs --package <tgz> --out <全新目录>` | 官方隔离 DSH、默认生产 Core、认证 minimal RPC、安装客户端的登录入口与阶段诊断；`--missing-dependency` 注入缺包，`--database-from <库> --reinstall` 只读复制旧库并核对重装保留，`--online` 允许普通源码依赖解析，`--qr` 只申请二维码、授权由用户完成 |
 | `node scripts/verify-installed-package.mjs <consumer-directory>` | 在已安装的隔离消费者目录核对入口、资源、依赖及静音 WPF；消费者通常应在仓库外 |
 | `node scripts/verify-windows-credentials.mjs <installed-package-root>` | 必须在 Windows 上实测已安装包的 DPAPI：PowerShell 7、5.1、仅 5.1 PATH 的写入/跨进程读取/删除；使用合成数据，不输出凭据。非 Windows 明示不适用 |
+| `node scripts/probes/initial-state-install.mjs --package <tgz> --out <新目录> --single-account` | 隔离真实 DSH 的双适配器注册、单扫码限制、QQ 二维码、取消和重启验证。仅通过认证 RPC 操作，账号授权由用户另行完成 |
+| `node scripts/probes/qq-provider-live.mjs --out <新目录>` | 独立 QQ 真实账号验证，手机 QQ 扫码后检查导入、搜索、取链、静音音频、歌词、推荐与重启恢复。使用新建隔离加密存储，结束清理临时凭据，仅保存脱敏步骤结果 |
 | `node scripts/dependency-notices.mjs` | 仅更新版权声明中的依赖清单，核对 README／子目录原文与补充通知；`--check` 只检查是否过期；生成结果需审阅并提交 |
 | `node scripts/import-doll-artwork.mjs --source <Workshop目录>` | 按 U12 来源 hash 提取原图；正常安装不需要再提取 |
 | `python scripts/cutout-whale-pot.py --source <原附件>` | U10 指定附件的逐帧资产构建，不用于普通运行；工具依赖见 U10 |
@@ -49,7 +51,7 @@
 | 入口 | 实际边界 |
 |---|---|
 | `npm run smoke:playback` | 真实 WPF 合成测试音，无平台账号；会发声 |
-| `npm run login` | 真实平台扫码，授权由用户完成，不属于常规离线整理 |
+| `npm run login` | 网易云独立扫码探针，凭据使用探针引用，插件登录在 DSH 设置完成 |
 | `npm run observe:runtime -- --seconds <时长> --out <报告>` | 附着已运行生产插件的证据，不启动第二个 Core |
 | `node scripts/observe-processes.mjs --seconds <时长> --out <报告>` | Windows 进程资源只读观察，不输出命令行/凭据 |
 | `node scripts/audit-real-observation.mjs --report <报告> --database <库>` | 只读数据库核对既有真实观察，不实例化 Core |

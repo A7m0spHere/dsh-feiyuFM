@@ -279,7 +279,7 @@ test('guide routes connect and import to the actual expanded account controls an
     assert.equal(tree.find(n => n.props.className?.includes('fm-platform-details')).props.open, true);
     assert.ok(tree.some(n => n.props['data-guide-login'] && n.children.includes('扫码登录')));
     tree.find(n => n.props['data-guide-step'] === 'import').props.onClick(); tree = all(f.render());
-    assert.ok(tree.some(n => n.children.includes('请先扫码连接网易云，授权后即可在这里选择来源并导入。')));
+    assert.ok(tree.some(n => n.children.includes('任选一个音乐平台扫码，登录后导入参考歌曲。')));
     tree.find(n => n.props['data-guide-step'] === 'listen').props.onClick(); tree = all(f.render());
     assert.equal(tree.find(n => n.type === 'button' && n.children.includes('正在听')).props['aria-pressed'], true);
     assert.ok(tree.some(n => n.props.role === 'status' && n.children.some(s => typeof s === 'string' && s.includes('喜欢／少推荐'))));
@@ -321,7 +321,7 @@ for (const [name, options] of [
   try { await f.ready(); assert.equal(f.controller.getSnapshot().guideVisible, false); assert.equal(f.controller.getSnapshot().guideStatus, 'existing');
     if (name === 'authorized account') { f.controller.openGuide();
       all(f.render()).find(n => n.props['data-guide-step'] === 'connect').props.onClick();
-      assert.ok(all(f.render()).some(n => n.children.includes('网易云已连接，可在这里选择来源并导入参考歌曲。')));
+      assert.ok(all(f.render()).some(n => n.children.includes('选择曲库来源并导入参考歌曲。')));
       all(f.render()).find(n => n.props['data-guide-step'] === 'import').props.onClick();
       assert.ok(all(f.render()).some(n => n.props['data-guide-import'] && n.props['aria-label'] === '导入来源')); }
   } finally { f.dispose(); }
@@ -1888,4 +1888,83 @@ test('console tabs mount on first visit and stay mounted while hidden', async ()
     assert.equal(mounted.find(node => node.props.className === 'fm-discover-page').props.hidden, true);
     assert.equal(mounted.find(node => node.props.className === 'fm-listen-page').props.hidden, false);
   } finally { off(); f.dispose(); }
+});
+
+
+test('the panel switches through logout and drops the previous account library even with a late reply', async () => {
+  let revision = 1, provider = 'netease';
+  const attemptId = 'ba170000-0000-0000-0000-000000000001';
+  const deferred = Promise.withResolvers();
+  const oldLibrary = { accountRevision: 1, total: 1, tracks: [{ provider: 'netease', providerTrackId: '1', title: 'Old library' }] };
+  const current = () => ({
+    ok: true, value: {
+      snapshot: { ...snapshot(revision), musicAccount: { provider, revision } },
+      library: revision === 1 ? oldLibrary : { accountRevision: revision, total: 0, tracks: [] },
+      platforms: Object.fromEntries(['netease', 'qq'].map(id => [id, {
+        installed: true, account: { status: id === provider ? 'authorized' : 'login_required' },
+      }])),
+    },
+  });
+  const f = fixture(async (_channel, endpoint, payload) => {
+    if (endpoint === 'fishfm/library') return payload.query === 'old' ? deferred.promise : current();
+    if (endpoint === 'fishfm/logout') {
+      assert.equal(payload.provider, 'netease');
+      assert.equal(payload.accountRevision, 1);
+      revision++; provider = null;
+      return { ok: true, value: { ...current().value, library: oldLibrary, login: null } };
+    }
+    if (endpoint === 'fishfm/login-start') {
+      assert.equal(payload.provider, 'qq');
+      return { ok: true, value: { ...current().value, login: { provider: 'qq', status: 'waiting', attemptId } } };
+    }
+    if (endpoint === 'fishfm/login-poll') {
+      assert.equal(payload.attemptId, attemptId);
+      assert.equal(payload.accountRevision, 2);
+      revision++; provider = 'qq';
+      return { ok: true, value: { ...current().value, login: { provider: 'qq', status: 'authorized' } } };
+    }
+    return current();
+  });
+  try {
+    await f.controller.refresh();
+    const pendingLibrary = f.controller.queryLibrary('old');
+    await f.controller.platformAction('logout', 'netease');
+    assert.equal(f.controller.getSnapshot().snapshot.musicAccount.provider, null);
+    assert.equal(f.controller.getSnapshot().library.total, 0);
+    await f.controller.platformAction('begin', 'qq');
+    await f.controller.platformAction('poll', 'qq');
+    deferred.resolve({ ok: true, value: { library: oldLibrary } });
+    await pendingLibrary;
+    assert.equal(f.controller.getSnapshot().snapshot.musicAccount.provider, 'qq');
+    assert.equal(f.controller.getSnapshot().library.total, 0);
+  } finally { f.dispose(); }
+});
+
+
+test('the old-data recovery button claims explicitly for the current account and refreshes the library', async () => {
+  const accountRevision = 1;
+  let claimed = false;
+  const f = fixture(async (_channel, endpoint, payload) => {
+    if (endpoint === 'fishfm/recover-legacy-music') {
+      assert.deepEqual([payload.provider, payload.accountRevision], ['netease', accountRevision]);
+      claimed = true;
+    }
+    return { ok: true, value: {
+      snapshot: { ...snapshot(claimed ? 2 : 1), musicAccount: { provider: 'netease', revision: accountRevision } },
+      platforms: { netease: { installed: true, account: { status: 'authorized' }, legacyRecoveryAvailable: !claimed } },
+      library: { accountRevision, total: claimed ? 1 : 0, tracks: claimed ? [{ provider: 'netease', providerTrackId: '1', title: 'Recovered' }] : [] },
+      ...(endpoint === 'fishfm/recover-legacy-music' ? { legacyRestored: true } : {}),
+    } };
+  });
+  try {
+    await f.controller.refresh();
+    all(f.render()).find(n => n.type === 'button' && n.children.includes('电台设置')).props.onClick();
+    const recoveryButton = () => all(f.render()).find(n => n.type === 'button' && n.children.includes('恢复旧版资料到当前账号'));
+    assert.equal(claimed, false);
+    assert.equal(recoveryButton().props.disabled, false);
+    await recoveryButton().props.onClick();
+    assert.equal(claimed, true);
+    assert.equal(f.controller.getSnapshot().library.tracks[0].title, 'Recovered');
+    assert.equal(recoveryButton(), undefined);
+  } finally { f.dispose(); }
 });

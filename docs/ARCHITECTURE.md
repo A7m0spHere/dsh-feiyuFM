@@ -1,6 +1,6 @@
 # 技术架构
 
-更新：2026-11-07。本文维护进程、模块职责和数据流；字段、数值门控与恢复细节见 [控制契约](CORE_CONTRACT.md)，部署及验收状态只看 [开发状态](PROJECT_PLAN.md)。
+更新：2026-11-17。本文维护进程、模块职责和数据流；字段、数值门控与恢复细节见 [控制契约](CORE_CONTRACT.md)，部署及验收状态只看 [开发状态](PROJECT_PLAN.md)。
 
 ## 运行结构
 
@@ -11,7 +11,8 @@ DSH 插件宿主（index.js）
  ├─ PersonaModelService：复用 DSH 模型，执行低频调用
  └─ 独立 Node Core
      ├─ MusicCore：播放状态、队列、用户命令与决策版本
-     ├─ Provider：账号、导入、候选、搜索、资源解析
+     ├─ Provider：平台适配、导入、候选、搜索、资源解析
+     │   └─ QQ Worker → 固定 SDK 的无监听 handleRequest
      ├─ 本地选择器 / 平台缓存 / LLM 入选歌单
      ├─ MusicStore：SQLite、反馈、历史/成长与模型账本
      └─ PlaybackService → 本机 IPC → WPF / AVFoundation 宿主
@@ -35,13 +36,13 @@ DSH 插件宿主（index.js）
 | UI / Expression | 状态投影、命令、本机展示偏好和确定性表达 | `src/ui/client/`、`src/ui/dsh-settings.mjs`、`src/expression.mjs` |
 | 运行证据 / 研究 | 有界脱敏采集与写入健康；研究工具只读导出／离线回放 | `src/runtime/`、[脚本索引](../scripts/README.md) |
 
-网易云固定使用 `@neteasecloudmusicapienhanced/api@4.40.1`，不另起 Express 服务；QQ 保留相同契约，账号与 ID 不跨平台混用。版本、来源与许可查 [第三方声明](../THIRD_PARTY_NOTICES.md)。
+网易云固定使用 `@neteasecloudmusicapienhanced/api@4.40.1`，不另起 Express 服务；QQ 固定 `@yakult-green-tea/qq-music-api@3.3.7` 的 `/serverless` 公开入口，在延迟启动的 Worker 内经消息调用。Worker 的独立 fetch 上下文采用请求级网络配置和取消信号，退出时一并终止。两平台共享 Provider 状态机，Core 统一管理每个插件实例的单账号登录。版本、来源与许可查 [第三方声明](../THIRD_PARTY_NOTICES.md)。
 
 ## 推荐与状态所有权
 
 导入 → 来源事实／用户环境 → 仅补缺失的 Agent 偏好。显式喜欢／少推荐与成长分开保存，候选事实按歌曲带反馈；不从未知流派、情绪或工作上下文猜信号。
 
-默认 `filtered`：参考输入召回真实网易云候选 → `discovery-filter` 预留／批量挑选 → 按预留索引映射 → 本地只执行入选歌单。账号、批次和代次保护旧响应；普通失败可保留同账号有效旧歌单，切号／清空不能复用。旧直接生成歌名／搜索核对保留内部兼容，见 [N22](spikes/N22-platform-first-recommendations.md)。
+默认 `filtered`：参考输入召回所选平台候选 → `discovery-filter` 预留／批量挑选 → 按预留索引映射 → 本地只执行入选歌单。账号、批次和代次保护旧响应；普通失败可保留同账号有效旧歌单，切号／清空不能复用。旧直接生成歌名／搜索核对保留内部兼容，见 [N22](spikes/N22-platform-first-recommendations.md)。
 
 本地选择先过滤硬约束、不可播、当前和冷却，再按 `local-v5` 的偏好、关系、反馈、重复限制与模型排名评分。自主续播不回退输入，用户主动下一首可在歌单耗尽时回退并记录来源。逐曲选择／解释／控制不请求模型，总结／歌单／筛选共用预算和账本。
 
@@ -66,3 +67,9 @@ Windows 使用隐藏 STA PowerShell 中的 WPF `MediaPlayer`，优先 `pwsh`、�
 工作区背景由 `spectrum-backdrop` 挂到 `shell.overlay` 并测量真实会话留白；`spectrum-bars` 负责固定步长模拟与连续亮度场，`spectrum-whale` 只改写同一字符矩阵，`spectrum-canvas` 用上下亚字符位移将左锚水平条绘制到一个透明局部 Canvas。它只读安全播放投影，不承载音频或改变布局；未来频段输入的本地边界见契约，视觉取舍见 [U22](spikes/U22-ascii-spectrum-backdrop.md)。
 
 U24 主面板按陪伴视图组织，2026-11-02 修订将设置从右侧抽屉迁入第四个页面，与正在听、发现记录、偏好与反馈共用页面切换和底部播放控制；各页面保持挂载，通过 hidden 切换可见性，保留表单草稿和折叠状态。主面板（含电台设置标签页）与悬浮条仍共享客户端控制器与同一 Core，DSH 全局设置不再有独立入口。可选歌曲从整个有效批准池投影安全元数据，不把 UI 列表当成固定播放队列；没有新增播放器宿主或模型调用路径。见 [U24](spikes/U24-companion-player.md)。
+
+## 单账号与平台会话
+
+Core 全局登记扫码尝试与当前账号，平台随账号确定。SQLite 活动表供曲库、选择器和历史查询使用，切换时把账号私有记录事务性归档并加载目标账号。推荐缓存归属由平台和稳定账号 ID 决定，旧请求通过账号 revision 和取消信号失效。
+
+QQ 使用 sealed 会话，稳定运行时密钥与 token 通过 DPAPI／Keychain 保存。重启后后台验证账号资料，HTTP 200 空资料映射为失效。并发续期共用独立请求，各等待者可以分别取消，退出取消整个账号的请求与私有资源。当前 Worker 入口、实包与待验边界见 [N8 实施记录](spikes/N8-qq-provider-implementation.md)。

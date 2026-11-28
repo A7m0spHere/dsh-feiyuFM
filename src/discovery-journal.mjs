@@ -1,3 +1,4 @@
+import {isRecommendationSource} from './playback-source.mjs';
 // Bounded read-only projection of the current valid filtered batch, not a new log.
 import {trackId} from './contracts.mjs';
 import {qualifiesAsListen} from './growth.mjs';
@@ -32,8 +33,8 @@ export function describeDiscoveryJournal({store, pipeline, snapshot = null, now 
     if (!candidate) continue;
     const original = Array.isArray(facts.localCandidates) ? facts.localCandidates.find(t => keyOf(t) === key) : null;
     const origin = original?.discovery ?? {};
-    const source = ['netease_similar', 'netease_daily', 'netease_personal_fm', 'platform_recommendation'].includes(origin.source) ? origin.source : 'unknown';
-    const linked = source === 'netease_similar' && [origin.seedTrackKey, ...(Array.isArray(origin.seedTrackKeys) ? origin.seedTrackKeys : [])].some(k => typeof k === 'string' && /^netease:[\w.-]{1,80}$/.test(k));
+    const source = isRecommendationSource(origin.source, track.provider) ? origin.source : 'unknown';
+    const linked = source === `${track.provider}_similar` && [origin.seedTrackKey, ...(Array.isArray(origin.seedTrackKeys) ? origin.seedTrackKeys : [])].some(k => typeof k === 'string' && k.startsWith(`${track.provider}:`) && /^[\w:.-]{1,100}$/.test(k));
     rows.set(key, {key, title: safeLabel(track.title) || '曲名未提供', artist: safeLabel(track.artist) || '艺人未提供',
       recommended: true, evidence: describeCandidateEvidence({id: key, source, known: null, feedback: candidate?.feedback, seedRelated: linked}).facts,
       userRequested: false, agentExperienced: false, silentExperienced: false, audibleHeard: false, latestListenAt: null});

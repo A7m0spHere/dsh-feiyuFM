@@ -44,6 +44,7 @@ export function createController(connection, { onPlaybackTrace = null } = {}) {
     networkProxy: null, networkProxyBusy: false, networkProxyError: '', networkProxyNotice: '',
     volumePending: null, volumeError: '',
     feedbackPage: null, feedbackListBusy: false, feedbackClearBusy: false, feedbackError: '', feedbackNotice: '',
+    platformStates: {},
     login: null, imported: null, importAttempts: [], library: { total: 0, tracks: [] },
     profileState: 'idle', profileError: '',
     widgetVisible: readPreference(WIDGET_VISIBLE_KEY, true) !== false,
@@ -52,10 +53,11 @@ export function createController(connection, { onPlaybackTrace = null } = {}) {
     spectrumVisible: readPreference(SPECTRUM_VISIBLE_KEY, true) !== false,
     motion: ['full', 'reduced', 'off'].includes(readPreference(MOTION_KEY, 'full')) ? readPreference(MOTION_KEY, 'full') : 'full',
   };
-  let epoch = 0, playbackEpoch = 0, libraryEpoch = 0, platformEpoch = 0, timer, playbackTimer, read, transportWrite, settingsWrite, platformWrite, libraryRead,summaryWrite,expressionWrite, disposed = false;
+  let epoch = 0, playbackEpoch = 0, libraryEpoch = 0, platformEpoch = 0, timer, playbackTimer, read, transportWrite, settingsWrite, libraryRead,summaryWrite,expressionWrite, disposed = false;
   let networkProxyEpoch = 0, networkProxyRead = null, networkProxyWrite = null;
   let volumeWrite = null, volumeQueued = null, volumeRemembered = 0.35;
   const writes = new Set();
+  const platformWrites = new Map();
   const transportCommands = new Set(['pause', 'resume', 'next', 'previous', 'seek', 'requestTrack', 'stopForToday']);
   let libraryOptions = { query: '', offset: 0, limit: 12 };
   let feedbackOptions = { query: '', filter: 'all', offset: 0, limit: 12 };
@@ -67,6 +69,24 @@ export function createController(connection, { onPlaybackTrace = null } = {}) {
   let profileWanted = false, profileRead = null, profileEpoch = 0, profileRefreshQueued = false, profileDirty = false, profileTimer;
   const listeners = new Set();
   const emit = (patch) => { if (!disposed) {
+    const account = patch.snapshot?.musicAccount ?? state.snapshot?.musicAccount;
+    const accountChanged = patch.snapshot?.musicAccount && state.snapshot?.musicAccount
+      && account.revision !== state.snapshot.musicAccount.revision;
+    if (accountChanged) {
+      ++libraryEpoch; libraryRead?.abort(); libraryRead = null;
+      ++profileEpoch; profileRead?.abort(); profileRead = null;
+      ++feedbackEpoch; feedbackRead?.abort(); feedbackRead = null;
+      feedbackRetry = null; feedbackRevision = -1; feedbackRequestedRevision = -1;
+      libraryOptions = { query: '', offset: 0, limit: 12 };
+      patch = { ...patch, platforms: patch.platforms ?? {}, platformStates: {}, login: null, imported: null, playlists: null, importAttempts: [],
+        libraryQuery: '', libraryBusy: false, libraryError: '', libraryReady: false,
+        insights: null, persona: null, profileState: 'idle', profileError: '', feedbackPage: null, feedbackListBusy: false,
+        feedbackError: '', feedbackNotice: '', summaryNotice: '', summaryError: '' };
+    }
+    if (account && patch.library && patch.library.accountRevision !== account.revision) {
+      patch = { ...patch }; delete patch.library;
+    }
+    if (accountChanged && !patch.library) patch.library = { total: 0, tracks: [], accountRevision: account.revision };
     if (patch.insights?.feedback) {
       patch = { ...patch, insights: { ...patch.insights } };
       let feedback = patch.insights.feedback;
@@ -101,6 +121,14 @@ export function createController(connection, { onPlaybackTrace = null } = {}) {
       }
     }
     state = { ...state, ...patch }; listeners.forEach(fn => fn());
+    if (accountChanged) {
+      const revision = account.revision;
+      Promise.resolve().then(() => {
+        if (disposed || state.snapshot?.musicAccount?.revision !== revision) return;
+        if (account.provider && !libraryRead) void controllerApi.queryLibrary();
+        if (profileWanted && !profileRead) void loadProfile();
+      });
+    }
     if (patch.snapshot?.current) {
       const current = patch.snapshot.current;
       const detail = { traceId: traceInstances.get(current.playInstanceId) ?? null, playInstanceId: current.playInstanceId, version: patch.snapshot.commandVersion };
@@ -146,6 +174,10 @@ export function createController(connection, { onPlaybackTrace = null } = {}) {
       if (patch.library?.offset !== undefined) libraryOptions = { ...libraryOptions, offset: patch.library.offset };
     }
     const incoming = patch.snapshot, current = state.snapshot;
+    if (incoming?.musicAccount && current?.musicAccount && incoming.musicAccount.revision < current.musicAccount.revision) {
+      for (const key of ['snapshot', 'platforms', 'platformError', 'library', 'libraryError', 'insights', 'persona']) delete patch[key];
+      return patch;
+    }
     // Startup retains revision but advances commandVersion and restores pause.
     // Apply ordering to every entrance, including polling and command replies.
     const older = incoming && current && (incoming.revision < current.revision
@@ -202,6 +234,7 @@ export function createController(connection, { onPlaybackTrace = null } = {}) {
       const result = await connection.rpc.call('/api', 'fishfm/feedback-list', feedbackOptions, request.signal);
       if (version !== feedbackEpoch) return;
       if (!result.ok) throw result.error;
+      if (result.value?.accountRevision !== state.snapshot?.musicAccount?.revision) return;
       if (result.value?.feedbackPage?.version !== 1) throw { message: '反馈列表应答未就绪，请重试。' };
       applyFeedbackPage(result.value.feedbackPage, version);
     } catch (error) {
@@ -230,6 +263,10 @@ export function createController(connection, { onPlaybackTrace = null } = {}) {
       if (version !== profileEpoch || disposed) return;
       if (!result.ok) throw result.error;
       const value = result.value ?? {};
+      if (value.accountRevision !== state.snapshot?.musicAccount?.revision) {
+        emit({ profileState: 'idle' });
+        return;
+      }
       emit({ profileState: 'ready', profileError: '',
         insights: value.insights ?? state.insights,
         persona: value.persona ?? state.persona,
@@ -404,7 +441,8 @@ export function createController(connection, { onPlaybackTrace = null } = {}) {
     async playOrPause() {
       if (state.snapshot?.current) return this.command(state.snapshot.paused ? 'resume' : 'pause');
       // Manual mode stays manual: start one library song without enabling autonomy.
-      const firstTrack = state.library?.firstTrack ?? state.library?.tracks?.[0];
+      const provider = state.snapshot?.playbackSource?.provider ?? 'netease';
+      const firstTrack = [state.library?.firstTrack, ...(state.library?.tracks ?? [])].find(track => track?.provider === provider);
       if (!state.snapshot?.settings?.listening && firstTrack) {
         return this.command('requestTrack', firstTrack);
       }
@@ -444,8 +482,11 @@ export function createController(connection, { onPlaybackTrace = null } = {}) {
         const result = await connection.rpc.call('/api', 'fishfm/feedback-clear', {
           track: { provider: item.track.provider, providerTrackId: item.track.providerTrackId },
           commandId: operation.commandId, expectedRevision: operation.expectedRevision, view: feedbackOptions,
+          accountRevision: state.snapshot?.musicAccount?.revision,
         }, request.signal);
+        if (version !== feedbackEpoch) return;
         if (!result.ok) throw result.error;
+        if (result.value?.accountRevision !== state.snapshot?.musicAccount?.revision) return;
         feedbackRetry = null;
         const summary = result.value?.feedback;
         if (summary) emit({ insights: { ...state.insights, feedback: summary } });
@@ -568,6 +609,7 @@ export function createController(connection, { onPlaybackTrace = null } = {}) {
       const timeout = setTimeout(() => request.abort(), 25000);
       try {
         const payload = type === 'requestTrack' ? {type,track:value} : ['setTrackFeedback', 'seek'].includes(type) ? {type,...value} : {type,value};
+        if (state.snapshot?.musicAccount) payload.accountRevision = state.snapshot.musicAccount.revision;
         if (traceId) { payload.traceId = traceId; trace('rpc-sent', { traceId, kind: type }); }
         const result = await connection.rpc.call('/api', 'fishfm/command',
           ['setTrackFeedback','resetTaste','resetLibrary','undoTasteReset','setRecommendationMode'].includes(type) ? { ...payload, library: libraryOptions } : payload, request.signal);
@@ -607,76 +649,109 @@ export function createController(connection, { onPlaybackTrace = null } = {}) {
       }
     },
     async platformAction(action, provider, options = {}) {
-      if (disposed || state.busy || state.platformBusy || !state.connected) return;
-      const endpoint = ({ begin: 'fishfm/login-start', poll: 'fishfm/login-poll', import: 'fishfm/import', logout: 'fishfm/logout', discovery: 'fishfm/discovery-refresh', playlists:'fishfm/playlists' })[action];
-      if (!endpoint) return;
+      if (disposed || state.busy || !state.connected || !['netease', 'qq'].includes(provider)) return;
+      const endpoint = ({ begin: 'fishfm/login-start', poll: 'fishfm/login-poll', import: 'fishfm/import',
+        restore: 'fishfm/login-poll', logout: 'fishfm/logout', discovery: 'fishfm/discovery-refresh', playlists: 'fishfm/playlists',
+         recoverLegacy: 'fishfm/recover-legacy-music' })[action];
+      if (!endpoint || (platformWrites.has(provider) && action !== 'logout')) return;
+      platformWrites.get(provider)?.abort();
+      const request = new AbortController();
+      platformWrites.set(provider, request);
+      writes.add(request);
       const playbackVersion = playbackEpoch;
+      const accountRevision = state.snapshot?.musicAccount?.revision;
+      const attemptId = !state.snapshot?.musicAccount?.provider ? state.platformStates[provider]?.login?.attemptId : undefined;
       let libraryVersion = libraryEpoch;
+      const updatesLibrary = action === 'import' || action === 'recoverLegacy';
+      const title = provider === 'qq' ? 'QQ 音乐' : '网易云音乐';
+      const update = patch => {
+        const own = { ...(state.platformStates[provider] ?? {}), ...patch };
+        emit({ platformStates: { ...state.platformStates, [provider]: own },
+          ...(provider === 'netease' ? { login: own.login ?? null, playlists: own.playlists,
+            imported: own.imported ?? null, importAttempts: own.importAttempts ?? [], notice: own.notice ?? state.notice } : {}) });
+      };
       ++platformEpoch;
-      const progress = action === 'poll' ? '正在确认手机扫码…'
-        : action === 'import' ? options.source ? `正在读取${sourceNames[options.source]||'指定来源'}…` : '正在读取近期记录；若不可用会继续尝试喜欢列表和用户歌单…'
-          : action === 'begin' ? '正在向网易云申请二维码…' : '正在连接音乐平台…';
-      emit({ platformBusy: true, error: '', notice: progress, importAttempts: action === 'import' ? [] : state.importAttempts });
-      const controller = new AbortController();
-      platformWrite = controller;
-      const timeout = setTimeout(() => controller.abort(), action === 'import' ? 120000 : 45000);
+      update({ busy: true, error: '', notice: action === 'begin' ? `正在向${title}申请二维码…`
+        : action === 'recoverLegacy' ? '正在恢复旧版资料…' : '正在读取平台资料…' });
+      emit({ platformBusy: true, error: '' });
+      const timeout = setTimeout(() => request.abort(), action === 'import' ? 120000 : 45000);
       try {
         const result = await connection.rpc.call('/api', endpoint, { provider, library: libraryOptions,
-          ...(action==='import'?{source:options.source??null,playlistId:options.playlistId??null}:{}) }, controller.signal);
+          ...(accountRevision !== undefined ? { accountRevision } : {}),
+          ...(['poll', 'logout'].includes(action) && attemptId ? { attemptId } : {}),
+          ...(action === 'restore' ? { restore: true } : {}),
+          ...(action === 'import' ? { source: options.source ?? null, playlistId: options.playlistId ?? null } : {}) }, request.signal);
+        if (disposed || platformWrites.get(provider) !== request) return;
         if (!result.ok) throw result.error;
+        if (result.value?.snapshot?.musicAccount?.revision < state.snapshot?.musicAccount?.revision) return;
         ++platformEpoch;
-        const changesLibrary = action === 'import';
-        const value = changesLibrary ? libraryWriteReply(result.value, libraryVersion) : result.value;
-        if (changesLibrary) libraryVersion = libraryEpoch;
-        const login = Object.hasOwn(value, 'login') ? value.login : state.login;
-        if (action === 'poll' && login) login.qrImage = state.login?.qrImage;
+        if (action === 'recoverLegacy' && result.value?.snapshot?.musicAccount?.revision !== accountRevision) return;
+        const value = updatesLibrary ? libraryWriteReply(result.value, libraryVersion) : result.value;
+        if (updatesLibrary) libraryVersion = libraryEpoch;
+        const previous = state.platformStates[provider] ?? (provider === 'netease' ? { login: state.login } : {});
+        const login = Object.hasOwn(value, 'login') ? value.login : previous.login;
+        if (action === 'poll' && login) login.qrImage = previous.login?.qrImage;
         const projected = project(value, libraryVersion, playbackVersion);
-        delete projected.attempts;
-        emit({ ...projected, ...(changesLibrary ? { libraryBusy: false, libraryError: projected.libraryError ?? '' } : {}),
-          platforms: projected.platforms ?? state.platforms, login,
-          insights:value.insights??state.insights,
-          playlists: value.playlists??state.playlists,
-          imported: action === 'logout' ? null : Object.hasOwn(value, 'imported') ? value.imported : state.imported,
-          importAttempts: action === 'import' ? value.attempts ?? [] : state.importAttempts,
-          connected: true, error: '',
-          notice: action === 'playlists' ? `已读取 ${value.playlists?.length??0} 个歌单，请选择后导入。`
-            : action === 'discovery' ? (value.discovery?.refreshing ? '正在找新歌…' : '新歌状态已更新。')
-            : action === 'logout' ? '已退出网易云账号，本机凭据已删除。'
-            : action === 'import'
-              ? `已读取${sourceNames[value.imported?.source] || '平台音乐'}：本次新增 ${value.imported?.imported ?? 0} 首，当前共 ${value.imported?.total ?? 0} 首${value.imported?.source !== 'recent' && !options.source ? '，使用备用来源' : ''}${value.imported?.total < value.imported?.requested ? '，返回数量不足目标，仍可播放' : ''}`
-              : value.login?.identityError || (value.login?.status === 'authorized' ? '登录成功，可以导入音乐。'
-                : value.login?.status === 'scanned' ? '已扫码，请在手机上确认登录。'
-                  : value.login?.status === 'expired' ? '二维码已过期，请重新获取。'
-                    : action === 'begin' ? '请用网易云音乐 App 扫描二维码。' : '等待手机确认…') });
+        for (const key of ['login', 'playlists', 'imported', 'attempts', 'platforms', 'legacyRestored']) delete projected[key];
+        const platforms = value.snapshot?.musicAccount && value.platforms ? { ...value.platforms } : { ...state.platforms };
+        if (value.platformError) delete platforms[provider];
+        else if (value.platforms?.[provider]) platforms[provider] = value.platforms[provider];
+        emit({ ...projected, platforms,
+          ...(updatesLibrary ? { libraryBusy: false, libraryError: projected.libraryError ?? '' } : {}), connected: true });
+        const notice = action === 'logout' ? `已退出${provider === 'netease' ? '网易云' : title}账号，本机凭据已删除。`
+          : action === 'import' ? `已读取 ${value.imported?.imported ?? 0} 首，当前曲库共 ${value.imported?.total ?? 0} 首。`
+            : action === 'recoverLegacy' ? (value.legacyRestored ? '已将旧版资料恢复到当前账号。' : '没有待恢复的旧版资料。')
+              : action === 'playlists' ? `已读取 ${value.playlists?.length ?? 0} 个歌单。`
+              : login?.status === 'authorized' ? '登录成功，可以导入音乐。'
+                : login?.status === 'scanned' ? '已扫码，请在手机上确认。'
+                  : login?.status === 'expired' ? '二维码已过期，请重新获取。'
+                    : action === 'begin' ? `请使用${provider === 'qq' ? '手机 QQ' : '网易云音乐 App'}扫码。` : '';
+        update({ login, playlists: value.playlists ?? previous.playlists,
+          imported: action === 'logout' ? null : value.imported ?? previous.imported,
+          importAttempts: action === 'import' ? value.attempts ?? [] : previous.importAttempts ?? [], notice, error: '' });
         followLibrary(value, libraryVersion);
       } catch (error) {
+        if (disposed || platformWrites.get(provider) !== request) return;
         ++platformEpoch;
-        const details = error?.details ?? {};
-        let latest = {}, connected = !unreachable(error);
+        let latest = {}, recoveryError = null;
         try {
-          const recoveryLibraryVersion = libraryEpoch;
-          const refreshed = await connection.rpc.call('/api', 'fishfm/state', { library: libraryOptions }, controller.signal);
-          if (refreshed?.ok) { latest = project(refreshed.value, recoveryLibraryVersion, playbackVersion); connected = true; }
-          else connected = !unreachable(refreshed?.error);
-        } catch (recoveryError) { connected = !unreachable(recoveryError); }
-        const accountStatus = latest.platforms?.[provider]?.account?.status;
-        const login = action === 'begin' || action === 'poll'
-          ? { ...(state.login ?? {}), provider, status: 'error', qrExpired: false, identityError: error.message,
-            canRetryValidation: action === 'poll' && details.stage === 'login_status',
-            canRetryCheck: action === 'poll' && details.stage === 'login_qr_check' }
-          : accountStatus === 'login_required' ? null
-          : accountStatus === 'expired' ? { provider, status: 'expired', qrExpired: false, identityError: error.message }
-            : accountStatus === 'authorized' ? { ...(state.login ?? {}), provider, status: 'authorized' }
-              : state.login;
+          const refreshed = await connection.rpc.call('/api', 'fishfm/state', { library: libraryOptions }, request.signal);
+          if (refreshed?.ok) latest = project(refreshed.value, libraryEpoch, playbackVersion);
+          else recoveryError = refreshed?.error;
+        } catch (failure) { recoveryError = failure; }
+        const previous = state.platformStates[provider] ?? (provider === 'netease' ? { login: state.login } : {});
+        const login = ['music_account_changed','music_login_changed','music_login_pending','music_account_connected'].includes(error.code) ? null : ['begin', 'poll'].includes(action)
+          ? { ...previous.login, provider, status: 'error', qrExpired: false, identityError: error.message,
+            canRetryValidation: action === 'poll' && ['login_status', 'accountInfo'].includes(error.details?.stage),
+            canRetryCheck: action === 'poll' }
+          : action === 'logout' && error.code === 'credential_cleanup_failed' ? null : previous.login;
+        const ownPlatform = latest.platforms?.[provider];
+        const platforms = { ...state.platforms };
+        if (latest.platformError) delete platforms[provider];
+        else if (ownPlatform) platforms[provider] = ownPlatform;
+        const accountStatus = ownPlatform?.account?.status;
+        let failedLogin = login;
+        if (!['begin', 'poll'].includes(action) && accountStatus === 'expired') failedLogin = { provider, status: 'expired', qrExpired: false, identityError: error.message };
+        if (!['begin', 'poll'].includes(action) && accountStatus === 'login_required') failedLogin = null;
+        const recovered = Boolean(latest.snapshot);
+        delete latest.platforms;
         const notices = { import: '导入未确认完成，请核对曲库后重试。', playlists: '读取歌单失败，请稍后重试。',
-          discovery: '刷新推荐失败，请稍后重试。', logout: error?.code === 'credential_cleanup_failed'
+           recoverLegacy: '恢复未确认完成，请核对曲库后重试。',
+          discovery: '刷新推荐失败，请稍后重试。', logout: error.code === 'credential_cleanup_failed'
             ? '账号已退出，本机凭据清理失败，请重试清理。' : '退出登录未确认，请刷新核对账号状态。',
           begin: '获取二维码失败，请重试。', poll: '登录步骤未完成，可重新扫码或刷新重试。' };
-        emit({ ...latest, connected, error: failure(error), errorCode: error?.code ?? null, notice: notices[action],
-          ...(action === 'logout' && error?.code === 'credential_cleanup_failed' ? { login: null, imported: null } : { login }),
-          importAttempts: action === 'import' ? details.attempts ?? [] : state.importAttempts,
-        });
-      } finally { clearTimeout(timeout); platformWrite = null; emit({ platformBusy: false }); }
+        emit({ ...latest, platforms, connected: recovered || !unreachable(recoveryError ?? error), error: failure(error), errorCode: error.code ?? null });
+        update({ login: failedLogin, ...(action === 'logout' && error.code === 'credential_cleanup_failed' ? { imported: null } : {}),
+          error: failure(error), notice: notices[action], importAttempts: error.details?.attempts ?? previous.importAttempts ?? [] });
+      } finally {
+        clearTimeout(timeout);
+        writes.delete(request);
+        if (platformWrites.get(provider) === request) {
+          platformWrites.delete(provider);
+          update({ busy: false });
+          emit({ platformBusy: platformWrites.size > 0 });
+        }
+      }
     },
     clearExpressionFeedback(){emit({expressionError:'',expressionErrorCode:null,expressionNotice:''});},
     async saveExpression(style,expectedRevision){
@@ -721,7 +796,7 @@ export function createController(connection, { onPlaybackTrace = null } = {}) {
       }
       finally{clearTimeout(timeout);summaryWrite=null;emit({summaryBusy:false});}
     },
-    dispose() { disposed = true; ++epoch; ++libraryEpoch; ++feedbackEpoch; ++profileEpoch; ++networkProxyEpoch; networkProxyRead?.abort(); networkProxyWrite?.abort(); profileRead?.abort(); profileRead = null; clearTimeout(profileTimer); profileTimer = null; profileRefreshQueued = false; profileDirty = false; feedbackRead?.abort(); feedbackWrite?.abort(); clearInterval(timer); clearTimeout(playbackTimer); read?.abort(); writes.forEach(request => request.abort()); platformWrite?.abort(); libraryRead?.abort();summaryWrite?.abort();expressionWrite?.abort(); listeners.clear();
+    dispose() { disposed = true; ++epoch; ++libraryEpoch; ++feedbackEpoch; ++profileEpoch; ++networkProxyEpoch; networkProxyRead?.abort(); networkProxyWrite?.abort(); profileRead?.abort(); profileRead = null; clearTimeout(profileTimer); profileTimer = null; profileRefreshQueued = false; profileDirty = false; feedbackRead?.abort(); feedbackWrite?.abort(); clearInterval(timer); clearTimeout(playbackTimer); read?.abort(); writes.forEach(request => request.abort()); libraryRead?.abort();summaryWrite?.abort();expressionWrite?.abort(); listeners.clear();
       window.removeEventListener?.('storage', syncPlaybackEffects);
       window.removeEventListener?.('storage', syncGuidePreference);
       document.removeEventListener?.('visibilitychange', syncVisibility); },

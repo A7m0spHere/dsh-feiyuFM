@@ -1,3 +1,4 @@
+import {playbackSourceView} from './playback-source.mjs';
 import {createHash} from 'node:crypto';
 import {trackId} from './contracts.mjs';
 
@@ -9,7 +10,7 @@ export const REVIEW_KEY='discovery_reviews_v1';
 export function reviewContext(store,snapshot=store?.getCoreState()){
  return createHash('sha256').update(JSON.stringify({
   feedback:store?.getSetting('feedback_revision_v1',0),reset:store?.getSetting('preference_reset_v1',null)?.id,
-  references:store?.listEnvironment({limit:100000}).map(row=>row.track_key),route:store?.getSetting('recommendation_route_v1',null),
+  source:playbackSourceView(store),references:store?.listEnvironment({provider:playbackSourceView(store).provider,limit:100000}).map(row=>row.track_key),route:store?.getSetting('recommendation_route_v1',null),
   discovery:snapshot?.settings?.discovery,rate:snapshot?.settings?.discoveryRate,
  })).digest('hex');
 }

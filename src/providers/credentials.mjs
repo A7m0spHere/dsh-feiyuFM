@@ -3,6 +3,6 @@ import { createMacKeychainCredentials } from './credentials-macos.mjs';
 
 export function createPlatformCredentials({ platform = process.platform, directory } = {}) {
   if (platform === 'win32') return createDpapiCredentials({ directory });
-  if (platform === 'darwin') return createMacKeychainCredentials();
+  if (platform === 'darwin') return createMacKeychainCredentials({ directory });
   throw new Error(`Secure FeiyuFM credentials are not supported on ${platform}`);
 }
