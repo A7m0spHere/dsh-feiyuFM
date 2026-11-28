@@ -1,8 +1,8 @@
 # 更新记录
 
-## 0.2.0（待发布候选，2026-11-28）
+## 0.2.0（2026-11-28）
 
-> 候选版本已准备就绪，尚未发布 npm 或创建 GitHub Release（当前公开 npm `latest` 仍为 `0.1.2`），待用户完成 DSH Desktop 真实账号闭环验收后决定发布。完整范围、许可立场、安全审计与候选包摘要见 [0.2.0 发行记录](docs/releases/0.2.0.md)。
+> 已正式上架 [npm](https://www.npmjs.com/package/dsh-feiyufm)（`latest = 0.2.0`）与 [GitHub Release v0.2.0](https://github.com/A7m0spHere/dsh-feiyuFM/releases/tag/v0.2.0)（annotated tag `v0.2.0` 指向 `d22f6e7`），两处公开 `.tgz` 字节与 SHA-256 摘要完全一致，空缓存消费安装校验通过。完整范围、许可立场、安全审计与发行摘要见 [0.2.0 发行记录](docs/releases/0.2.0.md)。
 
 - **QQ 音乐接入与单账号数据隔离（#22）**：增加 QQ 音乐 Provider、无监听端口 Worker（锁定 `@yakult-green-tea/qq-music-api@3.3.7`）、手机 QQ 扫码登录、喜欢／歌单导入、相似推荐、歌词解码与 `320 → 128 kbps` 完整音源回退；网易云与 QQ 每次只连接一个账号，播放来源随当前账号，SQLite 升级至 v12（`music_account_archive`）按账号隔离曲库／反馈／历史／推荐池并支持 v11 旧资料显式恢复。QQ 适配依赖第三方开源接口包，受上游非商业声明约束，仅限个人学习与非商业使用（详见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)）。
 - **受限／VIP 曲目自动跳过、批量预检与首播提速（#24）**：按当前账号实际可获取完整非试听音源判定可播性，QQ／网易云新增批量 `checkPlayability`（每批至多 20 首、128 kbps、不返回或落盘 URL），网易云同步拦截 `freeTrialInfo` 30 秒试听；发现候选进模型筛选前预检并标 24 小时退避，主动「开始听歌／下一首」遇受限曲自动批量预检并有界连跳，显式点播不自动换歌，重新扫码清理旧不可播缓存。同步完成三项首播优化（关闭 QQ `QQ_PLAYBACK_HINTS_ENABLED`、后台异步预检首 20 首输入曲库、进程内短期一次性复用 128 kbps 链接）。

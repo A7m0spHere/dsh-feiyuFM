@@ -1,8 +1,8 @@
 # 交付与使用说明
 
-更新：2026-11-06，版本 **0.1.2**，范围为 Windows／网易云。包含公网播放修复、逐行歌词与跳转、陪伴界面和持续补歌。macOS 适配随包提供，真机验收未完成；QQ 暂缓。发布状态与范围见 [0.1.2 记录](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/releases/0.1.2.md)，完整产品验收及长期体验缺口仍在 [开发状态](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/PROJECT_PLAN.md) 保留。
+更新：2026-11-28，版本 **0.2.0**（npm `latest` 与 [GitHub Release v0.2.0](https://github.com/A7m0spHere/dsh-feiyuFM/releases/tag/v0.2.0) 已公开），范围为 Windows／网易云音乐与 QQ 音乐（单账号二选一隔离）。包含 QQ 音乐接入与 SQLite v12 账号归档、受限／VIP 曲目批量可播预检与自动跳过、无模型平台发现回退、常驻音量横条、顺滑可拖动进度条、模块化拖拽电台设置、应用层代理与双层下载超时。macOS 适配随包提供，真机验收未完成。发布状态与范围见 [0.2.0 记录](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/releases/0.2.0.md)，完整产品验收及长期体验缺口仍在 [开发状态](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/PROJECT_PLAN.md) 保留。
 
-0.1.2新增逐行歌词、翻译／音译独立开关及点击歌词原地跳转，默认只显示原文，暂停时定位仍保持暂停。升级须完整退出并重开DSH；日常候选和审查修订的实测边界见 [U26](spikes/U26-console-lyrics.md)，macOS 保持实验性。
+升级须从系统托盘完整退出并重开 DSH；保留 `$DSH_HOME/fishfm/` 下原有音乐数据库、偏好与凭据。macOS 保持实验性。
 
 ## 支持范围
 
@@ -10,19 +10,19 @@
 | --- | --- |
 | 系统 | Windows，真实播放依赖 WPF `MediaPlayer` 与命名管道；macOS 实验性适配使用 AVFoundation、Unix socket 和 Keychain，现场音频/登录/退出仍未完成验收 |
 | Node.js | `>=24.14.0 <25`；使用内置 `node:sqlite` |
-| DSH | beta.3 在本机官方桌面 `0.2.0-rc.2` 验证过部分真实交互；当前源码在官方 `0.2.1-rc.5` 隔离 Web profile 补验后台、生命周期与防重复；其他版本需验证 |
-| 网易云 | 扫码、账号校验、导入、点播与自主续播已有真实验证；会员、版权与资源限制由平台决定 |
-| QQ 音乐 | `main`（0.2.0 候选，尚未上架 npm）提供 QQ 扫码、导入、歌词、推荐与可播预检，单账号隔离自动跟随当前账号；依赖第三方接口包 `@yakult-green-tea/qq-music-api`，受上游非商业声明约束，仅限个人学习与非商业使用（详见 [版权声明](../THIRD_PARTY_NOTICES.md)）。日常 Desktop 真实账号闭环待验，公开 npm `0.1.2` 沿用其发行范围 |
+| DSH | 0.2.0 已在官方 DSH `0.2.2-rc.1` 隔离 Web profile 验证升级、迁移、RPC 与生命周期，并在 Windows 日常 DSH Desktop 完成双平台真机账号闭环验收；其他版本需验证 |
+| 网易云 | 扫码、账号校验、导入、点播、歌词跳转、进度条、音量条与自主续播已有真实验证；会员、版权与 30 秒试听限制由平台决定 |
+| QQ 音乐 | `0.2.0` 正式版提供 QQ 扫码、导入、歌词、推荐与批量可播预检，单账号隔离自动跟随当前账号，并在日常 DSH Desktop 与隔离 DSH 完成实测（不绕过平台 VIP／版权限制）；依赖第三方接口包 `@yakult-green-tea/qq-music-api@3.3.7`，受上游非商业声明约束，仅限个人学习与非商业使用（详见 [版权声明](../THIRD_PARTY_NOTICES.md)） |
 | UI | DSH 主内容区页面（从侧栏「肥鱼电台」进入）与 `shell.overlay` 悬浮条；当前源码含顶部四个标签页与背景频谱，设置只在主面板的「电台设置」标签页；不提供独立桌面窗口或托盘 |
 | 模型 | 可选，复用 DSH 已配置的模型；歌单生成、总结和候选筛选共用预算与账本 |
 
 ## 安装
 
-FeiyuFM 以 npm 包分发，通过 DSH 安装到当前 profile。在侧栏「插件 → 添加插件」的「包名或地址」中输入 `dsh-feiyufm@0.1.2`，安装完成后点击「立即启用」；跟随正式版更新用 `dsh-feiyufm@latest`。下载失败可切换「安装源 → npm 官方源」。DSH 会安装 bundle、读取 patch 并登记插件，无需手改 profile；单独 `npm install` 不会完成这一步。机制见 [DSH 官方安装说明](https://deepseek-harness.github.io/deepseek-harness/en/develop/basic/publish)。
+FeiyuFM 以 npm 包分发，通过 DSH 安装到当前 profile。在侧栏「插件 → 添加插件」的「包名或地址」中输入 `dsh-feiyufm@0.2.0`，安装完成后点击「立即启用」；跟随正式版更新用 `dsh-feiyufm@latest`。下载失败可切换「安装源 → npm 官方源」，或从 [GitHub Release v0.2.0](https://github.com/A7m0spHere/dsh-feiyuFM/releases/tag/v0.2.0) 下载 `dsh-feiyufm-0.2.0.tgz` 离线安装。DSH 会安装 bundle、读取 patch 并登记插件，无需手改 profile；单独 `npm install` 不会完成这一步。机制见 [DSH 官方安装说明](https://deepseek-harness.github.io/deepseek-harness/en/develop/basic/publish)。
 
-已安装 DSH CLI 的用户可通过 `dsh plugin --profile web add dsh-feiyufm@0.1.2 --registry https://registry.npmjs.org/` 安装到 Web profile；`web` 要对应实际启动的 profile，安装后重启该实例。桌面版使用上述应用内入口。
+已安装 DSH CLI 的用户可通过 `dsh plugin --profile web add dsh-feiyufm@0.2.0 --registry https://registry.npmjs.org/` 安装到 Web profile；`web` 要对应实际启动的 profile，安装后重启该实例。桌面版使用上述应用内入口。
 
-也可通过 GitHub 源码安装：在「包名或地址」输入 `https://github.com/A7m0spHere/dsh-feiyuFM`，从 `main` 安装；需要固定验收代码时可使用 `github:A7m0spHere/dsh-feiyuFM#<完整提交号>`。记录 profile 锁文件实际解析的提交号。GitHub 源码安装会解析普通运行依赖；npm `0.1.2` 包含登录修复、首次引导、歌词与公网播放修复。安装后从托盘完整退出并重开，按 [人工验收卡](spikes/P0-07-desktop-checklist.md) 验证，保留现有数据与凭据。
+也可通过 GitHub 源码安装：在「包名或地址」输入 `https://github.com/A7m0spHere/dsh-feiyuFM`，从 `main` 安装；需要固定验收代码时可使用 `github:A7m0spHere/dsh-feiyuFM#<完整提交号>`。记录 profile 锁文件实际解析的提交号。GitHub 源码安装会解析普通运行依赖；npm `0.2.0` 包含完整运行依赖树与双平台、可播预检、进度条／音量条及代理等全部功能。安装后从托盘完整退出并重开，按 [人工验收卡](spikes/P0-07-desktop-checklist.md) 验证，保留现有数据与凭据。
 
 Windows 的隔离宿主验证使用 DSH `0.2.1-rc.5`；桌面宿主自带兼容 Node 24 时无需单独安装 Node。macOS 实验性适配要求 Xcode Command Line Tools 提供 `/usr/bin/swiftc`，首次启动原生后端时会编译 Helper 到 DSH 私有数据目录。这不代表 macOS 真机验收完成。
 
@@ -38,7 +38,7 @@ dsh plugin --profile desktop add /absolute/path/to/dsh-feiyuFM
 
 已有 workspace 安装请经插件管理器更换来源，不在同一 profile 同时启用两份 FeiyuFM。仓库开发步骤在 [贡献指南](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/CONTRIBUTING.md)。npm 发行包包含运行依赖树、源码与各自许可，安装不需重新解析这些依赖。
 
-从旧测试包 `dsh-feiyufm-core` 升级时，先在插件管理器移除旧来源，再添加 `dsh-feiyufm@0.1.2`。内部 RPC 标识和 `$DSH_HOME/fishfm/` 数据目录保持兼容，已有曲库、偏好与凭据引用继续使用；不要同时启用两个包来源。
+从旧测试包 `dsh-feiyufm-core` 升级时，先在插件管理器移除旧来源，再添加 `dsh-feiyufm@0.2.0`（或 `dsh-feiyufm@latest`）。内部 RPC 标识和 `$DSH_HOME/fishfm/` 数据目录保持兼容，已有曲库、偏好与凭据引用继续使用；不要同时启用两个包来源。
 
 ## 首次听歌
 
@@ -46,7 +46,7 @@ beta.2 起的角色图下有一枚无文字的小开关，默认位于左侧，�
 
 导入后，可直接点播输入曲库中的歌曲。自主听歌与电脑声音是独立开关：静听保留自主听歌但关闭声音，暂停冻结进度且不会被自动事件撤销。「今天停止」还会禁止当日自主行为，可通过「恢复自主听歌」解除。
 
-电台按“参考歌曲 → 网易云推荐 → 模型挑歌”工作。导入后使用 DSH 已配置模型按批筛选，自动播放只来自入选池，失败保留同账号有效旧歌单；输入曲库中的歌曲可由用户明确点播。模型选择与用量位于“电台设置”。
+电台按“参考歌曲 → 当前账号平台推荐（网易云／QQ） → 模型挑歌”工作。导入后使用 DSH 已配置模型按批筛选，自动播放只来自入选池，失败保留同账号有效旧歌单；输入曲库中的歌曲可由用户明确点播。模型选择与用量位于“电台设置”。
 
 顶部提供正在听／发现记录／偏好与反馈／电台设置四个标签页，DSH 全局设置没有重复入口。大肥鱼与当前歌曲并列，下方是整个可选池，播放控制在面板底部常驻；余量不足时后台按预算自动补充，也可手动“补充歌单”。
 
@@ -56,7 +56,7 @@ beta.2 起的角色图下有一枚无文字的小开关，默认位于左侧，�
 
 ## 更新
 
-DSH `0.2.0-rc.2` 的插件页暂不支持自动更新。先在插件管理器卸载 FeiyuFM，再添加新版固定版本或 `dsh-feiyufm@beta`，安装完成后点击「立即启用」。必要时正常退出 DSH（含托盘）再启动；卸载或重启期间音乐会中断。
+DSH 的插件页暂不支持自动更新。先在插件管理器卸载旧版 FeiyuFM，再添加新版固定版本（如 `dsh-feiyufm@0.2.0`）或 `dsh-feiyufm@latest`，安装完成后点击「立即启用」。随后正常退出 DSH（含托盘）再启动；卸载或重启期间音乐会中断。
 
 数据库与凭据位于 DSH 数据目录，不在 npm 包目录。不要手动删除数据库来完成升级；使用同一 profile 保留原数据，升级后核对歌曲、偏好与暂停状态。
 
@@ -78,7 +78,7 @@ DSH `0.2.0-rc.2` 的插件页暂不支持自动更新。先在插件管理器卸
 - **已保存会话却不能导入：** 会话可能过期，查看错误阶段并重新登录；加密文件存在不代表账号有效。
 - **有歌名却不能播放：** 歌名来自网易云候选，但播放仍可能受会员、版权或地址失效限制；以实际错误为准。
 - **没有声音：** 先查看声音开关、静听模式和暂停状态，再检查系统音量及输出设备。日常 / 专注模式会恢复声音。
-- **网易云连接一直“读取中”或提示运行依赖缺失：** 0.1.0 的 GitHub 源码安装可能缺少网易云运行依赖。通过 DSH 插件管理器将同一 profile 的来源更换为 npm `dsh-feiyufm@0.1.2`，确保只启用一份，再从托盘完整退出并重开 DSH；保留 `$DSH_HOME/fishfm` 下的数据与凭据，不要清库。0.1.1 会显示读取失败及重试入口；已发布的 0.1.0 不包含该提示修复。
+- **网易云连接一直“读取中”或提示运行依赖缺失：** 0.1.0 的 GitHub 源码安装可能缺少网易云运行依赖。通过 DSH 插件管理器将同一 profile 的来源更换为 npm `dsh-feiyufm@0.2.0`（或 `dsh-feiyufm@latest`），确保只启用一份，再从托盘完整退出并重开 DSH；保留 `$DSH_HOME/fishfm` 下的数据与凭据，不要清库。0.1.1 及以后版本会显示读取失败及重试入口；已发布的 0.1.0 不包含该提示修复。
 - **没有候选：** 检查输入曲库、歌单核对结果与探索池状态，必要时补充歌单或点播曲库歌曲；当前源码在最近 50 次窗口内没有窗口外可播歌曲时会等待补批。
 - **不能补充歌单：** 当前任务、预算或平台节流可能限制请求；余量不足时后台也会自动补充，等待期间仍可点播、暂停或换曲。
 - **源码改动没有生效：** UI 修改后运行 `npm run build:client` 或 `npm run build`，再刷新界面。官方桌面版会缓存后端模块；后端或资源路由更新需从托盘完整退出 DSH 再启动，只关窗口、刷新页面或停用再启用插件不足以清除缓存。已发布 npm 安装不会自动取得尚未发布的源码改动。

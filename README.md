@@ -8,7 +8,7 @@
 
 **Windows · 网易云 & QQ 音乐 · v0.2.0**　[快速开始](#快速开始) · [GitHub Release v0.2.0](https://github.com/A7m0spHere/dsh-feiyuFM/releases/tag/v0.2.0) · [使用说明](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/DELIVERY.md) · [更新记录](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/CHANGELOG.md)
 
-> **发行状态**：[GitHub Release v0.2.0](https://github.com/A7m0spHere/dsh-feiyuFM/releases/tag/v0.2.0) 已公开（含完整离线包 `dsh-feiyufm-0.2.0.tgz` 与 `SHA256SUMS.txt`）；npm `0.2.0` 随发布确认同步上架（公开 registry 确认前 `latest` 仍指向 `0.1.2`）。升级后请从系统托盘**完整退出并重开 DSH**，保留原有音乐数据库与登录凭据。详细发行与验收边界见 [0.2.0 发行记录](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/releases/0.2.0.md)。
+> **发行状态**：**`dsh-feiyufm@0.2.0` 已正式上架 [npm](https://www.npmjs.com/package/dsh-feiyufm)（`latest = 0.2.0`）与 [GitHub Release v0.2.0](https://github.com/A7m0spHere/dsh-feiyuFM/releases/tag/v0.2.0)**，两处公开 `.tgz` 字节与 SHA-256 摘要完全一致，空缓存消费安装校验通过。升级后请从系统托盘**完整退出并重开 DSH**，保留原有音乐数据库与登录凭据。详细发行与验收边界见 [0.2.0 发行记录](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/releases/0.2.0.md)。
 
 ---
 
@@ -79,7 +79,7 @@
 
 在 DSH 侧栏打开 **「插件 → 添加插件」**，在「包名或地址」中任选以下方式之一：
 
-- **方式 A — 从 npm 安装（推荐，`0.2.0` 上架后生效）**：
+- **方式 A — 从 npm 安装（推荐，`latest` 已指向 `0.2.0`）**：
   ```text
   dsh-feiyufm@latest
   ```
