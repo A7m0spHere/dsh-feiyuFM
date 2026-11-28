@@ -98,7 +98,7 @@ CoreHost 周期发布先检查 Core revision，未变化时不计算完整快照
 
 共享解析由独立 AbortController 所有，后台取消仅撤销自己的等待；切歌选中同一资源时先交给前台，过时目标才中止底层解析。单次前台等待 4 秒，后台/底层请求上限 15 秒；前台超时会退役并中止旧请求，100ms 后真正重新请求一次，迟到结果不写缓存。缓存/预加载失效或宿主失败均保留按需加载和既有有界恢复路径。默认预取仍在确认开始/直接恢复后延迟 3000ms，保留并发资源保护。计时只记录 traceId、版本、播放实例、阶段与命中事实，不传 URL 到 UI/证据文件，见 [第二轮修复](spikes/R3-playback-navigation-prefetch.md)。
 
-状态、发现、环境、选择与批准池投影使用批量查询（`unavailableKeys/environmentKeys/effectiveListenKeys/feedbackScores` 等），投影内容不变；逐曲 SQLite prepare 曾让一次快照占 100–360ms 并阻塞事件循环。媒体打开失败按 code 分类并在 `playback-error` 记录 `downloadProgress/bufferingProgress/openElapsedMs/expiresAt/resourceAgeMs`（不记录 URL）；`media_open_timeout` 的不可播退避为 1 分钟，`media_unavailable` 保持 30 分钟，`media_failed` 5 分钟。WPF `MediaOpened` 只在 `status='loading'` 时生效，超时后迟到的打开事件不能标记新状态。见 [R4](spikes/R4-playback-delivery-and-reliability.md)。
+状态、发现、环境、选择与批准池投影使用批量查询（`unavailableKeys/environmentKeys/effectiveListenKeys/feedbackScores` 等），投影内容不变；逐曲 SQLite prepare 曾让一次快照占 100–360ms 并阻塞事件循环。媒体打开失败按 code 分类并在 `playback-error` 记录 `downloadProgress/bufferingProgress/openElapsedMs/expiresAt/resourceAgeMs`（不记录 URL）；`media_open_timeout`/`media_stalled` 退避 1 分钟，`media_failed`/`media_download_failed` 5 分钟，当前账号无完整音源的 `media_unavailable`/`resource_unavailable` 排除 24 小时（按账号归档隔离，重新扫码登录当前平台时清理）。WPF `MediaOpened` 只在 `status='loading'` 时生效，超时后迟到的打开事件不能标记新状态。见 [R4](spikes/R4-playback-delivery-and-reliability.md)。
 
 网易云 `resolve()` 在资源进入 Core 缓存前，将 `http://m<数字>.music.126.net`（默认端口或显式 `:80`）升级为 HTTPS 默认端口，原始路径、查询与 fragment 逐字节保留，`expiresAt/version` 沿用解析结果。规则限于该编号域名结构；凭据形式、非标准端口及其他来源使用原解析结果。前台、恢复和预加载共用 Provider 结果。
 
@@ -229,7 +229,7 @@ U24 为 filtered 状态投影的 `playbackPool` 可选增加 `tracks`：最多 1
 
 实例分别累计 `effectiveMs/agentEffectiveMs/audibleMs`，与位置分离。逻辑进度只接受已知时长，真实静听用音频静音。恢复起点、长缺口、seek 与睡眠不补计，未有效播放不能伪造收听。
 
-Provider 解析最多 3 次；自主不可播替换有有限预算，明确资源不可用排除 30 分钟，媒体打开超时/失败排除 5 分钟。账号/网络失败不写负面偏好，已知过期资源最多重新解析一次。见 [N1](spikes/N1-autonomous-accounting.md)、[N13](spikes/N13-crash-recovery-and-verification-bound.md)。
+Provider 解析最多 3 次；不可播替换有有限预算（`media_unavailable`/`resource_unavailable` 单轮最多连跳 8 次，其他候选媒体失败保持最多 2 次；主动 `user-start`/`user-next` 遇到 `media_unavailable` 时沿用当次曲库回退语境并可执行一次最多 20 首的批量可播预检，自然续播仍不回退输入曲库，显式 `requestTrack` 不自动换曲），明确资源不可用排除 24 小时，媒体打开失败排除 5 分钟，超时／卡顿排除 1 分钟。账号/网络失败不写负面偏好，已知过期资源最多重新解析一次。见 [N1](spikes/N1-autonomous-accounting.md)、[N13](spikes/N13-crash-recovery-and-verification-bound.md)。
 
 ### Windows 匿名媒体暂存（2026-11-06，#19）
 
@@ -272,6 +272,6 @@ QQ 曲目归一化优先 `mid / songmid`，`singer` 填充艺人，`interval` �
 
 QQ `qqmusic_session` token 和稳定的 `fishfm/qq-runtime` 密钥存入现有加密存储，SQLite 仅存 `fishfm/qq` 凭据引用。macOS 按数据目录区分 Keychain 项，旧未分区凭据需要重新扫码。当前公开无端口入口使用 sealed 模式，按小时检查续期，旋转 token 先保存后采用。刷新自己持有网络取消控制，播放等待者取消时其他等待者可继续使用同一刷新。账号退出／替换及 Core 停用结束对应任务。重启 QQ 资料验证异步执行，等待验证的账号显示 checking，HTTP 200 空资料映射 expired。
 
-取链资源缓存与 in-flight 请求同时核对平台曲目键及账号上下文。退出账号时资源和当前实例一起清理，已发生的播放进度先结算到原账号。QQ 优先请求 320 kbps，没有完整链接或明确音源不可用时再请求一次 128 kbps。`preview=true` 的链接不会进入整曲播放。登录失效、限流与网络错误直接返回。422 按角色解释，429 保留安全退避信息，网络或上游失败保留账号状态。媒体下载继续使用 Playback 的匿名请求、独立临时文件与取消控制。
+取链资源缓存与 in-flight 请求同时核对平台曲目键及账号上下文。退出账号时资源和当前实例一起清理，已发生的播放进度先结算到原账号。QQ 优先请求 320 kbps，没有完整链接或明确音源不可用时再请求一次 128 kbps；Worker 入口设置 `QQ_PLAYBACK_HINTS_ENABLED=0` 以避免无用英文提示触发的额外单曲详情请求。`preview=true`（QQ）与 `freeTrialInfo` 非空（网易云）的试听链接均拒绝进入整曲播放。平台发现候选进入缓存和模型筛选前，以及登录恢复／曲库导入／旧数据恢复后（后台不阻塞、最多 1 批 20 首、退号／切号／关闭立即取消，前台兜底预检复用同一在途任务），可通过可选 `checkPlayability(tracks, {signal})` 按每批最多 20 首（单次最多 60 首、128 kbps）批量校验当前账号完整可播性；该接口仅返回曲目键分类，不返回或落盘任何音频 URL。QQ Adapter 内部可保留最多 40 首、至多 2 分钟且绑定账号上下文的内存 128 kbps 备选 handle，仅在随后 `resolve` 的 320 kbps 未获得完整链接时一次性消费（消费后即删以保证故障恢复重新向平台取链，退出／销毁／换号立即清空）。确认不可播的曲目写入当前账号的 `track_availability`（24 小时）并移出候选；低产出批次在有更多轮换参考种子时最多补充一轮召回，均不可播时报 `no-playable-candidates`。登录失效、限流与网络错误直接返回。422 按角色解释，429 保留安全退避信息，网络或上游失败保留账号状态。媒体下载继续使用 Playback 的匿名请求、独立临时文件与取消控制。
 
 QQ 重启验证遇到临时网络失败时保留加密会话，并显示 error／canRestore。现有 `fishfm/login-poll` 可携带 `restore:true` 重试资料验证，对应 Core login 的 restore 步骤。确认凭据失效才转 expired，用户可在账号行重试验证。

@@ -10,12 +10,12 @@
 import { createInterface } from 'node:readline';
 import { randomUUID } from 'node:crypto';
 import { createLyricsService } from './lyrics.mjs';
-import { MusicError, PROVIDERS, normalizeTrack, trackId } from './contracts.mjs';
+import { MusicError, PLAYABILITY_CHECK_BATCH_SIZE, PROVIDERS, normalizeTrack, trackId, UNAVAILABLE_BACKOFF_MS } from './contracts.mjs';
 import { MusicStore } from './storage.mjs';
 import { MusicCore } from './core.mjs';
 import { FakePlayback } from './fakes.mjs';
 import { createSelector } from './selection.mjs';
-import {initializeRecentPlayback,repeatContext} from './recent-playback.mjs';
+import {initializeRecentPlayback,recentPlayback,repeatContext} from './recent-playback.mjs';
 import {SUPPLY_POLICY,reviewedKeys} from './recommendation-supply.mjs';
 import { createRng, readAgentSeed, initializeAgentPreferences, describeTaste } from './taste.mjs';
 import { importSeedTracks, describeEnvironment, describeEnvironmentProfile } from './environment.mjs';
@@ -123,6 +123,14 @@ export class ProviderRegistry {
       throw new MusicError('capability_unavailable', `${provider} does not implement recommendations`);
     }
     return adapter.getDiscoveryTracks(options);
+  }
+
+  async checkPlayability(provider, tracks, options = {}) {
+    const adapter = this.providers[provider];
+    if (!adapter || typeof adapter.checkPlayability !== 'function') {
+      return { playable: [], unplayable: [], checked: 0, skipped: true };
+    }
+    return adapter.checkPlayability(tracks, options);
   }
 }
 
@@ -242,6 +250,104 @@ export function createProviderFacade({ registry, store = null, now = () => Date.
   const discovery = createDiscoveryCache({ registry, store, now, onLog });
   const modelResolver=createModelRecommendationResolver({store,registry,now,onChange:()=>listeners.forEach(fn=>fn())});
   const listeners=new Set();
+  let closed = false;
+  let libraryWarmup = null;
+  let lastLibraryWarmup = null;
+  const warmupOwner = (provider) => {
+    const account = registry.getAccount(provider);
+    if (account?.status !== 'authorized') return null;
+    const context = registry.providers[provider]?.resourceContext?.() ?? '';
+    return `${provider}:${account.accountId ?? ''}:${context}`;
+  };
+  const cancelLibraryWarmup = () => {
+    libraryWarmup?.controller.abort();
+    libraryWarmup = null;
+    lastLibraryWarmup = null;
+  };
+  const warmLibraryPlayability = (provider, { force = false } = {}) => {
+    if (closed || !store || !provider || playbackSourceView(store).provider !== provider) return null;
+    const adapter = registry.providers[provider];
+    if (!adapter || typeof adapter.checkPlayability !== 'function') return null;
+    const owner = warmupOwner(provider);
+    if (!owner) return null;
+    if (force) cancelLibraryWarmup();
+    if (libraryWarmup && libraryWarmup.owner === owner) return libraryWarmup.promise;
+    const at = now();
+    const unavailable = store.unavailableKeys?.(at) ?? new Set();
+    const recent = new Set(recentPlayback(store).map(entry => entry.trackKey));
+    const banned = new Set(store.activeConstraints(at)
+      .filter(row => row.kind === 'ban_track' && typeof row.track_key === 'string')
+      .map(row => row.track_key));
+    const batch = [];
+    const seen = new Set();
+    for (const row of store.listEnvironment({ provider, limit: 100 })) {
+      if (batch.length >= PLAYABILITY_CHECK_BATCH_SIZE) break;
+      if (seen.has(row.track_key) || unavailable.has(row.track_key) || banned.has(row.track_key) || recent.has(row.track_key)) continue;
+      seen.add(row.track_key);
+      batch.push(store.getNormalizedTrack({
+        provider: row.provider,
+        providerTrackId: row.track_key.slice(row.provider.length + 1),
+      }));
+    }
+    if (!batch.length) return null;
+    cancelLibraryWarmup();
+    const controller = new AbortController();
+    const entry = { provider, owner, controller, promise: null };
+    entry.promise = (async () => {
+      try {
+        const probe = await registry.checkPlayability(provider, batch, { signal: controller.signal });
+        if (closed || controller.signal.aborted || warmupOwner(provider) !== owner) return { checked: 0, skipped: true };
+        if (probe && !probe.skipped && Array.isArray(probe.unplayable) && probe.unplayable.length) {
+          const byKey = new Map(batch.map(track => [trackId(track), track]));
+          const expiresAt = now() + UNAVAILABLE_BACKOFF_MS.media_unavailable;
+          for (const key of probe.unplayable) {
+            const track = byKey.get(key);
+            if (track) store.markUnavailable(track, 'media_unavailable', expiresAt);
+          }
+        }
+        if (probe && !probe.skipped) {
+          const checked = probe.checked ?? batch.length;
+          const checkedKeys = new Set([...(probe.playable ?? []), ...(probe.unplayable ?? [])]);
+          lastLibraryWarmup = { provider, owner, completedAt: now(), checked, checkedKeys, skipped: false };
+          onLog({ type: 'library-playability-warmup', provider, checked,
+            playable: probe.playable?.length ?? 0, unplayable: probe.unplayable?.length ?? 0 });
+          return { ...probe, checked, checkedKeys };
+        }
+        return probe ?? { checked: 0, skipped: true };
+      } catch (error) {
+        if (!closed && !controller.signal.aborted && error?.code !== 'cancelled') {
+          onLog({ type: 'library-playability-warmup-error', provider, code: error?.code ?? 'provider_failure' });
+        }
+        return { checked: 0, skipped: true };
+      } finally {
+        if (libraryWarmup === entry) libraryWarmup = null;
+      }
+    })();
+    libraryWarmup = entry;
+    return entry.promise;
+  };
+  const joinLibraryWarmup = (provider, { signal = null } = {}) => {
+    const owner = warmupOwner(provider);
+    if (!owner) return Promise.resolve(null);
+    const active = libraryWarmup;
+    if (active && active.provider === provider && active.owner === owner) {
+      if (!signal) return active.promise;
+      return new Promise((resolve, reject) => {
+        const onAbort = () => reject(new MusicError('cancelled', '可播预检等待已取消。'));
+        if (signal.aborted) { onAbort(); return; }
+        signal.addEventListener('abort', onAbort, { once: true });
+        active.promise.then(
+          value => { signal.removeEventListener('abort', onAbort); resolve(value); },
+          error => { signal.removeEventListener('abort', onAbort); reject(error); },
+        );
+      });
+    }
+    if (lastLibraryWarmup && lastLibraryWarmup.provider === provider && lastLibraryWarmup.owner === owner
+      && lastLibraryWarmup.checked > 0 && now() - lastLibraryWarmup.completedAt < 120_000) {
+      return Promise.resolve(lastLibraryWarmup);
+    }
+    return Promise.resolve(null);
+  };
   const freshTracks = tracks => {
     const recent=repeatContext(store),current=store?.getCoreState()?.current?.track;
     const currentKey=current?`${current.provider}:${current.providerTrackId}`:recent.lastTrackKey;
@@ -282,6 +388,9 @@ export function createProviderFacade({ registry, store = null, now = () => Date.
     getSeedTracks: (provider, options) => registry.getSeedTracks(provider, options),
     search: (provider, query, options) => registry.search(provider, query, options),
     resolve: (track, options) => resolveOnOwnPlatform({ registry, track, options }),
+    checkPlayability: (provider, tracks, options) => registry.checkPlayability(provider, tracks, options),
+    warmLibraryPlayability,
+    joinLibraryWarmup,
     resourceContext: track => registry.providers[track.provider]?.resourceContext?.() ?? '',
     platforms: () => describePlatforms(registry),
 
@@ -315,13 +424,13 @@ export function createProviderFacade({ registry, store = null, now = () => Date.
       }else{discovery.tick();if(recommendationMode(store)==='llm')modelResolver.tick();}
     },
     onDiscoveryChange: fn => {listeners.add(fn);const off=discovery.onChange(fn);return()=>{listeners.delete(fn);off();};},
-    closeDiscovery: () => {modelResolver.close();discovery.close();listeners.clear();},
+    closeDiscovery: () => { closed = true; cancelLibraryWarmup(); modelResolver.close(); discovery.close(); listeners.clear(); },
 
     refreshDiscovery: options => discovery.refresh(options),
     verifyModelRecommendations:()=>{if(recommendationMode(store)==='llm')modelResolver.tick();},
 
-    clearDiscovery() { modelResolver.cancel();discovery.clear(); },
-    cancelAccountWork() { modelResolver.cancel(); discovery.cancel(); replenishing = true; },
+    clearDiscovery() { cancelLibraryWarmup(); modelResolver.cancel(); discovery.clear(); },
+    cancelAccountWork() { cancelLibraryWarmup(); modelResolver.cancel(); discovery.cancel(); replenishing = true; },
   };
 }
 
@@ -538,6 +647,7 @@ export function createCoreHost({
           await disconnectAccount(name, adapter);
           throw new MusicError('music_account_changed', '登录凭据对应的账号已变化，请重新扫码。');
         }
+        if (restored.status === 'authorized') void platformsFacade?.warmLibraryPlayability?.(name);
         return restored;
       } finally {
         if (!closed && musicAccount(store).revision === scope.revision) updateAccount();
@@ -592,6 +702,7 @@ export function createCoreHost({
         try {
           if (!result.accountId) throw new MusicError('account_id_unavailable', '音乐平台未返回可验证的账号 ID。');
           activateMusicAccount(store, name, result.accountId);
+          store.clearUnavailable?.(name);
         } catch (error) {
           await disconnectAccount(name, adapter);
           throw error;
@@ -599,6 +710,7 @@ export function createCoreHost({
         initializeRecentPlayback(store);
         ++inputEpoch;
         updateAccount();
+        void platformsFacade?.warmLibraryPlayability?.(name);
       }
       return { ...result, attemptId: attempt.id };
     } finally { attempt.polling = false; }
@@ -925,6 +1037,7 @@ export function createCoreHost({
             ++inputEpoch;
             if (recommendationMode(store) === 'filtered') platformsFacade.clearDiscovery();
             updateAccount();
+            void platformsFacade.warmLibraryPlayability?.(message.provider, { force: true });
           }
           send({ type: 'result', id, ok: true, restored });
           return;
@@ -953,6 +1066,7 @@ export function createCoreHost({
             invalidateProfile();
             if(recommendationMode(store)==='filtered' && message.provider===playbackSourceView(store).provider)platformsFacade.clearDiscovery();
             platformsFacade.tickDiscovery();
+            void platformsFacade.warmLibraryPlayability?.(message.provider, { force: true });
             publishIfChanged();
             send({ type: 'result', id, ok: true, provider: message.provider, source: seed.source, import: imported, attempts: seed.attempts, taste, snapshot: core.snapshot() });
           } catch (error) {
@@ -1197,6 +1311,7 @@ export function createCoreHost({
           invalidateProfile();
           core._commit();
           platformsFacade?.tickDiscovery();
+          void platformsFacade?.warmLibraryPlayability?.('qq');
           publishIfChanged();
         }).catch(error => { if (!closed) onLog({ type: 'provider-restore', provider: 'qq', code: error.code ?? 'provider_failure' }); });
       }

@@ -393,6 +393,17 @@ export class MusicStore {
     this.db.prepare('INSERT OR REPLACE INTO track_availability VALUES (?, ?, ?)').run(trackId(track), code, expiresAt);
   }
 
+  clearUnavailable(provider = null, codes = ['media_unavailable', 'resource_unavailable']) {
+    const list = Array.isArray(codes) ? codes.filter(code => typeof code === 'string' && code) : [];
+    if (!list.length) return 0;
+    const placeholders = list.map(() => '?').join(',');
+    if (provider) {
+      return this.db.prepare(`DELETE FROM track_availability WHERE track_key LIKE ? AND code IN (${placeholders})`)
+        .run(`${provider}:%`, ...list).changes;
+    }
+    return this.db.prepare(`DELETE FROM track_availability WHERE code IN (${placeholders})`).run(...list).changes;
+  }
+
   isTrackAvailable(track, now) {
     return !this.db.prepare('SELECT 1 FROM track_availability WHERE track_key=? AND expires_at>?').get(trackId(track), now);
   }

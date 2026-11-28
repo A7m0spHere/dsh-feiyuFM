@@ -55,8 +55,8 @@ test('a history/processing crash is replayable and duplicate growth has no effec
 });
 test('an unplayable autonomous candidate is excluded and replacement has a finite budget', async () => {
   const store = new MusicStore(), playback = new FakePlayback(), clock = new FakeClock();
-  const tracks = [1, 2, 3, 4].map(id => ({ ...track, providerTrackId: String(id) }));
-  importSeedTracks({ store, provider: 'netease', source: 'recent', requested: 4, tracks });
+  const tracks = Array.from({ length: 12 }, (_, i) => ({ ...track, providerTrackId: String(i + 1) }));
+  importSeedTracks({ store, provider: 'netease', source: 'recent', requested: 12, tracks });
   initializeAgentPreferences({ store, seed: 123 });
   let calls = 0;
   const provider = { async resolve() { calls++; throw new MusicError('media_unavailable', 'no permission'); } };
@@ -64,10 +64,13 @@ test('an unplayable autonomous candidate is excluded and replacement has a finit
   try {
     core.dispatch({ type: 'chooseSelf', commandId: 'start' });
     await core.waitForIdle();
-    assert.equal(calls, 3);
+    assert.equal(calls, 9);
     assert.equal(core.snapshot().paused, true);
     assert.equal(store.db.prepare('SELECT COUNT(*) AS n FROM listen_history').get().n, 0);
-    assert.equal(store.db.prepare('SELECT COUNT(*) AS n FROM track_availability').get().n, 3);
+    assert.equal(store.db.prepare('SELECT COUNT(*) AS n FROM track_availability').get().n, 9);
+    const row = store.db.prepare('SELECT code, expires_at FROM track_availability LIMIT 1').get();
+    assert.equal(row.code, 'media_unavailable');
+    assert.equal(row.expires_at, clock.now() + 24 * 60 * 60_000);
   } finally { store.close(); }
 });
 test('a restarted selector continues the persisted random stream', async () => {

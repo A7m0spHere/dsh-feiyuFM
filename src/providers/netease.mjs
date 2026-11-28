@@ -10,7 +10,7 @@
 // live service. docs/spikes/P2-netease.md records exactly what remains
 // unconfirmed (P0-02 / P3). Nothing here asserts a verified platform API.
 import { createPlatformProvider } from './platform.mjs';
-import { MusicError, trackId } from '../contracts.mjs';
+import { MusicError, PLAYABILITY_CHECK_BATCH_SIZE, PLAYABILITY_CHECK_MAX_TRACKS, trackId } from '../contracts.mjs';
 import { toTrack, capability, needsLogin } from './contract.mjs';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { randomUUID } from 'node:crypto';
@@ -405,6 +405,14 @@ export function createNetEaseProvider(options = {}) {
       },
       playUrl: (body) => {
         const entry = Array.isArray(body?.data) ? body.data[0] : (body?.data ?? body);
+        if (entry?.freeTrialInfo && typeof entry.freeTrialInfo === 'object') {
+          return {
+            url: null,
+            reason: '网易云音乐仅提供试听片段，当前账号无法播放完整版。',
+            expiresInSeconds: null,
+            expiresAt: null,
+          };
+        }
         return {
           url: secureMediaUrl(entry?.url ?? null),
           reason: entry?.reason ?? null,
@@ -574,6 +582,53 @@ export function createNetEaseProvider(options = {}) {
       throw new MusicError('invalid_command', '导入数量必须是正数。');
     }
     return getSeedTracks(seedOptions);
+  };
+  provider.checkPlayability = async (tracks = [], { signal = null } = {}) => {
+    if (provider.getAccount().status !== 'authorized') throw new MusicError('login_required', '请先登录网易云音乐。');
+    const ids = [...new Set((tracks ?? [])
+      .filter(track => track?.provider === NETEASE && /^\d{1,20}$/.test(String(track.providerTrackId ?? '')))
+      .map(track => String(track.providerTrackId)))].slice(0, PLAYABILITY_CHECK_MAX_TRACKS);
+    if (!ids.length) return { playable: [], unplayable: [], checked: 0, skipped: false };
+    const context = provider.resourceContext();
+    const playable = [];
+    const unplayable = [];
+    let checked = 0;
+    for (let index = 0; index < ids.length; index += PLAYABILITY_CHECK_BATCH_SIZE) {
+      if (signal?.aborted || provider.resourceContext() !== context) throw new MusicError('cancelled', '网易云可播检查已取消。');
+      const chunk = ids.slice(index, index + PLAYABILITY_CHECK_BATCH_SIZE);
+      try {
+        const response = await transport.request({ role: 'resolve', params: { ids: chunk, br: 128000 }, signal });
+        if (signal?.aborted || provider.resourceContext() !== context) throw new MusicError('cancelled', '网易云可播检查已取消。');
+        if (response?.status === 401 || response?.status === 403 || response?.body?.code === 301) {
+          throw new MusicError('login_required', '网易云登录已失效，请重新扫码。');
+        }
+        if (response?.status && response.status >= 400) break;
+        const rows = Array.isArray(response?.body?.data) ? response.body.data : null;
+        if (!rows) continue;
+        const byId = new Map(rows.filter(row => row && row.id !== undefined && row.id !== null).map(row => [String(row.id), row]));
+        for (const id of chunk) {
+          const entry = byId.get(id);
+          if (!entry) continue;
+          checked++;
+          const isTrial = Boolean(entry.freeTrialInfo && typeof entry.freeTrialInfo === 'object');
+          const hasFullUrl = !isTrial && typeof entry.url === 'string' && entry.url.trim().length > 0;
+          (hasFullUrl ? playable : unplayable).push(`${NETEASE}:${id}`);
+        }
+      } catch (error) {
+        if (signal?.aborted || error?.code === 'cancelled' || error?.name === 'AbortError') {
+          throw new MusicError('cancelled', '网易云可播检查已取消。');
+        }
+        if (error?.code === 'login_required' || error?.status === 401 || error?.status === 403) {
+          const saved = store?.getCredentialReference(NETEASE);
+          if (saved?.state === 'authorized') {
+            store.setCredentialReference({ provider: NETEASE, accountId: saved.account_id, credentialRef: accountRef, state: 'expired', updatedAt: (options.now ?? Date.now)() });
+          }
+          throw error instanceof MusicError ? error : new MusicError('login_required', '网易云登录已失效，请重新扫码。');
+        }
+        break;
+      }
+    }
+    return { playable, unplayable, checked, skipped: checked === 0 };
   };
   return provider;
 }

@@ -1,12 +1,12 @@
 import { createPlatformProvider } from './platform.mjs';
 import { capability, needsLogin, toTrack } from './contract.mjs';
-import { MusicError, trackId } from '../contracts.mjs';
+import { MusicError, PLAYABILITY_CHECK_BATCH_SIZE, PLAYABILITY_CHECK_MAX_TRACKS, trackId } from '../contracts.mjs';
 import { normalizeQQMusicLyrics } from '../lyrics.mjs';
 import { qqPlayEntry } from './qq-transport.mjs';
 
 export const QQ = 'qq';
 export const QQ_ROLES = Object.freeze(['loginQr', 'loginPoll', 'accountInfo', 'recentTracks',
-  'likedTracks', 'playlists', 'playlistTracks', 'search', 'resolve', 'lyrics',
+  'likedTracks', 'playlists', 'playlistTracks', 'search', 'resolve', 'checkPlayability', 'lyrics',
   'dailyRecommendations', 'personalRecommendations', 'similarRecommendations']);
 export const QQ_SEED_ORDER = Object.freeze(['liked', 'playlist']);
 const unwrap = body => body?.req_0?.data ?? body?.data ?? body;
@@ -39,8 +39,36 @@ const accountIdOf = body => {
   return value === undefined || value === null || value === '' ? null : String(value);
 };
 
+const PROBED_128_CACHE_TTL_MS = 120_000;
+const PROBED_128_CACHE_LIMIT = 40;
+
 export function createQQProvider(options = {}) {
   const { transport, store, now = () => Date.now() } = options;
+  // Short-lived, account-scoped in-memory 128 kbps fallback cache populated by
+  // checkPlayability. Never leaves the provider or touches SQLite/snapshots.
+  const probed128Cache = new Map();
+  let contextProvider = () => '';
+  const readFresh128 = (mid, context = contextProvider()) => {
+    if (typeof mid !== 'string' || !mid) return null;
+    const cached = probed128Cache.get(mid);
+    if (!cached) return null;
+    if (cached.context !== context || cached.cacheUntil <= now()) {
+      probed128Cache.delete(mid);
+      return null;
+    }
+    return cached;
+  };
+  const remember128 = (mid, entry, context) => {
+    const url = entry?.url ?? entry?.purl;
+    if (typeof url !== 'string' || !url || entry?.preview === true) return;
+    const at = now();
+    const expiresAt = Number.isSafeInteger(entry.expiresIn) ? at + entry.expiresIn * 1000 : null;
+    const ttlUntil = at + PROBED_128_CACHE_TTL_MS;
+    const cacheUntil = expiresAt ? Math.min(ttlUntil, expiresAt - 30_000) : ttlUntil;
+    if (cacheUntil <= at) return;
+    probed128Cache.set(mid, { url, expiresAt, cacheUntil, context });
+    if (probed128Cache.size > PROBED_128_CACHE_LIMIT) probed128Cache.delete(probed128Cache.keys().next().value);
+  };
   const provider = createPlatformProvider({
     provider: QQ, displayName: 'QQ 音乐', labels: { firstSource: '喜欢歌曲' }, ...options,
     parse: {
@@ -84,7 +112,14 @@ export function createQQProvider(options = {}) {
         return { url: result?.url ?? result?.purl ?? null, reason: 'QQ 音乐暂未提供完整播放链接。',
           expiresInSeconds: Number.isSafeInteger(result?.expiresIn) ? result.expiresIn : null };
       },
-      resolveParams: ({ track }) => ({ songmid: track.providerTrackId, quality: '320' }),
+      resolveParams: ({ track }) => {
+        const cached = readFresh128(track.providerTrackId);
+        return {
+          songmid: track.providerTrackId,
+          quality: '320',
+          ...(cached && cached.cacheUntil > now() + 5_000 ? { skip128Fallback: true } : {}),
+        };
+      },
       lyrics: normalizeQQMusicLyrics,
     },
     seedSources: {
@@ -103,7 +138,45 @@ export function createQQProvider(options = {}) {
       ] },
     },
   });
+  contextProvider = () => provider.resourceContext();
   const baseAccount = provider.getAccount.bind(provider);
+  const baseResolve = provider.resolve.bind(provider);
+  provider.resolve = async (track, resolveOptions = {}) => {
+    const context = provider.resourceContext();
+    const mid = track?.provider === QQ ? track.providerTrackId : null;
+    const hadFresh128 = Boolean(mid && readFresh128(mid, context)?.cacheUntil > now() + 5_000);
+    try {
+      const resource = await baseResolve(track, resolveOptions);
+      if (mid) probed128Cache.delete(mid);
+      return resource;
+    } catch (error) {
+      if (error?.code === 'media_unavailable' && mid && provider.resourceContext() === context) {
+        const cached = readFresh128(mid, context);
+        if (cached) {
+          // One-shot consume: Core's resourceCache holds the live handle, and a
+          // subsequent forceResolve recovery must hit QQ upstream freshly.
+          probed128Cache.delete(mid);
+          return { handle: cached.url, expiresAt: cached.expiresAt, version: resolveOptions.version ?? null };
+        }
+        if (hadFresh128) {
+          // Cached 128 expired mid-flight while 320 was checked; retry once with full 320→128 fallback.
+          probed128Cache.delete(mid);
+          return await baseResolve(track, resolveOptions);
+        }
+      }
+      throw error;
+    }
+  };
+  const baseLogout = provider.logout.bind(provider);
+  provider.logout = async (...args) => {
+    probed128Cache.clear();
+    return baseLogout(...args);
+  };
+  const baseDispose = provider.dispose.bind(provider);
+  provider.dispose = (...args) => {
+    probed128Cache.clear();
+    return baseDispose(...args);
+  };
   let verified = !transport.requiresRestore || store?.getCredentialReference(QQ)?.state !== 'authorized';
   let restoreFailed = false;
   provider.getAccount = () => {
@@ -154,9 +227,11 @@ export function createQQProvider(options = {}) {
     const context = provider.resourceContext();
     const result = new Map();
     const failures = [];
-    const calls = [{ role: 'dailyRecommendations', source: 'qq_daily', params: {} },
+    const calls = [
+      ...seeds.filter(track => track.provider === QQ).slice(0, 3).map(track => ({ role: 'similarRecommendations', source: 'qq_similar', params: { songmid: track.providerTrackId }, seed: track })),
+      { role: 'dailyRecommendations', source: 'qq_daily', params: {} },
       { role: 'personalRecommendations', source: 'qq_personal_fm', params: {} },
-      ...seeds.filter(track => track.provider === QQ).slice(0, 3).map(track => ({ role: 'similarRecommendations', source: 'qq_similar', params: { songmid: track.providerTrackId }, seed: track }))];
+    ];
     for (const call of calls) {
       if (result.size >= limit) break;
       try {
@@ -182,6 +257,55 @@ export function createQQProvider(options = {}) {
     }
     if (!result.size && failures.length === calls.length) throw new MusicError('provider_failure', 'QQ 音乐推荐暂不可用。', { retryable: true });
     return [...result.values()].slice(0, limit);
+  };
+  provider.checkPlayability = async (tracks = [], { signal = null } = {}) => {
+    if (provider.getAccount().status !== 'authorized') throw new MusicError('login_required', '请先登录 QQ 音乐。');
+    if (typeof transport.roles === 'function' && !transport.roles().includes('checkPlayability')) {
+      return { playable: [], unplayable: [], checked: 0, skipped: true };
+    }
+    const mids = [...new Set((tracks ?? [])
+      .filter(track => track?.provider === QQ && typeof track.providerTrackId === 'string' && /^[\w-]{1,80}$/.test(track.providerTrackId))
+      .map(track => track.providerTrackId))].slice(0, PLAYABILITY_CHECK_MAX_TRACKS);
+    if (!mids.length) return { playable: [], unplayable: [], checked: 0, skipped: false };
+    const context = provider.resourceContext();
+    const playable = [];
+    const unplayable = [];
+    let checked = 0;
+    for (let index = 0; index < mids.length; index += PLAYABILITY_CHECK_BATCH_SIZE) {
+      if (signal?.aborted || provider.resourceContext() !== context) throw new MusicError('cancelled', 'QQ 可播检查已取消。');
+      const chunk = mids.slice(index, index + PLAYABILITY_CHECK_BATCH_SIZE);
+      try {
+        const response = await transport.request({ role: 'checkPlayability', params: { songmids: chunk }, signal });
+        if (signal?.aborted || provider.resourceContext() !== context) throw new MusicError('cancelled', 'QQ 可播检查已取消。');
+        const data = unwrap(response?.body);
+        const playMap = data?.playUrl;
+        if (!playMap || typeof playMap !== 'object') continue;
+        for (const mid of chunk) {
+          const entry = playMap[mid];
+          if (!entry || typeof entry !== 'object') continue;
+          checked++;
+          const hasFullUrl = entry.preview !== true && Boolean(entry.url || entry.purl);
+          if (hasFullUrl) remember128(mid, entry, context);
+          (hasFullUrl ? playable : unplayable).push(`${QQ}:${mid}`);
+        }
+      } catch (error) {
+        if (signal?.aborted || error?.code === 'cancelled' || error?.name === 'AbortError') {
+          throw new MusicError('cancelled', 'QQ 可播检查已取消。');
+        }
+        if (error?.code === 'login_required') {
+          const saved = store?.getCredentialReference(QQ);
+          if (saved) store.setCredentialReference({ provider: QQ, accountId: saved.account_id, credentialRef: saved.credential_ref, state: 'expired', updatedAt: now() });
+          throw error;
+        }
+        if (error?.code === 'media_unavailable' && chunk.length === 1) {
+          checked++;
+          unplayable.push(`${QQ}:${chunk[0]}`);
+          continue;
+        }
+        break;
+      }
+    }
+    return { playable, unplayable, checked, skipped: checked === 0 };
   };
   return provider;
 }

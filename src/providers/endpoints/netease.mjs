@@ -73,7 +73,10 @@ export function neteaseEndpoints({ base = API } = {}) {
     resolve: {
       url: `${base}/song/enhance/player/url`,
       method: 'POST',
-      body: ({ id, br = 320000 }) => ({ ids: JSON.stringify([Number(id)]), br }),
+      body: ({ id, ids, br = 320000 }) => ({
+        ids: JSON.stringify(Array.isArray(ids) ? ids.map(Number) : [Number(id)]),
+        br,
+      }),
     },
   };
 }

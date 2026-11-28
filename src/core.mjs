@@ -1,7 +1,7 @@
 import { playbackSourceView } from './playback-source.mjs';
 import { publicMusicAccount } from './music-account.mjs';
 import { randomUUID } from 'node:crypto';
-import { assertCommand, MusicError, normalizeTrack, PROVIDERS, trackId } from './contracts.mjs';
+import { assertCommand, MusicError, normalizeTrack, PLAYABILITY_CHECK_BATCH_SIZE, PROVIDERS, trackId, UNAVAILABLE_BACKOFF_MS } from './contracts.mjs';
 import {setTrackFeedback,resetRecommendationTaste,undoRecommendationReset} from './feedback.mjs';
 import {modelRecommendations} from './model-recommendations.mjs';
 import {createSelector} from './selection.mjs';
@@ -48,6 +48,9 @@ function withTimeout(promise, timeoutMs, signal) {
     else signal?.addEventListener('abort', onAbort, { once: true });
   });
 }
+
+export const MAX_AUTO_FAILURES = 2;
+export const MAX_UNAVAILABLE_SKIPS = 8;
 
 const DEFAULT_SETTINGS = Object.freeze({
   listening: true,
@@ -130,6 +133,8 @@ export class MusicCore {
       this.state.current.audibleMs ??= 0;
     }
     this.autoFailures = 0;
+    this.unavailableSkips = 0;
+    this.availabilityProbedInChain = false;
     this.abortController = null;
     this.tasks = new Set();
     // Resolved platform handles are reusable until they expire; the next track's
@@ -233,6 +238,8 @@ export class MusicCore {
     this.resourceCache.clear();
     this.navigation = null;
     this.autoFailures = 0;
+    this.unavailableSkips = 0;
+    this.availabilityProbedInChain = false;
     Object.assign(this.state, { current: null, queue: [], lastSelection: null, lastError: null, paused: true, status: 'idle' });
     this._control('stop', { version: this.state.commandVersion }, true);
     this._commit();
@@ -368,10 +375,88 @@ export class MusicCore {
     return this.state.commandVersion === version && !signal.aborted;
   }
 
+  async _probeFallbackAvailability(failed, version) {
+    if (this.availabilityProbedInChain || typeof this.provider.checkPlayability !== 'function') return true;
+    const providerName = failed?.track?.provider;
+    if (!providerName) return true;
+    this.availabilityProbedInChain = true;
+    const now = this.clock.now();
+    const unavailable = this.store.unavailableKeys?.(now) ?? new Set();
+    const recent = new Set(recentPlayback(this.store).map(entry => entry.trackKey));
+    const banned = new Set(this.store.activeConstraints(now)
+      .filter(row => row.kind === 'ban_track' && typeof row.track_key === 'string')
+      .map(row => row.track_key));
+    const failedKey = trackId(failed.track);
+    const seen = new Set([failedKey]);
+    const batch = [];
+    const addCandidate = (track) => {
+      if (!track || track.provider !== providerName || batch.length >= PLAYABILITY_CHECK_BATCH_SIZE) return;
+      const key = trackId(track);
+      if (seen.has(key) || banned.has(key) || unavailable.has(key) || recent.has(key)) return;
+      seen.add(key);
+      batch.push(track);
+    };
+    for (const track of this.provider.discoveryTracks?.() ?? []) addCandidate(track);
+    const userInitiatedPool = ['user-start', 'user-next'].includes(failed.selectionTrigger);
+    if (userInitiatedPool || this.store.getSetting('recommendation_mode_v1') !== 'filtered') {
+      for (const row of this.store.listEnvironment({ provider: providerName, limit: 100 })) {
+        const track = this.store.getNormalizedTrack({
+          provider: row.provider,
+          providerTrackId: row.track_key.slice(row.provider.length + 1),
+        });
+        addCandidate(track);
+      }
+    }
+    if (!batch.length) return true;
+    const controller = new AbortController();
+    this.abortController = controller;
+    try {
+      let targetBatch = batch;
+      if (typeof this.provider.joinLibraryWarmup === 'function') {
+        const warmed = await this.provider.joinLibraryWarmup(providerName, { signal: controller.signal });
+        if (version !== this.state.commandVersion || controller.signal.aborted) return false;
+        if (warmed && !warmed.skipped && warmed.checked > 0) {
+          const refreshedUnavailable = this.store.unavailableKeys?.(this.clock.now()) ?? new Set();
+          const checkedKeys = warmed.checkedKeys instanceof Set ? warmed.checkedKeys : null;
+          targetBatch = batch.filter(track => {
+            const key = trackId(track);
+            return !refreshedUnavailable.has(key) && !(checkedKeys?.has(key));
+          });
+          if (!targetBatch.length) return true;
+        }
+      }
+      const probe = await this.provider.checkPlayability(providerName, targetBatch, { signal: controller.signal });
+      if (version !== this.state.commandVersion || controller.signal.aborted) return false;
+      if (probe && !probe.skipped && Array.isArray(probe.unplayable) && probe.unplayable.length) {
+        const byKey = new Map(targetBatch.map(track => [trackId(track), track]));
+        const expiresAt = this.clock.now() + UNAVAILABLE_BACKOFF_MS.media_unavailable;
+        for (const key of probe.unplayable) {
+          const track = byKey.get(key);
+          if (track) this.store.markUnavailable(track, 'media_unavailable', expiresAt);
+        }
+        this.onLog({ type: 'playback-playability-probe', provider: providerName,
+          checked: probe.checked ?? targetBatch.length, playable: probe.playable?.length ?? 0, unplayable: probe.unplayable.length });
+      }
+      return true;
+    } catch (error) {
+      if (version !== this.state.commandVersion || controller.signal.aborted || error?.code === 'cancelled') return false;
+      if (error?.code === 'login_required') {
+        this.state.paused = true;
+        this.state.status = 'error';
+        this.state.lastError = { code: 'login_required', message: error.message, retryable: false };
+        this._commit();
+        return false;
+      }
+      return true;
+    } finally {
+      if (this.abortController === controller) this.abortController = null;
+    }
+  }
+
   _launch(work, version) {
-    const task = Promise.resolve().then(work).catch((error) => {
+    const task = Promise.resolve().then(work).catch(async (error) => {
       if (version !== this.state.commandVersion) return;
-      this.state.lastError = {
+      const failureError = {
         code: error.code ?? 'internal',
         message: error.message,
         // Whether trying again could help is part of the reason, and a caller
@@ -379,6 +464,7 @@ export class MusicCore {
         retryable: error.retryable === true,
         ...(error.details?.stage === 'download' ? { details: { stage: 'download' } } : {}),
       };
+      this.state.lastError = failureError;
       // Release the track that could not be started. Leaving it as `current`
       // would block every later selection, so one unplayable track would stop
       // music for good. Nothing is recorded: a track that never played is not a
@@ -393,11 +479,15 @@ export class MusicCore {
         ...(Number.isFinite(error.openElapsedMs) ? { openElapsedMs: error.openElapsedMs } : {}),
         ...(Number.isFinite(expiry?.expiresAt) ? { expiresAt: expiry.expiresAt } : {}),
         ...(Number.isFinite(expiry?.resolvedAt) ? { resourceAgeMs: this.clock.now() - expiry.resolvedAt } : {}) });
-      const candidateFailure = ['media_unavailable', 'resource_unavailable', 'media_open_timeout', 'media_failed', 'media_download_failed'].includes(error.code);
+      const availabilityFailure = ['media_unavailable', 'resource_unavailable'].includes(error.code);
+      const candidateFailure = availabilityFailure || ['media_open_timeout', 'media_failed', 'media_download_failed'].includes(error.code);
       // One network stall must not mark a track unplayable for long: a timeout
-      // backs off for a minute while a platform-declared unavailable keeps 30.
-      if (failed && candidateFailure) this.store.markUnavailable(failed.track, error.code, this.clock.now()
-        + (error.code === 'media_open_timeout' ? 1 : ['media_failed', 'media_download_failed'].includes(error.code) ? 5 : 30) * 60_000);
+      // backs off for a minute, media failures for 5 minutes, while an account
+      // entitlement refusal (VIP/restricted) backs off for 24 hours.
+      if (failed && candidateFailure) {
+        const backoffMs = UNAVAILABLE_BACKOFF_MS[error.code] ?? 5 * 60_000;
+        this.store.markUnavailable(failed.track, error.code, this.clock.now() + backoffMs);
+      }
       if (this.state.current) {
         // A failed recovery still belongs to the listen that already happened.
         // Only a never-started load is discarded without a history row.
@@ -406,15 +496,50 @@ export class MusicCore {
         this.state.current = null;
         if (this.navigation?.playInstanceId === failed?.playInstanceId) this.navigation.playInstanceId = null;
       }
-      this.state.paused = true;
-      this.state.status = 'error';
-      this._commit();
-      if (failed?.selectedBy === 'agent' && candidateFailure && this.autoFailures < 2
-        && this.state.settings.listening && !this._blockedUntil()) {
-        this.autoFailures++;
+      const userInitiatedPool = ['user-start', 'user-next'].includes(failed?.selectionTrigger);
+      const withinBudget = availabilityFailure
+        ? this.unavailableSkips < MAX_UNAVAILABLE_SKIPS
+        : this.autoFailures < MAX_AUTO_FAILURES;
+      const canSkip = failed?.selectedBy === 'agent' && candidateFailure && withinBudget
+        && !this._blockedUntil() && (userInitiatedPool || this.state.settings.listening);
+      if (!canSkip) {
+        this.state.paused = true;
+        this.state.status = 'error';
+        this._commit();
+        return;
+      }
+      if (availabilityFailure) this.unavailableSkips++;
+      else this.autoFailures++;
+      if (availabilityFailure) {
         this.state.paused = false;
-        this.state.status = 'idle';
-        this.selectAutonomously();
+        this.state.status = 'selecting';
+        this.state.lastError = null;
+        this._commit();
+        const ok = await this._probeFallbackAvailability(failed, version);
+        if (!ok || version !== this.state.commandVersion) return;
+      }
+      this.state.paused = false;
+      this.state.status = 'idle';
+      if (userInitiatedPool) {
+        try {
+          this._selectForUser(failed.selectionTrigger, false, this.clock.now());
+        } catch (selectError) {
+          this.state.paused = true;
+          this.state.status = 'error';
+          this.state.lastError = {
+            code: availabilityFailure ? 'media_unavailable' : (selectError.code ?? 'no_candidates'),
+            message: availabilityFailure
+              ? '当前可选曲目对这个账号均无法播放完整版，已自动跳过受限歌曲。'
+              : selectError.message,
+            retryable: false,
+          };
+          this._commit();
+        }
+      } else if (!this.selectAutonomously()) {
+        this.state.paused = true;
+        this.state.status = 'error';
+        this.state.lastError = failureError;
+        this._commit();
       }
     });
     this.tasks.add(task);
@@ -732,18 +857,27 @@ export class MusicCore {
         this._control('pause', { version: this.state.commandVersion }, true);
         break;
       case 'resume':
+        this.autoFailures = 0;
+        this.unavailableSkips = 0;
+        this.availabilityProbedInChain = false;
         if (this.state.paused || this.state.status !== 'playing') {
           this.state.paused = false;
           if (this.state.current) this._resumeCurrent();
         }
         break;
       case 'next':
+        this.autoFailures = 0;
+        this.unavailableSkips = 0;
+        this.availabilityProbedInChain = false;
         if (!this._forwardTrack()) this._selectForUser('user-next', this.state.paused, now);
         break;
       case 'previous':
         this._previousTrack();
         break;
       case 'requestTrack':
+        this.autoFailures = 0;
+        this.unavailableSkips = 0;
+        this.availabilityProbedInChain = false;
         if (this._blockedTrack(command.track)) throw new MusicError('constraint_conflict', 'Track is banned by a user constraint');
         this._select(command.track, 'user', false);
         break;
@@ -820,6 +954,9 @@ export class MusicCore {
         break;
       }
       case 'chooseSelf':
+        this.autoFailures = 0;
+        this.unavailableSkips = 0;
+        this.availabilityProbedInChain = false;
         this.store.removeConstraint('stop-today');
         this.state.blockUntil = null;
         this.state.settings.listening = true;
@@ -1003,7 +1140,11 @@ export class MusicCore {
       current.effectiveMs = (current.effectiveMs ?? 0) + delta;
       if (current.selectedBy === 'agent' && this.state.settings.listening) current.agentEffectiveMs = (current.agentEffectiveMs ?? 0) + delta;
       if (event.progressSource !== 'logical' && this.state.settings.humanPlayback) current.audibleMs = (current.audibleMs ?? 0) + delta;
-      if (current.effectiveMs >= 30_000) this.autoFailures = 0;
+      if (current.effectiveMs >= 30_000) {
+        this.autoFailures = 0;
+        this.unavailableSkips = 0;
+        this.availabilityProbedInChain = false;
+      }
       current.positionMs = nextPosition;
       current.progressSource = event.progressSource === 'logical' ? 'logical' : 'audio';
       current.agentListening ||= current.selectedBy === 'agent' && this.state.settings.listening;
@@ -1066,8 +1207,14 @@ export class MusicCore {
       this._commit();
       if (event.type === 'ended') this.selectAutonomously();
       else if (current.selectedBy === 'agent' && ['media_unavailable','media_failed','media_open_timeout','media_stalled'].includes(event.code)) {
-        this.store.markUnavailable(current.track, event.code, this.clock.now() + (event.code === 'media_unavailable' ? 30 : event.code === 'media_stalled' ? 1 : 5) * 60_000);
-        if (this.autoFailures < 2) { this.autoFailures++; this.selectAutonomously(); }
+        const backoffMs = UNAVAILABLE_BACKOFF_MS[event.code] ?? 5 * 60_000;
+        this.store.markUnavailable(current.track, event.code, this.clock.now() + backoffMs);
+        if (event.code === 'media_unavailable') {
+          if (this.unavailableSkips < MAX_UNAVAILABLE_SKIPS) { this.unavailableSkips++; this.selectAutonomously(); }
+        } else if (this.autoFailures < MAX_AUTO_FAILURES) {
+          this.autoFailures++;
+          this.selectAutonomously();
+        }
       }
       return true;
     }
