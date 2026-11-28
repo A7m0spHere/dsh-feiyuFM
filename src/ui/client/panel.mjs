@@ -254,7 +254,10 @@ export function Panel({ controller, back }) {
         toggle('电脑输出声音', '关闭只静音，不暂停听歌。', 'humanPlayback', 'setHumanPlayback'),
         toggle('探索新音乐', '从可播放的新歌候选中探索。', 'discovery', 'setDiscovery'),
         h('p', { className: 'fm-note', role: 'status', 'aria-live': 'polite' }, discoveryPresentation(snapshot)),
-        snapshot?.lastSelection?.fellBack && h('p', { className: 'fm-note' }, '最近一次自主选择：没有合适的新歌，先播了常听歌曲。'),
+        snapshot?.lastSelection?.fellBack && h('p', { className: 'fm-note' },
+          snapshot.lastSelection.fallbackReason?.includes('平台相似推荐')
+            ? '最近一次手动回退：推荐歌单与输入曲库暂无未播曲目，改播平台相似推荐里已确认可播的新歌。'
+            : '最近一次自主选择：没有合适的新歌，先播了常听歌曲。'),
         state.features?.discoveryRefresh && insights?.recommendationMode !== 'filtered' && h('button', { type: 'button', className: 'fm-button', disabled: disabled || state.platformBusy || !settings.discovery || settings.discoveryRate === 0 || state.platforms?.[automaticSource]?.account?.status !== 'authorized',
           onClick: () => controller.platformAction('discovery', automaticSource) }, '刷新新歌推荐'),
         h('div', { className: 'fm-rate' }, h('div', { className: 'fm-rate-head' }, h('label', { htmlFor: rateId }, '新歌探索率'), h('output', { htmlFor: rateId }, `${rate}%`)),
@@ -405,6 +408,17 @@ export function Panel({ controller, back }) {
     }
     setGuideFocus(step);
   };
+  // 未配置推荐模型时，「重新找歌」不会产生有效筛选：改为引导到电台设置选择
+  // 模型或补充可播放歌曲，避免用户反复点一个不会生效的按钮。
+  const errorAction = (() => {
+    if (state.errorCode !== 'no_candidates') return { label: state.connected ? '刷新状态' : '重新连接', onClick: controller.refresh };
+    const mode = state.insights?.recommendationMode;
+    if (mode !== 'llm' && state.persona && !state.persona.recommendationRoute?.model) {
+      return { label: '去电台设置选择模型', onClick: () => selectView('settings') };
+    }
+    if (mode === 'llm') return { label: '重新核对歌单', onClick: () => controller.platformAction('discovery', automaticSource) };
+    return { label: '重新找歌', onClick: () => controller.platformAction('discovery', automaticSource) };
+  })();
   const dock = () => h('div', { className: 'fm-player-dock', 'aria-label': '播放控制' },
     h('div', { className: 'fm-dock-track' }, h('strong', null, current?.track?.title || '肥鱼电台'), h('span', null, (current?.track ? `${current.track.artist || '未知艺人'} · ${current.track.provider === 'qq' ? 'QQ 音乐' : '网易云音乐'}` : '') || '等待音乐')),
     h('div', { className: 'fm-dock-center' }, h('div', { className: 'fm-controls' },
@@ -470,8 +484,7 @@ export function Panel({ controller, back }) {
         }, label))),
       state.error && h('div', { className: 'fm-notice', 'data-error': true, role: 'alert' }, state.error,
         h('button', { className: 'fm-button', type: 'button', disabled: state.busy,
-          onClick: state.errorCode === 'no_candidates' && ['llm', 'filtered'].includes(state.insights?.recommendationMode) ? () => controller.platformAction('discovery', automaticSource) : controller.refresh },
-        state.errorCode === 'no_candidates' && state.insights?.recommendationMode === 'filtered' ? '重新找歌' : state.errorCode === 'no_candidates' && state.insights?.recommendationMode === 'llm' ? '重新核对歌单' : state.connected ? '刷新状态' : '重新连接')),
+          onClick: errorAction.onClick }, errorAction.label)),
       snapshot?.lastError && h('div', { className: 'fm-notice', role: 'status' }, playbackNotice(snapshot)),
       snapshot?.blockUntil > Date.now() && h('div', { className: 'fm-notice' }, '今天已停止自主听歌。到期后保持暂停，直到你主动恢复。',
         h('button', { className: 'fm-button', type: 'button', disabled: state.busy || !state.connected, onClick: () => controller.command('chooseSelf') }, '恢复自主听歌')),

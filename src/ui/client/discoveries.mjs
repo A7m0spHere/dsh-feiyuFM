@@ -1,7 +1,8 @@
 import React from 'react';
 import {h} from './shared.mjs';
 
-const discoverySources = {netease_similar: '网易云相似推荐', netease_daily: '网易云每日推荐', netease_personal_fm: '网易云私人 FM', platform_recommendation: '平台推荐'};
+const discoverySources = {netease_similar: '网易云相似推荐', netease_daily: '网易云每日推荐', netease_personal_fm: '网易云私人 FM',
+  qq_similar: 'QQ 音乐相似推荐', qq_daily: 'QQ 音乐每日推荐', qq_personal_fm: 'QQ 音乐私人 FM', platform_recommendation: '平台推荐'};
 export function Discoveries({state,expanded=false}) {
   const journal = state.persona?.discoveryJournal;
   if (!journal) return null;

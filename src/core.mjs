@@ -136,6 +136,8 @@ export class MusicCore {
     this.unavailableSkips = 0;
     this.availabilityProbedInChain = false;
     this.abortController = null;
+    // 显式回退触发的一次发现刷新等待；只保存内存状态，不落盘。
+    this.discoveryRefresh = null;
     this.tasks = new Set();
     // Resolved platform handles are reusable until they expire; the next track's
     // URL is prefetched while the current one plays so a switch does not wait
@@ -184,6 +186,9 @@ export class MusicCore {
     this.state.commandVersion += 1;
     this.state.seekPending = null;
     this.state.seekError = null;
+    // 任何取代当前等待的用户动作（暂停、点播、换曲、模式切换）都取消在途的
+    // 发现刷新等待，迟到结果不再选歌，更不能撤销暂停。
+    this._cancelDiscoveryRefresh();
     this.abortController?.abort();
     this.abortController = null;
     this._cancelPrefetch({ keepResourceKey });
@@ -324,11 +329,13 @@ export class MusicCore {
         queuedTracks: this.state.queue,
       };
       const decision = selector.decide(options);
-      // A manual next can use the input library when the approved pool is
-      // exhausted. Prepare that same fallback without allowing auto playback
-      // to choose it or consuming the selector's random stream.
-      return !decision?.track && this.selector && manualFallback
-        ? selector.decide({ ...options, libraryFallback: true }) : decision;
+      // A manual next can use the input library, and then platform discovery
+      // candidates already pre-checked as playable, when the approved pool is
+      // exhausted. Prepare the same fallbacks without allowing auto playback to
+      // choose them or consuming the selector's random stream.
+      if (decision?.track || !this.selector || !manualFallback) return decision;
+      const library = selector.decide({ ...options, libraryFallback: true });
+      return library?.track ? library : selector.decide({ ...options, discoveryFallback: true });
     } finally {
       selector.restoreRandomState(saved);
     }
@@ -398,6 +405,8 @@ export class MusicCore {
     };
     for (const track of this.provider.discoveryTracks?.() ?? []) addCandidate(track);
     const userInitiatedPool = ['user-start', 'user-next'].includes(failed.selectionTrigger);
+    // 显式回退候选同样要预检：否则连跳会把预算花在已知不可播的发现曲上。
+    if (userInitiatedPool) for (const track of this.provider.discoveryFallbackTracks?.() ?? []) addCandidate(track);
     if (userInitiatedPool || this.store.getSetting('recommendation_mode_v1') !== 'filtered') {
       for (const row of this.store.listEnvironment({ provider: providerName, limit: 100 })) {
         const track = this.store.getNormalizedTrack({
@@ -1006,7 +1015,7 @@ export class MusicCore {
     return this.snapshot();
   }
 
-  _selectForUser(trigger, keepPaused, at) {
+  _selectForUser(trigger, keepPaused, at, { refreshDiscovery = true } = {}) {
     const selector = this.selector ?? this.queueSelector;
     const options = {
       discoveryRate: this.state.settings.discovery ? this.state.settings.discoveryRate : 0,
@@ -1016,6 +1025,9 @@ export class MusicCore {
     };
     let decision = selector.next(options);
     let recentBlocked = decision?.reason === 'recent-window-exhausted';
+    // 显式用户操作的回退链：① 入选池 → ② 输入曲库 → ③ 平台已预检可播的发现
+    // 候选。自动续播（selectAutonomously）不经过这里，仍只播入选曲；三段都
+    // 遵守当前曲排除与最近 50 次硬窗口。
     if (this.selector && !decision?.track) {
       decision = selector.next({ ...options, libraryFallback: true });
       recentBlocked ||= decision?.reason === 'recent-window-exhausted';
@@ -1024,18 +1036,102 @@ export class MusicCore {
           fallbackReason: '推荐歌单暂时没有可播的曲目，已回退你的输入曲库' };
       }
     }
+    if (this.selector && !decision?.track) {
+      decision = selector.next({ ...options, discoveryFallback: true });
+      recentBlocked ||= decision?.reason === 'recent-window-exhausted';
+      if (decision?.track) {
+        decision = { ...decision, fellBack: true,
+          fallbackReason: '推荐歌单与输入曲库暂无未播曲目，已从平台相似推荐选取可播歌曲' };
+      }
+    }
     if (!decision?.track) {
-      throw new MusicError('no_candidates', this._noCandidatesReason(true, recentBlocked ? 'recent-window-exhausted' : decision?.reason));
+      const reason = recentBlocked ? 'recent-window-exhausted' : decision?.reason;
+      // 缓存里暂时没有可播候选时，允许一次有界、可被暂停／换曲取消的平台发现
+      // 刷新，刷新后再走一次同一条回退链。刷新不发模型请求，也不阻塞状态读取。
+      if (refreshDiscovery && this.selector && this._canRefreshDiscovery()) {
+        this._refreshDiscoveryForUser(trigger, keepPaused, reason);
+        return;
+      }
+      throw new MusicError('no_candidates', this._noCandidatesReason(true, reason));
     }
     this._applyRecommendation(decision, { trigger, keepPaused });
   }
 
+  /** 显式回退能否再刷新一次平台发现：需要发现能力、探索开启且账号已就绪。 */
+  _canRefreshDiscovery() {
+    if (typeof this.provider?.refreshDiscovery !== 'function') return false;
+    if (!this.state.settings.discovery || !(this.state.settings.discoveryRate > 0)) return false;
+    const status = this.provider.discoveryStatus?.() ?? null;
+    return status?.state !== 'disabled' && status?.state !== 'login_required';
+  }
+
+  /**
+   * 手动开始／下一首在三个池都空时的一次发现刷新。保持用户原本的暂停意图，
+   * 只把状态标成找歌；任何新用户命令（含暂停）经 _invalidate 取消等待，迟到
+   * 结果不选歌、不撤销暂停。
+   */
+  _refreshDiscoveryForUser(trigger, keepPaused, reason) {
+    this._cancelDiscoveryRefresh();
+    const controller = new AbortController();
+    const version = this.state.commandVersion;
+    const entry = { controller, version };
+    this.discoveryRefresh = entry;
+    this.state.status = 'selecting';
+    this.state.paused = keepPaused;
+    this.state.lastError = null;
+    this._commit();
+    this.onLog({ type: 'selection-refresh', trigger, reason: reason ?? null });
+    const task = (async () => {
+      try {
+        await Promise.race([
+          Promise.resolve(this.provider.refreshDiscovery({ manual: true, signal: controller.signal })),
+          new Promise((_, reject) => {
+            const abort = () => reject(new MusicError('cancelled', '发现刷新已取消'));
+            if (controller.signal.aborted) abort();
+            else controller.signal.addEventListener('abort', abort, { once: true });
+          }),
+        ]);
+      } catch (error) {
+        if (version !== this.state.commandVersion || controller.signal.aborted) return;
+        this.onLog({ type: 'selection-refresh-error', trigger, code: error?.code ?? 'provider_failure' });
+      }
+      if (version !== this.state.commandVersion || controller.signal.aborted) return;
+      try {
+        this._selectForUser(trigger, keepPaused, this.clock.now(), { refreshDiscovery: false });
+      } catch (error) {
+        if (version !== this.state.commandVersion) return;
+        this.state.paused = true;
+        this.state.status = 'error';
+        this.state.lastError = { code: error.code ?? 'no_candidates', message: error.message, retryable: false };
+        this._commit();
+      }
+    })().finally(() => { if (this.discoveryRefresh === entry) this.discoveryRefresh = null; });
+    this.tasks.add(task);
+    task.finally(() => this.tasks.delete(task));
+  }
+
+  _cancelDiscoveryRefresh() {
+    const pending = this.discoveryRefresh;
+    if (!pending) return;
+    this.discoveryRefresh = null;
+    pending.controller.abort();
+  }
+
   /** 为什么现在没有可播放的歌曲，按推荐来源给出可操作的原因。 */
   _noCandidatesReason(fallbackAttempted = false, reason = null) {
-    if(reason==='recent-window-exhausted')return '最近 50 首播放过的歌曲暂不重复，请换一批新歌，也可以明确点播。';
-    if(this.store.getSetting('recommendation_mode_v1')==='filtered'){
+    const mode=this.store.getSetting('recommendation_mode_v1',null);
+    // 默认 filtered 需要模型才能把平台候选变成歌单。未配置模型时「重新找歌」
+    // 无效，必须直接说明缺的是什么，避免用户反复点一个不会生效的按钮。
+    if(mode==='filtered'){
+      const route=this.store.getSetting('recommendation_route_v1',null);
       const status=this.provider.discoveryStatus?.();
-      if(fallbackAttempted&&status?.referenceCount>0)return '推荐歌单和输入曲库暂时没有符合条件的歌曲，可以点播其他歌曲或重新找歌。';
+      if(!(route?.provider&&route?.model)&&(fallbackAttempted||status?.referenceCount>0))
+        return '还没有配置推荐模型，暂时无法从平台候选里筛出歌单。请到「电台设置」选择模型，或导入更多可播放的歌曲。';
+    }
+    if(reason==='recent-window-exhausted')return '最近 50 首播放过的歌曲暂不重复，请换一批新歌，也可以明确点播。';
+    if(mode==='filtered'){
+      const status=this.provider.discoveryStatus?.();
+      if(fallbackAttempted&&status?.referenceCount>0)return '推荐歌单、输入曲库和平台相似推荐暂时都没有未播曲目，可以点播其他歌曲或稍后再试。';
       if(status?.refreshing||status?.filtering)return '大肥鱼正在找歌和挑歌，稍后再开始听。';
       if(!status?.picked)return '还没有挑好的歌单，请先导入参考歌曲，再让大肥鱼找一批歌。';
       return '这批歌已经听过、正在播放或暂时不可用，可以换一批，也可以点播参考曲库。';

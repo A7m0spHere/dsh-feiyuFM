@@ -10,6 +10,7 @@ export function explainSelection(snapshot) {
  if(current.selectedBy==='user')return{kind:'user',text:'这首由你点播，按手动播放处理。'};
  if(current.origin?.llmReason)return{kind:'llm-picked',text:`我从网易云找来的歌里挑了这首：${String(current.origin.llmReason).trim().slice(0,40)}。`};
  if(current.origin?.source==='llm_recommendation')return{kind:'model-recommended',text:`${current.selectionTrigger==='user-next'?'你请求了下一首，':''}这首来自模型生成的缓存歌单，平台已核对歌名和艺人。本地规则只负责播放顺序、反馈与重复限制。`};
+ if(choice?.fallbackReason?.includes('平台相似推荐'))return{kind:'fallback',text:current.selectionTrigger==='user-next'?'你请求了下一首；推荐歌单和输入曲库暂时没有未播曲目，这首从平台相似推荐里选了已确认可播的新歌。':'推荐歌单和输入曲库暂时没有未播曲目，这次从平台相似推荐里选了一首已确认可播的新歌。'};
  if(current.selectionTrigger==='user-start'&&choice?.fallbackReason?.includes('输入曲库'))return{kind:'fallback',text:'推荐歌单暂时没有可播的歌曲，这次从你的输入曲库选了一首。'};
  if(current.selectionTrigger==='user-next')return{kind:'recommended-next',text:choice?.fallbackReason?.includes('输入曲库')?'你请求了下一首；模型歌单暂时没有可播的曲目，这首从你的输入曲库按偏好和重复限制选择。':choice?.pool==='queue'?'你请求了下一首，我按既定队列继续。':'你请求了下一首，这首由推荐器按偏好、候选来源和重复限制选择。'};
  if(choice?.fellBack)return{kind:'fallback',text:'陌生候选暂不可用，这次回到熟悉歌曲。'};

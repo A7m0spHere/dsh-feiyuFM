@@ -23,7 +23,9 @@ export function formatExpression(style, kind, original, snapshot) {
   else if (kind === 'recommended-next') text = snapshot?.lastSelection?.fallbackReason?.includes('输入曲库')
     ? lively ? '你想换一首，筛选歌单暂时不可用，这次从输入曲库选。' : '应请求换曲，回退输入曲库。'
     : lively ? '收到换曲请求，这首由本地推荐规则选出。' : '应请求换曲，由本地规则选歌。';
-  else if (kind === 'fallback') text = lively ? '陌生候选暂不可用，这次先回到熟悉歌曲。' : '陌生候选不可用，回到熟悉池。';
+  else if (kind === 'fallback') text = snapshot?.lastSelection?.fallbackReason?.includes('平台相似推荐')
+    ? lively ? '歌单和曲库都没空了，这次换平台相似推荐里能放的一首。' : '回退平台相似推荐，选已确认可播的新歌。'
+    : lively ? '陌生候选暂不可用，这次先回到熟悉歌曲。' : '陌生候选不可用，回到熟悉池。';
   else if (kind === 'related') text = lively ? '这次沿着平台的相似推荐试一首，本地规则仍在把关。' : '平台相似推荐，本地规则选曲。';
   else if (kind === 'account') {
     const source = current.origin?.source === 'netease_personal_fm' ? '网易云私人 FM' : '网易云每日推荐';

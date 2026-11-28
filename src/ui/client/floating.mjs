@@ -133,6 +133,16 @@ export function FloatingPlayer({ controller, layout, usePanelInfo }) {
       : position?.edge === 'right'
         ? { right: '16px', left: 'auto', top: `${position.top}px`, bottom: 'auto' }
         : { right: '16px', bottom: '16px', left: 'auto', top: 'auto' };
+  // 未配置推荐模型时「重新找歌」不会生效：悬浮条直接引导打开主面板的电台设置。
+  const errorAction = (() => {
+    if (state.errorCode !== 'no_candidates') return { label: state.connected ? '刷新状态' : '重新连接', onClick: controller.refresh };
+    const mode = state.insights?.recommendationMode;
+    if (mode !== 'llm' && state.persona && !state.persona.recommendationRoute?.model) {
+      return { label: '打开电台设置', onClick: () => layout.selectPanel('fishfm') };
+    }
+    if (mode === 'llm') return { label: '重新核对歌单', onClick: () => controller.platformAction('discovery', 'netease') };
+    return { label: '重新找歌', onClick: () => controller.platformAction('discovery', 'netease') };
+  })();
   return h('div', { ref: rootRef, className: 'fm-float', style: { ...style, '--fm-pop-max': `${popup.maxHeight}px` },
     'data-motion': state.motion || 'full', 'data-dragging': Boolean(dragPosition), 'data-pop-side': popup.side,
     'data-edge': dragPosition ? 'right' : position?.edge || 'right' },
@@ -151,8 +161,8 @@ export function FloatingPlayer({ controller, layout, usePanelInfo }) {
           : h('div', { className: 'fm-float-empty' }, snapshot ? '当前没有播放曲目。可以打开电台设置或导入音乐。' : state.connected ? '正在读取播放状态…' : '本地音乐服务暂时无法连接。'),
         state.error && h('div', { className: 'fm-notice', 'data-error': true, role: 'alert' }, state.error,
           ' ', h('button', { className: 'fm-button', type: 'button', disabled: state.busy,
-            onClick: state.errorCode === 'no_candidates' && ['llm','filtered'].includes(state.insights?.recommendationMode) ? () => controller.platformAction('discovery', 'netease') : controller.refresh },
-            state.errorCode === 'no_candidates' && state.insights?.recommendationMode === 'filtered' ? '重新找歌' : state.errorCode === 'no_candidates' && state.insights?.recommendationMode === 'llm' ? '重新核对歌单' : state.connected ? '刷新状态' : '重新连接')),
+            onClick: errorAction.onClick },
+            errorAction.label)),
         snapshot?.lastError && h('div', { className: 'fm-notice', role: 'status' }, playbackNotice(snapshot)),
         h('div', { className: 'fm-float-controls' },
           h('button', { type: 'button', className: 'fm-button', disabled: transport.previousDisabled,

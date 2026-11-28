@@ -11,6 +11,7 @@ import { createQQCommunityTransport } from '../src/providers/qq-transport.mjs';
 import { createNetEaseProvider } from '../src/providers/netease.mjs';
 import { neteaseEndpoints } from '../src/providers/endpoints/netease.mjs';
 import { MusicError, UNAVAILABLE_BACKOFF_MS } from '../src/contracts.mjs';
+import { recordPlaybackStart } from '../src/recent-playback.mjs';
 
 const qqTrack = (id, title = `Song ${id}`) => ({
   provider: 'qq', providerTrackId: String(id), title, artist: 'Artist', durationMs: 180_000,
@@ -121,7 +122,7 @@ test('NetEase rejects VIP freeTrialInfo on single resolve and batch checkPlayabi
   }
 });
 
-test('discovery pre-checks candidates, marks unplayable tracks for 24h and runs at most one bounded refill round', async () => {
+test('discovery pre-checks candidates, marks unplayable tracks for 24h and bounds refill rounds to three', async () => {
   const store = new MusicStore();
   let time = 10_000;
   const refs = Array.from({ length: 6 }, (_, i) => qqTrack(`seed-${i + 1}`));
@@ -155,7 +156,10 @@ test('discovery pre-checks candidates, marks unplayable tracks for 24h and runs 
   try {
     cache.setEnabled(true);
     await cache.refresh();
-    assert.equal(recallRounds.length, 2, 'low-yield round after filtering runs at most one bounded follow-up round');
+    // 低可播率时最多轮换三轮种子；第三轮已无可预检新曲，因此不重复请求预检。
+    assert.equal(recallRounds.length, 3, 'low-yield rounds rotate at most three bounded seed sets');
+    assert.equal(recallRounds[0].join(',') === recallRounds[2].join(','), false, 'seed rotation does not reuse the immediately repeated set');
+    assert.equal(probeCalls.length, 2);
     assert.deepEqual(cache.candidates().map(t => t.providerTrackId).sort(), ['ok-1', 'ok-2']);
     assert.equal(probeCalls[1].includes('vip-2'), false, 'already marked unavailable track is not probed again');
     const row = store.db.prepare("SELECT code, expires_at FROM track_availability WHERE track_key='qq:vip-1'").get();
@@ -783,6 +787,191 @@ test('force library warmup cancels an older in-flight warmup and probes the late
   } finally {
     firstGate.resolve();
     await host.close();
+    store.close();
+  }
+});
+/**
+ * 免费 QQ 账号的现场形态：19 首输入曲库只有 2 首完整可播，其余 17 首在导入预检
+ * 中被标 24 小时不可播；两首可播曲都已真实开始过，落在最近 50 次硬窗口内。
+ */
+function userFallbackFixture({ discovered = 2, discoveryGate = null } = {}) {
+  const store = new MusicStore();
+  const clock = new FakeClock(120_000);
+  store.setSetting('recommendation_mode_v1', 'filtered');
+  store.setSetting('playback_source_v1', { version: 1, revision: 1, provider: 'qq' });
+  const vip = Array.from({ length: 17 }, (_, i) => qqTrack(`vip-${String(i + 1).padStart(2, '0')}`));
+  const playable = [qqTrack('ok-lutra', 'Lutra'), qqTrack('ok-ignite', 'Ignite')];
+  importSeedTracks({ store, provider: 'qq', source: 'liked', tracks: [...vip, ...playable], requested: 19, now: clock.now() });
+  for (const track of vip) store.markUnavailable(track, 'media_unavailable', clock.now() + UNAVAILABLE_BACKOFF_MS.media_unavailable);
+  recordPlaybackStart(store, { track: playable[0], playInstanceId: 'played-lutra' }, clock.now() - 60_000);
+  recordPlaybackStart(store, { track: playable[1], playInstanceId: 'played-ignite' }, clock.now() - 30_000);
+
+  const discoveryCalls = [];
+  const discoveredTracks = Array.from({ length: discovered }, (_, i) => qqTrack(`disc-${i + 1}`));
+  let discoveryStarted = null;
+  const started = Promise.withResolvers();
+  discoveryStarted = started;
+  const qq = {
+    getAccount: () => ({ status: 'authorized', accountId: 'free-qq' }),
+    getCapabilities: () => ({ recommendation: { status: 'available' } }),
+    async getDiscoveryTracks({ seeds }) {
+      discoveryCalls.push(seeds.map(seed => seed.providerTrackId));
+      started.resolve();
+      if (discoveryGate) await discoveryGate.promise;
+      return discoveredTracks.map(track => ({ ...track,
+        discovery: { source: 'qq_similar', fetchedAt: clock.now(), expiresAt: clock.now() + 3_600_000 } }));
+    },
+    async checkPlayability(tracks) {
+      const ids = tracks.map(track => track.providerTrackId);
+      return {
+        playable: ids.filter(id => id.startsWith('disc-')).map(id => `qq:${id}`),
+        unplayable: ids.filter(id => !id.startsWith('disc-')).map(id => `qq:${id}`),
+        checked: ids.length, skipped: false,
+      };
+    },
+    async resolve(track) {
+      if (track.providerTrackId.startsWith('vip-')) throw new MusicError('media_unavailable', 'QQ 音乐暂未提供完整播放链接。');
+      return { handle: `fake:${track.providerTrackId}` };
+    },
+  };
+  const registry = new ProviderRegistry({ providers: { qq } });
+  const facade = createProviderFacade({ registry, store, now: () => clock.now() });
+  const playback = new FakePlayback();
+  const selector = buildSelector({ store, now: () => clock.now(),
+    listDiscovery: () => facade.discoveryTracks(),
+    listDiscoveryFallback: () => facade.discoveryFallbackTracks() });
+  const core = new MusicCore({ store, provider: facade, playback, clock, selector });
+  playback.onEvent(event => core.onPlaybackEvent(event));
+  return { store, clock, playback, facade, core, discoveryCalls, discoveryStarted };
+}
+
+test('no model + exhausted input library: manual next plays a pre-checked platform discovery track while filtered autoplay still refuses to fall back', async () => {
+  const f = userFallbackFixture();
+  try {
+    f.facade.setDiscoveryEnabled(true);
+    await f.facade.refreshDiscovery({ manual: true });
+    assert.ok(f.facade.discoveryFallbackTracks().length >= 2, 'the cache keeps the pre-checked discovery candidates');
+    assert.equal(f.facade.discoveryTracks().length, 0, 'without an approved model batch the automatic pool stays empty');
+
+    f.core.dispatch({ type: 'next', commandId: 'fallback-next' });
+    await f.core.waitForIdle();
+    const snap = f.core.snapshot();
+    assert.equal(snap.current.selectedBy, 'agent');
+    assert.equal(snap.current.selectionTrigger, 'user-next');
+    assert.match(snap.current.track.providerTrackId, /^disc-/);
+    assert.equal(snap.lastSelection.pool, 'discovery');
+    assert.equal(snap.lastSelection.fellBack, true);
+    assert.match(snap.lastSelection.fallbackReason, /平台相似推荐/);
+    assert.equal(snap.paused, true, 'a manual next while paused keeps the pause');
+
+    // 播放后自然结束：filtered 自动续播不回退到发现候选或输入曲库。
+    f.core.dispatch({ type: 'resume', commandId: 'resume-fallback' });
+    await f.core.waitForIdle();
+    const playing = f.core.snapshot();
+    assert.equal(playing.status, 'playing');
+    f.playback.emit({ type: 'ended', playInstanceId: playing.current.playInstanceId });
+    await f.core.waitForIdle();
+    const after = f.core.snapshot();
+    assert.equal(after.current, null, 'natural continuation never picks an unapproved discovery candidate');
+    assert.equal(f.store.db.prepare('SELECT COUNT(*) AS n FROM music_model_calls').get().n, 0, 'no model request was made');
+    assert.equal(f.store.db.prepare('SELECT COUNT(*) AS n FROM listen_history').get().n, 1, 'only the started track entered history');
+  } finally {
+    await f.facade.closeDiscovery();
+    f.store.close();
+  }
+});
+
+test('an empty discovery cache triggers exactly one bounded refresh on manual next and then plays a playable discovery track', async () => {
+  const f = userFallbackFixture();
+  try {
+    f.facade.setDiscoveryEnabled(true);
+    assert.deepEqual(f.facade.discoveryFallbackTracks(), []);
+    f.core.dispatch({ type: 'next', commandId: 'refresh-then-play' });
+    await f.core.waitForIdle();
+    const snap = f.core.snapshot();
+    assert.equal(f.discoveryCalls.length, 1, 'the empty fallback triggers one platform discovery refresh');
+    assert.match(snap.current?.track?.providerTrackId ?? '', /^disc-/, 'the refreshed candidate starts without another user command');
+    assert.equal(snap.lastSelection.fellBack, true);
+    assert.match(snap.lastSelection.fallbackReason, /平台相似推荐/);
+    assert.equal(snap.paused, true);
+
+    // 缓存命中后不再刷新：第二次下一首直接用缓存候选。
+    f.core.dispatch({ type: 'next', commandId: 'cached-next' });
+    await f.core.waitForIdle();
+    assert.equal(f.discoveryCalls.length, 1, 'cached candidates do not trigger another refresh');
+    assert.match(f.core.snapshot().current?.track?.providerTrackId ?? '', /^disc-/);
+  } finally {
+    await f.facade.closeDiscovery();
+    f.store.close();
+  }
+});
+
+test('pausing during the fallback discovery refresh cancels it immediately and keeps the user pause', async () => {
+  const gate = Promise.withResolvers();
+  const f = userFallbackFixture({ discoveryGate: gate });
+  try {
+    f.facade.setDiscoveryEnabled(true);
+    f.core.dispatch({ type: 'next', commandId: 'refresh-then-pause' });
+    await f.discoveryStarted.promise;
+    assert.equal(f.core.snapshot().status, 'selecting', 'the refresh is visible as selecting work');
+    assert.equal(f.core.snapshot().current, null);
+    f.core.dispatch({ type: 'pause', commandId: 'user-pause' });
+    gate.resolve();
+    await f.core.waitForIdle();
+    await new Promise(resolve => setImmediate(resolve));
+    const snap = f.core.snapshot();
+    assert.equal(snap.paused, true, 'the user pause survives the cancelled refresh');
+    assert.equal(snap.current, null, 'a late refresh result cannot start a track after the pause');
+    assert.equal(snap.lastError, null);
+    assert.equal(f.discoveryCalls.length, 1);
+  } finally {
+    gate.resolve();
+    await f.facade.closeDiscovery();
+    f.store.close();
+  }
+});
+
+test('low playability rotates at most three distinct seed sets without exceeding the batch cap', async () => {
+  const store = new MusicStore();
+  const time = 400_000;
+  // 9 首不同艺人的参考曲：每轮取 3 个种子，正好覆盖三组互不相同且不立即重复的种子。
+  const refs = Array.from({ length: 9 }, (_, i) => ({ provider: 'qq', providerTrackId: `seed-${i + 1}`,
+    title: `Seed ${i + 1}`, artist: `Artist ${i + 1}`, durationMs: 180_000 }));
+  importSeedTracks({ store, provider: 'qq', source: 'liked', tracks: refs, requested: 9, now: time });
+  store.setSetting('playback_source_v1', { version: 1, revision: 1, provider: 'qq' });
+  const recallSeeds = [];
+  const probeBatches = [];
+  const qq = {
+    getAccount: () => ({ status: 'authorized', accountId: 'free-qq' }),
+    getCapabilities: () => ({ recommendation: { status: 'available' } }),
+    async getDiscoveryTracks({ seeds }) {
+      const round = recallSeeds.length;
+      recallSeeds.push(seeds.map(seed => seed.providerTrackId).join(','));
+      return [qqTrack(`vip-${round}-a`), qqTrack(`ok-${round}-a`), qqTrack(`vip-${round}-b`), qqTrack(`ok-${round}-b`)]
+        .map(track => ({ ...track, discovery: { source: 'qq_similar', fetchedAt: time, expiresAt: time + 3_600_000 } }));
+    },
+    async checkPlayability(tracks) {
+      const ids = tracks.map(track => track.providerTrackId);
+      probeBatches.push(ids);
+      return {
+        playable: ids.filter(id => id.startsWith('ok-')).map(id => `qq:${id}`),
+        unplayable: ids.filter(id => id.startsWith('vip-')).map(id => `qq:${id}`),
+        checked: ids.length, skipped: false,
+      };
+    },
+  };
+  const registry = new ProviderRegistry({ providers: { qq } });
+  const cache = createDiscoveryCache({ registry, store, now: () => time });
+  try {
+    cache.setEnabled(true);
+    await cache.refresh();
+    assert.equal(recallSeeds.length, 3, 'low yield is bounded to three recall rounds');
+    assert.equal(new Set(recallSeeds).size, 3, 'every round uses a different seed set');
+    assert.equal(probeBatches.length, 3);
+    assert.equal(probeBatches.every(batch => batch.length <= 20), true, 'each probe stays inside the batch cap');
+    assert.equal(cache.candidates().length, 6, 'three rounds accumulate the playable candidates');
+  } finally {
+    cache.close();
     store.close();
   }
 });

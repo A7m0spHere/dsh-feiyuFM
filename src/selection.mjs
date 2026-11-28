@@ -150,6 +150,11 @@ export function createSelector({
   rng = createRng(1),
   listFamiliar = () => [],
   listDiscovery = () => [],
+  /**
+   * 显式用户回退专用池：平台已预检可播的发现候选。只有
+   * `options.discoveryFallback` 为真时才读取，自动选择永远看不到它。
+   */
+  listDiscoveryFallback = () => [],
   isPlayable = () => true,
   parameters = SELECTION_PARAMETERS,
   onDecision = () => {},
@@ -161,7 +166,10 @@ export function createSelector({
   const decide = (options = {}) => {
     const { discoveryRate, excludeTrackKeys = [] } = options;
     const at = options.at ?? now();
-    const rate = clampRate(discoveryRate);
+    // 显式回退是一次确定的用户请求，不参与探索率掷骰：它只从平台已预检
+    // 可播的发现候选里选，输入曲库与入选池都由调用方先试过。
+    const explicitFallback = options.discoveryFallback === true;
+    const rate = explicitFallback ? 1 : clampRate(discoveryRate);
     const banned = bannedTrackKeys(store, at);
     const excluded = new Set(excludeTrackKeys);
     const recent=repeatContext(store);
@@ -189,8 +197,8 @@ export function createSelector({
       return { all, usable, recentBlocked:eligible.some(({key})=>recent.keys.has(key)) };
     };
 
-    const familiarPool = prepare(listFamiliar(options));
-    const discoveryPool = prepare(listDiscovery(options));
+    const familiarPool = prepare(explicitFallback ? [] : listFamiliar(options));
+    const discoveryPool = prepare(explicitFallback ? listDiscoveryFallback(options) : listDiscovery(options));
     const queuePool=prepare(options.queuedTracks??[]);
     const offered = familiarPool.all.length + discoveryPool.all.length+queuePool.all.length;
     const wantsDiscovery = rate > 0 && (rate >= 1 || rng() < rate);

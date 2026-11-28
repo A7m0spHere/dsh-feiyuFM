@@ -1,6 +1,6 @@
 # 内部控制契约
 
-更新：2026-11-17。本文只维护内部字段、命令与边界，DSH 外部接口经 Adapter 映射；职责见 [架构](ARCHITECTURE.md)，用户行为见 [MVP](MVP.md)，实现／部署／验收状态只看 [开发状态](PROJECT_PLAN.md)。历史理由查 [决策摘要](DECISIONS.md) 与 [实验记录](spikes/README.md)。
+更新：2026-11-28。本文只维护内部字段、命令与边界，DSH 外部接口经 Adapter 映射；职责见 [架构](ARCHITECTURE.md)，用户行为见 [MVP](MVP.md)，实现／部署／验收状态只看 [开发状态](PROJECT_PLAN.md)。历史理由查 [决策摘要](DECISIONS.md) 与 [实验记录](spikes/README.md)。
 
 ## 1. 曲目、账号与资源
 
@@ -154,13 +154,19 @@ Host 的 `feedback-list/feedback-clear` 越过慢平台队列；撤销只使投�
 
 真实宿主首次加载 N22 默认迁移为 `filtered`：平台推荐先形成候选，再由 LLM 选出一个歌单，本地只从入选歌曲播放。保留原曲库、账号、历史和开关。`llm/platform` 保留旧内部兼容；用户 `next` 和无当前曲目时主动 `resume`，在筛选歌单耗尽后仍可经 `libraryFallback` 回退输入、已知或喜欢歌曲并说明。今天停止约束仍拦截主动起播。自动续播、切换听歌方式与恢复自主继续只使用入选曲。
 
+显式用户回退链（2026-11-28）：入选池、输入曲库依次为空时，用户主动 `resume`（无当前曲目）与 `next` 再尝试 ③ 平台发现缓存中已预检可播的候选（`discoveryFallback`）。第 ③ 段只读 `discovery.fallbackTracks()`：未过期、未标不可播、未导入／未有效听过／未喜欢；平台支持预检时，预检剔除的曲目已在缓存外。它同样经过当前曲排除与最近 50 次硬窗口过滤，命中后 `lastSelection={pool:'discovery',fellBack:true,fallbackReason:'…已从平台相似推荐选取可播歌曲'}`，播放解析遇 `media_unavailable` 沿用该回退语境与既有 8 次有界连跳预算，可播性探测批量包含这些候选。`selectAutonomously` 不接受 `discoveryFallback`，自动续播仍只播入选曲。
+
+③ 首次为空且发现能力可用、探索开启时，Core 先接受用户命令（`status='selecting'`，保持原暂停意图）再做一次有界 `refreshDiscovery({manual:true})`，完成后重走一次同一回退链；命令版本变化（暂停、点播、换曲、模式切换）立即取消等待并保留暂停，迟到候选不再选歌。刷新沿用手动 1 分钟节流、失败退避与账号代次，不发模型请求；缓存为空时低可播率最多轮换三轮种子（拿到 12 首可播候选即停），每轮仍受单批预检上限约束。
+
+filtered 未配置 `recommendation_route_v1` 且确实无候选时，`no_candidates` 提示引导到「电台设置」选择模型或补充可播放歌曲；客户端不再展示无法触发筛选的「重新找歌」。
+
 旧直接生成歌名的记录继续保留原有搜索匹配与有界核对契约，filtered 模式不调用这条核对路径，也不把旧歌名记录加入默认播放池。
 
 `local-v7` 的真实评分保存在决策中，解释只读事实；旧 `local-v6` 的小池重播记录按当时规则读取，不覆盖当前硬窗口。filtered 模式只播放 LLM 入选曲，`llmRank/llmReason` 参与正常本地评分；未入选歌曲不进入默认自动池。N15 的“只加分、不排空”保留旧兼容模式。
 
 `recent_playback_v1` 为 `{version:1,entries:[{playInstanceId,trackKey,startedAt}]}`，按实际开始顺序从旧到新保留最近 50 个实例；旧库只由有进度历史及已开始当前实例回填。`started` 或首个有效进度确认开始，零有效增量的位置变化不算开始；同实例恢复不再次登记。此设置与历史一起保留，不因偏好重置／换批清空，不增加收听或成长。推荐 next 的队列与曲库回退也不能绕过策略；明确 `requestTrack` 和沿固定游标的显式历史前后导航可重播，真正开始仍正常入窗。
 
-推荐选择只使用：窗口外且满足 30 分钟冷却 → 窗口外但放宽时间冷却；不再允许窗口内最久未播回退。自动续播、推荐队列和推荐 next 的曲库回退均适用，内部旧 `allowRepeatFallback` 参数也不能放宽。当前或刚播完同曲、禁播和不可播不放宽。成功选择的 `lastSelection.detail.repeat` 含 `window=50`、`relaxed`、`reason=null/cooldown-exhausted` 与 `distance=null`；只允许放宽时间冷却。窗口内歌曲导致无可选曲时返回 `track=null`、`reason=recent-window-exhausted`，`detail.algorithm=local-v7`、`detail.repeat={window:50,relaxed:false,reason:'recent-window-exhausted',distance:null}`。自动续播保持无 current 等待，推荐 next 返回 `no_candidates` 并保留当前曲目／暂停状态；明确 `requestTrack` 和固定游标的历史前后导航保留重播例外。
+推荐选择只使用：窗口外且满足 30 分钟冷却 → 窗口外但放宽时间冷却；不再允许窗口内最久未播回退。自动续播、推荐队列和推荐 next 的曲库回退均适用，内部旧 `allowRepeatFallback` 参数也不能放宽。当前或刚播完同曲、禁播和不可播不放宽。成功选择的 `lastSelection.detail.repeat` 含 `window=50`、`relaxed`、`reason=null/cooldown-exhausted` 与 `distance=null`；只允许放宽时间冷却。窗口内歌曲导致无可选曲时返回 `track=null`、`reason=recent-window-exhausted`，`detail.algorithm=local-v7`、`detail.repeat={window:50,relaxed:false,reason:'recent-window-exhausted',distance:null}`。自动续播保持无 current 等待；推荐 next 在按上述回退链（含可选的一次发现刷新）仍无候选时以 `no_candidates` 结束，保留当前曲目／暂停状态——刷新等待中的失败经后续状态呈现，不由命令应答提前宣称成功；明确 `requestTrack` 和固定游标的历史前后导航保留重播例外。
 
 窗口不足不增加逐曲模型请求，后台按 N27 的整个池水位与共享 token 预算补批。filtered 新批准批次完成后沿用 `persona-finish` 的自主续播入口，只在听歌开启、未暂停、未受停止约束且无 current 时开始窗口外歌曲；新批次不能撤销暂停。旧 `recent-exhausted` 表示历史小池重播，新的等待状态不复用该原因码。无需修改数据库 schema 或清理现有开始窗口。
 

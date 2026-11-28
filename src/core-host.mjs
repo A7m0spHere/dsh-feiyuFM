@@ -142,7 +142,7 @@ export class ProviderRegistry {
  * QQ adapters land (P2/P4); an empty pool is a real state, and the selector then
  * records that no exploration happened while keeping the user's rate setting.
  */
-export function buildSelector({ store, now = () => Date.now(), rng = null, listDiscovery = null, graphCache = null }) {
+export function buildSelector({ store, now = () => Date.now(), rng = null, listDiscovery = null, listDiscoveryFallback = null, graphCache = null }) {
   const seed = readAgentSeed(store);
   const familiar = track => store.getEnvironmentEntry(track)||store.hasEffectiveListen(track)
     ||store.listLikedTracks().some(row=>row.track_key===`${track.provider}:${track.providerTrackId}`);
@@ -182,6 +182,10 @@ export function buildSelector({ store, now = () => Date.now(), rng = null, listD
       }
       return (listDiscovery?.()??[]).filter(track => track.provider === playbackSourceView(store).provider);
     },
+    // 只在显式用户回退里使用：平台发现缓存中已预检可播的候选。自动续播
+    // 不读取它，filtered 的入选池仍是唯一自动来源。
+    listDiscoveryFallback: options => (listDiscoveryFallback?.() ?? [])
+      .filter(track => track.provider === playbackSourceView(store).provider),
     now,
   });
   return {...selector,next(options={}){
@@ -189,7 +193,7 @@ export function buildSelector({ store, now = () => Date.now(), rng = null, listD
     // can play. Keep novelty accounting without treating the playlist as two
     // unrelated pools that can randomly produce "no candidates".
     const decision=selector.next(options);
-    if(recommendationMode(store)==='filtered'&&decision.track&&decision.pool!=='queue'&&!options.libraryFallback){
+    if(recommendationMode(store)==='filtered'&&decision.track&&decision.pool!=='queue'&&!options.libraryFallback&&!options.discoveryFallback){
       const unfamiliar=!familiar(decision.track);
       return {...decision,pool:unfamiliar?'discovery':'familiar',fellBack:false,fallbackReason:null,attemptedDiscovery:unfamiliar};
     }
@@ -397,6 +401,9 @@ export function createProviderFacade({ registry, store = null, now = () => Date.
     /** Synchronous, cache-only: the selector must not perform network I/O. */
     discoveryTracks: () => recommendationMode(store)==='filtered'
       ? discovery.playbackRecommendations().filter(track=>track.provider===playbackSourceView(store).provider) : discovery.tracks(),
+    /** 显式用户回退：filtered 下返回缓存里已预检可播的发现候选（非入选池）。 */
+    discoveryFallbackTracks: () => recommendationMode(store)==='filtered'
+      ? discovery.fallbackTracks().filter(track=>track.provider===playbackSourceView(store).provider) : discovery.tracks(),
     recommendationCandidates,
     // LLM 模式下平台候选同样进入缓存，供 LLM 筛选（探索池）；歌单核对信息单列。
     discoveryStatus: () => {
@@ -1264,7 +1271,8 @@ export function createCoreHost({
           ? buildSelector({
             store,
             now,
-                            listDiscovery: platformsFacade ? () => platformsFacade.discoveryTracks() : null,
+            listDiscovery: platformsFacade ? () => platformsFacade.discoveryTracks() : null,
+            listDiscoveryFallback: platformsFacade ? () => platformsFacade.discoveryFallbackTracks() : null,
             graphCache: trackGraph,
           })
           : null,

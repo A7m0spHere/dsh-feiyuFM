@@ -402,7 +402,12 @@ test('explicit start with an imported library and no model plays once without en
 
     await f.bridge.command({ type: 'banTrack', track: track(5), commandId: 'ban' });
     const blocked = await f.handler('fishfm/command', { type: 'resume' });
-    assert.equal(blocked.error?.code, 'no_candidates', 'explicit start still obeys bans and the recent window');
+    // 无模型且发现缓存为空时，主动开始先接受命令并做一次有界发现刷新，再把失败
+    // 如实写成状态错误；刷新不发模型请求，也不绕过禁播与最近 50 次窗口。
+    await f.host.core.waitForIdle();
+    assert.equal(blocked.ok, true, blocked.error?.message);
+    assert.equal(f.host.snapshot().lastError?.code, 'no_candidates', 'explicit start still obeys bans and the recent window');
+    assert.equal(f.host.snapshot().current, null);
     assert.equal(f.calls(), 0);
   } finally { await f.close(); }
 });

@@ -8,7 +8,10 @@ import { randomUUID, createHash } from 'node:crypto';
 import {APPROVED_POOL_KEY,approvedPlaybackTracks} from './approved-pool.mjs';
 import {SUPPLY_POLICY,REVIEW_KEY} from './recommendation-supply.mjs';
 export const DISCOVERY_PARAMETERS = Object.freeze({ limit: 40, capacity: 200, ttlMs: 6 * 60 * 60_000,
-  lowWater: 10, intervalMs: 30 * 60_000, manualIntervalMs: 60_000, retryMs: 5 * 60_000 });
+  lowWater: 10, intervalMs: 30 * 60_000, manualIntervalMs: 60_000, retryMs: 5 * 60_000,
+  // 低可播率平台（如免费 QQ）常被预检过滤掉大半候选：最多轮换三轮种子，
+  // 拿到 lowYield 首可播候选就提前停止，每轮仍受同一批预检上限约束。
+  refillRounds: 3, lowYield: 12 });
 export function createDiscoveryCache({ registry, store = null, now = () => Date.now(), onLog = () => {}, parameters = DISCOVERY_PARAMETERS } = {}) {
   let enabled = false, entries = [], lastAttemptAt = null, lastSuccessAt = null, nextAttemptAt = 0;
   let state = 'disabled', reason = null, generation = 0, inflight = null, controller = null;
@@ -154,7 +157,7 @@ export function createDiscoveryCache({ registry, store = null, now = () => Date.
       let probeRan = false;
       let probeRemoved = 0;
       let lastSeedSignature = null;
-      const maxRounds = 2;
+      const maxRounds = Math.max(1, parameters.refillRounds ?? 3);
       for (let round = 0; round < maxRounds; round++) {
         const seeds = selectRecommendationSeeds({ store, provider, now: now(), offset: currentSeedOffset });
         const seedSignature = seeds.map(trackId).join('|');
@@ -210,7 +213,7 @@ export function createDiscoveryCache({ registry, store = null, now = () => Date.
           const id = trackId(track);
           if (!unplayableSet.has(id) && !collected.has(id)) collected.set(id, track);
         }
-        if (!probeRan || unplayableSet.size === 0 || collected.size >= 6) break;
+        if (!probeRan || unplayableSet.size === 0 || collected.size >= (parameters.lowYield ?? 12)) break;
       }
       if (succeeded) {
         const seen = new Set();
@@ -244,6 +247,12 @@ export function createDiscoveryCache({ registry, store = null, now = () => Date.
   };
   return {
     tracks() { synchronizeAccount(); return enabled && accountReady() ? stamped(usable()) : []; }, status, refresh,
+    /**
+     * 显式用户回退（手动开始／下一首）专用的平台发现候选：只含未过期、
+     * 未标记不可播、未导入／未有效听过／未喜欢且未被判定减少推荐的条目。
+     * 预检能力可用的平台在缓存时已剔除拿不到完整音源的歌曲；自动续播不使用。
+     */
+    fallbackTracks() { synchronizeAccount(); return enabled && accountReady() ? stamped(usable()) : []; },
     candidates() { synchronizeAccount(); return enabled && accountReady() ? candidates() : []; },
     recommendations() { synchronizeAccount(); return enabled && accountReady() ? recommendations() : []; },
     playbackRecommendations() {synchronizeAccount();return enabled&&store&&accountReady()?approvedPlaybackTracks(store,createHash('sha256').update(owner??'').digest('hex'),now()):[];},

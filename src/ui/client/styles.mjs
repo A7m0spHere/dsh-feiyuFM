@@ -46,8 +46,8 @@ export const css = `
   :is(.fishfm,.fm-float) button { cursor:pointer; }
   :is(.fishfm,.fm-float) button:disabled { opacity:.45; cursor:default; }
   :is(.fishfm,.fm-float) :focus-visible { outline:2px solid var(--fm-accent); outline-offset:3px; }
-  .fishfm { container-type:inline-size; container-name:fishfm; width:100%;
-    max-width:1120px; margin:auto; padding:16px; background:var(--fm-canvas);
+  .fishfm { container-type:inline-size; container-name:fishfm; width:100%; max-width:none; margin:0;
+    padding:16px; background:var(--fm-canvas);
     height:100%; min-height:0; overflow:auto; overscroll-behavior:contain;
     animation:fm-page-in var(--fm-page) var(--fm-ease) both; }
   .fishfm h1,.fishfm h2,.fishfm p { margin:0; }

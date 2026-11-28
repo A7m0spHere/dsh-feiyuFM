@@ -7,6 +7,7 @@ import { join } from 'node:path';
 import { createCoreHost } from '../src/core-host.mjs';
 import { FakeProvider } from '../src/fakes.mjs';
 import { createSettingsHandler } from '../src/ui/dsh-settings.mjs';
+import { css } from '../src/ui/client/styles.mjs';
 
 function fixture(call, storage = new Map()) {
   const registrations = [], effects = [], styles = [];
@@ -2034,5 +2035,59 @@ test('modular settings layout starts compact, supports reorder/expand/widen with
       assert.equal(restored.controller.getSnapshot().settingsLayout.sizes.network, 'compact');
       assert.equal(restored.controller.getSnapshot().settingsLayout.autoFill, true);
     } finally { restored.dispose(); }
+  } finally { f.dispose(); }
+});
+test('the panel root spans its host column so no white gutter appears beside the canvas', () => {
+  const start = css.indexOf('.fishfm {');
+  assert.ok(start > 0, 'the panel root rule must exist');
+  const rule = css.slice(start, css.indexOf('}', start) + 1);
+  assert.equal(rule.includes('max-width:1120px'), false, 'the legacy 1120px canvas cap must be gone');
+  assert.match(rule, /width:100%;\s*max-width:none;\s*margin:0;/, 'the canvas fills the sidebar column');
+  assert.match(rule, /background:var\(--fm-canvas\)/, 'the background keeps painting the full column');
+  // 内容仍由内层 960px 容器居中；截断只留在内层，不回到根容器。
+  assert.equal(css.includes('max-width:1120px'), false);
+  assert.match(css, /\.fm-wrap \{ max-width:960px/);
+});
+
+test('discovery records label QQ platform sources instead of 来源未确认', async () => {
+  const journal = {status: 'ready', items: [
+    {key: 'qq:1', title: 'QQ similar', artist: 'A', evidence: [{kind: 'platform-source', value: 'qq_similar'}]},
+    {key: 'qq:2', title: 'QQ daily', artist: 'B', evidence: [{kind: 'platform-source', value: 'qq_daily'}]},
+    {key: 'qq:3', title: 'QQ fm', artist: 'C', evidence: [{kind: 'platform-source', value: 'qq_personal_fm'}]},
+  ]};
+  const persona = {generatedAt: 1, discoveryJournal: journal, policy: {dailyTokens: 4000, maxOutputTokens: 256},
+    ledger: {today: {knownTokens: 0}, total: {knownTokens: 0}, remainingTokens: 4000, recent: []}};
+  const f = fixture(async () => ({ok: true, value: {snapshot: snapshot(1), platforms: {}, persona}}));
+  try {
+    await f.controller.refresh();
+    all(f.render()).find(n => n.type === 'nav').children.find(b => b.children.includes('发现记录')).props.onClick();
+    const card = all(f.render()).find(n => n.type === 'details' && n.props.className?.includes('fm-discoveries-card'));
+    assert.ok(card);
+    const text = all(card).flatMap(n => n.children.filter(c => typeof c === 'string')).join(' ');
+    assert.match(text, /QQ 音乐相似推荐/);
+    assert.match(text, /QQ 音乐每日推荐/);
+    assert.match(text, /QQ 音乐私人 FM/);
+    assert.equal(text.includes('来源未确认'), false);
+  } finally { f.dispose(); }
+});
+
+test('without a configured recommendation model, no_candidates points at 电台设置 instead of a re-find that cannot filter', async () => {
+  const persona = {generatedAt: 1, discoveryJournal: {status: 'empty', items: []}, policy: {dailyTokens: 4000, maxOutputTokens: 256},
+    ledger: {today: {knownTokens: 0}, total: {knownTokens: 0}, remainingTokens: 4000, recent: []}};
+  const f = fixture(async (_channel, endpoint) => {
+    if (endpoint === 'fishfm/command') return {ok: false, error: {code: 'no_candidates', message: '还没有配置推荐模型，暂时无法从平台候选里筛出歌单。'}};
+    return {ok: true, value: {snapshot: snapshot(1), platforms: {}, persona, insights: {recommendationMode: 'filtered'}}};
+  });
+  try {
+    await f.controller.refresh();
+    await f.controller.command('next');
+    assert.equal(f.controller.getSnapshot().errorCode, 'no_candidates');
+    const buttons = all(f.render()).filter(n => n.type === 'button');
+    const guidance = buttons.find(b => b.children.includes('去电台设置选择模型'));
+    assert.ok(guidance, '缺少模型时提示必须指向电台设置');
+    assert.equal(buttons.some(b => b.children.includes('重新找歌')), false, 'the invalid re-find action is not offered');
+    guidance.props.onClick();
+    const nav = all(f.render()).find(n => n.type === 'nav');
+    assert.equal(nav.children.find(b => b.children.includes('电台设置')).props['aria-pressed'], true);
   } finally { f.dispose(); }
 });
