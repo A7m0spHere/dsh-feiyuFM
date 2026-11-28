@@ -55,7 +55,7 @@ export function createQQCommunityTransport({ credentials, getNetworkSettings = (
     const codes = { 400: 'invalid_command', 401: 'login_required', 429: 'rate_limited' };
     let code = codes[response.status] ?? 'provider_failure';
     if (body?.errorKey === 'auth.credential-invalid') code = 'login_required';
-    if ([404, 422].includes(response.status) && role === 'resolve') code = 'media_unavailable';
+    if ([404, 422].includes(response.status) && ['resolve', 'checkPlayability'].includes(role)) code = 'media_unavailable';
     const messages = { login_required: 'QQ 音乐登录已失效，请重新扫码。',
       media_unavailable: 'QQ 音乐暂未提供完整播放链接。', invalid_command: 'QQ 请求参数无效，请检查关键词或歌单。' };
     throw new MusicError(code, messages[code] ?? 'QQ 音乐接口请求失败，请稍后重试。', {
@@ -106,7 +106,7 @@ export function createQQCommunityTransport({ credentials, getNetworkSettings = (
   }
   return {
     requiresRestore: true,
-    roles: () => ['loginQr', 'loginPoll', 'resolve', ...Object.keys(ROUTES)],
+    roles: () => ['loginQr', 'loginPoll', 'resolve', 'checkPlayability', ...Object.keys(ROUTES)],
     setSessionWriter(value) { writer = value; },
     useSecret(value) {
       const next = typeof value === 'string' ? value : '';
@@ -134,7 +134,7 @@ export function createQQCommunityTransport({ credentials, getNetworkSettings = (
         if (role === 'loginPoll') return await invoke('/login/qr/check', { key: params.key }, { signal: combined, candidate: '', role });
         if (role !== 'lyrics' && !candidate) await refresh(combined);
         const path = ROUTES[role];
-        if (role !== 'resolve' && !path) throw new MusicError('capability_unavailable', 'QQ 暂不支持该操作。');
+        if (!['resolve', 'checkPlayability'].includes(role) && !path) throw new MusicError('capability_unavailable', 'QQ 暂不支持该操作。');
         let query = params;
         if (role === 'lyrics') query = { songmid: params.id, trans: 1 };
         if (role === 'similarRecommendations') {
@@ -153,8 +153,17 @@ export function createQQCommunityTransport({ credentials, getNetworkSettings = (
           query = { id };
         }
         const requestOptions = { signal: combined, candidate: role === 'lyrics' ? '' : candidate ?? session, role };
-        let response = role === 'resolve' ? await resolvePlayUrl(params.songmid, requestOptions)
-          : await invoke(path, query, requestOptions);
+        let response;
+        if (role === 'resolve') {
+          response = await resolvePlayUrl(params.songmid, requestOptions);
+        } else if (role === 'checkPlayability') {
+          const mids = [...new Set((params.songmids ?? []).filter(id => typeof id === 'string' && /^[\w-]{1,80}$/.test(id)))].slice(0, 20);
+          response = mids.length
+            ? await invoke('/getMusicPlay/' + mids.map(encodeURIComponent).join(','), { quality: '128' }, requestOptions)
+            : { status: 200, body: { data: { playUrl: {} } } };
+        } else {
+          response = await invoke(path, query, requestOptions);
+        }
         if (['likedTracks', 'playlistTracks'].includes(role)) {
           const wanted = Math.min(1000, Math.max(1, Number.isSafeInteger(params.limit) ? params.limit : 300));
           const songs = [...(response.body?.songs ?? [])];

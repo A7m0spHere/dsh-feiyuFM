@@ -1,5 +1,15 @@
 export const PROVIDERS = Object.freeze(['netease', 'qq']);
 export const MODES = Object.freeze(['normal', 'focus', 'silent', 'off']);
+export const UNAVAILABLE_BACKOFF_MS = Object.freeze({
+  media_unavailable: 24 * 60 * 60_000,
+  resource_unavailable: 24 * 60 * 60_000,
+  media_failed: 5 * 60_000,
+  media_download_failed: 5 * 60_000,
+  media_open_timeout: 60_000,
+  media_stalled: 60_000,
+});
+export const PLAYABILITY_CHECK_BATCH_SIZE = 20;
+export const PLAYABILITY_CHECK_MAX_TRACKS = 60;
 
 export class MusicError extends Error {
   constructor(code, message, { retryable = false, details = null, cause = undefined } = {}) {

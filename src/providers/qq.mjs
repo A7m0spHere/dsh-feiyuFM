@@ -1,12 +1,12 @@
 import { createPlatformProvider } from './platform.mjs';
 import { capability, needsLogin, toTrack } from './contract.mjs';
-import { MusicError, trackId } from '../contracts.mjs';
+import { MusicError, PLAYABILITY_CHECK_BATCH_SIZE, PLAYABILITY_CHECK_MAX_TRACKS, trackId } from '../contracts.mjs';
 import { normalizeQQMusicLyrics } from '../lyrics.mjs';
 import { qqPlayEntry } from './qq-transport.mjs';
 
 export const QQ = 'qq';
 export const QQ_ROLES = Object.freeze(['loginQr', 'loginPoll', 'accountInfo', 'recentTracks',
-  'likedTracks', 'playlists', 'playlistTracks', 'search', 'resolve', 'lyrics',
+  'likedTracks', 'playlists', 'playlistTracks', 'search', 'resolve', 'checkPlayability', 'lyrics',
   'dailyRecommendations', 'personalRecommendations', 'similarRecommendations']);
 export const QQ_SEED_ORDER = Object.freeze(['liked', 'playlist']);
 const unwrap = body => body?.req_0?.data ?? body?.data ?? body;
@@ -154,9 +154,11 @@ export function createQQProvider(options = {}) {
     const context = provider.resourceContext();
     const result = new Map();
     const failures = [];
-    const calls = [{ role: 'dailyRecommendations', source: 'qq_daily', params: {} },
+    const calls = [
+      ...seeds.filter(track => track.provider === QQ).slice(0, 3).map(track => ({ role: 'similarRecommendations', source: 'qq_similar', params: { songmid: track.providerTrackId }, seed: track })),
+      { role: 'dailyRecommendations', source: 'qq_daily', params: {} },
       { role: 'personalRecommendations', source: 'qq_personal_fm', params: {} },
-      ...seeds.filter(track => track.provider === QQ).slice(0, 3).map(track => ({ role: 'similarRecommendations', source: 'qq_similar', params: { songmid: track.providerTrackId }, seed: track }))];
+    ];
     for (const call of calls) {
       if (result.size >= limit) break;
       try {
@@ -182,6 +184,54 @@ export function createQQProvider(options = {}) {
     }
     if (!result.size && failures.length === calls.length) throw new MusicError('provider_failure', 'QQ 音乐推荐暂不可用。', { retryable: true });
     return [...result.values()].slice(0, limit);
+  };
+  provider.checkPlayability = async (tracks = [], { signal = null } = {}) => {
+    if (provider.getAccount().status !== 'authorized') throw new MusicError('login_required', '请先登录 QQ 音乐。');
+    if (typeof transport.roles === 'function' && !transport.roles().includes('checkPlayability')) {
+      return { playable: [], unplayable: [], checked: 0, skipped: true };
+    }
+    const mids = [...new Set((tracks ?? [])
+      .filter(track => track?.provider === QQ && typeof track.providerTrackId === 'string' && /^[\w-]{1,80}$/.test(track.providerTrackId))
+      .map(track => track.providerTrackId))].slice(0, PLAYABILITY_CHECK_MAX_TRACKS);
+    if (!mids.length) return { playable: [], unplayable: [], checked: 0, skipped: false };
+    const context = provider.resourceContext();
+    const playable = [];
+    const unplayable = [];
+    let checked = 0;
+    for (let index = 0; index < mids.length; index += PLAYABILITY_CHECK_BATCH_SIZE) {
+      if (signal?.aborted || provider.resourceContext() !== context) throw new MusicError('cancelled', 'QQ 可播检查已取消。');
+      const chunk = mids.slice(index, index + PLAYABILITY_CHECK_BATCH_SIZE);
+      try {
+        const response = await transport.request({ role: 'checkPlayability', params: { songmids: chunk }, signal });
+        if (signal?.aborted || provider.resourceContext() !== context) throw new MusicError('cancelled', 'QQ 可播检查已取消。');
+        const data = unwrap(response?.body);
+        const playMap = data?.playUrl;
+        if (!playMap || typeof playMap !== 'object') continue;
+        for (const mid of chunk) {
+          const entry = playMap[mid];
+          if (!entry || typeof entry !== 'object') continue;
+          checked++;
+          const hasFullUrl = entry.preview !== true && Boolean(entry.url || entry.purl);
+          (hasFullUrl ? playable : unplayable).push(`${QQ}:${mid}`);
+        }
+      } catch (error) {
+        if (signal?.aborted || error?.code === 'cancelled' || error?.name === 'AbortError') {
+          throw new MusicError('cancelled', 'QQ 可播检查已取消。');
+        }
+        if (error?.code === 'login_required') {
+          const saved = store?.getCredentialReference(QQ);
+          if (saved) store.setCredentialReference({ provider: QQ, accountId: saved.account_id, credentialRef: saved.credential_ref, state: 'expired', updatedAt: now() });
+          throw error;
+        }
+        if (error?.code === 'media_unavailable' && chunk.length === 1) {
+          checked++;
+          unplayable.push(`${QQ}:${chunk[0]}`);
+          continue;
+        }
+        break;
+      }
+    }
+    return { playable, unplayable, checked, skipped: checked === 0 };
   };
   return provider;
 }

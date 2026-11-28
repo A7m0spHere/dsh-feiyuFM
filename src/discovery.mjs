@@ -1,7 +1,7 @@
 import { playbackSourceView, isRecommendationSource } from './playback-source.mjs';
 import { musicAccount } from './music-account.mjs';
 // A bounded background discovery cache. Selection never waits for network I/O.
-import { trackId, normalizeTrack } from './contracts.mjs';
+import { trackId, normalizeTrack, UNAVAILABLE_BACKOFF_MS } from './contracts.mjs';
 import { collectDiscovery } from './providers/coordinator.mjs';
 import {selectRecommendationSeeds} from './recommendation.mjs';
 import { randomUUID, createHash } from 'node:crypto';
@@ -143,32 +143,97 @@ export function createDiscoveryCache({ registry, store = null, now = () => Date.
     lastAttemptAt = now(); nextAttemptAt = now() + parameters.intervalMs; state = 'refreshing'; reason = null;
     persist();
     const work = Promise.resolve().then(async () => {
-      const seeds=selectRecommendationSeeds({store,provider:playbackSourceView(store).provider,now:now(),offset:seedOffset});
-      const result = await collectDiscovery({ registry, limit: parameters.limit, signal: combined,seeds, providers:[playbackSourceView(store).provider] });
-      if (combined.aborted || generation !== version || accountKey() !== key || !enabled) return { tracks: [], attempts: [], reason: 'cancelled' };
-      const succeeded = result.attempts.some(a => a.ok);
+      const provider = playbackSourceView(store).provider;
+      const previous = entries;
+      const knownPrevious = new Set(previous.filter(t => t.discovery?.expiresAt > now()).map(trackId));
+      const collected = new Map();
+      let currentSeedOffset = seedOffset;
+      let attempts = [];
+      let lastResultReason = null;
+      let succeeded = false;
+      let probeRan = false;
+      let probeRemoved = 0;
+      let lastSeedSignature = null;
+      const maxRounds = 2;
+      for (let round = 0; round < maxRounds; round++) {
+        const seeds = selectRecommendationSeeds({ store, provider, now: now(), offset: currentSeedOffset });
+        const seedSignature = seeds.map(trackId).join('|');
+        if (round > 0 && (!seeds.length || seedSignature === lastSeedSignature)) break;
+        lastSeedSignature = seedSignature;
+        const result = await collectDiscovery({ registry, limit: parameters.limit, signal: combined, seeds, providers: [provider] });
+        if (combined.aborted || generation !== version || accountKey() !== key || !enabled) return { tracks: [], attempts: [], reason: 'cancelled' };
+        attempts = result.attempts;
+        lastResultReason = result.reason ?? null;
+        if (!result.attempts.some(a => a.ok)) break;
+        succeeded = true;
+        currentSeedOffset = (currentSeedOffset + seeds.length) % 1_000_000;
+        const unavailable = store?.unavailableKeys?.(now()) ?? new Set();
+        const normalized = result.tracks.map(normalize).filter(Boolean).filter(track => !unavailable.has(trackId(track)));
+        const unchecked = normalized.filter(track => {
+          const id = trackId(track);
+          return !knownPrevious.has(id) && !collected.has(id);
+        });
+        let unplayableSet = new Set();
+        if (unchecked.length && typeof registry.checkPlayability === 'function') {
+          try {
+            const probe = await registry.checkPlayability(provider, unchecked, { signal: combined });
+            if (combined.aborted || generation !== version || accountKey() !== key || !enabled) return { tracks: [], attempts: [], reason: 'cancelled' };
+            if (probe && !probe.skipped) {
+              probeRan = true;
+              unplayableSet = new Set(probe.unplayable ?? []);
+              if (unplayableSet.size) {
+                const byKey = new Map(unchecked.map(track => [trackId(track), track]));
+                const expiresAt = now() + UNAVAILABLE_BACKOFF_MS.media_unavailable;
+                for (const trackKey of unplayableSet) {
+                  const track = byKey.get(trackKey);
+                  if (track) store?.markUnavailable?.(track, 'media_unavailable', expiresAt);
+                }
+                probeRemoved += unplayableSet.size;
+              }
+              onLog({ type: 'discovery-playability', provider, checked: probe.checked ?? unchecked.length,
+                playable: probe.playable?.length ?? 0, unplayable: unplayableSet.size });
+            }
+          } catch (error) {
+            if (combined.aborted || error?.code === 'cancelled' || generation !== version || accountKey() !== key || !enabled) {
+              return { tracks: [], attempts: [], reason: 'cancelled' };
+            }
+            if (error?.code === 'login_required') {
+              succeeded = false;
+              attempts = [{ provider, count: 0, ok: false, code: 'login_required', reason: error.message }];
+              lastResultReason = error.message;
+              break;
+            }
+            onLog({ type: 'discovery-playability-error', provider, code: error?.code ?? 'provider_failure' });
+          }
+        }
+        for (const track of normalized) {
+          const id = trackId(track);
+          if (!unplayableSet.has(id) && !collected.has(id)) collected.set(id, track);
+        }
+        if (!probeRan || unplayableSet.size === 0 || collected.size >= 6) break;
+      }
       if (succeeded) {
-        const seen = new Set(),previous=entries;
-        const identity=tracks=>JSON.stringify(tracks.map(t=>[trackId(t),t.title,t.artist,t.discovery?.seedTrackKey]).sort((a,b)=>a[0].localeCompare(b[0])));
-        entries = [...result.tracks.map(normalize).filter(Boolean),...previous.filter(t=>t.discovery.expiresAt>now())].filter(track => {
+        const seen = new Set();
+        const identity = tracks => JSON.stringify(tracks.map(t => [trackId(t), t.title, t.artist, t.discovery?.seedTrackKey]).sort((a, b) => a[0].localeCompare(b[0])));
+        entries = [...collected.values(), ...previous.filter(t => t.discovery.expiresAt > now())].filter(track => {
           const id = trackId(track); if (seen.has(id)) return false; seen.add(id); return true;
         }).slice(0, parameters.capacity);
-        if(identity(previous)!==identity(entries))candidateRevision = randomUUID();
-        seedOffset=(seedOffset+seeds.length)%1_000_000;failureUntil=0;
+        if (identity(previous) !== identity(entries)) candidateRevision = randomUUID();
+        seedOffset = currentSeedOffset; failureUntil = 0;
         lastSuccessAt = now(); state = usable().length ? 'ready' : 'empty';
-        reason = usable().length ? null : 'no-unfamiliar-candidates';
+        reason = usable().length ? null : probeRemoved > 0 ? 'no-playable-candidates' : 'no-unfamiliar-candidates';
         persist();
       } else {
-        const signedIn = registry.getAccount(playbackSourceView(store).provider).status === 'authorized';
-        const unavailable = result.attempts.every(a => ['provider_unavailable','capability_unavailable','login_required'].includes(a.code));
+        const signedIn = registry.getAccount(provider).status === 'authorized';
+        const unavailable = attempts.every(a => ['provider_unavailable', 'capability_unavailable', 'login_required'].includes(a.code));
         state = usable().length ? 'ready' : !signedIn ? 'login_required' : unavailable ? 'unavailable' : 'error';
         reason = !signedIn ? 'login-required' : unavailable ? 'recommendation-unavailable' : 'refresh-failed';
         nextAttemptAt = now() + parameters.retryMs;
-        failureUntil=nextAttemptAt;
+        failureUntil = nextAttemptAt;
         persist();
       }
       onLog({ type: 'discovery', count: usable().length, status: state });
-      return { ...result, tracks: stamped(usable()) };
+      return { attempts, tracks: stamped(usable()), reason: lastResultReason };
     }).catch(error => {
       if (generation === version && enabled) { state = usable().length ? 'ready' : 'error'; reason = 'refresh-failed'; nextAttemptAt = now() + parameters.retryMs;failureUntil=nextAttemptAt; persist(); }
       onLog({ type: 'discovery-error', code: error.code ?? 'provider_failure' });

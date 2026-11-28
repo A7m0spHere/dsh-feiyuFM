@@ -124,6 +124,14 @@ export class ProviderRegistry {
     }
     return adapter.getDiscoveryTracks(options);
   }
+
+  async checkPlayability(provider, tracks, options = {}) {
+    const adapter = this.providers[provider];
+    if (!adapter || typeof adapter.checkPlayability !== 'function') {
+      return { playable: [], unplayable: [], checked: 0, skipped: true };
+    }
+    return adapter.checkPlayability(tracks, options);
+  }
 }
 
 /**
@@ -282,6 +290,7 @@ export function createProviderFacade({ registry, store = null, now = () => Date.
     getSeedTracks: (provider, options) => registry.getSeedTracks(provider, options),
     search: (provider, query, options) => registry.search(provider, query, options),
     resolve: (track, options) => resolveOnOwnPlatform({ registry, track, options }),
+    checkPlayability: (provider, tracks, options) => registry.checkPlayability(provider, tracks, options),
     resourceContext: track => registry.providers[track.provider]?.resourceContext?.() ?? '',
     platforms: () => describePlatforms(registry),
 
@@ -592,6 +601,7 @@ export function createCoreHost({
         try {
           if (!result.accountId) throw new MusicError('account_id_unavailable', '音乐平台未返回可验证的账号 ID。');
           activateMusicAccount(store, name, result.accountId);
+          store.clearUnavailable?.(name);
         } catch (error) {
           await disconnectAccount(name, adapter);
           throw error;
