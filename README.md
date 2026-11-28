@@ -33,20 +33,6 @@
 
 <sub>实机截图取自 2026-11-28 Windows 日常 DSH Desktop 运行 `0.2.0`：展示宽屏无缝画布、人物与歌曲信息、「大肥鱼说」选歌理由、同步高亮逐行歌词、可选歌曲池、底栏顺滑进度条与 0%–100% 音量横条。</sub>
 
-<details>
-<summary>查看深色模式与窄屏响应式预览</summary>
-
-<picture>
-  <source media="(prefers-color-scheme: dark) and (max-width: 600px)" srcset="https://raw.githubusercontent.com/A7m0spHere/dsh-feiyuFM/main/assets/readme/panel-narrow-dark.png?v=20261105">
-  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/A7m0spHere/dsh-feiyuFM/main/assets/readme/panel-dark.png?v=20261105">
-  <source media="(max-width: 600px)" srcset="https://raw.githubusercontent.com/A7m0spHere/dsh-feiyuFM/main/assets/readme/panel-narrow.png?v=20261105">
-  <img src="https://raw.githubusercontent.com/A7m0spHere/dsh-feiyuFM/main/assets/readme/panel.png?v=20261105" width="100%" alt="肥鱼电台浅深色与窄屏界面预览。">
-</picture>
-
-<sub>以上为 2026-11-05 生产 bundle 模拟预览图（样例歌曲与歌词），详见 [U26 记录](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/spikes/U26-console-lyrics.md)。</sub>
-
-</details>
-
 ---
 
 ## 架构讲解
