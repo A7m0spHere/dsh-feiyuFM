@@ -975,3 +975,91 @@ test('low playability rotates at most three distinct seed sets without exceeding
     store.close();
   }
 });
+test('a failed fallback refresh keeps the original track audible and its paused state in sync with the player', async () => {
+  const f = userFallbackFixture({ discovered: 0 });
+  try {
+    f.facade.setDiscoveryEnabled(true);
+    f.core.dispatch({ type: 'requestTrack', track: qqTrack('ok-lutra', 'Lutra'), commandId: 'point-ok' });
+    await f.core.waitForIdle();
+    const playing = f.core.snapshot();
+    assert.equal(playing.status, 'playing');
+    assert.equal(f.playback.playing, true);
+    const callsBefore = f.playback.calls.length;
+    // 手动下一首：入选池、输入曲库与发现缓存都没有新曲，刷新也拿不到候选。
+    f.core.dispatch({ type: 'next', commandId: 'next-empty-refresh' });
+    await f.core.waitForIdle();
+    const after = f.core.snapshot();
+    assert.equal(f.discoveryCalls.length, 1, 'the empty fallback refreshes once');
+    assert.equal(after.current.playInstanceId, playing.current.playInstanceId, 'the original track was not switched away');
+    assert.equal(after.paused, false, 'the interface must not claim a pause the speaker never got');
+    assert.equal(after.status, 'playing');
+    assert.equal(f.playback.playing, true, 'the speaker keeps playing the original track');
+    assert.equal(after.lastError.code, 'no_candidates', 'the shortage is reported without claiming playback failed');
+    assert.equal(f.playback.calls.slice(callsBefore).some(call => call.type === 'pause' || call.type === 'stop'), false,
+      'no pause or stop is sent while the original track plays');
+  } finally {
+    await f.facade.closeDiscovery();
+    f.store.close();
+  }
+});
+
+test('a failed fallback refresh without a playing track settles paused and error without starting audio', async () => {
+  const f = userFallbackFixture({ discovered: 0 });
+  try {
+    f.facade.setDiscoveryEnabled(true);
+    f.core.dispatch({ type: 'next', commandId: 'next-empty-no-current' });
+    await f.core.waitForIdle();
+    const snap = f.core.snapshot();
+    assert.equal(f.discoveryCalls.length, 1);
+    assert.equal(snap.current, null);
+    assert.equal(snap.paused, true);
+    assert.equal(snap.status, 'error');
+    assert.equal(snap.lastError.code, 'no_candidates');
+    assert.equal(f.playback.playing, false);
+    assert.equal(f.playback.calls.some(call => call.type === 'load'), false, 'nothing is loaded without a candidate');
+  } finally {
+    await f.facade.closeDiscovery();
+    f.store.close();
+  }
+});
+
+test('a failed fallback refresh cancels an in-flight resolve instead of letting it start after the error', async () => {
+  const store = new MusicStore();
+  const clock = new FakeClock(300_000);
+  store.setSetting('recommendation_mode_v1', 'filtered');
+  store.setSetting('playback_source_v1', { version: 1, revision: 1, provider: 'qq' });
+  importSeedTracks({ store, provider: 'qq', source: 'liked', tracks: [qqTrack('ok-1')], requested: 1, now: clock.now() });
+  const gate = Promise.withResolvers();
+  const resolveCalls = [];
+  const provider = {
+    async resolve(track) { resolveCalls.push(track.providerTrackId); return gate.promise; },
+    discoveryTracks: () => [],
+    discoveryFallbackTracks: () => [],
+    discoveryStatus: () => ({ state: 'idle', referenceCount: 1 }),
+    refreshDiscovery: async () => ({ tracks: [], attempts: [], reason: 'no-candidates' }),
+  };
+  const playback = new FakePlayback();
+  const core = new MusicCore({ store, provider, playback, clock,
+    selector: buildSelector({ store, now: () => clock.now() }) });
+  playback.onEvent(event => core.onPlaybackEvent(event));
+  try {
+    core.dispatch({ type: 'requestTrack', track: qqTrack('ok-1'), commandId: 'point-resolving' });
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(resolveCalls.length, 1, 'the point request is still resolving');
+    core.dispatch({ type: 'next', commandId: 'next-during-resolve' });
+    await core.waitForIdle();
+    const snap = core.snapshot();
+    assert.equal(snap.paused, true);
+    assert.equal(snap.status, 'error');
+    assert.equal(snap.lastError.code, 'no_candidates');
+    assert.equal(playback.calls.some(call => call.type === 'pause'), true, 'the player is really paused');
+    gate.resolve({ handle: 'fake:late' });
+    await new Promise(resolve => setImmediate(resolve));
+    await core.waitForIdle();
+    assert.equal(playback.playing, false, 'the late resolve cannot start audio after the error state');
+    assert.equal(core.snapshot().status, 'error');
+  } finally {
+    gate.resolve({ handle: 'fake:late' });
+    store.close();
+  }
+});

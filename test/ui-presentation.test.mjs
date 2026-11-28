@@ -95,3 +95,14 @@ test('previous control is enabled only when Core reports earlier playable histor
   assert.equal(playbackControls({ ...base, snapshot: { ...base.snapshot, navigation: { previous: true } }, transportPending: 'next' }).message, '正在切换下一首…',
     '上一首与下一首共用同一套 pending 文案');
 });
+test('a missing next candidate is shown as a shortage, never as a pause or playback failure', () => {
+  const playing = { status: 'playing', paused: false, settings: { humanPlayback: true }, lastError: { code: 'no_candidates' } };
+  assert.equal(playbackPresentation(playing, true).label, '正在播放');
+  assert.equal(playbackPresentation(playing, true).active, true);
+  assert.match(playbackNotice(playing), /正在播放的这首会继续/);
+  const idle = { status: 'error', paused: true, lastError: { code: 'no_candidates' } };
+  assert.equal(playbackPresentation(idle, true).label, '已暂停 · 不会自动恢复');
+  assert.match(playbackNotice(idle), /选择筛选模型/);
+  assert.equal(playbackPresentation({ status: 'error', paused: true, lastError: { code: 'media_failed' } }, true).label, '播放未成功');
+  assert.match(playbackNotice({ lastError: { code: 'no_candidates' }, status: 'error' }), /补充可播歌曲/);
+});

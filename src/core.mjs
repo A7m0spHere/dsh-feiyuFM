@@ -1069,6 +1069,10 @@ export class MusicCore {
    * 手动开始／下一首在三个池都空时的一次发现刷新。保持用户原本的暂停意图，
    * 只把状态标成找歌；任何新用户命令（含暂停）经 _invalidate 取消等待，迟到
    * 结果不选歌、不撤销暂停。
+   *
+   * 失败后的状态必须与扬声器一致：刷新前原曲仍在播放且没被切走时，保持
+   * `playing` 并只把缺少候选记进 lastError，绝不把界面改成暂停／错误却继续
+   * 出声；其余情况先取消可能仍在进行的旧解析，再真正暂停播放器。
    */
   _refreshDiscoveryForUser(trigger, keepPaused, reason) {
     this._cancelDiscoveryRefresh();
@@ -1076,6 +1080,10 @@ export class MusicCore {
     const version = this.state.commandVersion;
     const entry = { controller, version };
     this.discoveryRefresh = entry;
+    const prior = {
+      playInstanceId: this.state.current?.playInstanceId ?? null,
+      playing: Boolean(this.state.current) && !this.state.paused && this.state.status === 'playing',
+    };
     this.state.status = 'selecting';
     this.state.paused = keepPaused;
     this.state.lastError = null;
@@ -1100,9 +1108,21 @@ export class MusicCore {
         this._selectForUser(trigger, keepPaused, this.clock.now(), { refreshDiscovery: false });
       } catch (error) {
         if (version !== this.state.commandVersion) return;
-        this.state.paused = true;
-        this.state.status = 'error';
+        const stillPlaying = prior.playing && this.state.current
+          && this.state.current.playInstanceId === prior.playInstanceId && !this.state.current.finished;
         this.state.lastError = { code: error.code ?? 'no_candidates', message: error.message, retryable: false };
+        if (stillPlaying) {
+          // 用户只是请求下一首，原曲没有被切走：让它继续播放，只报告没有新歌。
+          this.state.paused = false;
+          this.state.status = 'playing';
+        } else {
+          // 先取消可能仍在进行的旧解析，再让播放器真正停下；否则错误态之后
+          // 迟到的解析会突然起播，界面与声音再次不一致。
+          this._invalidate();
+          if (this.state.current) this._control('pause', { version: this.state.commandVersion }, true);
+          this.state.paused = true;
+          this.state.status = 'error';
+        }
         this._commit();
       }
     })().finally(() => { if (this.discoveryRefresh === entry) this.discoveryRefresh = null; });

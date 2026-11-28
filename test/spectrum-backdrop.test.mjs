@@ -78,7 +78,8 @@ test('the whale follows a "listening" gate instead of the transient UI playing f
   // 每次换歌都会把 95 秒冷却清零，真实播放里永远攒不够时间（现场验收复现）。
   assert.match(source, /const listening = Boolean\(state\.connected && snapshot\) && !snapshot\.paused/,
     'listening tolerates the resolving window between tracks');
-  assert.match(source, /!snapshot\.lastError && snapshot\.status !== 'idle'/, 'a stopped or broken player still cancels');
+  assert.match(source, /!\(snapshot\.lastError && snapshot\.lastError\.code !== 'no_candidates'\) && snapshot\.status !== 'idle'/,
+    'a stopped or broken player still cancels; a missing next candidate leaves the playing track active');
   const animated = effectDeps.find(entry => entry.body.includes('createWhaleDirector('));
   assert.match(animated.body, /active: listening,/, 'the director is driven by the listening gate');
   assert.doesNotMatch(animated.body, /active: activeRef\.current && motion/,

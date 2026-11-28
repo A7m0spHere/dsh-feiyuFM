@@ -61,13 +61,16 @@ const EVIDENCE = [
   {
     id: 'A04', claim: '用户点歌/下一首优先；禁播、暂停不会被自动事件覆盖',
     status: 'offline-passed',
-    files: ['test/core.test.mjs', 'test/selection.test.mjs', 'docs/spikes/T2-selection.md', 'test/faults.test.mjs', 'docs/spikes/N21-playback-interruption-recovery.md'],
+    files: ['test/core.test.mjs', 'test/selection.test.mjs', 'docs/spikes/T2-selection.md', 'test/faults.test.mjs', 'docs/spikes/N21-playback-interruption-recovery.md', 'test/playability-filter.test.mjs'],
     tests: [
       { file: 'test/core.test.mjs', name: 'late resolve cannot replace a newer user track or undo pause' },
       { file: 'test/faults.test.mjs', name: 'pause cancels an interruption recovery and a late resolve cannot resume audio' },
       { file: 'test/faults.test.mjs', name: 'a new user track supersedes an interruption recovery' },
+      { file: 'test/playability-filter.test.mjs', name: 'a failed fallback refresh keeps the original track audible and its paused state in sync with the player' },
+      { file: 'test/playability-filter.test.mjs', name: 'a failed fallback refresh cancels an in-flight resolve instead of letting it start after the error' },
+      { file: 'test/playability-filter.test.mjs', name: 'a failed fallback refresh without a playing track settles paused and error without starting audio' },
     ],
-    unverified: '真实慢请求与真实命令冲突未验',
+    unverified: '真实慢请求与真实命令冲突未验；回退刷新失败后的状态同步只离线回归',
   },
   {
     id: 'A05', claim: '平台候选与 LLM 筛选边界、探索关闭、空候选和最近 50 次实际开始的硬性防重复有效；概率分流为旧兼容',
@@ -111,6 +114,7 @@ const EVIDENCE = [
       { file: 'test/dsh-client.test.mjs', name: 'floating visibility and the docked edge survive a renderer remount' },
       { file: 'test/dsh-client.test.mjs', name: 'dragging docks the floating bar to an edge and arrow keys move it accessibly' },
       { file: 'test/dsh-settings.test.mjs', name: 'settings RPC persists changes through Core restart and preserves pause' },
+      { file: 'test/ui-presentation.test.mjs', name: 'a missing next candidate is shown as a shortage, never as a pause or playback failure' },
     ],
     unverified: 'U7 深色/窄窗口/键盘/动效浏览器验证与真实 DSH 搜索已验；完整真实宿主键盘与长期播放覆盖仍待验',
   },

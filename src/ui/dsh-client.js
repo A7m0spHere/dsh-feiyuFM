@@ -918,7 +918,8 @@ window.__ModuleLoader__.load({
     function playbackPresentation(snapshot, connected) {
       if (!connected) return { label: snapshot ? '连接中断 · 保留上次状态' : '正在连接电台', art: 'whale-idle', active: false };
       if (snapshot?.status === 'resolving' || snapshot?.status === 'selecting') return { label: '正在准备音乐', art: 'whale-dj', active: false };
-      if (snapshot?.lastError) return { label: '播放未成功', art: 'whale-idle', active: false };
+      // 缺少候选不是播放失败：手动下一首没找到新歌时原曲仍在出声，状态必须照实显示。
+      if (snapshot?.lastError && snapshot.lastError.code !== 'no_candidates') return { label: '播放未成功', art: 'whale-idle', active: false };
       if (snapshot?.paused) return { label: '已暂停 · 不会自动恢复', art: 'whale-idle', active: false };
       if (snapshot?.status === 'playing') return { label: snapshot.settings?.humanPlayback ? '正在播放' : '静音播放', art: 'whale-listening', active: true };
       return { label: '电台待命', art: 'whale-idle', active: false };
@@ -961,6 +962,11 @@ window.__ModuleLoader__.load({
 
     function playbackNotice(snapshot) {
       if (!snapshot?.lastError) return null;
+      if (snapshot.lastError.code === 'no_candidates') {
+        return snapshot.status === 'playing'
+          ? '暂时没有更多可播的新歌；正在播放的这首会继续。可以补充曲库或稍后再试。'
+          : '暂时没有更多可播的新歌。可以在电台设置选择筛选模型、补充可播歌曲，或稍后重试。'
+      }
       if (snapshot.status === 'resolving' && snapshot.current?.recoveryAttempts > 0) {
         return '播放中断，正在尝试从上次位置恢复这首歌…';
       }
@@ -4280,8 +4286,9 @@ window.__ModuleLoader__.load({
       // 彩蛋的"在听"判据比界面播放态更宽松：切歌时 Core 会短暂进入 resolving，
       // 界面因此掉出 active。如果按界面状态推进，每次换歌都会把冷却清零，彩蛋
       // 永远攒不够时间。暂停、停止、出错才是用户真的不想听了，必须立刻取消。
+      // 缺少下一首候选（no_candidates）只是选歌不足，原曲仍在播放，不算彩蛋判据里的"出错"。
       const listening = Boolean(state.connected && snapshot) && !snapshot.paused
-        && !snapshot.lastError && snapshot.status !== 'idle';
+        && !(snapshot.lastError && snapshot.lastError.code !== 'no_candidates') && snapshot.status !== 'idle';
       // 已开始的音乐跨 resolving 间隙保持背景能量，避免水平条突然全部缩回左端。
       // 首次准备不提前启动，暂停/停止仍取消。
       const playing = presentation.active || (listening && activeRef.current);

@@ -127,8 +127,9 @@ export function SpectrumBackdrop({ controller, usePanelInfo, whaleEager = false,
   // 彩蛋的"在听"判据比界面播放态更宽松：切歌时 Core 会短暂进入 resolving，
   // 界面因此掉出 active。如果按界面状态推进，每次换歌都会把冷却清零，彩蛋
   // 永远攒不够时间。暂停、停止、出错才是用户真的不想听了，必须立刻取消。
+  // 缺少下一首候选（no_candidates）只是选歌不足，原曲仍在播放，不算彩蛋判据里的"出错"。
   const listening = Boolean(state.connected && snapshot) && !snapshot.paused
-    && !snapshot.lastError && snapshot.status !== 'idle';
+    && !(snapshot.lastError && snapshot.lastError.code !== 'no_candidates') && snapshot.status !== 'idle';
   // 已开始的音乐跨 resolving 间隙保持背景能量，避免水平条突然全部缩回左端。
   // 首次准备不提前启动，暂停/停止仍取消。
   const playing = presentation.active || (listening && activeRef.current);

@@ -156,7 +156,7 @@ Host 的 `feedback-list/feedback-clear` 越过慢平台队列；撤销只使投�
 
 显式用户回退链（2026-11-28）：入选池、输入曲库依次为空时，用户主动 `resume`（无当前曲目）与 `next` 再尝试 ③ 平台发现缓存中已预检可播的候选（`discoveryFallback`）。第 ③ 段只读 `discovery.fallbackTracks()`：未过期、未标不可播、未导入／未有效听过／未喜欢；平台支持预检时，预检剔除的曲目已在缓存外。它同样经过当前曲排除与最近 50 次硬窗口过滤，命中后 `lastSelection={pool:'discovery',fellBack:true,fallbackReason:'…已从平台相似推荐选取可播歌曲'}`，播放解析遇 `media_unavailable` 沿用该回退语境与既有 8 次有界连跳预算，可播性探测批量包含这些候选。`selectAutonomously` 不接受 `discoveryFallback`，自动续播仍只播入选曲。
 
-③ 首次为空且发现能力可用、探索开启时，Core 先接受用户命令（`status='selecting'`，保持原暂停意图）再做一次有界 `refreshDiscovery({manual:true})`，完成后重走一次同一回退链；命令版本变化（暂停、点播、换曲、模式切换）立即取消等待并保留暂停，迟到候选不再选歌。刷新沿用手动 1 分钟节流、失败退避与账号代次，不发模型请求；缓存为空时低可播率最多轮换三轮种子（拿到 12 首可播候选即停），每轮仍受单批预检上限约束。
+③ 首次为空且发现能力可用、探索开启时，Core 先接受用户命令（`status='selecting'`，保持原暂停意图）再做一次有界 `refreshDiscovery({manual:true})`，完成后重走一次同一回退链；命令版本变化（暂停、点播、换曲、模式切换）立即取消等待并保留暂停，迟到候选不再选歌。刷新后仍无候选时，状态必须与扬声器一致：刷新前原曲仍在播放且未被切走则保持 `status='playing'/paused=false`，只把 `no_candidates` 记入 `lastError` 作为提示，不暂停播放器；无当前曲、原本暂停或仍在解析时，先 `_invalidate()` 取消旧解析并下发 `pause`，再落 `paused=true/status='error'`，避免迟到解析在错误态之后起播。刷新沿用手动 1 分钟节流、失败退避与账号代次，不发模型请求；缓存为空时低可播率最多轮换三轮种子（拿到 12 首可播候选即停），每轮仍受单批预检上限约束。
 
 filtered 未配置 `recommendation_route_v1` 且确实无候选时，`no_candidates` 提示引导到「电台设置」选择模型或补充可播放歌曲；客户端不再展示无法触发筛选的「重新找歌」。
 

@@ -32,7 +32,8 @@ export function interpolatedPosition({ anchor, playInstanceId, positionMs, durat
 export function playbackPresentation(snapshot, connected) {
   if (!connected) return { label: snapshot ? '连接中断 · 保留上次状态' : '正在连接电台', art: 'whale-idle', active: false };
   if (snapshot?.status === 'resolving' || snapshot?.status === 'selecting') return { label: '正在准备音乐', art: 'whale-dj', active: false };
-  if (snapshot?.lastError) return { label: '播放未成功', art: 'whale-idle', active: false };
+  // 缺少候选不是播放失败：手动下一首没找到新歌时原曲仍在出声，状态必须照实显示。
+  if (snapshot?.lastError && snapshot.lastError.code !== 'no_candidates') return { label: '播放未成功', art: 'whale-idle', active: false };
   if (snapshot?.paused) return { label: '已暂停 · 不会自动恢复', art: 'whale-idle', active: false };
   if (snapshot?.status === 'playing') return { label: snapshot.settings?.humanPlayback ? '正在播放' : '静音播放', art: 'whale-listening', active: true };
   return { label: '电台待命', art: 'whale-idle', active: false };
@@ -75,6 +76,11 @@ export function playbackControls(state) {
 
 export function playbackNotice(snapshot) {
   if (!snapshot?.lastError) return null;
+  if (snapshot.lastError.code === 'no_candidates') {
+    return snapshot.status === 'playing'
+      ? '暂时没有更多可播的新歌；正在播放的这首会继续。可以补充曲库或稍后再试。'
+      : '暂时没有更多可播的新歌。可以在电台设置选择筛选模型、补充可播歌曲，或稍后重试。'
+  }
   if (snapshot.status === 'resolving' && snapshot.current?.recoveryAttempts > 0) {
     return '播放中断，正在尝试从上次位置恢复这首歌…';
   }

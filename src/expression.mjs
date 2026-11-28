@@ -12,7 +12,7 @@ export function formatExpression(style, kind, original, snapshot) {
   if (style === 'current' || !EXPRESSION_STYLES.includes(style)) return original;
   const lively = style === 'lively', current = snapshot?.current;
   if (snapshot?.paused) return lively ? '先停在这里，等你准备好再继续。' : '已暂停，等待你的操作。';
-  if (snapshot?.lastError) return lively ? '这次播放没完成，先看看状态提示吧。' : '播放未成功，请查看状态。';
+  if (snapshot?.lastError && snapshot.lastError.code !== 'no_candidates') return lively ? '这次播放没完成，先看看状态提示吧。' : '播放未成功，请查看状态。';
   if (snapshot?.settings?.listening === false) return lively ? '自主听歌已关闭，先保持你的当前设置。' : '自主听歌已关闭。';
   if (!current) return lively ? '电台待命，准备好后再选歌。' : '电台待命。';
   let text;
