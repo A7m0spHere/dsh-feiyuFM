@@ -1968,3 +1968,71 @@ test('the old-data recovery button claims explicitly for the current account and
     assert.equal(recoveryButton(), undefined);
   } finally { f.dispose(); }
 });
+
+test('modular settings layout starts compact, supports reorder/expand/widen with fixed-width bounds, persists and resets', async () => {
+  const storage = new Map();
+  const make = () => fixture(async () => ({ ok: true, value: { snapshot: snapshot(1), platforms: { netease: { installed: true, account: { status: 'login_required' } } }, library: { total: 0, tracks: [] } } }), storage);
+  const f = make();
+  try {
+    await f.controller.refresh();
+    all(f.render()).find(n => n.type === 'button' && n.children.includes('电台设置')).props.onClick();
+    const tiles = () => all(f.render()).filter(n => n.props['data-tile-id']);
+    assert.deepEqual(tiles().map(n => n.props['data-tile-id']), ['modes', 'library', 'preferences', 'model', 'network', 'interface']);
+    assert.ok(tiles().every(n => n.props['data-size'] === 'compact'));
+
+    // Expand library & widen to span 2 columns; fixed-width tile rejects wide downgrade to standard
+    all(f.render()).find(n => n.props['aria-label'] === '展开输入与连接').props.onClick({ stopPropagation() {} });
+    assert.equal(tiles().find(n => n.props['data-tile-id'] === 'library').props['data-size'], 'standard');
+    all(f.render()).find(n => n.type === 'button' && n.props.className?.includes('fm-tile-widen-btn') && n.children.includes('宽展')).props.onClick({ stopPropagation() {} });
+    assert.equal(tiles().find(n => n.props['data-tile-id'] === 'library').props['data-size'], 'wide');
+
+    f.controller.setSettingsLayout({ order: ['network', 'modes'], sizes: { modes: 'wide', network: 'standard' } });
+    assert.deepEqual([...f.controller.getSnapshot().settingsLayout.order], ['network', 'modes', 'library', 'preferences', 'model', 'interface']);
+    assert.equal(f.controller.getSnapshot().settingsLayout.sizes.modes, 'standard', 'fixed-width form tiles clamp wide to standard');
+    assert.equal(f.controller.getSnapshot().settingsLayout.sizes.network, 'standard');
+
+    // Keyboard reorder on grip handle
+    const grip = all(f.render()).find(n => n.props['data-tile-grip'] === 'modes');
+    grip.props.onKeyDown({ key: 'ArrowUp', preventDefault() {} });
+    assert.deepEqual([...f.controller.getSnapshot().settingsLayout.order].slice(0, 2), ['modes', 'network']);
+
+    // Drag is scoped to tile header so body inputs/sliders are not hijacked,
+    // and dragging forward onto the last card places it at the very end.
+    assert.equal(tiles()[0].props.draggable, undefined);
+    const tileHead = id => all(tiles().find(n => n.props['data-tile-id'] === id)).find(n => n.props.className === 'fm-tile-head');
+    assert.equal(tileHead('modes').props.draggable, true);
+    tileHead('modes').props.onDragStart({ target: { closest: () => null }, dataTransfer: { setData() {}, effectAllowed: '' } });
+    const lastTile = () => tiles().find(n => n.props['data-tile-id'] === 'interface');
+    lastTile().props.onDragOver({ preventDefault() {}, dataTransfer: {} });
+    assert.equal(lastTile().props['data-drop-target'], true);
+    // Crossing into a child element inside the tile must not flicker off drop target.
+    lastTile().props.onDragLeave({ currentTarget: { contains: () => true }, relatedTarget: {} });
+    assert.equal(lastTile().props['data-drop-target'], true);
+    lastTile().props.onDrop({ preventDefault() {}, dataTransfer: { getData: () => 'modes' } });
+    assert.equal(f.controller.getSnapshot().settingsLayout.order.at(-1), 'modes');
+    // Dragging backward onto the first card moves it to index 0.
+    tileHead('modes').props.onDragStart({ target: { closest: () => null }, dataTransfer: { setData() {}, effectAllowed: '' } });
+    tiles()[0].props.onDrop({ preventDefault() {}, dataTransfer: { getData: () => 'modes' } });
+    assert.equal(f.controller.getSnapshot().settingsLayout.order[0], 'modes');
+
+    // Toggle auto-fill masonry switch & verify persistence across client reload
+    const autoFillBtn = () => all(f.render()).find(n => n.props.role === 'switch' && n.children.includes('自动补齐空白'));
+    assert.equal(autoFillBtn().props['aria-checked'], true);
+    assert.equal(all(f.render()).find(n => n.props.className === 'fm-settings-board').props['data-auto-fill'], true);
+    autoFillBtn().props.onClick();
+    assert.equal(autoFillBtn().props['aria-checked'], false);
+    assert.equal(all(f.render()).find(n => n.props.className === 'fm-settings-board').props['data-auto-fill'], false);
+
+    // Persists across client reload
+    const restored = make();
+    try {
+      assert.deepEqual([...restored.controller.getSnapshot().settingsLayout.order].slice(0, 2), ['modes', 'network']);
+      assert.equal(restored.controller.getSnapshot().settingsLayout.sizes.network, 'standard');
+      assert.equal(restored.controller.getSnapshot().settingsLayout.autoFill, false);
+      restored.controller.resetSettingsLayout();
+      assert.deepEqual([...restored.controller.getSnapshot().settingsLayout.order], ['modes', 'library', 'preferences', 'model', 'network', 'interface']);
+      assert.equal(restored.controller.getSnapshot().settingsLayout.sizes.network, 'compact');
+      assert.equal(restored.controller.getSnapshot().settingsLayout.autoFill, true);
+    } finally { restored.dispose(); }
+  } finally { f.dispose(); }
+});

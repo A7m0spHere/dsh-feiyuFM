@@ -201,6 +201,8 @@ export function FloatingPlayer({ controller, layout, usePanelInfo }) {
           'aria-busy': state.transportPending === 'next', disabled: transport.nextDisabled,
           onClick: () => controller.command('next') }, h(Svg, { type: 'next' })),
         h('button', { type: 'button', className: 'fm-float-icon fm-float-more', 'aria-label': '更多音乐设置',
-        'aria-haspopup': 'menu', 'aria-expanded': menuOpen, onClick: () => menuOpen ? closeOverlay() : openMenu() }, h(Svg, { type: 'more' })))),
+        'aria-haspopup': 'menu', 'aria-expanded': menuOpen, onClick: () => menuOpen ? closeOverlay() : openMenu() }, h(Svg, { type: 'more' }))),
+      current?.track?.durationMs > 0 && h('div', { className: 'fm-float-progress', 'aria-hidden': true },
+        h('i', { style: { width: `${Math.min(100, Math.max(0, 100 * positionMs / current.track.durationMs))}%` } }))),
   );
 }

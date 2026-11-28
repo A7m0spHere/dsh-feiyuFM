@@ -46,10 +46,10 @@ export function FeedbackSettings({state,controller}) {
           h('p',{className:'fm-label'},confirm==='library'?`清空 ${state.library?.total??0} 首输入歌曲并重建偏好？`:'仅重置成长偏好，保留输入曲库？'),
           h('label',{className:'fm-check-row'},h('input',{type:'checkbox',checked:clearFeedback,disabled,'aria-label':'同时清除喜欢和少推荐反馈',onChange:e=>setClearFeedback(e.target.checked)}),'同时清除喜欢 / 少推荐反馈'),
           h('div',{className:'fm-feedback-actions'},
-            h('button',{type:'button',className:'fm-button',disabled,onClick:async()=>{await controller.command(confirm==='library'?'resetLibrary':'resetTaste',{clearFeedback});setConfirm(null);}},confirm==='library'?'确认清空输入曲库':'确认重置'),
+            h('button',{type:'button',className:confirm==='library'?'fm-button fm-danger-btn':'fm-button',disabled,onClick:async()=>{await controller.command(confirm==='library'?'resetLibrary':'resetTaste',{clearFeedback});setConfirm(null);}},confirm==='library'?'确认清空输入曲库':'确认重置'),
             h('button',{type:'button',className:'fm-button',disabled:state.busy,onClick:()=>setConfirm(null)},'取消')))
           :h('div',{className:'fm-feedback-actions'},
-            h('button',{type:'button',className:'fm-button',disabled:disabled||!state.insights?.libraryResetSupported,onClick:()=>{setClearFeedback(false);setConfirm('library');}},'清空输入曲库并重建偏好'),
+            h('button',{type:'button',className:'fm-button fm-danger-btn',disabled:disabled||!state.insights?.libraryResetSupported,onClick:()=>{setClearFeedback(false);setConfirm('library');}},'清空输入曲库并重建偏好'),
             h('button',{type:'button',className:'fm-button',disabled,onClick:()=>{setClearFeedback(false);setConfirm('taste');}},'仅重置成长偏好'),
             feedback?.canUndoReset&&h('button',{type:'button',className:'fm-button',disabled,onClick:()=>controller.command('undoTasteReset')},'撤销最近一次重置')),
         h('p',{className:'fm-note'},'清空后可重新导入参考歌曲。保留最近一次恢复点；撤销会覆盖重置之后的导入和成长。')))));
