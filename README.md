@@ -4,13 +4,30 @@
 
 **在 DeepSeek Harness（DSH）里，开一间由你掌控的电台。**
 
-导入常听的歌曲，让网易云找来候选，再由模型挑出一批。大肥鱼陪你听歌；点播、暂停、换曲和静音，随时由你决定。
+导入常听的歌曲，由当前连接的音乐平台（**网易云音乐** 或 **QQ 音乐**）召回完整可播候选，再交由 DSH 已配置的模型按预算挑出一批。大肥鱼在独立后台播放服务里陪你听歌；点播、暂停、切歌、拖拽进度、调音与静音，控制权始终在你手里。
 
-**Windows · 网易云 · 0.1.2**　[开始使用](#开始使用) · [下载发行包](https://github.com/A7m0spHere/dsh-feiyuFM/releases/tag/v0.1.2) · [使用说明](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/DELIVERY.md) · [更新记录](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/CHANGELOG.md)
+**Windows · 网易云 & QQ 音乐 · v0.2.0**　[快速开始](#快速开始) · [GitHub Release v0.2.0](https://github.com/A7m0spHere/dsh-feiyuFM/releases/tag/v0.2.0) · [使用说明](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/DELIVERY.md) · [更新记录](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/CHANGELOG.md)
 
-**0.1.2 已发布到 npm，`latest` 指向此版本。** `0.2.0` 候选已在 `main` 完成准备（新增 QQ 音乐单账号隔离、受限／VIP 曲目批量预检跳过、无模型发现回退、常驻音量条、可拖动进度条、模块化拖拽设置与应用层代理，尚未上架 npm，待 DSH Desktop 真实账号验收后发布；详见 [0.2.0 发行记录](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/releases/0.2.0.md)）。升级后须完整退出并重开 DSH，让新播放服务生效；保留原有音乐数据库与登录状态。上一正式版发布确认见 [0.1.2 记录](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/releases/0.1.2.md)。
+> **发行状态**：[GitHub Release v0.2.0](https://github.com/A7m0spHere/dsh-feiyuFM/releases/tag/v0.2.0) 已公开（含完整离线包 `dsh-feiyufm-0.2.0.tgz` 与 `SHA256SUMS.txt`）；npm `0.2.0` 随发布确认同步上架（公开 registry 确认前 `latest` 仍指向 `0.1.2`）。升级后请从系统托盘**完整退出并重开 DSH**，保留原有音乐数据库与登录凭据。详细发行与验收边界见 [0.2.0 发行记录](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/releases/0.2.0.md)。
 
-## 电台长什么样
+---
+
+## 核心特性
+
+- **双平台单账号隔离**：同时支持 **网易云音乐** 与 **QQ 音乐** 扫码接入。同一实例每次连接一个账号，曲库、反馈、听歌历史与推荐池按账号归档隔离，退出即可无缝切换平台；从 `0.1.x` 升级支持显式恢复旧版资料。
+- **自动跳过 VIP／受限与试听曲目**：按当前账号实际能获取的完整非试听音源批量预检，拦截网易云 30 秒试听与平台无完整链接曲目（绝不绕过平台会员或版权限制）；免费账号输入曲库可播曲较少时，手动「开始听歌／下一首」可回退至平台已预检可播的相似新歌。
+- **低频模型挑歌，逐曲零额外请求**：`参考歌曲 → 平台发现与可播预检 → 模型批筛 → 本地播放`。模型只在余量不足或手动触发时按预算批筛，逐曲播放与切歌不请求模型；最近 50 次实际播放采用硬性防重复窗口。
+- **顺手且完整的播放控制台**：
+  - 独立后台播放服务（WPF 原生音频宿主），切回对话页或隐藏悬浮条仍持续播放；
+  - 「正在听」右侧逐行歌词高亮跟随、翻译／音译独立开关与点击歌词原地跳转；
+  - 底栏与悬浮条共用可拖动进度条（悬停预览、拖动零回弹、键盘微调与暂停态定位）及常驻 0%–100% 音量横条与静音记忆；
+  - 「电台设置」支持模块化卡片拖拽排序、展开／宽展、自动补齐空白与本机布局保存；
+  - 支持浅色／深色主题、动效档位、左缘模拟 ASCII 频谱背景，以及角色区默认关闭的无文字彩蛋小开关。
+- **可控网络与更稳的音频下载**：电台设置内置应用层直连／自定义无认证 HTTP(S) 代理（不干扰外部 TUN／VPN）；公网音频匿名暂存采用 12 秒停滞快败＋25 秒活跃下载总上限，暂停或切歌随时立即取消。
+
+---
+
+## 界面预览
 
 <picture>
   <source media="(prefers-color-scheme: dark) and (max-width: 600px)" srcset="https://raw.githubusercontent.com/A7m0spHere/dsh-feiyuFM/main/assets/readme/panel-narrow-dark.png?v=20261105">
@@ -19,122 +36,145 @@
   <img src="https://raw.githubusercontent.com/A7m0spHere/dsh-feiyuFM/main/assets/readme/panel.png?v=20261105" width="100%" alt="肥鱼电台界面预览：人物与歌曲信息、逐行歌词、可选歌曲池和播放控制。">
 </picture>
 
-截图取自 2026-11-05 的客户端预览，展示歌词与布局示例；歌曲、歌词、账号状态与模型结果均为示例数据。界面以实际版本为准，试用范围见 [U26 记录](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/spikes/U26-console-lyrics.md)。
+<sub>界面布局示例取自 2026-11-05 生产 bundle 预览（样例歌曲与歌词）；`0.2.0` 在此基础上新增了宽屏无缝画布、常驻音量横条、可拖动进度条、QQ 音乐接入与模块化拖拽电台设置。详情见 [U26 记录](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/spikes/U26-console-lyrics.md) 与 [0.2.0 发行记录](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/releases/0.2.0.md)。</sub>
 
-## 开始使用
+---
 
-在 DSH「插件 → 添加插件」的「包名或地址」中输入：
+## 快速开始
 
-```text
-dsh-feiyufm@0.1.2
-```
+### 1. 安装插件
 
-新安装完成后点击「立即启用」，然后：
+在 DSH 侧栏打开 **「插件 → 添加插件」**，在「包名或地址」中任选以下方式之一：
 
-1. 打开侧栏「肥鱼电台」，在「电台设置」里用网易云 App 扫码登录。
-2. 导入近期播放、喜欢的歌曲或指定歌单，作为参考歌曲。
-3. 使用 DSH 已配置的模型挑歌，或者直接从输入曲库点播。没有配置模型也可以手动听歌。
+- **方式 A — 从 npm 安装（推荐，`0.2.0` 上架后生效）**：
+  ```text
+  dsh-feiyufm@latest
+  ```
+- **方式 B — 使用 GitHub Release `v0.2.0` 离线安装包（内含完整依赖，最快最稳）**：
+  前往 [Release v0.2.0](https://github.com/A7m0spHere/dsh-feiyuFM/releases/tag/v0.2.0) 下载 `dsh-feiyufm-0.2.0.tgz`，在「包名或地址」中填入本地文件路径（如 `D:\Downloads\dsh-feiyufm-0.2.0.tgz`）。
+- **方式 C — 从 GitHub `main` 安装**：
+  ```text
+  https://github.com/A7m0spHere/dsh-feiyuFM
+  ```
 
-首次使用时，「正在听」会显示三步引导。跳过或完成后，也可以在「电台设置 → 使用指南」重新打开。
+安装完成后点击 **「立即启用」**，然后**从系统托盘完整退出并重新打开 DSH**。
 
-<details>
-<summary>从 main 源码安装（开发与验证）</summary>
+### 2. 三步开始听歌
 
-日常使用可选择上方的 npm 正式包；需要验证 main 上的改动时，在「插件 → 添加插件」的「包名或地址」中使用：
-
-```text
-https://github.com/A7m0spHere/dsh-feiyuFM
-```
-
-已有安装先通过插件管理器更换来源，同一 profile 只启用一份肥鱼电台。保留现有音乐数据库与登录状态，安装启用后从应用菜单或托盘完整退出 DSH，再重新启动，才能载入新的播放后端。
-
-源码安装、固定提交和本地打包方式见 [使用说明](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/DELIVERY.md#安装) 与 [贡献指南](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/CONTRIBUTING.md#打包与发行)。
-
-</details>
+1. 点击侧栏 **「肥鱼电台」**，按「正在听」的三步引导进入 **「电台设置 → 输入与连接」**，任选 **网易云音乐** 或 **QQ 音乐** 扫码登录。
+2. 导入近期播放、喜欢歌曲或指定歌单作为参考曲库。
+3. 在 **「电台设置 → 模型与推荐」** 选择 DSH 已配置的模型并点「找一批歌」开启自主听歌；即使暂未配置模型，也可以直接点击播放或「下一首」收听曲库与平台可播相似推荐。
 
 <details>
 <summary>通过 DSH CLI 安装</summary>
 
-以 Web profile 为例，将 `web` 换成实际使用的 profile：
+以 `web` profile 为例（替换为实际 profile 名称）：
 
 ```sh
-dsh plugin --profile web add dsh-feiyufm@0.1.2 --registry https://registry.npmjs.org/
+dsh plugin --profile web add dsh-feiyufm@latest --registry https://registry.npmjs.org/
 ```
 
-安装后重启该实例。单独运行 `npm install` 不会完成 DSH 插件注册和启用。
+或直接离线安装下载好的 Release 包：
+
+```sh
+dsh plugin --profile web add /path/to/dsh-feiyufm-0.2.0.tgz --offline
+```
+
+安装后重启对应 DSH 实例。单独运行 `npm install` 不会完成 DSH 插件注册与启用。
 
 </details>
 
 <details>
-<summary>从旧版本升级</summary>
+<summary>从旧版本（0.1.x）升级</summary>
 
-从 0.1.1 或此前源码试用版升级时，在同一 profile 的插件管理器中更换为 `dsh-feiyufm@0.1.2`；跟随正式版更新可用 `dsh-feiyufm@latest`。如果安装过旧测试包 `dsh-feiyufm-core`，先移除旧来源，再添加新包；同一 profile 只启用一份肥鱼电台。
-
-升级时保留音乐数据库与凭据，不需要清库。安装启用后，从应用菜单或托盘完整退出 DSH，再重新启动；只关闭窗口或刷新页面不会更新已加载的播放服务。
+1. 在同一 profile 的插件管理器中**移除旧版 `dsh-feiyufm`（或旧测试包 `dsh-feiyufm-core`）**，避免同一 profile 同时启用两份插件；
+2. **不要删除 `$DSH_HOME/fishfm/`**，原有音乐数据库、偏好与凭据都会保留并自动迁移到单账号结构（SQLite v12）；
+3. 添加新版来源并点击「立即启用」，随后从系统托盘**完整退出并重开 DSH**；只关闭窗口或刷新页面不会替换已加载的后端模块；
+4. 若旧库数据尚未归属到当前账号，可在「电台设置 → 输入与连接」点击「恢复旧版资料到当前账号」。
 
 </details>
+
+---
 
 ## 电台怎样选歌
 
-**参考歌曲 → 网易云找歌 → 模型挑歌 → 本地播放**
+```text
+参考歌曲（你的喜欢 / 歌单）
+   ↓
+当前账号平台召回（相似歌曲 / 每日推荐 / 私人 FM）＋ 批量完整可播预检
+   ↓
+DSH 模型按预算批筛并写简短理由
+   ↓
+本地规则排程（50 首硬性防重复 + 喜欢/少推荐偏好）→ 后台独立播放
+```
 
-网易云提供相似歌曲、每日推荐等候选；模型结合参考歌曲和反馈挑选，并给出简短理由。自动续播只从入选歌曲中选择，逐曲播放和「下一首」不请求模型。
-
-电台会在可播歌曲不足时按预算补充。自动续播、普通下一首和推荐队列避开最近 50 次实际开始的歌曲；歌曲不足时等待补充。手动点播和历史导航仍可重播。
-
-模型根据歌曲信息和反馈选歌，当前不理解音频内容；歌曲能否播放取决于网易云账号权限和资源状态。
+- **自动续播**：在默认 `filtered` 模式下，自动续播只取模型入选池中的歌曲；逐曲播放与切歌不新增模型请求。
+- **主动回退**：未配置模型或入选池暂时为空时，你主动点击「开始听歌／下一首」会依次回退到「输入曲库可播曲 → 平台已预检可播的相似发现曲」，且受限／VIP 曲会自动跳过。
+- **防重复窗口**：自动续播、普通「下一首」和推荐队列均严格避开最近 50 次实际播放过的歌曲；手动点播曲库或点「上一首」历史导航仍可随时重播。
 
 <details>
-<summary>补歌和模型预算</summary>
+<summary>持续补歌水位与模型预算规则</summary>
 
-窗口外可播余量降到 12 首时开始补充，达到 24 首时停止。初始共享日预算为 100000 tokens，可在设置中调整；筛选没有固定每日次数或成功冷却，相同候选和已评审的偏好不会重复请求。详细规则见 [控制契约](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/CORE_CONTRACT.md)。
+- 当入选池中窗口外可播余量降至 **12 首** 时按预算自动补充，达到 **24 首** 停止；
+- 初始共享日预算为 **100,000 tokens**，可在「电台设置 → 模型与推荐」随时调整预算与单次输出上限；
+- 候选筛选无固定每日次数上限或成功冷却，已评审过的相同候选不会重复计费；模型仅接收歌名、艺人、来源线索与反馈摘要，绝不接收 Cookie、凭据、歌词全文或音频 URL。
+- 详细状态机与接口契约见 [控制契约](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/CORE_CONTRACT.md)。
 
 </details>
 
-## 推荐质量的实验结果
+---
 
-2026-11-11 的配对盲测比较了启用 LLM 筛选与排名加分的完整配置（FULL）和关闭这两个环节的对照（NO_LLM）。在相同候选和冻结偏好下，平均个人喜好从 **3.01 提高到 3.21 分（满分 5 分）**，提升 **0.20 分**，95% 配对置信区间为 **+0.04～+0.36 分**，观察到小幅正向统计信号。低分推荐（1–2 分）比例从 21.1% 降至 7.8%。
+## 听歌时你可以随时控制
 
-**目前仅有 1 位评价者、30 个独立候选块（141 首实际评价歌曲），用户数和样本量有限。** 本次均差尚未达到预设的 0.30 分实用提升判据，不同候选来源的表现也有差异。其他用户、跨来源稳定性及长期使用效果仍待验证。实验方法、原曲异版与补听修正、等效检验和匿名汇总见 [完整实验记录](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/research/ABLATION_V2_20261111.md)。
+| 区域 | 可用操作 |
+|---|---|
+| **播放控制** | 播放／暂停、上一首（固定历史游标）、下一首、明确点播；主动暂停绝不会被自动事件撤销 |
+| **进度与音量** | 悬停预览时间、鼠标／触摸拖动与键盘跳转、暂停态定位；0%–100% 常驻音量横条与静音记忆 |
+| **逐行歌词** | 当前句高亮跟随、点击或键盘原地跳转、手动浏览后一键「回到当前句」、翻译／音译独立开关 |
+| **口味反馈** | 「喜欢／少推荐」即时影响后续挑歌且可撤销，不修改你的网易云或 QQ 原收藏 |
+| **听歌模式** | **日常 / 专注 / 静听 / 关闭** 四种模式（静听只关外放不暂停），以及可随时解除的「今天停止」 |
+| **模块化设置** | 四大标签页（正在听／发现记录／偏好与反馈／电台设置）；设置卡片支持拖拽排序、宽展与自动补齐 |
 
-## 听歌时可以做什么
+---
 
-- **控制播放：** 点播、暂停、上一首或下一首；自动事件不会撤销你主动暂停的状态。
-- **查看歌词：** 当前句高亮并自动跟随，默认原文，翻译／音译按词源开启。点击某句或用 Enter／Space 原地跳转，暂停时仍保持暂停；手动浏览后可点「回到当前句」。无词、纯音乐和没有时间信息的歌词分别显示，读取失败可重试。
-- **调整偏好：** 用「喜欢／少推荐」影响后续挑歌，也可以撤销；不会修改网易云收藏。
-- **切换页面：** 正在听、发现记录、偏好与反馈、电台设置共用音乐服务；切页或隐藏悬浮条后继续播放。
-- **选择听歌方式：** 日常、专注、静听和关闭四种模式；静听关闭电脑声音，仍记录有效经历。「今天停止」可随时手动恢复。
-- **调整画面：** 切换浅色／深色和动态效果，或开启工作区左缘的 ASCII 频谱；频谱是模拟动画。角色区的小开关可以切换 doll 彩蛋，默认关闭。
+## 推荐质量的实验记录
+
+2026-11-11 的单用户配对盲测对比了启用 LLM 筛选与排名加分（`FULL`）和关闭该环节（`NO_LLM`）：在相同候选与冻结偏好下，平均喜好从 **3.01 提升至 3.21 / 5.00**（均差 **+0.20 分**，95% 配对置信区间 **+0.04～+0.36**），低分推荐（1–2 分）占比从 21.1% 降至 7.8%。
+
+> 样本边界：目前仅有 **1 位评价者、30 个配对块（141 首有效歌曲）**，均差未达预设 +0.30 分实用判据，跨用户与长期使用效果仍待更多真实反馈验证。详见 [v2 消融实验报告](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/research/ABLATION_V2_20261111.md)。
+
+---
+
+## 支持范围与边界
+
+| 项目 | 当前范围（0.2.0） |
+|---|---|
+| **Windows + 网易云音乐** | 日常 DSH Desktop 有声播放、扫码／导入、歌词跳转、进度条、音量条、代理设置与升级迁移已实测通过 |
+| **Windows + QQ 音乐** | 单账号扫码登录、导入、歌词、批量可播预检、自动跳过受限／VIP 曲、无模型发现回退与配模型挑歌已在日常 Desktop 与隔离 DSH 实测通过；**不绕过平台 VIP／版权限制** |
+| **DSH / Node.js** | 已在官方 DSH `0.2.2-rc.1`（内置 Node `24.21.0`）与 Node `24.22.1` 验证；要求 Node `>=24.14.0 <25` |
+| **macOS** | 随包提供 Swift / AVFoundation / Keychain 实验性适配，真机音频、登录与退出生命周期尚未完成验收 |
+| **Last.fm** | 未开工 |
+
+完整测试基线与未验缺口见 [开发状态](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/PROJECT_PLAN.md)。
 
 <details>
-<summary>没有声音，或暂时不能补充歌单？</summary>
+<summary>常见问题与排查</summary>
 
-- **没有声音：** 检查声音开关、静听模式、暂停状态，以及系统音量和输出设备。首次播放可能等待数秒。
-- **旧版出现 Windows 公网播放失败：** 先升级到 `0.1.2` 并完整重启 DSH；该版本修复了已复现的 WPF 公网媒体打开路径。平台账号权限、网络和本机媒体环境仍会影响播放。
-- **提示下载失败或本机打开失败：** 两者是不同阶段；按提示重试或换一首，持续失败时参考 [#19 说明](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/spikes/ISSUE-19-wpf-public-media.md) 提供脱敏信息，不需要上传数据库、Cookie或完整媒体地址。
-- **不能补充歌单：** 当前任务、预算或平台节流可能限制请求；等待期间仍可点播、暂停或换曲。
-- **网易云连接读取失败：** 按提示重试连接；如果提示运行依赖缺失，重新安装 `dsh-feiyufm@0.1.2` 并完整重启 DSH。
-- **升级后没有变化：** 从托盘完整退出 DSH 再启动；升级不需要删除音乐数据库。
-
-更多排查方法见 [使用说明](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/DELIVERY.md#常见问题)。
+- **升级后界面或功能没有生效**：请右键系统托盘图标**完整退出 DSH 并重新打开**；升级无需删除音乐数据库。
+- **免费账号很多歌被自动跳过**：平台对非会员曲目返回受限或 30 秒试听，肥鱼电台会按当前账号实际完整音源自动跳过这些曲目，并保留它们作为口味种子去寻找同风格的免费可播新歌。
+- **下载超时并自动跳到下一首**：公网音频默认等待 12 秒握手／停滞与最多 25 秒活跃下载；网络或代理波动时可在「电台设置 → 网络连接」检查直连／代理配置。
+- **没有声音**：检查底栏音量横条是否为 0%、是否处于「静听／关闭」模式，以及 Windows 输出设备。
+- **更多排障说明**：见 [使用说明 — 常见问题](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/DELIVERY.md#常见问题)。
 
 </details>
 
-## 支持范围
+---
 
-| 项目 | 当前范围 |
-| --- | --- |
-| Windows + 网易云 | npm `0.1.2` 已发布；公开 HTTPS 静音播放、暂停／预加载换曲及公开包安装通过，反馈设备与真实账号歌曲仍需复验。见 [发行记录](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/releases/0.1.2.md) |
-| DSH / Node.js | 发行包在 DSH `0.2.2-rc.1`／内置 Node `24.21.0` 隔离安装与初始化通过；要求 Node `>=24.14.0 <25`，桌面宿主自带兼容版本时无需另装 |
-| macOS | 实验性适配随包提供；真实登录、音频与退出生命周期待真机验收 |
-| QQ 音乐 | `main`（0.2.0 候选）提供 QQ 扫码、导入、歌词、推荐与可播预检，单账号隔离自动跟随当前账号；依赖第三方接口包 `@yakult-green-tea/qq-music-api`，受上游非商业声明约束，仅限个人学习与非商业使用（详见 [版权声明](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/THIRD_PARTY_NOTICES.md)）。真实账号闭环与日常 Desktop 验收进行中，npm `0.1.2` 沿用既有发行范围 |
+## 数据安全、开发与版权声明
 
-长期体验、平台与宿主组合的未验项见 [开发状态](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/PROJECT_PLAN.md)。
-
-## 数据与开发
-
-曲库、偏好、反馈、收听历史和用量账本保存在本机，默认位于 `$DSH_HOME/fishfm/music.sqlite`。平台会话由 Windows DPAPI 或 macOS Keychain 保存，数据库只保存凭据引用。模型接收有界的音乐事实，不接收 Cookie 或凭据；歌词仅用于显示，不进入模型输入。详见 [架构](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/ARCHITECTURE.md) 和 [控制契约](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/CORE_CONTRACT.md)。
-
-[参与开发与源码安装](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/CONTRIBUTING.md) · [文档索引](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/README.md) · [反馈问题](https://github.com/A7m0spHere/dsh-feiyuFM/issues)
-
-鲸鱼娘（大肥鱼）形象由 **@ZipZipPipe** 基于 **上善无形** 的原创角色进行二次设计。来源与完整版权说明见 [版权声明](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/THIRD_PARTY_NOTICES.md)。
+- **本地数据与凭据**：曲库、偏好、听歌历史与模型 token 账本默认保存在 `$DSH_HOME/fishfm/music.sqlite`；平台登录会话由 Windows DPAPI 或 macOS Keychain 加密保管，数据库仅存凭据引用，音源 URL 与凭据均不落盘、不发给模型。
+- **文档与贡献**：[架构说明](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/ARCHITECTURE.md) · [控制契约](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/CORE_CONTRACT.md) · [参与开发](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/CONTRIBUTING.md) · [文档索引](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/docs/README.md) · [反馈问题](https://github.com/A7m0spHere/dsh-feiyuFM/issues)
+- **版权与第三方许可**：
+  - 鲸鱼娘（大肥鱼）形象由 **@ZipZipPipe** 基于 **上善无形** 的原创角色进行二次设计。
+  - QQ 音乐适配依赖第三方开源接口包 `@yakult-green-tea/qq-music-api@3.3.7`，受其上游非商业声明约束，仅限个人学习与非商业使用。
+  - 完整代码许可、素材署名与 363 项第三方依赖声明见 [版权声明](https://github.com/A7m0spHere/dsh-feiyuFM/blob/main/THIRD_PARTY_NOTICES.md)。
