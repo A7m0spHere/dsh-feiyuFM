@@ -773,8 +773,16 @@ window.__ModuleLoader__.load({
         background:var(--fm-sunken); border:1px solid var(--fm-line); font-size:12px; color:var(--fm-muted); }
       .fm-settings-toolbar-actions { display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
       .fm-settings-toolbar .fm-button { min-height:28px; padding:4px 10px; font-size:11.5px; }
+      .fm-autofill-toggle[aria-checked=true] { background:var(--fm-accent-soft); color:var(--fm-accent-ink);
+        border-color:color-mix(in srgb,var(--fm-accent) 36%,var(--fm-line)); }
+      .fm-autofill-dot { width:7px; height:7px; border-radius:50%; background:var(--fm-line-strong);
+        transition:background-color var(--fm-fast) var(--fm-ease); }
+      .fm-autofill-toggle[aria-checked=true] .fm-autofill-dot { background:var(--fm-accent); }
       .fm-settings-board { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); grid-auto-flow:dense;
         align-items:start; gap:12px; overflow-anchor:none; }
+      .fm-settings-board[data-auto-fill=true] { grid-auto-rows:1px; row-gap:0; column-gap:12px; }
+      .fm-settings-board[data-auto-fill=true] .fm-setting-tile { align-self:start; margin-bottom:12px; }
+      .fm-tile-frame { display:flex; flex-direction:column; min-width:0; }
       .fm-setting-tile { display:flex; flex-direction:column; min-width:0;
         background:var(--fm-surface); border:1px solid var(--fm-line); border-radius:var(--fm-r-lg);
         box-shadow:var(--fm-card-shadow),var(--fm-inner-rim);
@@ -844,6 +852,8 @@ window.__ModuleLoader__.load({
       .fm-setting-tile[data-size=wide] .fm-tile-wide-grid { grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:18px; align-items:start; }
       @container fishfm (max-width:640px) {
         .fm-settings-board { grid-template-columns:1fr; }
+        .fm-settings-board[data-auto-fill=true] { grid-auto-rows:auto; row-gap:12px; }
+        .fm-settings-board[data-auto-fill=true] .fm-setting-tile { grid-row-end:auto!important; margin-bottom:0; }
         .fm-setting-tile[data-size=wide] { grid-column:auto; }
         .fm-setting-tile[data-size=wide] .fm-tile-wide-grid { grid-template-columns:1fr; }
         .fm-tile-widen-btn { display:none; }
@@ -1076,7 +1086,7 @@ window.__ModuleLoader__.load({
         sizes[id] = candidate === 'wide' ? (WIDE_SETTINGS_TILES.has(id) ? 'wide' : 'standard')
           : candidate === 'standard' ? 'standard' : 'compact';
       }
-      return { order, sizes };
+      return { order, sizes, autoFill: raw?.autoFill !== false };
     };
     const readPreference = (key, fallback) => {
       try {
@@ -2814,7 +2824,9 @@ window.__ModuleLoader__.load({
       const settingsLayout = state.settingsLayout ?? {
         order: ['modes', 'library', 'preferences', 'model', 'network', 'interface'],
         sizes: { modes: 'compact', library: 'compact', preferences: 'compact', model: 'compact', network: 'compact', interface: 'compact' },
+        autoFill: true,
       };
+      const autoFill = settingsLayout.autoFill !== false;
       const captureTileRects = () => {
         const board = boardRef.current;
         if (!board?.querySelectorAll) return;
@@ -2857,6 +2869,34 @@ window.__ModuleLoader__.load({
           setTimeout(cleanup, duration + 60);
         });
       }, [settingsLayout, state.motion]);
+      React.useEffect(() => {
+        const board = boardRef.current;
+        if (!board?.querySelectorAll) return undefined;
+        const tiles = Array.from(board.querySelectorAll('[data-tile-id]'));
+        if (!autoFill) {
+          tiles.forEach(tile => { tile.style.gridRowEnd = ''; });
+          return undefined;
+        }
+        const syncSpan = tile => {
+          const frame = tile.querySelector?.('.fm-tile-frame');
+          if (!frame?.getBoundingClientRect) return;
+          const height = Math.ceil(frame.getBoundingClientRect().height);
+          if (height > 0) tile.style.gridRowEnd = `span ${height + 14}`;
+        };
+        tiles.forEach(syncSpan);
+        if (typeof ResizeObserver === 'undefined') return undefined;
+        const observer = new ResizeObserver(entries => {
+          for (const entry of entries) {
+            const tile = entry.target.closest?.('[data-tile-id]');
+            if (tile) syncSpan(tile);
+          }
+        });
+        tiles.forEach(tile => {
+          const frame = tile.querySelector?.('.fm-tile-frame');
+          if (frame) observer.observe(frame);
+        });
+        return () => observer.disconnect();
+      }, [autoFill, settingsLayout, view, mountedViews]);
       React.useEffect(() => {
         if (!guideFocus || view !== (['connect', 'import'].includes(guideFocus) ? 'settings' : 'listen')) return;
         const region = neteaseRef.current;
@@ -3052,10 +3092,14 @@ window.__ModuleLoader__.load({
         h('div', { className: 'fm-settings-toolbar' },
           h('span', null, '拖动卡片左上手柄可自由排序 · 表单卡片固定单列防变形，宽内容支持跨列宽展'),
           h('div', { className: 'fm-settings-toolbar-actions' },
+            h('button', { type: 'button', className: 'fm-button fm-autofill-toggle', role: 'switch',
+              'aria-checked': autoFill, title: '展开组件时由其他卡片自动填补空位',
+              onClick: () => updateSettingsLayout({ ...settingsLayout, autoFill: !autoFill }) },
+            h('span', { className: 'fm-autofill-dot', 'aria-hidden': true }), '自动补齐空白'),
             h('button', { type: 'button', className: 'fm-button', onClick: () => setAllTileSizes('compact') }, '全部最简'),
             h('button', { type: 'button', className: 'fm-button', onClick: () => setAllTileSizes('standard') }, '全部展开'),
             h('button', { type: 'button', className: 'fm-button', onClick: resetSettingsLayout }, '恢复默认'))),
-        h('div', { className: 'fm-settings-board', ref: boardRef },
+        h('div', { className: 'fm-settings-board', ref: boardRef, 'data-auto-fill': autoFill },
           settingsLayout.order.map(id => {
             const def = settingsTileDefs[id];
             const size = settingsLayout.sizes?.[id] || 'compact';
@@ -3085,29 +3129,30 @@ window.__ModuleLoader__.load({
                 if (from && from !== id) moveTileOrder(from, id);
               },
             },
-            h('div', { className: 'fm-tile-head', onClick: event => { if (!event.target?.closest?.('button')) setTileSize(id, expanded ? 'compact' : 'standard'); } },
-              h('button', { type: 'button', className: 'fm-tile-grip', 'data-tile-grip': id,
-                'aria-label': `拖动调整「${def.title}」顺序；方向键上下移动`, title: '拖动调整顺序；方向键上下移动',
-                onKeyDown: event => {
-                  if (event.key === 'ArrowUp') { event.preventDefault(); nudgeTile(id, -1); }
-                  else if (event.key === 'ArrowDown') { event.preventDefault(); nudgeTile(id, 1); }
-                } }, h(Svg, { type: 'grip' })),
-              h('div', { className: 'fm-tile-title-wrap' },
-                h('div', { className: 'fm-tile-title-row' },
-                  h('span', { className: 'fm-tile-title' }, def.title),
-                  h('span', { className: 'fm-tile-pill', 'data-ok': def.pillTone === 'ok' || undefined, 'data-accent': def.pillTone === 'accent' || undefined }, def.pill)),
-                h('div', { className: 'fm-tile-sub-wrap' }, h('span', { className: 'fm-tile-sub' }, def.sub))),
-              h('div', { className: 'fm-tile-actions' },
-                def.canWide
-                  ? h('button', { type: 'button', className: 'fm-tile-btn fm-tile-widen-btn', 'aria-pressed': size === 'wide', title: '切换单列 / 跨两列宽展',
-                    onClick: event => { event.stopPropagation(); setTileSize(id, size === 'wide' ? 'standard' : 'wide'); } }, size === 'wide' ? '标准宽' : '宽展')
-                  : h('span', { className: 'fm-fixed-tag', title: '表单类组件固定舒适单列宽' }, '固定宽'),
-                h('button', { type: 'button', className: 'fm-tile-btn', 'aria-expanded': expanded,
-                  'aria-label': `${expanded ? '收起' : '展开'}${def.title}`,
-                  onClick: event => { event.stopPropagation(); setTileSize(id, expanded ? 'compact' : 'standard'); } }, expanded ? '收起' : '展开'))),
-            def.quick && h('div', { className: 'fm-tile-quick-wrap' }, h('div', { className: 'fm-tile-quick-inner' }, def.quick)),
-            h('div', { className: 'fm-tile-collapse', ref: element => { if (element) element.inert = !expanded; } },
-              h('div', { className: 'fm-tile-collapse-inner' }, h('div', { className: 'fm-tile-body' }, def.body))));
+            h('div', { className: 'fm-tile-frame' },
+              h('div', { className: 'fm-tile-head', onClick: event => { if (!event.target?.closest?.('button')) setTileSize(id, expanded ? 'compact' : 'standard'); } },
+                h('button', { type: 'button', className: 'fm-tile-grip', 'data-tile-grip': id,
+                  'aria-label': `拖动调整「${def.title}」顺序；方向键上下移动`, title: '拖动调整顺序；方向键上下移动',
+                  onKeyDown: event => {
+                    if (event.key === 'ArrowUp') { event.preventDefault(); nudgeTile(id, -1); }
+                    else if (event.key === 'ArrowDown') { event.preventDefault(); nudgeTile(id, 1); }
+                  } }, h(Svg, { type: 'grip' })),
+                h('div', { className: 'fm-tile-title-wrap' },
+                  h('div', { className: 'fm-tile-title-row' },
+                    h('span', { className: 'fm-tile-title' }, def.title),
+                    h('span', { className: 'fm-tile-pill', 'data-ok': def.pillTone === 'ok' || undefined, 'data-accent': def.pillTone === 'accent' || undefined }, def.pill)),
+                  h('div', { className: 'fm-tile-sub-wrap' }, h('span', { className: 'fm-tile-sub' }, def.sub))),
+                h('div', { className: 'fm-tile-actions' },
+                  def.canWide
+                    ? h('button', { type: 'button', className: 'fm-tile-btn fm-tile-widen-btn', 'aria-pressed': size === 'wide', title: '切换单列 / 跨两列宽展',
+                      onClick: event => { event.stopPropagation(); setTileSize(id, size === 'wide' ? 'standard' : 'wide'); } }, size === 'wide' ? '标准宽' : '宽展')
+                    : h('span', { className: 'fm-fixed-tag', title: '表单类组件固定舒适单列宽' }, '固定宽'),
+                  h('button', { type: 'button', className: 'fm-tile-btn', 'aria-expanded': expanded,
+                    'aria-label': `${expanded ? '收起' : '展开'}${def.title}`,
+                    onClick: event => { event.stopPropagation(); setTileSize(id, expanded ? 'compact' : 'standard'); } }, expanded ? '收起' : '展开'))),
+              def.quick && h('div', { className: 'fm-tile-quick-wrap' }, h('div', { className: 'fm-tile-quick-inner' }, def.quick)),
+              h('div', { className: 'fm-tile-collapse', ref: element => { if (element) element.inert = !expanded; } },
+                h('div', { className: 'fm-tile-collapse-inner' }, h('div', { className: 'fm-tile-body' }, def.body)))));
           })));
       const replyCurrent = !current?.decisionId || !insights?.reply?.decisionId || current.decisionId === insights.reply.decisionId;
       const selectView = (value, loadProfile = true) => {

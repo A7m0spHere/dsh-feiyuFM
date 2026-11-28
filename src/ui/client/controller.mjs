@@ -26,7 +26,7 @@ const normalizeSettingsLayout = raw => {
     sizes[id] = candidate === 'wide' ? (WIDE_SETTINGS_TILES.has(id) ? 'wide' : 'standard')
       : candidate === 'standard' ? 'standard' : 'compact';
   }
-  return { order, sizes };
+  return { order, sizes, autoFill: raw?.autoFill !== false };
 };
 const readPreference = (key, fallback) => {
   try {

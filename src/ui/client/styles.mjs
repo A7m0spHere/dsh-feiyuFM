@@ -767,8 +767,16 @@ export const css = `
     background:var(--fm-sunken); border:1px solid var(--fm-line); font-size:12px; color:var(--fm-muted); }
   .fm-settings-toolbar-actions { display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
   .fm-settings-toolbar .fm-button { min-height:28px; padding:4px 10px; font-size:11.5px; }
+  .fm-autofill-toggle[aria-checked=true] { background:var(--fm-accent-soft); color:var(--fm-accent-ink);
+    border-color:color-mix(in srgb,var(--fm-accent) 36%,var(--fm-line)); }
+  .fm-autofill-dot { width:7px; height:7px; border-radius:50%; background:var(--fm-line-strong);
+    transition:background-color var(--fm-fast) var(--fm-ease); }
+  .fm-autofill-toggle[aria-checked=true] .fm-autofill-dot { background:var(--fm-accent); }
   .fm-settings-board { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); grid-auto-flow:dense;
     align-items:start; gap:12px; overflow-anchor:none; }
+  .fm-settings-board[data-auto-fill=true] { grid-auto-rows:1px; row-gap:0; column-gap:12px; }
+  .fm-settings-board[data-auto-fill=true] .fm-setting-tile { align-self:start; margin-bottom:12px; }
+  .fm-tile-frame { display:flex; flex-direction:column; min-width:0; }
   .fm-setting-tile { display:flex; flex-direction:column; min-width:0;
     background:var(--fm-surface); border:1px solid var(--fm-line); border-radius:var(--fm-r-lg);
     box-shadow:var(--fm-card-shadow),var(--fm-inner-rim);
@@ -838,6 +846,8 @@ export const css = `
   .fm-setting-tile[data-size=wide] .fm-tile-wide-grid { grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:18px; align-items:start; }
   @container fishfm (max-width:640px) {
     .fm-settings-board { grid-template-columns:1fr; }
+    .fm-settings-board[data-auto-fill=true] { grid-auto-rows:auto; row-gap:12px; }
+    .fm-settings-board[data-auto-fill=true] .fm-setting-tile { grid-row-end:auto!important; margin-bottom:0; }
     .fm-setting-tile[data-size=wide] { grid-column:auto; }
     .fm-setting-tile[data-size=wide] .fm-tile-wide-grid { grid-template-columns:1fr; }
     .fm-tile-widen-btn { display:none; }

@@ -1996,14 +1996,24 @@ test('modular settings layout starts compact, supports reorder/expand/widen with
     grip.props.onKeyDown({ key: 'ArrowUp', preventDefault() {} });
     assert.deepEqual([...f.controller.getSnapshot().settingsLayout.order].slice(0, 2), ['modes', 'network']);
 
+    // Toggle auto-fill masonry switch & verify persistence across client reload
+    const autoFillBtn = () => all(f.render()).find(n => n.props.role === 'switch' && n.children.includes('自动补齐空白'));
+    assert.equal(autoFillBtn().props['aria-checked'], true);
+    assert.equal(all(f.render()).find(n => n.props.className === 'fm-settings-board').props['data-auto-fill'], true);
+    autoFillBtn().props.onClick();
+    assert.equal(autoFillBtn().props['aria-checked'], false);
+    assert.equal(all(f.render()).find(n => n.props.className === 'fm-settings-board').props['data-auto-fill'], false);
+
     // Persists across client reload
     const restored = make();
     try {
       assert.deepEqual([...restored.controller.getSnapshot().settingsLayout.order].slice(0, 2), ['modes', 'network']);
       assert.equal(restored.controller.getSnapshot().settingsLayout.sizes.network, 'standard');
+      assert.equal(restored.controller.getSnapshot().settingsLayout.autoFill, false);
       restored.controller.resetSettingsLayout();
       assert.deepEqual([...restored.controller.getSnapshot().settingsLayout.order], ['modes', 'library', 'preferences', 'model', 'network', 'interface']);
       assert.equal(restored.controller.getSnapshot().settingsLayout.sizes.network, 'compact');
+      assert.equal(restored.controller.getSnapshot().settingsLayout.autoFill, true);
     } finally { restored.dispose(); }
   } finally { f.dispose(); }
 });
