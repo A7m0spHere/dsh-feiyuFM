@@ -411,17 +411,31 @@ export class MusicCore {
     const controller = new AbortController();
     this.abortController = controller;
     try {
-      const probe = await this.provider.checkPlayability(providerName, batch, { signal: controller.signal });
+      let targetBatch = batch;
+      if (typeof this.provider.joinLibraryWarmup === 'function') {
+        const warmed = await this.provider.joinLibraryWarmup(providerName, { signal: controller.signal });
+        if (version !== this.state.commandVersion || controller.signal.aborted) return false;
+        if (warmed && !warmed.skipped && warmed.checked > 0) {
+          const refreshedUnavailable = this.store.unavailableKeys?.(this.clock.now()) ?? new Set();
+          const checkedKeys = warmed.checkedKeys instanceof Set ? warmed.checkedKeys : null;
+          targetBatch = batch.filter(track => {
+            const key = trackId(track);
+            return !refreshedUnavailable.has(key) && !(checkedKeys?.has(key));
+          });
+          if (!targetBatch.length) return true;
+        }
+      }
+      const probe = await this.provider.checkPlayability(providerName, targetBatch, { signal: controller.signal });
       if (version !== this.state.commandVersion || controller.signal.aborted) return false;
       if (probe && !probe.skipped && Array.isArray(probe.unplayable) && probe.unplayable.length) {
-        const byKey = new Map(batch.map(track => [trackId(track), track]));
+        const byKey = new Map(targetBatch.map(track => [trackId(track), track]));
         const expiresAt = this.clock.now() + UNAVAILABLE_BACKOFF_MS.media_unavailable;
         for (const key of probe.unplayable) {
           const track = byKey.get(key);
           if (track) this.store.markUnavailable(track, 'media_unavailable', expiresAt);
         }
         this.onLog({ type: 'playback-playability-probe', provider: providerName,
-          checked: probe.checked ?? batch.length, playable: probe.playable?.length ?? 0, unplayable: probe.unplayable.length });
+          checked: probe.checked ?? targetBatch.length, playable: probe.playable?.length ?? 0, unplayable: probe.unplayable.length });
       }
       return true;
     } catch (error) {

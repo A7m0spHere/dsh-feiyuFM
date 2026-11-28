@@ -39,8 +39,36 @@ const accountIdOf = body => {
   return value === undefined || value === null || value === '' ? null : String(value);
 };
 
+const PROBED_128_CACHE_TTL_MS = 120_000;
+const PROBED_128_CACHE_LIMIT = 40;
+
 export function createQQProvider(options = {}) {
   const { transport, store, now = () => Date.now() } = options;
+  // Short-lived, account-scoped in-memory 128 kbps fallback cache populated by
+  // checkPlayability. Never leaves the provider or touches SQLite/snapshots.
+  const probed128Cache = new Map();
+  let contextProvider = () => '';
+  const readFresh128 = (mid, context = contextProvider()) => {
+    if (typeof mid !== 'string' || !mid) return null;
+    const cached = probed128Cache.get(mid);
+    if (!cached) return null;
+    if (cached.context !== context || cached.cacheUntil <= now()) {
+      probed128Cache.delete(mid);
+      return null;
+    }
+    return cached;
+  };
+  const remember128 = (mid, entry, context) => {
+    const url = entry?.url ?? entry?.purl;
+    if (typeof url !== 'string' || !url || entry?.preview === true) return;
+    const at = now();
+    const expiresAt = Number.isSafeInteger(entry.expiresIn) ? at + entry.expiresIn * 1000 : null;
+    const ttlUntil = at + PROBED_128_CACHE_TTL_MS;
+    const cacheUntil = expiresAt ? Math.min(ttlUntil, expiresAt - 30_000) : ttlUntil;
+    if (cacheUntil <= at) return;
+    probed128Cache.set(mid, { url, expiresAt, cacheUntil, context });
+    if (probed128Cache.size > PROBED_128_CACHE_LIMIT) probed128Cache.delete(probed128Cache.keys().next().value);
+  };
   const provider = createPlatformProvider({
     provider: QQ, displayName: 'QQ 音乐', labels: { firstSource: '喜欢歌曲' }, ...options,
     parse: {
@@ -84,7 +112,14 @@ export function createQQProvider(options = {}) {
         return { url: result?.url ?? result?.purl ?? null, reason: 'QQ 音乐暂未提供完整播放链接。',
           expiresInSeconds: Number.isSafeInteger(result?.expiresIn) ? result.expiresIn : null };
       },
-      resolveParams: ({ track }) => ({ songmid: track.providerTrackId, quality: '320' }),
+      resolveParams: ({ track }) => {
+        const cached = readFresh128(track.providerTrackId);
+        return {
+          songmid: track.providerTrackId,
+          quality: '320',
+          ...(cached && cached.cacheUntil > now() + 5_000 ? { skip128Fallback: true } : {}),
+        };
+      },
       lyrics: normalizeQQMusicLyrics,
     },
     seedSources: {
@@ -103,7 +138,45 @@ export function createQQProvider(options = {}) {
       ] },
     },
   });
+  contextProvider = () => provider.resourceContext();
   const baseAccount = provider.getAccount.bind(provider);
+  const baseResolve = provider.resolve.bind(provider);
+  provider.resolve = async (track, resolveOptions = {}) => {
+    const context = provider.resourceContext();
+    const mid = track?.provider === QQ ? track.providerTrackId : null;
+    const hadFresh128 = Boolean(mid && readFresh128(mid, context)?.cacheUntil > now() + 5_000);
+    try {
+      const resource = await baseResolve(track, resolveOptions);
+      if (mid) probed128Cache.delete(mid);
+      return resource;
+    } catch (error) {
+      if (error?.code === 'media_unavailable' && mid && provider.resourceContext() === context) {
+        const cached = readFresh128(mid, context);
+        if (cached) {
+          // One-shot consume: Core's resourceCache holds the live handle, and a
+          // subsequent forceResolve recovery must hit QQ upstream freshly.
+          probed128Cache.delete(mid);
+          return { handle: cached.url, expiresAt: cached.expiresAt, version: resolveOptions.version ?? null };
+        }
+        if (hadFresh128) {
+          // Cached 128 expired mid-flight while 320 was checked; retry once with full 320→128 fallback.
+          probed128Cache.delete(mid);
+          return await baseResolve(track, resolveOptions);
+        }
+      }
+      throw error;
+    }
+  };
+  const baseLogout = provider.logout.bind(provider);
+  provider.logout = async (...args) => {
+    probed128Cache.clear();
+    return baseLogout(...args);
+  };
+  const baseDispose = provider.dispose.bind(provider);
+  provider.dispose = (...args) => {
+    probed128Cache.clear();
+    return baseDispose(...args);
+  };
   let verified = !transport.requiresRestore || store?.getCredentialReference(QQ)?.state !== 'authorized';
   let restoreFailed = false;
   provider.getAccount = () => {
@@ -212,6 +285,7 @@ export function createQQProvider(options = {}) {
           if (!entry || typeof entry !== 'object') continue;
           checked++;
           const hasFullUrl = entry.preview !== true && Boolean(entry.url || entry.purl);
+          if (hasFullUrl) remember128(mid, entry, context);
           (hasFullUrl ? playable : unplayable).push(`${QQ}:${mid}`);
         }
       } catch (error) {

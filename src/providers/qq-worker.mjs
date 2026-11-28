@@ -35,6 +35,7 @@ parentPort.on('message', async message => {
       const headers = message.token ? { 'x-qq-session': message.token } : {};
       return handleRequest(new Request(url, { method: message.method ?? 'GET', headers, signal: controller.signal }), {
         QQ_SESSION_SECRET: message.sessionSecret,
+        QQ_PLAYBACK_HINTS_ENABLED: '0',
       });
     });
     const body = await response.text();

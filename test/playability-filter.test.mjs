@@ -435,3 +435,354 @@ test('NetEase checkPlayability expires stored credentials on HTTP 200 platform c
     store.close();
   }
 });
+
+test('QQ reuses short-lived in-memory 128 handle once when 320 fails, preserves 320 for VIP, and clears on logout or expiry', async () => {
+  const vault = memoryCredentials({ 'fishfm/qq': 'qqmusic_session=active' });
+  const store = new MusicStore();
+  let time = 100_000;
+  store.setCredentialReference({ provider: 'qq', accountId: '7', credentialRef: 'fishfm/qq', state: 'authorized', updatedAt: 1 });
+  const requests = [];
+  let quality320Available = false;
+  const upstream = {
+    async close() {},
+    async request(input) {
+      requests.push({ path: input.path, quality: input.query?.quality });
+      if (input.path === '/login/refresh') return { status: 200, body: { data: { rotated: false } } };
+      if (input.path === '/login/status') return { status: 200, body: { data: { profile: { str_musicid: '7' } } } };
+      if (input.path === '/getMusicPlay/free1,vip320,exp1') {
+        return {
+          status: 200,
+          body: {
+            data: {
+              playUrl: {
+                free1: { url: 'https://example.invalid/free1-128.mp3', expiresIn: 600 },
+                vip320: { url: 'https://example.invalid/vip320-128.mp3', expiresIn: 600 },
+                exp1: { url: 'https://example.invalid/exp1-128.mp3', expiresIn: 600 },
+              },
+            },
+          },
+        };
+      }
+      if (input.path === '/getMusicPlay/free1') {
+        return input.query.quality === '320'
+          ? { status: 200, body: { data: { playUrl: { free1: { url: '' } } } } }
+          : { status: 200, body: { data: { playUrl: { free1: { url: 'https://example.invalid/free1-fresh-128.mp3', expiresIn: 600 } } } } };
+      }
+      if (input.path === '/getMusicPlay/vip320') {
+        return quality320Available && input.query.quality === '320'
+          ? { status: 200, body: { data: { playUrl: { vip320: { url: 'https://example.invalid/vip320-320.mp3', expiresIn: 600 } } } } }
+          : { status: 200, body: { data: { playUrl: { vip320: { url: '' } } } } };
+      }
+      if (input.path === '/getMusicPlay/exp1') {
+        return input.query.quality === '320'
+          ? { status: 200, body: { data: { playUrl: { exp1: { url: '' } } } } }
+          : { status: 200, body: { data: { playUrl: { exp1: { url: 'https://example.invalid/exp1-fresh-128.mp3', expiresIn: 600 } } } } };
+      }
+      assert.fail(`unexpected path ${input.path}`);
+    },
+  };
+  const transport = createQQCommunityTransport({ credentials: vault, upstream, now: () => time });
+  const provider = createQQProvider({ store, credentials: vault, transport, now: () => time });
+  try {
+    await provider.restore();
+    const probed = await provider.checkPlayability([qqTrack('free1'), qqTrack('vip320'), qqTrack('exp1')]);
+    assert.deepEqual(probed.playable, ['qq:free1', 'qq:vip320', 'qq:exp1']);
+    assert.equal(JSON.stringify(probed).includes('example.invalid'), false, 'checkPlayability never leaks handles');
+
+    // 1. Free account: 320 fails, consumes cached 128 handle without a second 128 request.
+    requests.length = 0;
+    const first = await provider.resolve(qqTrack('free1'), { version: 1 });
+    assert.equal(first.handle, 'https://example.invalid/free1-128.mp3');
+    assert.deepEqual(requests, [{ path: '/getMusicPlay/free1', quality: '320' }]);
+
+    // 2. One-shot consume: a second resolve (e.g. recovery) must hit QQ upstream freshly.
+    requests.length = 0;
+    const recovery = await provider.resolve(qqTrack('free1'), { version: 2 });
+    assert.equal(recovery.handle, 'https://example.invalid/free1-fresh-128.mp3');
+    assert.deepEqual(requests, [
+      { path: '/getMusicPlay/free1', quality: '320' },
+      { path: '/getMusicPlay/free1', quality: '128' },
+    ]);
+
+    // 3. VIP account: 320 succeeds and is preferred over the cached 128 handle.
+    quality320Available = true;
+    requests.length = 0;
+    const vip = await provider.resolve(qqTrack('vip320'), { version: 3 });
+    assert.equal(vip.handle, 'https://example.invalid/vip320-320.mp3');
+    assert.deepEqual(requests, [{ path: '/getMusicPlay/vip320', quality: '320' }]);
+
+    // 4. Expired TTL (> 120s): does not reuse stale 128 handle.
+    time += 121_000;
+    requests.length = 0;
+    const expired = await provider.resolve(qqTrack('exp1'), { version: 4 });
+    assert.equal(expired.handle, 'https://example.invalid/exp1-fresh-128.mp3');
+    assert.deepEqual(requests, [
+      { path: '/getMusicPlay/exp1', quality: '320' },
+      { path: '/getMusicPlay/exp1', quality: '128' },
+    ]);
+
+    // 5. Logout clears cached handles.
+    await provider.checkPlayability([qqTrack('free1'), qqTrack('vip320'), qqTrack('exp1')]);
+    await provider.logout();
+    assert.equal(provider.getAccount().status, 'login_required');
+  } finally {
+    await provider.dispose();
+    store.close();
+  }
+});
+
+test('background library warmup runs after import and foreground fallback joins the in-flight probe without duplicating requests', async () => {
+  const store = new MusicStore();
+  let now = 200_000;
+  const gate = Promise.withResolvers();
+  const started = Promise.withResolvers();
+  let checkCalls = 0;
+  let aborted = false;
+  const qq = {
+    name: 'qq',
+    getAccount: () => ({ status: 'authorized', accountId: 'free-1' }),
+    getCapabilities: () => ({ recommendation: { status: 'available' } }),
+    resourceContext: () => '1:authorized:free-1',
+    async getSeedTracks() {
+      return { source: 'liked', sourceRef: '', requested: 3, imported: 3, degraded: false, attempts: [], tracks: [qqTrack('vip-1'), qqTrack('vip-2'), qqTrack('ok-1')] };
+    },
+    async resolve(track) {
+      if (track.providerTrackId === 'ok-1') return { handle: 'fake:ok-1' };
+      throw new MusicError('media_unavailable', 'restricted');
+    },
+    async checkPlayability(tracks, { signal }) {
+      checkCalls++;
+      signal?.addEventListener('abort', () => { aborted = true; }, { once: true });
+      started.resolve();
+      await gate.promise;
+      return {
+        playable: tracks.filter(t => t.providerTrackId === 'ok-1').map(t => `qq:${t.providerTrackId}`),
+        unplayable: tracks.filter(t => t.providerTrackId.startsWith('vip-')).map(t => `qq:${t.providerTrackId}`),
+        checked: tracks.length,
+        skipped: false,
+      };
+    },
+    async logout() { return { status: 'login_required' }; },
+  };
+  const registry = new ProviderRegistry({ providers: { qq } });
+  const facade = createProviderFacade({ registry, store, now: () => now });
+  const replies = new Map();
+  const host = createCoreHost({
+    store,
+    providerRegistry: registry,
+    platformsFacade: facade,
+    playbackMode: 'fake',
+    now: () => now,
+    clock: { now: () => now, sleep: async () => {} },
+    output: { write(line) { const msg = JSON.parse(line); if (msg.id) replies.set(msg.id, msg); } },
+  });
+  store.setSetting('recommendation_mode_v1', 'filtered');
+  store.setSetting('playback_source_v1', { version: 1, revision: 1, provider: 'qq' });
+  try {
+    await host.start();
+    // Import finishes immediately without waiting for background warmup.
+    await host.handle({ type: 'import-platform', id: 'imp-1', provider: 'qq', source: 'liked' });
+    assert.equal(replies.get('imp-1').ok, true);
+    await started.promise;
+    assert.equal(checkCalls, 1, 'import triggers one background library playability warmup');
+
+    // User clicks start while warmup is still running; fallback joins the same in-flight probe!
+    await host.handle({ type: 'command', id: 'start-1', command: { type: 'resume', commandId: 'start-during-warmup' } });
+    gate.resolve();
+    await host.core.waitForIdle();
+    assert.equal(checkCalls, 1, 'foreground fallback joins the in-flight warmup instead of firing a duplicate batch');
+    assert.equal(host.snapshot().status, 'playing');
+    assert.equal(host.snapshot().current.track.providerTrackId, 'ok-1');
+    assert.equal(store.isTrackAvailable(qqTrack('vip-1'), now), false);
+    assert.equal(store.isTrackAvailable(qqTrack('vip-2'), now), false);
+    assert.equal(aborted, false);
+  } finally {
+    gate.resolve();
+    await host.close();
+    store.close();
+  }
+});
+
+test('QQ resolve retries full 320->128 fallback when cached 128 handle expires mid-flight', async () => {
+  let time = 300_000;
+  const store = new MusicStore();
+  const vault = memoryCredentials({ 'fishfm/qq': 'qqmusic_session=active' });
+  store.setCredentialReference({ provider: 'qq', accountId: '7', credentialRef: 'fishfm/qq', state: 'authorized', updatedAt: 1 });
+  const requests = [];
+  let probeDone = false;
+  const upstream = {
+    async close() {},
+    async request(input) {
+      requests.push({ path: input.path, quality: input.query?.quality ?? null });
+      if (input.path === '/login/refresh') return { status: 200, body: { data: { rotated: false } } };
+      if (input.path === '/login/status') return { status: 200, body: { data: { profile: { str_musicid: '7' } } } };
+      if (input.path === '/getMusicPlay/edge1') {
+        if (!probeDone && input.query.quality === '128') {
+          probeDone = true;
+          return { status: 200, body: { data: { playUrl: { edge1: { url: 'https://example.invalid/edge1-128.mp3', expiresIn: 600 } } } } };
+        }
+        if (input.query.quality === '320') {
+          // Simulate slow 320 call crossing the 120s cache TTL boundary.
+          time += 125_000;
+          return { status: 200, body: { data: { playUrl: { edge1: { url: '' } } } } };
+        }
+        return { status: 200, body: { data: { playUrl: { edge1: { url: 'https://example.invalid/edge1-fresh-128.mp3', expiresIn: 600 } } } } };
+      }
+      assert.fail(`unexpected path ${input.path}`);
+    },
+  };
+  const transport = createQQCommunityTransport({ credentials: vault, upstream, now: () => time });
+  const provider = createQQProvider({ store, credentials: vault, transport, now: () => time });
+  try {
+    await provider.restore();
+    await provider.checkPlayability([qqTrack('edge1')]);
+    requests.length = 0;
+    const resolved = await provider.resolve(qqTrack('edge1'), { version: 1 });
+    assert.equal(resolved.handle, 'https://example.invalid/edge1-fresh-128.mp3');
+    assert.deepEqual(requests, [
+      { path: '/getMusicPlay/edge1', quality: '320' },
+      { path: '/getMusicPlay/edge1', quality: '320' },
+      { path: '/getMusicPlay/edge1', quality: '128' },
+    ]);
+  } finally {
+    await provider.dispose();
+    store.close();
+  }
+});
+
+test('fallback probe still checks tracks outside warmup checkedKeys in libraries larger than 20 tracks', async () => {
+  const store = new MusicStore();
+  let now = 400_000;
+  const probedBatches = [];
+  // Track IDs sort as t01-vip..t20-vip (warmed up), then t21-vip..t30-vip + t31-ok (unchecked by warmup).
+  const tracks = Array.from({ length: 31 }, (_, idx) => {
+    const n = String(idx + 1).padStart(2, '0');
+    return qqTrack(idx === 30 ? `t${n}-ok` : `t${n}-vip`);
+  });
+  const qq = {
+    name: 'qq',
+    getAccount: () => ({ status: 'authorized', accountId: 'free-big' }),
+    getCapabilities: () => ({ recommendation: { status: 'available' } }),
+    resourceContext: () => '1:authorized:free-big',
+    async getSeedTracks() {
+      return { source: 'liked', sourceRef: '', requested: tracks.length, imported: tracks.length, degraded: false, attempts: [], tracks };
+    },
+    async resolve(track) {
+      if (track.providerTrackId === 't31-ok') return { handle: 'fake:t31-ok' };
+      throw new MusicError('media_unavailable', 'restricted');
+    },
+    async checkPlayability(batch) {
+      probedBatches.push(batch.map(t => t.providerTrackId));
+      return {
+        playable: batch.filter(t => t.providerTrackId.endsWith('-ok')).map(t => `qq:${t.providerTrackId}`),
+        unplayable: batch.filter(t => t.providerTrackId.endsWith('-vip')).map(t => `qq:${t.providerTrackId}`),
+        checked: batch.length,
+        skipped: false,
+      };
+    },
+    async logout() { return { status: 'login_required' }; },
+  };
+  const registry = new ProviderRegistry({ providers: { qq } });
+  const facade = createProviderFacade({ registry, store, now: () => now });
+  const playback = new FakePlayback();
+  const clock = new FakeClock(now);
+  const core = new MusicCore({
+    store,
+    provider: facade,
+    playback,
+    clock,
+    selector: buildSelector({ store, now: () => clock.now(), rng: () => 0 }),
+  });
+  playback.onEvent(event => core.onPlaybackEvent(event));
+  store.setSetting('recommendation_mode_v1', 'filtered');
+  store.setSetting('playback_source_v1', { version: 1, revision: 1, provider: 'qq' });
+  try {
+    importSeedTracks({ store, provider: 'qq', source: 'liked', tracks, requested: tracks.length, now });
+    // Run the 20-track warmup (checks t01-vip..t20-vip only).
+    await facade.warmLibraryPlayability('qq', { force: true });
+    assert.equal(probedBatches.length, 1);
+    assert.equal(probedBatches[0].length, 20);
+    assert.equal(probedBatches[0].includes('t31-ok'), false);
+
+    // rng() => 0 picks t21-vip first, which fails; fallback probe MUST check remaining t22-vip..t31-ok and play t31-ok.
+    core.dispatch({ type: 'resume', commandId: 'start-big-lib' });
+    await core.waitForIdle();
+    assert.equal(probedBatches.length, 2, 'foreground fallback probes unchecked tracks beyond the first 20');
+    assert.equal(probedBatches[1].includes('t31-ok'), true);
+    assert.equal(core.snapshot().status, 'playing');
+    assert.equal(core.snapshot().current.track.providerTrackId, 't31-ok');
+  } finally {
+    await facade.closeDiscovery();
+    store.close();
+  }
+});
+
+test('force library warmup cancels an older in-flight warmup and probes the latest library', async () => {
+  const store = new MusicStore();
+  let now = 500_000;
+  const firstGate = Promise.withResolvers();
+  const firstStarted = Promise.withResolvers();
+  let firstAborted = false;
+  let importCount = 0;
+  const probedBatches = [];
+  const qq = {
+    name: 'qq',
+    getAccount: () => ({ status: 'authorized', accountId: 'free-reimport' }),
+    getCapabilities: () => ({ recommendation: { status: 'available' } }),
+    resourceContext: () => '1:authorized:free-reimport',
+    async getSeedTracks() {
+      importCount++;
+      const list = importCount === 1 ? [qqTrack('old-vip')] : [qqTrack('old-vip'), qqTrack('new-ok')];
+      return { source: 'liked', sourceRef: '', requested: list.length, imported: list.length, degraded: false, attempts: [], tracks: list };
+    },
+    async checkPlayability(batch, { signal }) {
+      const ids = batch.map(t => t.providerTrackId);
+      probedBatches.push(ids);
+      if (probedBatches.length === 1) {
+        signal?.addEventListener('abort', () => { firstAborted = true; }, { once: true });
+        firstStarted.resolve();
+        await firstGate.promise;
+        return { playable: [], unplayable: [], checked: 0, skipped: true };
+      }
+      return {
+        playable: ids.filter(id => id === 'new-ok').map(id => `qq:${id}`),
+        unplayable: ids.filter(id => id === 'old-vip').map(id => `qq:${id}`),
+        checked: ids.length,
+        skipped: false,
+      };
+    },
+    async logout() { return { status: 'login_required' }; },
+  };
+  const registry = new ProviderRegistry({ providers: { qq } });
+  const facade = createProviderFacade({ registry, store, now: () => now });
+  const host = createCoreHost({
+    store,
+    providerRegistry: registry,
+    platformsFacade: facade,
+    playbackMode: 'fake',
+    now: () => now,
+    clock: { now: () => now, sleep: async () => {} },
+    output: { write() {} },
+  });
+  store.setSetting('playback_source_v1', { version: 1, revision: 1, provider: 'qq' });
+  try {
+    await host.start();
+    await host.handle({ type: 'import-platform', id: 'imp-1', provider: 'qq', source: 'liked' });
+    await firstStarted.promise;
+
+    // A second import triggers warmLibraryPlayability(..., { force: true }) and cancels the older probe.
+    await host.handle({ type: 'import-platform', id: 'imp-2', provider: 'qq', source: 'liked' });
+    assert.equal(firstAborted, true, 'force warmup aborts the older in-flight warmup');
+    firstGate.resolve();
+    const joined = await facade.joinLibraryWarmup('qq');
+    assert.equal(joined?.checked, 2);
+    assert.equal(probedBatches.length, 2);
+    assert.deepEqual(probedBatches[1].sort(), ['new-ok', 'old-vip']);
+    assert.equal(store.isTrackAvailable(qqTrack('old-vip'), now), false);
+    assert.equal(store.isTrackAvailable(qqTrack('new-ok'), now), true);
+  } finally {
+    firstGate.resolve();
+    await host.close();
+    store.close();
+  }
+});

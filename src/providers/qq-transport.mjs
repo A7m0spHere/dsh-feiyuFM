@@ -62,14 +62,15 @@ export function createQQCommunityTransport({ credentials, getNetworkSettings = (
       retryable: typeof body?.retryable === 'boolean' ? body.retryable : response.status >= 500 || response.status === 429, details,
     });
   }
-  async function resolvePlayUrl(mid, options) {
+  async function resolvePlayUrl(mid, options, { skip128Fallback = false } = {}) {
     const path = `/getMusicPlay/${encodeURIComponent(mid)}`;
     try {
       const response = await invoke(path, { quality: '320' }, options);
       const entry = qqPlayEntry(response.body, mid);
       if (entry?.preview !== true && (entry?.url ?? entry?.purl)) return response;
+      if (skip128Fallback) return response;
     } catch (error) {
-      if (error.code !== 'media_unavailable') throw error;
+      if (error.code !== 'media_unavailable' || skip128Fallback) throw error;
     }
     return invoke(path, { quality: '128' }, options);
   }
@@ -155,7 +156,7 @@ export function createQQCommunityTransport({ credentials, getNetworkSettings = (
         const requestOptions = { signal: combined, candidate: role === 'lyrics' ? '' : candidate ?? session, role };
         let response;
         if (role === 'resolve') {
-          response = await resolvePlayUrl(params.songmid, requestOptions);
+          response = await resolvePlayUrl(params.songmid, requestOptions, { skip128Fallback: params.skip128Fallback === true });
         } else if (role === 'checkPlayability') {
           const mids = [...new Set((params.songmids ?? []).filter(id => typeof id === 'string' && /^[\w-]{1,80}$/.test(id)))].slice(0, 20);
           response = mids.length
