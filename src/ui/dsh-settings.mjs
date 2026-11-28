@@ -22,7 +22,7 @@ const NETWORK_PROXY_ENDPOINT = 'fishfm/network-proxy';
 const PLAYBACK_SOURCE_ENDPOINT = 'fishfm/playback-source';
 const FEEDBACK_ENDPOINTS = new Set(['fishfm/feedback-list','fishfm/feedback-clear']);
 const PERSONA_ENDPOINTS=new Set(['fishfm/persona-summary','fishfm/persona-recommendations','fishfm/persona-budget','fishfm/persona-output','fishfm/persona-automatic']);
-const PLATFORM_ENDPOINTS = new Set(['fishfm/login-start', 'fishfm/login-poll', 'fishfm/import', 'fishfm/logout', 'fishfm/discovery-refresh','fishfm/playlists']);
+const PLATFORM_ENDPOINTS = new Set(['fishfm/login-start', 'fishfm/login-poll', 'fishfm/import', 'fishfm/logout', 'fishfm/discovery-refresh','fishfm/playlists','fishfm/recover-legacy-music']);
 const SAFE_STAGES = new Set(['login_qr_key', 'login_qr_check', 'login_status', 'user_record', 'likelist', 'user_playlist', 'playlist_detail', 'song_detail',
   'accountInfo', 'recentTracks', 'likedTracks', 'playlists', 'playlistTracks', 'songDetails']);
 
@@ -243,7 +243,14 @@ export function createSettingsHandler(bridge,summaryService={current:null}) {
       if (PLATFORM_ENDPOINTS.has(endpoint)) {
         const provider = payload?.provider ?? QUICK_LOGIN_PROVIDER;
         if (!PROVIDERS.includes(provider)) throw Object.assign(new Error('不支持该音乐平台。'), { code: 'platform_unavailable' });
+        if (endpoint === 'fishfm/recover-legacy-music' && (!payload?.provider || account.accountRevision === undefined)) {
+          throw Object.assign(new Error('恢复旧版资料需要当前音乐账号。'), { code: 'invalid_command' });
+        }
         await bridge.start();
+        if (endpoint === 'fishfm/recover-legacy-music') {
+          const result = await bridge.request({ type: 'recover-legacy-music', provider, ...account }, { signal, abortable: true });
+          return { ok: true, value: { ...await readSettingsState(bridge, signal, payload?.library), legacyRestored: result.restored } };
+        }
         if(endpoint==='fishfm/playlists') {
           const listed=await bridge.request({type:'playlists',provider,...account},{signal,abortable:true,timeoutMs:40000});
           return {ok:true,value:{playlists:listed.playlists,...(await readSettingsState(bridge,signal,payload?.library))}};

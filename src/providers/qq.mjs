@@ -2,6 +2,7 @@ import { createPlatformProvider } from './platform.mjs';
 import { capability, needsLogin, toTrack } from './contract.mjs';
 import { MusicError, trackId } from '../contracts.mjs';
 import { normalizeQQMusicLyrics } from '../lyrics.mjs';
+import { qqPlayEntry } from './qq-transport.mjs';
 
 export const QQ = 'qq';
 export const QQ_ROLES = Object.freeze(['loginQr', 'loginPoll', 'accountInfo', 'recentTracks',
@@ -78,8 +79,7 @@ export function createQQProvider(options = {}) {
       searchParams: ({ query, limit }) => ({ keyword: query, type: 'song', limit: Math.min(20, limit), page: 1 }),
       search: qqRows,
       playUrl: (body, track) => {
-        const data = unwrap(body);
-        const result = data?.playUrl ? data.playUrl[track.providerTrackId] : data;
+        const result = qqPlayEntry(body, track.providerTrackId);
         if (result?.preview === true) throw new MusicError('media_unavailable', 'QQ 音乐仅提供试听片段。');
         return { url: result?.url ?? result?.purl ?? null, reason: 'QQ 音乐暂未提供完整播放链接。',
           expiresInSeconds: Number.isSafeInteger(result?.expiresIn) ? result.expiresIn : null };

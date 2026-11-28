@@ -29,6 +29,13 @@ export function initializeRecentPlayback(store){
  store.setSetting(RECENT_PLAYBACK_KEY,{version:1,entries:recentPlayback(store)});
 }
 
+export function mergeHistoricalPlayback(store, recent) {
+ const existing = new Set(recent.map(entry => entry.playInstanceId));
+ store.removeSetting(RECENT_PLAYBACK_KEY);
+ const earlier = recentPlayback(store).filter(entry => !existing.has(entry.playInstanceId));
+ store.setSetting(RECENT_PLAYBACK_KEY,{version:1,entries:[...earlier,...recent].slice(-RECENT_PLAYBACK_LIMIT)});
+}
+
 /** A resumed/recovered instance keeps its original place in the window. */
 export function recordPlaybackStart(store,current,at){
  const entries=recentPlayback(store);

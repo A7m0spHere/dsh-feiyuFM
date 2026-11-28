@@ -65,6 +65,10 @@ export function PlatformAccount({ id, title, state, controller, regionRef }) {
       (pending || ['waiting', 'scanned'].includes(login.status))
         && h('button', { type: 'button', className: 'fm-button fm-subtle', disabled: !state.connected, onClick: () => act('logout') }, '取消登录')),
     !login && pending && h('button', { type: 'button', className: 'fm-button fm-subtle', disabled: !state.connected, onClick: () => act('logout') }, '取消登录'),
+    active && authorized && platform?.legacyRecoveryAvailable && h('div', { className: 'fm-import' },
+      h('p', { className: 'fm-note' }, '这台设备有未关联账号的旧版曲库、反馈或播放历史。请确认当前登录的是原账号。'),
+      h('button', { type: 'button', className: 'fm-button', disabled,
+        onClick: () => act('recoverLegacy') }, '恢复旧版资料到当前账号')),
     own.imported && h('div', { className: 'fm-import', role: 'status' },
       `最近导入 ${sourceNames[own.imported.source] ?? '平台音乐'}，新增 ${own.imported.imported ?? 0} 首。`,
       own.imported.reason ? h('p', { className: 'fm-note' }, own.imported.reason) : null),

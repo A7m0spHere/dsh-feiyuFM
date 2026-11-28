@@ -345,3 +345,52 @@ test('host shutdown invalidates playback before disposing a QQ runtime with an i
     assert.equal(host.core.resourceCache.size, 0);
   } finally { await host.close(); store.close(); }
 });
+
+
+test('QQ full-track resolution falls back once on missing 320 kbps media and rejects preview and auth errors', async () => {
+  const vault = credentials();
+  const store = new MusicStore();
+  vault.write('fishfm/qq', 'qqmusic_session=active');
+  store.setCredentialReference({ provider: 'qq', accountId: '7', credentialRef: 'fishfm/qq', state: 'authorized', updatedAt: 1 });
+  const qualities = [];
+  let scenario = 'standard-only';
+  const transport = createQQCommunityTransport({ credentials: vault, upstream: {
+    async close() {},
+    async request({ path, query }) {
+      if (path === '/login/refresh') return { status: 200, body: { data: { rotated: false } } };
+      if (path === '/login/status') return { status: 200, body: { data: { profile: { str_musicid: '7' } } } };
+      assert.equal(path, '/getMusicPlay/songMID');
+      qualities.push(query.quality);
+      if (scenario === 'unauthorized') return { status: 401, body: {} };
+      if (scenario === 'unavailable' && query.quality === '320') return { status: 422, body: {} };
+      const url = 'https://example.invalid/' + query.quality + '.mp3';
+      const entry = scenario === 'preview' ? { url, preview: true }
+        : scenario === 'standard-only' && query.quality === '320' ? { url: '' }
+          : { url };
+      return { status: 200, body: { data: { playUrl: { songMID: entry } } } };
+    },
+  } });
+  const provider = createQQProvider({ store, credentials: vault, transport });
+  const song = track('qq', 'songMID');
+  try {
+    await provider.restore();
+    assert.equal((await provider.resolve(song)).handle, 'https://example.invalid/128.mp3');
+    assert.deepEqual(qualities.splice(0), ['320', '128']);
+
+    scenario = 'unavailable';
+    assert.equal((await provider.resolve(song)).handle, 'https://example.invalid/128.mp3');
+    assert.deepEqual(qualities.splice(0), ['320', '128']);
+
+    scenario = 'both';
+    assert.equal((await provider.resolve(song)).handle, 'https://example.invalid/320.mp3');
+    assert.deepEqual(qualities.splice(0), ['320']);
+
+    scenario = 'preview';
+    await assert.rejects(provider.resolve(song), { code: 'media_unavailable' });
+    assert.deepEqual(qualities.splice(0), ['320', '128']);
+
+    scenario = 'unauthorized';
+    await assert.rejects(provider.resolve(song), { code: 'login_required' });
+    assert.deepEqual(qualities, ['320']);
+  } finally { await provider.dispose(); store.close(); }
+});

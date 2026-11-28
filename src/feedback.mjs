@@ -6,7 +6,7 @@ import { initializeAgentPreferences } from './taste.mjs';
 export const FEEDBACK_WEIGHT = Object.freeze({ liked: 0.25, reduced: -0.75 });
 const REVISION_KEY = 'feedback_revision_v1';
 export function feedbackRevision(store) { return store.getSetting(REVISION_KEY, 0); }
-function advanceFeedbackRevision(store) {
+export function advanceFeedbackRevision(store) {
   const revision = feedbackRevision(store);
   if (!Number.isSafeInteger(revision) || revision < 0 || revision === Number.MAX_SAFE_INTEGER) {
     throw new MusicError('feedback_unavailable', '反馈版本无法更新，请检查本机数据。');

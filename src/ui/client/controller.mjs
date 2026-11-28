@@ -651,7 +651,8 @@ export function createController(connection, { onPlaybackTrace = null } = {}) {
     async platformAction(action, provider, options = {}) {
       if (disposed || state.busy || !state.connected || !['netease', 'qq'].includes(provider)) return;
       const endpoint = ({ begin: 'fishfm/login-start', poll: 'fishfm/login-poll', import: 'fishfm/import',
-        restore: 'fishfm/login-poll', logout: 'fishfm/logout', discovery: 'fishfm/discovery-refresh', playlists: 'fishfm/playlists' })[action];
+        restore: 'fishfm/login-poll', logout: 'fishfm/logout', discovery: 'fishfm/discovery-refresh', playlists: 'fishfm/playlists',
+         recoverLegacy: 'fishfm/recover-legacy-music' })[action];
       if (!endpoint || (platformWrites.has(provider) && action !== 'logout')) return;
       platformWrites.get(provider)?.abort();
       const request = new AbortController();
@@ -661,6 +662,7 @@ export function createController(connection, { onPlaybackTrace = null } = {}) {
       const accountRevision = state.snapshot?.musicAccount?.revision;
       const attemptId = !state.snapshot?.musicAccount?.provider ? state.platformStates[provider]?.login?.attemptId : undefined;
       let libraryVersion = libraryEpoch;
+      const updatesLibrary = action === 'import' || action === 'recoverLegacy';
       const title = provider === 'qq' ? 'QQ 音乐' : '网易云音乐';
       const update = patch => {
         const own = { ...(state.platformStates[provider] ?? {}), ...patch };
@@ -669,7 +671,8 @@ export function createController(connection, { onPlaybackTrace = null } = {}) {
             imported: own.imported ?? null, importAttempts: own.importAttempts ?? [], notice: own.notice ?? state.notice } : {}) });
       };
       ++platformEpoch;
-      update({ busy: true, error: '', notice: action === 'begin' ? `正在向${title}申请二维码…` : '正在读取平台资料…' });
+      update({ busy: true, error: '', notice: action === 'begin' ? `正在向${title}申请二维码…`
+        : action === 'recoverLegacy' ? '正在恢复旧版资料…' : '正在读取平台资料…' });
       emit({ platformBusy: true, error: '' });
       const timeout = setTimeout(() => request.abort(), action === 'import' ? 120000 : 45000);
       try {
@@ -682,21 +685,23 @@ export function createController(connection, { onPlaybackTrace = null } = {}) {
         if (!result.ok) throw result.error;
         if (result.value?.snapshot?.musicAccount?.revision < state.snapshot?.musicAccount?.revision) return;
         ++platformEpoch;
-        const value = action === 'import' ? libraryWriteReply(result.value, libraryVersion) : result.value;
-        if (action === 'import') libraryVersion = libraryEpoch;
+        if (action === 'recoverLegacy' && result.value?.snapshot?.musicAccount?.revision !== accountRevision) return;
+        const value = updatesLibrary ? libraryWriteReply(result.value, libraryVersion) : result.value;
+        if (updatesLibrary) libraryVersion = libraryEpoch;
         const previous = state.platformStates[provider] ?? (provider === 'netease' ? { login: state.login } : {});
         const login = Object.hasOwn(value, 'login') ? value.login : previous.login;
         if (action === 'poll' && login) login.qrImage = previous.login?.qrImage;
         const projected = project(value, libraryVersion, playbackVersion);
-        for (const key of ['login', 'playlists', 'imported', 'attempts', 'platforms']) delete projected[key];
+        for (const key of ['login', 'playlists', 'imported', 'attempts', 'platforms', 'legacyRestored']) delete projected[key];
         const platforms = value.snapshot?.musicAccount && value.platforms ? { ...value.platforms } : { ...state.platforms };
         if (value.platformError) delete platforms[provider];
         else if (value.platforms?.[provider]) platforms[provider] = value.platforms[provider];
         emit({ ...projected, platforms,
-          ...(action === 'import' ? { libraryBusy: false, libraryError: projected.libraryError ?? '' } : {}), connected: true });
+          ...(updatesLibrary ? { libraryBusy: false, libraryError: projected.libraryError ?? '' } : {}), connected: true });
         const notice = action === 'logout' ? `已退出${provider === 'netease' ? '网易云' : title}账号，本机凭据已删除。`
           : action === 'import' ? `已读取 ${value.imported?.imported ?? 0} 首，当前曲库共 ${value.imported?.total ?? 0} 首。`
-            : action === 'playlists' ? `已读取 ${value.playlists?.length ?? 0} 个歌单。`
+            : action === 'recoverLegacy' ? (value.legacyRestored ? '已将旧版资料恢复到当前账号。' : '没有待恢复的旧版资料。')
+              : action === 'playlists' ? `已读取 ${value.playlists?.length ?? 0} 个歌单。`
               : login?.status === 'authorized' ? '登录成功，可以导入音乐。'
                 : login?.status === 'scanned' ? '已扫码，请在手机上确认。'
                   : login?.status === 'expired' ? '二维码已过期，请重新获取。'
@@ -731,6 +736,7 @@ export function createController(connection, { onPlaybackTrace = null } = {}) {
         const recovered = Boolean(latest.snapshot);
         delete latest.platforms;
         const notices = { import: '导入未确认完成，请核对曲库后重试。', playlists: '读取歌单失败，请稍后重试。',
+           recoverLegacy: '恢复未确认完成，请核对曲库后重试。',
           discovery: '刷新推荐失败，请稍后重试。', logout: error.code === 'credential_cleanup_failed'
             ? '账号已退出，本机凭据清理失败，请重试清理。' : '退出登录未确认，请刷新核对账号状态。',
           begin: '获取二维码失败，请重试。', poll: '登录步骤未完成，可重新扫码或刷新重试。' };

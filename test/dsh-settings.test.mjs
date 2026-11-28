@@ -255,9 +255,10 @@ test('desktop exact routes coexist with the Gateway and validate RPC envelopes b
       } },
     },
   }, bridge);
-  assert.equal(routes.size, 21);
+  assert.equal(routes.size, 22);
   assert.equal(routes.has('/api/fishfm/lyrics'), true);
   assert.equal(routes.has('/api/fishfm/network-proxy'), true);
+  assert.equal(routes.has('/api/fishfm/recover-legacy-music'), true);
   assert.equal(routes.has('/api/session/create'), false);
   const path = '/api/fishfm/command';
   const request = body => new Request(`http://localhost${path}`, {

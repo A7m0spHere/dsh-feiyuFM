@@ -1939,3 +1939,32 @@ test('the panel switches through logout and drops the previous account library e
     assert.equal(f.controller.getSnapshot().library.total, 0);
   } finally { f.dispose(); }
 });
+
+
+test('the old-data recovery button claims explicitly for the current account and refreshes the library', async () => {
+  const accountRevision = 1;
+  let claimed = false;
+  const f = fixture(async (_channel, endpoint, payload) => {
+    if (endpoint === 'fishfm/recover-legacy-music') {
+      assert.deepEqual([payload.provider, payload.accountRevision], ['netease', accountRevision]);
+      claimed = true;
+    }
+    return { ok: true, value: {
+      snapshot: { ...snapshot(claimed ? 2 : 1), musicAccount: { provider: 'netease', revision: accountRevision } },
+      platforms: { netease: { installed: true, account: { status: 'authorized' }, legacyRecoveryAvailable: !claimed } },
+      library: { accountRevision, total: claimed ? 1 : 0, tracks: claimed ? [{ provider: 'netease', providerTrackId: '1', title: 'Recovered' }] : [] },
+      ...(endpoint === 'fishfm/recover-legacy-music' ? { legacyRestored: true } : {}),
+    } };
+  });
+  try {
+    await f.controller.refresh();
+    all(f.render()).find(n => n.type === 'button' && n.children.includes('电台设置')).props.onClick();
+    const recoveryButton = () => all(f.render()).find(n => n.type === 'button' && n.children.includes('恢复旧版资料到当前账号'));
+    assert.equal(claimed, false);
+    assert.equal(recoveryButton().props.disabled, false);
+    await recoveryButton().props.onClick();
+    assert.equal(claimed, true);
+    assert.equal(f.controller.getSnapshot().library.tracks[0].title, 'Recovered');
+    assert.equal(recoveryButton(), undefined);
+  } finally { f.dispose(); }
+});

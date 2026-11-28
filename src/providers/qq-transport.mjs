@@ -11,6 +11,11 @@ const ROUTES = Object.freeze({
 const RUNTIME_REFERENCE = 'fishfm/qq-runtime';
 const isNumericSongId = value => /^\d{1,15}$/.test(String(value ?? '')) && Number(value) > 0;
 
+export function qqPlayEntry(body, mid) {
+  const data = body?.req_0?.data ?? body?.data ?? body;
+  return data?.playUrl ? data.playUrl[mid] : data;
+}
+
 export function createQQCommunityTransport({ credentials, getNetworkSettings = () => ({ mode: 'direct', url: '' }),
   upstream = createQQUpstream(), now = () => Date.now() } = {}) {
   let runtimeSecret;
@@ -56,6 +61,17 @@ export function createQQCommunityTransport({ credentials, getNetworkSettings = (
     throw new MusicError(code, messages[code] ?? 'QQ 音乐接口请求失败，请稍后重试。', {
       retryable: typeof body?.retryable === 'boolean' ? body.retryable : response.status >= 500 || response.status === 429, details,
     });
+  }
+  async function resolvePlayUrl(mid, options) {
+    const path = `/getMusicPlay/${encodeURIComponent(mid)}`;
+    try {
+      const response = await invoke(path, { quality: '320' }, options);
+      const entry = qqPlayEntry(response.body, mid);
+      if (entry?.preview !== true && (entry?.url ?? entry?.purl)) return response;
+    } catch (error) {
+      if (error.code !== 'media_unavailable') throw error;
+    }
+    return invoke(path, { quality: '128' }, options);
   }
   async function refresh(signal) {
     if (!session || (refreshedAt !== null && now() - refreshedAt < 60 * 60_000)) return;
@@ -117,9 +133,9 @@ export function createQQCommunityTransport({ credentials, getNetworkSettings = (
         }
         if (role === 'loginPoll') return await invoke('/login/qr/check', { key: params.key }, { signal: combined, candidate: '', role });
         if (role !== 'lyrics' && !candidate) await refresh(combined);
-        const path = role === 'resolve' ? `/getMusicPlay/${encodeURIComponent(params.songmid)}` : ROUTES[role];
-        if (!path) throw new MusicError('capability_unavailable', 'QQ 暂不支持该操作。');
-        let query = role === 'resolve' ? { quality: '320' } : params;
+        const path = ROUTES[role];
+        if (role !== 'resolve' && !path) throw new MusicError('capability_unavailable', 'QQ 暂不支持该操作。');
+        let query = params;
         if (role === 'lyrics') query = { songmid: params.id, trans: 1 };
         if (role === 'similarRecommendations') {
           // Playback and storage use MID. The similarity endpoint takes a numeric song ID.
@@ -137,7 +153,8 @@ export function createQQCommunityTransport({ credentials, getNetworkSettings = (
           query = { id };
         }
         const requestOptions = { signal: combined, candidate: role === 'lyrics' ? '' : candidate ?? session, role };
-        let response = await invoke(path, query, requestOptions);
+        let response = role === 'resolve' ? await resolvePlayUrl(params.songmid, requestOptions)
+          : await invoke(path, query, requestOptions);
         if (['likedTracks', 'playlistTracks'].includes(role)) {
           const wanted = Math.min(1000, Math.max(1, Number.isSafeInteger(params.limit) ? params.limit : 300));
           const songs = [...(response.body?.songs ?? [])];

@@ -24,7 +24,7 @@ import { createSessionRegistry, mayStartPlayback } from './sessions.mjs';
 import { createHttpTransport } from './providers/transport.mjs';
 import { createNetworkClient, networkProxyView, saveNetworkProxy } from './network.mjs';
 import { playbackSourceView, savePlaybackSource, isRecommendationSource } from './playback-source.mjs';
-import { activateMusicAccount, initializeMusicAccount, musicAccount, requireCurrentMusicAccount } from './music-account.mjs';
+import { activateMusicAccount, hasLegacyMusicData, initializeMusicAccount, musicAccount, recoverLegacyMusicData, requireCurrentMusicAccount } from './music-account.mjs';
 import { NETEASE_ORIGIN } from './providers/endpoints/netease.mjs';
 import { createNetEaseProvider } from './providers/netease.mjs';
 import { createQQProvider } from './providers/qq.mjs';
@@ -856,6 +856,10 @@ export function createCoreHost({
           const view = platformsFacade.platforms();
           const pending = accountIsolation && loginAttempt && view.platforms[loginAttempt.provider];
           if (pending && !pending.account.pending) pending.account = { ...pending.account, pending: true };
+          const active = accountIsolation ? musicAccount(store) : null;
+          const current = active?.provider && view.platforms[active.provider];
+          if (current?.account.status === 'authorized' && current.account.accountId === active.accountId
+            && hasLegacyMusicData(store, active.provider)) current.legacyRecoveryAvailable = true;
           send({ type: 'result', id, ok: true, ...view });
           return;
         }
@@ -911,6 +915,18 @@ export function createCoreHost({
             publishIfChanged();
           }
           send({ type: 'result', id, ok: true, status: result.status, account: accountProvider.getAccount() });
+          return;
+        }
+        case 'recover-legacy-music': {
+          requireFacade();
+          checkPlatformAccess(message);
+          const restored = recoverLegacyMusicData(store, message.provider, message.accountRevision);
+          if (restored) {
+            ++inputEpoch;
+            if (recommendationMode(store) === 'filtered') platformsFacade.clearDiscovery();
+            updateAccount();
+          }
+          send({ type: 'result', id, ok: true, restored });
           return;
         }
         case 'import-platform': {
@@ -1203,7 +1219,7 @@ export function createCoreHost({
     handle: (message) => {
       const inputVersion = inputEpoch;
       if (accountIsolation && message.type === 'login') return handle(message, inputVersion);
-      return ['lyrics','command','snapshot','platforms','library','account','environment','insights','expression-style','playback-source','network-proxy','feedback-list','feedback-clear','persona','recommendation-route','persona-budget','persona-output','persona-automatic','persona-reserve','persona-start','persona-finish','sessions','discovery','discovery-filter-status','logout','shutdown','wait','autonomous','session-event','setQueue'].includes(message.type)
+      return ['lyrics','command','snapshot','platforms','library','account','environment','insights','expression-style','playback-source','network-proxy','feedback-list','feedback-clear','persona','recommendation-route','persona-budget','persona-output','persona-automatic','persona-reserve','persona-start','persona-finish','sessions','discovery','discovery-filter-status','logout','recover-legacy-music','shutdown','wait','autonomous','session-event','setQueue'].includes(message.type)
         ? handle(message, inputVersion) : enqueue(message.provider ?? 'default', () => handle(message, inputVersion));
     },
     close,

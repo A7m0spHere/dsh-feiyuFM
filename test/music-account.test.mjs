@@ -3,6 +3,9 @@ import test from 'node:test';
 import { MusicStore } from '../src/storage.mjs';
 import { createCoreHost, createProviderFacade, ProviderRegistry } from '../src/core-host.mjs';
 import { createQQProvider } from '../src/providers/qq.mjs';
+import { createNetEaseProvider } from '../src/providers/netease.mjs';
+import { createSettingsHandler } from '../src/ui/dsh-settings.mjs';
+import { recentPlayback } from '../src/recent-playback.mjs';
 import { createDiscoveryCache } from '../src/discovery.mjs';
 import { mergeApprovedFilter } from '../src/approved-pool.mjs';
 import { activateMusicAccount, initializeMusicAccount } from '../src/music-account.mjs';
@@ -156,4 +159,83 @@ test('legacy rows are assigned through saved account references and unowned rows
     activateMusicAccount(store, 'netease', 'known');
     assert.ok(store.getEnvironmentEntry(oldNetEase));
   } finally { store.close(); }
+});
+
+
+test('an expired v11 NetEase account explicitly recovers its legacy data without claiming QQ data', async () => {
+  const store = new MusicStore();
+  const secrets = new Map([['fishfm/netease', 'MUSIC_U=expired']]);
+  const credentials = {
+    read: key => secrets.get(key),
+    write: (key, value) => secrets.set(key, value),
+    delete(key) { secrets.delete(key); return true; },
+  };
+  const netease = createNetEaseProvider({ store, credentials, transport: { async request() { assert.fail('unexpected NetEase request'); } },
+    communityApi: {
+      async login_qr_key() { return { body: { code: 200, data: { unikey: 'fixture' } } }; },
+      async login_qr_check() { return { body: { code: 803, cookie: 'MUSIC_U=new' } }; },
+      async login_status() { return { body: { code: 200, data: { profile: { userId: 42 } } } }; },
+    },
+  });
+  const registry = new ProviderRegistry({ providers: { netease } });
+  const replies = new Map();
+  const host = createCoreHost({ store, providerRegistry: registry, platformsFacade: createProviderFacade({ registry, store }),
+    accountIsolation: true, playbackMode: 'fake', output: { write(line) { const result = JSON.parse(line); replies.set(result.id, result); } } });
+  let serial = 0;
+  const request = async message => { const id = 'recovery-' + ++serial; await host.handle({ ...message, id }); return replies.get(id); };
+  const api = createSettingsHandler({ async start() {}, async request(message) {
+    const result = await request(message);
+    if (!result.ok) throw Object.assign(new Error(result.error.message), result.error);
+    return result;
+  } });
+  const primary = { ...qqTrack('111'), provider: 'netease' };
+  const backup = { ...qqTrack('222'), provider: 'netease' };
+  const history = (playInstanceId, endedAt) => ({ playInstanceId, track: primary, selectedBy: 'user',
+    progressSource: 'audio', effectiveMs: 60_000, agentListening: true, audible: true, endReason: 'ended', endedAt });
+  try {
+    // Version 11 preserved the library after expiration and cleared its account ID.
+    store.db.exec('DROP TABLE music_account_archive; DELETE FROM schema_migrations WHERE version=12; PRAGMA user_version=11');
+    store.setCredentialReference({ provider: 'netease', accountId: null, credentialRef: 'fishfm/netease', state: 'expired', updatedAt: 1 });
+    importSeedTracks({ store, provider: 'netease', source: 'liked', tracks: [primary, backup], requested: 2, now: 1 });
+    importSeedTracks({ store, provider: 'qq', source: 'liked', tracks: [qqTrack('unclaimed')], requested: 1, now: 1 });
+    store.recordHistory(history('legacy-play', 100_000));
+    store.db.prepare('INSERT INTO user_track_feedback VALUES (?, ?, ?)').run('netease:111', 1, 1);
+    store.db.prepare('INSERT INTO user_track_feedback VALUES (?, ?, ?)').run('netease:222', 1, 1);
+    store.setSetting('persona_summary_v1', { text: 'Unassigned model data' });
+    store.migrate();
+
+    await host.start();
+    const loggedOutRevision = host.snapshot().musicAccount.revision;
+    const restore = accountRevision => api('fishfm/recover-legacy-music', { provider: 'netease', accountRevision });
+    assert.equal((await restore(loggedOutRevision)).error.code, 'login_required');
+    const begun = await request({ type: 'login', provider: 'netease', step: 'begin' });
+    const signedIn = await request({ type: 'login', provider: 'netease', step: 'poll', attemptId: begun.login.attemptId });
+    assert.equal(signedIn.status, 'authorized');
+    assert.equal(signedIn.login.accountId, '42');
+    assert.equal((await request({ type: 'platforms' })).platforms.netease.legacyRecoveryAvailable, true);
+    assert.equal(store.countEnvironment(), 0);
+    assert.equal(store.getHistory('legacy-play'), null);
+    assert.equal((await restore(loggedOutRevision)).error.code, 'music_account_changed');
+
+    importSeedTracks({ store, provider: 'netease', source: 'recent', tracks: [primary], requested: 1, now: 2 });
+    store.recordHistory(history('current-play', 200_000));
+    store.db.prepare('INSERT INTO user_track_feedback VALUES (?, ?, ?)').run('netease:111', -1, 2);
+    const accountRevision = host.snapshot().musicAccount.revision;
+    const recovered = await restore(accountRevision);
+    assert.equal(recovered.value?.legacyRestored, true, JSON.stringify(recovered.error));
+    assert.equal(recovered.value.platforms.netease.legacyRecoveryAvailable, undefined);
+    assert.equal(store.countEnvironment(), 2);
+    assert.equal(store.getEnvironmentEntry(primary).source, 'recent');
+    assert.deepEqual(store.listEnvironmentSources(primary).map(row => row.source), ['liked', 'recent']);
+    assert.equal(store.getTrackStats(primary).effective_ms, 120_000);
+    assert.equal(store.getHistory('legacy-play').track_key, 'netease:111');
+    assert.deepEqual(recentPlayback(store).map(entry => entry.playInstanceId), ['legacy-play', 'current-play']);
+    assert.deepEqual([...store.feedbackScores()], [['netease:111', -1], ['netease:222', 1]]);
+    assert.equal(store.getSetting('feedback_revision_v1'), 1);
+    assert.equal(store.getSetting('persona_summary_v1', null), null);
+    assert.equal(store.getEnvironmentEntry(qqTrack('unclaimed')), null);
+    assert.equal(store.db.prepare("SELECT COUNT(*) AS count FROM music_account_archive WHERE account_key='legacy' AND table_name='user_environment'").get().count, 1);
+    assert.equal((await restore(accountRevision)).value.legacyRestored, false);
+    assert.equal(store.getTrackStats(primary).effective_ms, 120_000);
+  } finally { await host.close(); store.close(); }
 });
